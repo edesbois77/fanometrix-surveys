@@ -6,13 +6,22 @@ import Papa from "papaparse";
 type Response = {
   id: string;
   campaign_id: string;
+  survey_id: string | null;
+  question_set_id: string | null;
+  publisher: string | null;
+  placement: string | null;
+  club: string | null;
+  competition: string | null;
   q1: string | null;
   q2: string | null;
   q3: string | null;
   country: string | null;
   fan_segment: string | null;
-  publisher: string | null;
-  placement: string | null;
+  age_band: string | null;
+  gender: string | null;
+  device: string | null;
+  browser: string | null;
+  response_duration_seconds: number | null;
   created_at: string;
 };
 
@@ -79,15 +88,24 @@ export default function DashboardPage() {
     const csv = Papa.unparse(
       responses.map((r) => ({
         id: r.id,
+        submitted_at: r.created_at,
         campaign_id: r.campaign_id,
+        survey_id: r.survey_id,
+        question_set_id: r.question_set_id,
         publisher: r.publisher,
         placement: r.placement,
+        club: r.club,
+        competition: r.competition,
         q1: r.q1,
         q2: r.q2,
         q3: r.q3,
         country: r.country,
         fan_segment: r.fan_segment,
-        submitted_at: r.created_at,
+        age_band: r.age_band,
+        gender: r.gender,
+        device: r.device,
+        browser: r.browser,
+        response_duration_seconds: r.response_duration_seconds,
       }))
     );
     const blob = new Blob([csv], { type: "text/csv" });

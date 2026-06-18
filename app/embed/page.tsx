@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, Suspense } from "react";
+import { useState, useEffect, useRef, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 
 const QUESTIONS = [
@@ -21,6 +21,37 @@ const QUESTIONS = [
   },
 ];
 
+const COUNTRY_CODES: Record<string, string> = {
+  GB: "United Kingdom", US: "United States", FR: "France", DE: "Germany",
+  ES: "Spain", IT: "Italy", BR: "Brazil", AR: "Argentina", AU: "Australia",
+  JP: "Japan", NL: "Netherlands", BE: "Belgium", PT: "Portugal", MX: "Mexico",
+  ZA: "South Africa", NG: "Nigeria", IN: "India", CA: "Canada",
+};
+
+function resolveCountry(val: string): string {
+  if (!val) return "";
+  return COUNTRY_CODES[val.toUpperCase()] ?? val;
+}
+
+function detectDevice(): string {
+  const ua = navigator.userAgent;
+  if (/tablet|ipad|playbook|silk/i.test(ua)) return "tablet";
+  if (/mobile|iphone|ipod|android.*mobile|blackberry|iemobile/i.test(ua)) return "mobile";
+  return "desktop";
+}
+
+function detectBrowser(): string {
+  const ua = navigator.userAgent;
+  if (/edg\//i.test(ua))                    return "Edge";
+  if (/opr\//i.test(ua))                    return "Opera";
+  if (/chrome|chromium|crios/i.test(ua))    return "Chrome";
+  if (/firefox|fxios/i.test(ua))            return "Firefox";
+  if (/safari/i.test(ua))                   return "Safari";
+  return "Other";
+}
+
+// ─── Styles ────────────────────────────────────────────────────────────────
+
 const S = {
   wrap: {
     width: 300,
@@ -36,8 +67,9 @@ const S = {
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
-    padding: "9px 12px 7px",
+    padding: "8px 12px 6px",
     borderBottom: "1px solid rgba(255,255,255,0.1)",
+    flexShrink: 0,
   },
   logo: {
     color: "#fff",
@@ -54,25 +86,41 @@ const S = {
     borderRadius: "50%",
     background: "#818cf8",
     display: "inline-block",
+    flexShrink: 0,
   },
   step: {
     color: "rgba(255,255,255,0.5)",
     fontSize: 10,
     fontWeight: 600,
+    flexShrink: 0,
+  },
+  contextBar: {
+    padding: "4px 12px 3px",
+    borderBottom: "1px solid rgba(255,255,255,0.07)",
+    flexShrink: 0,
+  },
+  contextText: {
+    color: "rgba(255,255,255,0.55)",
+    fontSize: 9.5,
+    fontWeight: 600,
+    letterSpacing: "0.04em",
+    textTransform: "uppercase" as const,
   },
   body: {
     flex: 1,
-    padding: "10px 12px 8px",
+    padding: "8px 12px 8px",
     display: "flex",
     flexDirection: "column" as const,
-    gap: 8,
+    gap: 7,
+    minHeight: 0,
   },
   question: {
     color: "#fff",
     fontSize: 12,
     fontWeight: 700,
     lineHeight: 1.35,
-    minHeight: 32,
+    margin: 0,
+    flexShrink: 0,
   },
   options: {
     display: "flex",
@@ -89,7 +137,8 @@ const S = {
     border: `1px solid ${selected ? "rgba(165,180,252,0.8)" : "rgba(255,255,255,0.15)"}`,
     background: selected ? "rgba(99,102,241,0.45)" : "rgba(255,255,255,0.06)",
     cursor: "pointer" as const,
-    transition: "all 0.12s",
+    transition: "background 0.1s, border-color 0.1s",
+    flexShrink: 0,
   }),
   radio: (selected: boolean) => ({
     width: 12,
@@ -107,8 +156,8 @@ const S = {
     lineHeight: 1,
   },
   btn: (disabled: boolean) => ({
-    background: disabled ? "rgba(255,255,255,0.2)" : "#fff",
-    color: disabled ? "rgba(255,255,255,0.4)" : "#312e81",
+    background: disabled ? "rgba(255,255,255,0.15)" : "#fff",
+    color: disabled ? "rgba(255,255,255,0.35)" : "#312e81",
     border: "none",
     borderRadius: 7,
     padding: "7px 0",
@@ -117,7 +166,7 @@ const S = {
     cursor: disabled ? "not-allowed" as const : "pointer" as const,
     width: "100%",
     letterSpacing: "0.03em",
-    transition: "opacity 0.12s",
+    flexShrink: 0,
   }),
   successWrap: {
     width: 300,
@@ -134,60 +183,80 @@ const S = {
     padding: 20,
     boxSizing: "border-box" as const,
   },
-  successIcon: { fontSize: 36, lineHeight: 1 },
+  successIcon:  { fontSize: 34, lineHeight: 1 },
   successTitle: { color: "#fff", fontSize: 15, fontWeight: 700, margin: 0 },
-  successSub: { color: "rgba(255,255,255,0.6)", fontSize: 11, margin: 0, lineHeight: 1.4 },
-  poweredBy: {
-    color: "rgba(255,255,255,0.3)",
-    fontSize: 9,
-    marginTop: 4,
-    letterSpacing: "0.04em",
-  },
+  successSub:   { color: "rgba(255,255,255,0.6)", fontSize: 11, margin: 0, lineHeight: 1.4 },
+  poweredBy:    { color: "rgba(255,255,255,0.28)", fontSize: 9, marginTop: 4, letterSpacing: "0.05em" },
 };
 
-const COUNTRY_CODES: Record<string, string> = {
-  GB: "United Kingdom", US: "United States", FR: "France", DE: "Germany",
-  ES: "Spain", IT: "Italy", BR: "Brazil", AR: "Argentina", AU: "Australia",
-  JP: "Japan",
-};
-
-function resolveCountry(val: string): string {
-  return COUNTRY_CODES[val.toUpperCase()] ?? val;
-}
+// ─── Survey component ───────────────────────────────────────────────────────
 
 function EmbedSurvey() {
   const params = useSearchParams();
-  const campaign  = params.get("campaign")  ?? "default";
-  const publisher = params.get("publisher") ?? "";
-  const placement = params.get("placement") ?? "";
-  const country   = resolveCountry(params.get("country") ?? "");
-  const segment   = params.get("segment")   ?? "";
 
-  const [step, setStep] = useState(0);
+  // URL parameters — all optional except campaign
+  const campaign      = params.get("campaign")    ?? "default";
+  const surveyId      = params.get("survey")      ?? null;
+  const questionSetId = params.get("qset")        ?? null;
+  const publisher     = params.get("publisher")   ?? null;
+  const placement     = params.get("placement")   ?? null;
+  const club          = params.get("club")        ?? null;
+  const competition   = params.get("competition") ?? null;
+  const country       = resolveCountry(params.get("country") ?? "");
+  const ageBand       = params.get("age_band")    ?? null;
+  const gender        = params.get("gender")      ?? null;
+  const segment       = params.get("segment")     ?? null;
+
+  // Auto-collected
+  const [device,  setDevice]  = useState<string | null>(null);
+  const [browser, setBrowser] = useState<string | null>(null);
+  const startRef = useRef<number>(Date.now());
+
+  useEffect(() => {
+    setDevice(detectDevice());
+    setBrowser(detectBrowser());
+    startRef.current = Date.now();
+  }, []);
+
+  const [step,    setStep]    = useState(0);
   const [answers, setAnswers] = useState<Record<string, string>>({});
-  const [status, setStatus] = useState<"idle" | "submitting" | "success" | "error">("idle");
+  const [status,  setStatus]  = useState<"idle" | "submitting" | "success" | "error">("idle");
 
-  const q = QUESTIONS[step];
+  const q        = QUESTIONS[step];
   const selected = answers[q?.id ?? ""];
-  const isLast = step === QUESTIONS.length - 1;
+  const isLast   = step === QUESTIONS.length - 1;
+
+  // Context bar — show if club or competition was passed
+  const context = [club, competition].filter(Boolean).join(" · ");
 
   async function handleNext() {
     if (!selected) return;
     if (!isLast) { setStep((s) => s + 1); return; }
 
     setStatus("submitting");
+    const duration = Math.round((Date.now() - startRef.current) / 1000);
+
     const res = await fetch("/api/submit", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        campaign_id: campaign,
-        publisher:   publisher || null,
-        placement:   placement || null,
-        q1:          answers.q1 ?? null,
-        q2:          answers.q2 ?? null,
-        q3:          answers.q3 ?? null,
-        country:     country  || null,
-        fan_segment: segment  || null,
+        campaign_id:               campaign,
+        survey_id:                 surveyId,
+        question_set_id:           questionSetId,
+        publisher,
+        placement,
+        club,
+        competition,
+        q1:                        answers.q1 ?? null,
+        q2:                        answers.q2 ?? null,
+        q3:                        answers.q3 ?? null,
+        country:                   country  || null,
+        fan_segment:               segment,
+        age_band:                  ageBand,
+        gender,
+        device,
+        browser,
+        response_duration_seconds: duration,
       }),
     });
     setStatus(res.ok ? "success" : "error");
@@ -198,7 +267,9 @@ function EmbedSurvey() {
       <div style={S.successWrap}>
         <div style={S.successIcon}>🎉</div>
         <p style={S.successTitle}>Thank you!</p>
-        <p style={S.successSub}>Your feedback has been recorded and will help us improve the fan experience.</p>
+        <p style={S.successSub}>
+          Your feedback has been recorded and will help improve the fan experience.
+        </p>
         <p style={S.poweredBy}>POWERED BY FANOMETRIX PULSE</p>
       </div>
     );
@@ -206,6 +277,7 @@ function EmbedSurvey() {
 
   return (
     <div style={S.wrap}>
+
       {/* Header */}
       <div style={S.header}>
         <div style={S.logo}>
@@ -214,6 +286,13 @@ function EmbedSurvey() {
         </div>
         <span style={S.step}>{step + 1} of {QUESTIONS.length}</span>
       </div>
+
+      {/* Context bar — only rendered if club/competition passed */}
+      {context && (
+        <div style={S.contextBar}>
+          <span style={S.contextText}>{context}</span>
+        </div>
+      )}
 
       {/* Body */}
       <div style={S.body}>
@@ -240,7 +319,7 @@ function EmbedSurvey() {
         </div>
 
         {status === "error" && (
-          <p style={{ color: "#fca5a5", fontSize: 9, margin: 0 }}>
+          <p style={{ color: "#fca5a5", fontSize: 9, margin: 0, flexShrink: 0 }}>
             Something went wrong. Please try again.
           </p>
         )}
@@ -253,6 +332,7 @@ function EmbedSurvey() {
           {status === "submitting" ? "Submitting…" : isLast ? "Submit ✓" : "Next →"}
         </button>
       </div>
+
     </div>
   );
 }
