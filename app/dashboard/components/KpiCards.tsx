@@ -3,8 +3,8 @@
 import type { SurveyResponse } from "@/lib/types";
 
 function avg(nums: (number | null)[]): number {
-  const valid = nums.filter((n): n is number => n !== null);
-  return valid.length ? Math.round(valid.reduce((a, b) => a + b, 0) / valid.length) : 0;
+  const v = nums.filter((n): n is number => n !== null);
+  return v.length ? Math.round(v.reduce((a, b) => a + b, 0) / v.length) : 0;
 }
 
 export function KpiCards({ responses }: { responses: SurveyResponse[] }) {
@@ -17,40 +17,40 @@ export function KpiCards({ responses }: { responses: SurveyResponse[] }) {
   const campaigns  = new Set(responses.map(r => r.campaign_id).filter(Boolean)).size;
 
   const cards = [
-    { label: "Total Responses",   value: total.toLocaleString(),              sub: "all time"           },
-    { label: "Completion Rate",   value: `${completion}%`,                    sub: "all 3 questions"    },
-    { label: "Avg Response Time", value: avgTime > 0 ? `${avgTime}s` : "—",  sub: "seconds per survey" },
-    { label: "Countries",         value: countries || "—",                     sub: "represented"        },
-    { label: "Publishers",        value: publishers || "—",                    sub: "media partners"     },
-    { label: "Campaigns",         value: campaigns  || "—",                    sub: "active"             },
+    { label: "Total Responses",   value: total.toLocaleString(),             sub: "all time"           },
+    { label: "Completion Rate",   value: `${completion}%`,                   sub: "all 3 questions"    },
+    { label: "Avg Response Time", value: avgTime > 0 ? `${avgTime}s` : "—", sub: "seconds per survey" },
+    { label: "Countries",         value: countries || "—",                    sub: "represented"        },
+    { label: "Publishers",        value: publishers || "—",                   sub: "media partners"     },
+    { label: "Campaigns",         value: campaigns  || "—",                   sub: "active"             },
   ];
 
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 12, marginBottom: 16 }}>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 12, marginBottom: 20 }}>
       {cards.map(({ label, value, sub }) => (
         <div key={label} style={{
-          background: "rgba(255,255,255,0.03)",
-          border: "1px solid rgba(215,184,122,0.15)",
+          background: "#FFFFFF",
+          border: "1px solid rgba(11,25,41,0.08)",
           borderRadius: 16,
-          padding: "18px 16px",
-          backdropFilter: "blur(8px)",
+          padding: "20px 18px",
+          boxShadow: "0 4px 20px rgba(11,25,41,0.06)",
         }}>
           <p style={{
-            color: "rgba(215,184,122,0.6)",
+            color: "#D7B87A",
             fontSize: 9,
             fontWeight: 700,
-            letterSpacing: "0.12em",
+            letterSpacing: "0.14em",
             textTransform: "uppercase",
-            marginBottom: 6,
+            marginBottom: 8,
           }}>{label}</p>
           <p style={{
-            color: "#FFFFFF",
-            fontSize: 24,
+            color: "#0B1929",
+            fontSize: 26,
             fontWeight: 700,
             lineHeight: 1,
-            marginBottom: 4,
+            marginBottom: 5,
           }}>{value}</p>
-          <p style={{ color: "rgba(224,225,221,0.4)", fontSize: 10 }}>{sub}</p>
+          <p style={{ color: "#5F6670", fontSize: 11 }}>{sub}</p>
         </div>
       ))}
     </div>

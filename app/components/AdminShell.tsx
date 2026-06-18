@@ -17,86 +17,86 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   const path = usePathname();
 
   return (
-    <div className="flex min-h-screen">
+    <div style={{ display: "flex", minHeight: "100vh" }}>
 
-      {/* Sidebar */}
+      {/* ── Sidebar (dark chrome) ───────────────────────────────────── */}
       <aside style={{
         width: 212,
         flexShrink: 0,
-        backgroundColor: "#07121D",
+        backgroundColor: "#0B1929",
         display: "flex",
         flexDirection: "column",
-        borderRight: "1px solid rgba(215,184,122,0.1)",
+        borderRight: "1px solid rgba(255,255,255,0.06)",
       }}>
 
         {/* Logo */}
         <div style={{
-          padding: "24px 20px 20px",
-          borderBottom: "1px solid rgba(215,184,122,0.1)",
+          padding: "22px 20px 18px",
+          borderBottom: "1px solid rgba(255,255,255,0.06)",
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <div style={{
-              width: 8, height: 8, borderRadius: "50%",
+              width: 7, height: 7, borderRadius: "50%",
               background: "#D7B87A",
-              boxShadow: "0 0 8px rgba(215,184,122,0.6)",
+              boxShadow: "0 0 6px rgba(215,184,122,0.5)",
+              flexShrink: 0,
             }} />
-            <p style={{ color: "#FFFFFF", fontWeight: 700, fontSize: 13, letterSpacing: "0.04em" }}>
+            <p style={{ color: "#FFFFFF", fontWeight: 700, fontSize: 12, letterSpacing: "0.05em", margin: 0 }}>
               FANOMETRIX PULSE
             </p>
           </div>
-          <p style={{ color: "rgba(215,184,122,0.55)", fontSize: 10, marginTop: 4, letterSpacing: "0.08em" }}>
+          <p style={{ color: "rgba(215,184,122,0.45)", fontSize: 9.5, marginTop: 3, letterSpacing: "0.08em" }}>
             THE FOOTBALL COLLECTIVE
           </p>
         </div>
 
         {/* Nav */}
-        <nav style={{ flex: 1, padding: "16px 10px", display: "flex", flexDirection: "column", gap: 2 }}>
+        <nav style={{ flex: 1, padding: "14px 10px", display: "flex", flexDirection: "column", gap: 2 }}>
           {NAV.map(({ href, label, icon }) => {
-            const active = path === href || (href !== "/" && path.startsWith(href + "/")) || path.startsWith(href);
+            const active = path === href || (href !== "/" && path.startsWith(href));
             return (
               <Link key={href} href={href} style={{
                 display: "flex",
                 alignItems: "center",
-                gap: 10,
-                padding: "9px 12px",
+                gap: 9,
+                padding: "8px 11px",
                 borderRadius: 8,
-                fontSize: 12,
+                fontSize: 12.5,
                 fontWeight: active ? 600 : 400,
-                letterSpacing: "0.02em",
+                letterSpacing: active ? "0.01em" : 0,
                 textDecoration: "none",
-                color: active ? "#D7B87A" : "rgba(224,225,221,0.65)",
-                backgroundColor: active ? "rgba(215,184,122,0.07)" : "transparent",
+                color: active ? "#D7B87A" : "rgba(255,255,255,0.6)",
+                backgroundColor: active ? "rgba(215,184,122,0.1)" : "transparent",
                 borderLeft: active ? "2px solid #D7B87A" : "2px solid transparent",
-                transition: "all 0.15s",
+                transition: "all 0.12s",
               }}>
-                <span style={{ fontSize: 11, opacity: active ? 1 : 0.7, width: 14, textAlign: "center" }}>{icon}</span>
+                <span style={{ fontSize: 11, width: 14, textAlign: "center", opacity: active ? 1 : 0.65 }}>{icon}</span>
                 {label}
               </Link>
             );
           })}
         </nav>
 
-        {/* Footer links */}
+        {/* Footer */}
         <div style={{
-          padding: "12px 10px 20px",
-          borderTop: "1px solid rgba(215,184,122,0.1)",
+          padding: "10px 10px 18px",
+          borderTop: "1px solid rgba(255,255,255,0.06)",
           display: "flex",
           flexDirection: "column",
-          gap: 2,
+          gap: 1,
         }}>
           {[
-            { href: "/privacy",          label: "ⓘ  Privacy Policy"   },
-            { href: "/publisher-guide",  label: "☰  Publisher Guide"  },
+            { href: "/privacy",         label: "ⓘ  Privacy" },
+            { href: "/publisher-guide", label: "☰  Publisher Guide" },
           ].map(({ href, label }) => (
             <Link key={href} href={href} style={{
               display: "block",
-              padding: "7px 12px",
+              padding: "6px 11px",
               borderRadius: 6,
               fontSize: 11,
-              color: "rgba(215,184,122,0.45)",
+              color: "rgba(255,255,255,0.3)",
               textDecoration: "none",
-              letterSpacing: "0.02em",
-              transition: "color 0.15s",
+              transition: "color 0.12s",
             }}>
               {label}
             </Link>
@@ -104,8 +104,8 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
 
-      {/* Main content */}
-      <main style={{ flex: 1, overflowY: "auto", minWidth: 0 }}>
+      {/* ── Main workspace (light) ──────────────────────────────────── */}
+      <main style={{ flex: 1, overflowY: "auto", minWidth: 0, backgroundColor: "#F7F6F2" }}>
         {children}
       </main>
     </div>
