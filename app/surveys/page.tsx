@@ -3,6 +3,205 @@
 import { useState, useEffect, useCallback } from "react";
 import { AdminShell } from "@/app/components/AdminShell";
 
+// ─── MPU inline styles (mirrors /embed page exactly) ────────────────────────
+
+const M = {
+  wrap: {
+    width: 300, height: 250, overflow: "hidden" as const,
+    fontFamily: "system-ui, -apple-system, sans-serif",
+    background: "linear-gradient(160deg, #312e81 0%, #1e1b4b 100%)",
+    display: "flex", flexDirection: "column" as const,
+    boxSizing: "border-box" as const, borderRadius: 10,
+    boxShadow: "0 8px 32px rgba(0,0,0,0.4)",
+  },
+  header: {
+    display: "flex", alignItems: "center", justifyContent: "space-between",
+    padding: "8px 12px 6px",
+    borderBottom: "1px solid rgba(255,255,255,0.1)", flexShrink: 0,
+  },
+  logo: {
+    color: "#fff", fontSize: 11, fontWeight: 700, letterSpacing: "0.02em",
+    display: "flex", alignItems: "center", gap: 4,
+  },
+  dot:  { width: 7, height: 7, borderRadius: "50%", background: "#818cf8", display: "inline-block", flexShrink: 0 },
+  step: { color: "rgba(255,255,255,0.5)", fontSize: 10, fontWeight: 600, flexShrink: 0 },
+  body: {
+    flex: 1, padding: "8px 12px 8px",
+    display: "flex", flexDirection: "column" as const, gap: 7, minHeight: 0,
+  },
+  question: { color: "#fff", fontSize: 12, fontWeight: 700, lineHeight: 1.35, margin: 0, flexShrink: 0 },
+  options:  { display: "flex", flexDirection: "column" as const, gap: 4, flex: 1 },
+  option: (sel: boolean) => ({
+    display: "flex", alignItems: "center", gap: 8, padding: "5px 9px",
+    borderRadius: 6, flexShrink: 0, cursor: "pointer" as const,
+    border:      `1px solid ${sel ? "rgba(165,180,252,0.8)" : "rgba(255,255,255,0.15)"}`,
+    background:  sel ? "rgba(99,102,241,0.45)" : "rgba(255,255,255,0.06)",
+    transition: "background 0.1s, border-color 0.1s",
+  }),
+  radio: (sel: boolean) => ({
+    width: 12, height: 12, borderRadius: "50%", flexShrink: 0,
+    border: `2px solid ${sel ? "#a5b4fc" : "rgba(255,255,255,0.4)"}`,
+    background: sel ? "#a5b4fc" : "transparent",
+    boxSizing: "border-box" as const,
+  }),
+  label: { color: "#e0e7ff", fontSize: 10.5, fontWeight: 500, lineHeight: 1 },
+  btn: (dis: boolean) => ({
+    background: dis ? "rgba(255,255,255,0.15)" : "#fff",
+    color:      dis ? "rgba(255,255,255,0.35)" : "#312e81",
+    border: "none", borderRadius: 7, padding: "7px 0", fontSize: 11,
+    fontWeight: 700, letterSpacing: "0.03em",
+    cursor: dis ? "not-allowed" as const : "pointer" as const,
+    width: "100%", flexShrink: 0,
+  }),
+  success: {
+    width: 300, height: 250, overflow: "hidden" as const, borderRadius: 10,
+    background: "linear-gradient(160deg, #312e81 0%, #1e1b4b 100%)",
+    display: "flex", flexDirection: "column" as const, alignItems: "center",
+    justifyContent: "center", fontFamily: "system-ui, -apple-system, sans-serif",
+    gap: 8, textAlign: "center" as const, padding: 20,
+    boxSizing: "border-box" as const, boxShadow: "0 8px 32px rgba(0,0,0,0.4)",
+  },
+};
+
+// ─── MPU Preview Modal ────────────────────────────────────────────────────────
+
+type PreviewSurvey = {
+  name: string;
+  questions: { id: string; text: string; options: string[] }[];
+  thank_you_title: string;
+  thank_you_body: string;
+};
+
+function MPUPreviewModal({ survey, onClose }: { survey: PreviewSurvey; onClose: () => void }) {
+  const [step,    setStep]    = useState(0);
+  const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [done,    setDone]    = useState(false);
+
+  const questions = survey.questions ?? [];
+  const q         = questions[step];
+  const selected  = q ? (answers[q.id] ?? "") : "";
+  const isLast    = step === questions.length - 1;
+  const isFirst   = step === 0;
+
+  function restart() { setStep(0); setAnswers({}); setDone(false); }
+
+  function handleNext() {
+    if (!selected) return;
+    if (isLast) { setDone(true); return; }
+    setStep(s => s + 1);
+  }
+
+  // Close on backdrop click
+  function onBackdrop(e: React.MouseEvent<HTMLDivElement>) {
+    if (e.target === e.currentTarget) onClose();
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+      onClick={onBackdrop}
+    >
+      <div className="flex flex-col items-center gap-4">
+
+        {/* PREVIEW MODE badge */}
+        <div className="bg-amber-50 border border-amber-200 rounded-xl px-5 py-3 text-center shadow">
+          <p className="text-xs font-bold text-amber-700 uppercase tracking-widest">◆ Preview Mode</p>
+          <p className="text-xs text-amber-600 mt-0.5">No responses are recorded.</p>
+          <p className="text-xs text-amber-500 mt-0.5 font-medium">{survey.name}</p>
+        </div>
+
+        {/* 300 × 250 MPU */}
+        {done ? (
+          <div style={M.success}>
+            <div style={{ fontSize: 34, lineHeight: 1 }}>🎉</div>
+            <p style={{ color: "#fff", fontSize: 15, fontWeight: 700, margin: 0 }}>
+              {survey.thank_you_title || "Thank you!"}
+            </p>
+            <p style={{ color: "rgba(255,255,255,0.6)", fontSize: 11, margin: 0, lineHeight: 1.4 }}>
+              {survey.thank_you_body || "Your response has been recorded."}
+            </p>
+            <p style={{ color: "rgba(255,255,255,0.25)", fontSize: 9, marginTop: 6, letterSpacing: "0.06em" }}>
+              PREVIEW MODE · NOT RECORDED
+            </p>
+          </div>
+        ) : (
+          <div style={M.wrap}>
+            {/* Header */}
+            <div style={M.header}>
+              <div style={M.logo}>
+                <span style={M.dot} />
+                Fanometrix Pulse
+              </div>
+              <span style={M.step}>{step + 1} of {questions.length}</span>
+            </div>
+
+            {/* Body */}
+            <div style={M.body}>
+              <p style={M.question}>{q?.text}</p>
+
+              <div style={M.options}>
+                {(q?.options ?? []).map(opt => {
+                  const sel = selected === opt;
+                  return (
+                    <div
+                      key={opt}
+                      style={M.option(sel)}
+                      onClick={() => setAnswers(a => ({ ...a, [q.id]: opt }))}
+                      role="radio"
+                      aria-checked={sel}
+                      tabIndex={0}
+                      onKeyDown={e => e.key === " " && setAnswers(a => ({ ...a, [q.id]: opt }))}
+                    >
+                      <div style={M.radio(sel)} />
+                      <span style={M.label}>{opt}</span>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <button style={M.btn(!selected)} onClick={handleNext} disabled={!selected}>
+                {isLast ? "Submit ✓" : "Next →"}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Controls below the frame */}
+        <div className="flex items-center gap-2">
+          {!done && !isFirst && (
+            <button
+              onClick={() => setStep(s => s - 1)}
+              className="text-xs border border-white/30 text-white hover:bg-white/15 px-3 py-1.5 rounded-lg transition-colors"
+            >
+              ← Previous
+            </button>
+          )}
+          <button
+            onClick={restart}
+            className="text-xs border border-white/30 text-white hover:bg-white/15 px-3 py-1.5 rounded-lg transition-colors"
+          >
+            ↺ Restart
+          </button>
+          {!done && !isLast && (
+            <button
+              onClick={() => setStep(s => s + 1)}
+              className="text-xs border border-white/30 text-white hover:bg-white/15 px-3 py-1.5 rounded-lg transition-colors"
+            >
+              Next →
+            </button>
+          )}
+          <button
+            onClick={onClose}
+            className="text-xs bg-white/20 hover:bg-white/30 text-white font-semibold px-4 py-1.5 rounded-lg transition-colors ml-2"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 type Question = { id: string; text: string; options: string[] };
 type Survey = {
   id: string;
@@ -42,6 +241,7 @@ const BLANK_SURVEY: Omit<Survey, "id" | "created_at"> = {
 export default function SurveysPage() {
   const [surveys,  setSurveys]  = useState<Survey[]>([]);
   const [loading,  setLoading]  = useState(true);
+  const [previewSurvey, setPreviewSurvey] = useState<Survey | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editing,  setEditing]  = useState<Partial<Survey>>(BLANK_SURVEY);
   const [saving,   setSaving]   = useState(false);
@@ -193,6 +393,13 @@ export default function SurveysPage() {
                 {s.status}
               </span>
               <div className="flex gap-2 flex-shrink-0">
+                <button
+                  onClick={() => setPreviewSurvey(s)}
+                  disabled={s.questions.length === 0}
+                  className="text-xs border border-indigo-200 text-indigo-600 hover:bg-indigo-50 px-3 py-1.5 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed transition-colors font-medium"
+                >
+                  Preview MPU
+                </button>
                 <button onClick={() => openEdit(s)}
                   className="text-xs border border-gray-200 text-gray-600 hover:bg-gray-50 px-3 py-1.5 rounded-lg">Edit</button>
                 <button onClick={() => openDuplicate(s)}
@@ -204,6 +411,14 @@ export default function SurveysPage() {
           ))}
         </div>
       </div>
+
+      {/* MPU Preview Modal */}
+      {previewSurvey && (
+        <MPUPreviewModal
+          survey={previewSurvey}
+          onClose={() => setPreviewSurvey(null)}
+        />
+      )}
 
       {/* Drawer */}
       {drawerOpen && (
