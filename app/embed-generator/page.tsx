@@ -55,7 +55,16 @@ export default function EmbedGeneratorPage() {
   useEffect(() => {
     fetch("/api/campaigns")
       .then(r => r.json())
-      .then(j => setCampaigns(j.data ?? []));
+      .then(j => {
+        const data: Campaign[] = j.data ?? [];
+        setCampaigns(data);
+        // Pre-select campaign from URL param (e.g. from Campaign Detail page)
+        const preselect = new URLSearchParams(window.location.search).get("campaign");
+        if (preselect) {
+          const match = data.find(c => c.id === preselect);
+          if (match) setSelectedId(match.id);
+        }
+      });
   }, []);
 
   const campaign = campaigns.find(c => c.id === selectedId) ?? null;

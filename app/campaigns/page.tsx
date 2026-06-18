@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import Link from "next/link";
 import { AdminShell } from "@/app/components/AdminShell";
 
 type Survey = { id: string; name: string };
@@ -148,13 +149,13 @@ export default function CampaignsPage() {
 
         <div className="space-y-3">
           {campaigns.map(c => (
-            <div key={c.id} className="bg-white border border-gray-100 rounded-xl p-5 shadow-sm">
+            <div key={c.id} className="bg-white border border-gray-100 rounded-xl p-5 shadow-sm hover:border-indigo-100 transition-colors">
               <div className="flex items-start gap-4">
-                <div className="flex-1 min-w-0">
+                <Link href={`/campaigns/${c.id}`} className="flex-1 min-w-0 block group">
                   <div className="flex items-center gap-2 mb-0.5 flex-wrap">
-                    <p className="font-semibold text-gray-900">{c.brand_name}</p>
+                    <p className="font-semibold text-gray-900 group-hover:text-indigo-700 transition-colors">{c.brand_name}</p>
                     <span className="text-gray-300">·</span>
-                    <p className="text-gray-700">{c.campaign_name}</p>
+                    <p className="text-gray-700 group-hover:text-indigo-600 transition-colors">{c.campaign_name}</p>
                   </div>
                   <p className="text-xs font-mono text-indigo-600 mt-0.5">{c.campaign_id}</p>
                   {c.campaign_description && <p className="text-xs text-gray-400 mt-0.5">{c.campaign_description}</p>}
@@ -169,7 +170,7 @@ export default function CampaignsPage() {
                     ))}
                     {c.start_date && <span className="text-xs text-gray-400">{c.start_date} → {c.end_date ?? "ongoing"}</span>}
                   </div>
-                </div>
+                </Link>
 
                 <div className="flex items-center gap-2 flex-shrink-0">
                   <select value={c.status} onChange={e => changeStatus(c, e.target.value)}
