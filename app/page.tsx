@@ -6,7 +6,7 @@ const QUESTIONS = [
   {
     id: "q1",
     text: "How often do you attend live events?",
-    options: ["Never", "1–2 times a year", "3–5 times a year", "More than 5 times a year"],
+    options: ["Never", "1-2 times a year", "3-5 times a year", "More than 5 times a year"],
   },
   {
     id: "q2",

@@ -11,6 +11,8 @@ type Response = {
   q3: string | null;
   country: string | null;
   fan_segment: string | null;
+  publisher: string | null;
+  placement: string | null;
   created_at: string;
 };
 
@@ -78,6 +80,8 @@ export default function DashboardPage() {
       responses.map((r) => ({
         id: r.id,
         campaign_id: r.campaign_id,
+        publisher: r.publisher,
+        placement: r.placement,
         q1: r.q1,
         q2: r.q2,
         q3: r.q3,

@@ -7,7 +7,7 @@ const QUESTIONS = [
   {
     id: "q1",
     text: "How often do you attend live events?",
-    options: ["Never", "1–2 times a year", "3–5 times a year", "5+ times a year"],
+    options: ["Never", "1-2 times a year", "3-5 times a year", "5+ times a year"],
   },
   {
     id: "q2",
@@ -145,12 +145,22 @@ const S = {
   },
 };
 
+const COUNTRY_CODES: Record<string, string> = {
+  GB: "United Kingdom", US: "United States", FR: "France", DE: "Germany",
+  ES: "Spain", IT: "Italy", BR: "Brazil", AR: "Argentina", AU: "Australia",
+  JP: "Japan",
+};
+
+function resolveCountry(val: string): string {
+  return COUNTRY_CODES[val.toUpperCase()] ?? val;
+}
+
 function EmbedSurvey() {
   const params = useSearchParams();
   const campaign  = params.get("campaign")  ?? "default";
   const publisher = params.get("publisher") ?? "";
   const placement = params.get("placement") ?? "";
-  const country   = params.get("country")   ?? "";
+  const country   = resolveCountry(params.get("country") ?? "");
   const segment   = params.get("segment")   ?? "";
 
   const [step, setStep] = useState(0);
