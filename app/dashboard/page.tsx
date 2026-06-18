@@ -2,28 +2,11 @@
 
 import { useEffect, useState, useCallback } from "react";
 import Papa from "papaparse";
+import type { SurveyResponse } from "@/lib/types";
+import { KpiCards } from "./components/KpiCards";
+import { ResponseExplorer } from "./components/Explorer";
 
-type Response = {
-  id: string;
-  campaign_id: string;
-  survey_id: string | null;
-  question_set_id: string | null;
-  publisher: string | null;
-  placement: string | null;
-  club: string | null;
-  competition: string | null;
-  q1: string | null;
-  q2: string | null;
-  q3: string | null;
-  country: string | null;
-  fan_segment: string | null;
-  device: string | null;
-  browser: string | null;
-  response_duration_seconds: number | null;
-  created_at: string;
-};
-
-function tally(responses: Response[], field: keyof Response) {
+function tally(responses: SurveyResponse[], field: keyof SurveyResponse) {
   const counts: Record<string, number> = {};
   for (const r of responses) {
     const val = (r[field] as string) ?? "Not answered";
@@ -44,15 +27,10 @@ function BarChart({ label, counts, total }: { label: string; counts: Record<stri
             <div key={opt} className="space-y-1">
               <div className="flex justify-between text-sm">
                 <span className="text-gray-700">{opt}</span>
-                <span className="text-gray-500">
-                  {count} ({pct}%)
-                </span>
+                <span className="text-gray-500">{count} ({pct}%)</span>
               </div>
               <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-indigo-500 rounded-full transition-all"
-                  style={{ width: `${pct}%` }}
-                />
+                <div className="h-full bg-indigo-500 rounded-full transition-all" style={{ width: `${pct}%` }} />
               </div>
             </div>
           );
@@ -62,19 +40,15 @@ function BarChart({ label, counts, total }: { label: string; counts: Record<stri
 }
 
 export default function DashboardPage() {
-  const [responses, setResponses] = useState<Response[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [responses, setResponses] = useState<SurveyResponse[]>([]);
+  const [loading,   setLoading]   = useState(true);
+  const [error,     setError]     = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
     setError("");
     const res = await fetch("/api/responses");
-    if (!res.ok) {
-      setError("Failed to load responses.");
-      setLoading(false);
-      return;
-    }
+    if (!res.ok) { setError("Failed to load responses."); setLoading(false); return; }
     const json = await res.json();
     setResponses(json.data ?? []);
     setLoading(false);
@@ -84,7 +58,7 @@ export default function DashboardPage() {
 
   function exportCSV() {
     const csv = Papa.unparse(
-      responses.map((r) => ({
+      responses.map(r => ({
         id: r.id,
         submitted_at: r.created_at,
         campaign_id: r.campaign_id,
@@ -94,9 +68,7 @@ export default function DashboardPage() {
         placement: r.placement,
         club: r.club,
         competition: r.competition,
-        q1: r.q1,
-        q2: r.q2,
-        q3: r.q3,
+        q1: r.q1, q2: r.q2, q3: r.q3,
         country: r.country,
         fan_segment: r.fan_segment,
         device: r.device,
@@ -105,9 +77,9 @@ export default function DashboardPage() {
       }))
     );
     const blob = new Blob([csv], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement("a");
+    a.href     = url;
     a.download = `fanometrix-responses-${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
@@ -116,34 +88,35 @@ export default function DashboardPage() {
   const total = responses.length;
 
   return (
-    <main className="min-h-screen p-6 max-w-4xl mx-auto">
-      <div className="flex items-center justify-between mb-8">
+    <main className="min-h-screen p-6 max-w-5xl mx-auto">
+
+      {/* ── Dashboard header ── */}
+      <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-3xl font-bold text-indigo-700">Fanometrix Pulse</h1>
           <p className="text-gray-500 text-sm mt-1">Dashboard</p>
         </div>
         <div className="flex gap-3">
-          <button
-            onClick={load}
-            className="border border-gray-200 text-gray-600 hover:bg-gray-50 text-sm font-medium px-4 py-2 rounded-lg transition-colors"
-          >
+          <button onClick={load}
+            className="border border-gray-200 text-gray-600 hover:bg-gray-50 text-sm font-medium px-4 py-2 rounded-lg transition-colors">
             Refresh
           </button>
-          <button
-            onClick={exportCSV}
-            disabled={total === 0}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors disabled:opacity-50"
-          >
+          <button onClick={exportCSV} disabled={total === 0}
+            className="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors disabled:opacity-50">
             Export CSV
           </button>
         </div>
       </div>
 
       {loading && <p className="text-gray-400">Loading responses…</p>}
-      {error && <p className="text-red-500">{error}</p>}
+      {error   && <p className="text-red-500">{error}</p>}
 
       {!loading && !error && (
         <>
+          {/* ── KPI cards ── */}
+          <KpiCards responses={responses} />
+
+          {/* ── Response count hero ── */}
           <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-6 mb-6 text-center">
             <p className="text-5xl font-bold text-indigo-700">{total}</p>
             <p className="text-gray-500 mt-1 text-sm">total responses</p>
@@ -154,28 +127,22 @@ export default function DashboardPage() {
               No responses yet. Share the survey link to get started!
             </p>
           ) : (
-            <div className="space-y-4">
-              <BarChart
-                label="Q1 · How often do you attend live events?"
-                counts={tally(responses, "q1")}
-                total={total}
-              />
-              <BarChart
-                label="Q2 · How would you rate your overall fan experience?"
-                counts={tally(responses, "q2")}
-                total={total}
-              />
-              <BarChart
-                label="Q3 · How likely are you to recommend us to a friend?"
-                counts={tally(responses, "q3")}
-                total={total}
-              />
-              <BarChart
-                label="Responses by country"
-                counts={tally(responses, "country")}
-                total={total}
-              />
-            </div>
+            <>
+              {/* ── Existing question charts (unchanged) ── */}
+              <div className="space-y-4">
+                <BarChart label="Q1 · How often do you attend live events?"
+                  counts={tally(responses, "q1")} total={total} />
+                <BarChart label="Q2 · How would you rate your overall fan experience?"
+                  counts={tally(responses, "q2")} total={total} />
+                <BarChart label="Q3 · How likely are you to recommend us to a friend?"
+                  counts={tally(responses, "q3")} total={total} />
+                <BarChart label="Responses by country"
+                  counts={tally(responses, "country")} total={total} />
+              </div>
+
+              {/* ── Response Explorer ── */}
+              <ResponseExplorer responses={responses} />
+            </>
           )}
         </>
       )}
