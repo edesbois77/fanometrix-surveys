@@ -8,6 +8,7 @@ import { AdminShell } from "@/app/components/AdminShell";
 import { KpiCards } from "./components/KpiCards";
 import { ResponseExplorer } from "./components/Explorer";
 import { ChartGrid } from "./components/ChartGrid";
+import { InsightsEngine } from "@/app/components/InsightsEngine";
 import {
   DashboardFilters,
   EMPTY_DASH_FILTERS,
@@ -225,7 +226,10 @@ export default function DashboardPage() {
               </div>
             ) : (
               <>
-                {/* Charts */}
+                {/* Insights */}
+                <InsightsEngine responses={filtered} />
+
+              {/* Charts */}
                 <ChartGrid
                   responses={filtered}
                   filters={filters}

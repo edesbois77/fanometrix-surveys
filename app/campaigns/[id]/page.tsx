@@ -9,6 +9,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip as RTooltip, ResponsiveContainer,
 } from "recharts";
 import { AdminShell } from "@/app/components/AdminShell";
+import { InsightsEngine } from "@/app/components/InsightsEngine";
 import type { SurveyResponse } from "@/lib/types";
 import { EMPTY_DASH_FILTERS } from "@/app/dashboard/components/DashboardFilters";
 
@@ -109,48 +110,6 @@ function avgNum(nums: (number | null)[]): number {
 
 function uniqueVals(data: SurveyResponse[], field: keyof SurveyResponse) {
   return [...new Set(data.map(r => r[field] as string).filter(Boolean))].sort();
-}
-
-function computeInsights(responses: SurveyResponse[]) {
-  const topCountry   = tally(responses, "country")[0];
-  const topPublisher = tally(responses, "publisher")[0];
-  const topSegment   = tally(responses, "fan_segment")[0];
-
-  const cutoff7  = fmt(sub(new Date(), 7));
-  const cutoff14 = fmt(sub(new Date(), 14));
-  const recent   = responses.filter(r => r.created_at.slice(0,10) >= cutoff7);
-  const prev     = responses.filter(r => { const d = r.created_at.slice(0,10); return d >= cutoff14 && d < cutoff7; });
-
-  const rCountry: Record<string,number> = {}; const pCountry: Record<string,number> = {};
-  recent.forEach(r => { if (r.country) rCountry[r.country] = (rCountry[r.country]??0)+1; });
-  prev.forEach(  r => { if (r.country) pCountry[r.country] = (pCountry[r.country]??0)+1; });
-
-  let fastestCountry = "", fastestPct = -Infinity;
-  for (const [c, n] of Object.entries(rCountry)) {
-    const p = pCountry[c] ?? 0;
-    const g = p === 0 ? n * 100 : ((n - p) / p) * 100;
-    if (g > fastestPct) { fastestPct = g; fastestCountry = c; }
-  }
-
-  const plMap: Record<string, { t: number; c: number }> = {};
-  responses.forEach(r => {
-    const p = r.placement || "Unknown";
-    if (!plMap[p]) plMap[p] = { t: 0, c: 0 };
-    plMap[p].t++;
-    if (r.q1 && r.q2 && r.q3) plMap[p].c++;
-  });
-  let bestPl = "", bestRate = -1;
-  for (const [p, { t, c }] of Object.entries(plMap)) {
-    if (t >= 3 && c / t > bestRate) { bestRate = c / t; bestPl = p; }
-  }
-
-  return {
-    topCountry:    topCountry    ? { label: topCountry[0],    count: topCountry[1]    } : null,
-    topPublisher:  topPublisher  ? { label: topPublisher[0],  count: topPublisher[1]  } : null,
-    topSegment:    topSegment    ? { label: topSegment[0],    count: topSegment[1]    } : null,
-    fastestCountry: fastestCountry ? { label: fastestCountry, pct: Math.round(fastestPct) } : null,
-    bestPlacement: bestPl ? { label: bestPl, rate: Math.round(bestRate * 100) } : null,
-  };
 }
 
 // ─── KPI Cards ───────────────────────────────────────────────────────────────
@@ -281,50 +240,6 @@ function DimBar({
           ✕ Clear filter
         </button>
       )}
-    </div>
-  );
-}
-
-// ─── Insights ────────────────────────────────────────────────────────────────
-
-function InsightCard({ icon, label, value, sub }: { icon: string; label: string; value: string; sub: string }) {
-  return (
-    <div className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm">
-      <div className="flex items-start gap-2">
-        <span className="text-lg leading-none mt-0.5">{icon}</span>
-        <div className="min-w-0">
-          <p className="text-xs text-gray-400 font-medium">{label}</p>
-          <p className="text-sm font-bold text-gray-900 mt-0.5 truncate" title={value}>{value}</p>
-          <p className="text-xs text-gray-400 mt-0.5">{sub}</p>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function InsightsPanel({ responses }: { responses: SurveyResponse[] }) {
-  const ins = useMemo(() => computeInsights(responses), [responses]);
-  if (!responses.length) return null;
-  return (
-    <div className="mt-4 mb-4">
-      <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Insights</h2>
-      <div className="grid grid-cols-5 gap-3">
-        <InsightCard icon="🌍" label="Top Country"
-          value={ins.topCountry?.label ?? "—"}
-          sub={ins.topCountry ? `${ins.topCountry.count.toLocaleString()} responses` : "No data"} />
-        <InsightCard icon="📡" label="Top Publisher"
-          value={ins.topPublisher?.label ?? "—"}
-          sub={ins.topPublisher ? `${ins.topPublisher.count.toLocaleString()} responses` : "No data"} />
-        <InsightCard icon="👥" label="Fan Segment"
-          value={ins.topSegment?.label ?? "—"}
-          sub={ins.topSegment ? `${ins.topSegment.count.toLocaleString()} responses` : "No data"} />
-        <InsightCard icon="📈" label="Fastest Growing"
-          value={ins.fastestCountry?.label ?? "—"}
-          sub={ins.fastestCountry ? `+${ins.fastestCountry.pct}% (7-day)` : "Not enough data"} />
-        <InsightCard icon="🎯" label="Best Completion"
-          value={ins.bestPlacement?.label ?? "—"}
-          sub={ins.bestPlacement ? `${ins.bestPlacement.rate}% completion rate` : "Not enough data"} />
-      </div>
     </div>
   );
 }
@@ -655,7 +570,7 @@ export default function CampaignDetailPage() {
             </div>
 
             {/* Insights */}
-            <InsightsPanel responses={filtered} />
+            <InsightsEngine responses={filtered} />
 
             {/* Recent responses table */}
             <RecentTable responses={filtered} />
