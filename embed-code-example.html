@@ -1,30 +1,44 @@
 <!--
   FANOMETRIX PULSE — MPU Embed Code (300x250)
   ============================================
-  Copy the <iframe> tag below and paste it into your ad server,
-  CMS, or partner page. Replace the parameter values with your own.
+  Send this file to your ad operations / media partner.
+  They paste the relevant tag into their ad server and traffic it as a
+  third-party HTML/iframe creative at 300x250.
 
   URL PARAMETERS
   ──────────────
   campaign   Your campaign identifier        e.g. premier-league-2026
   publisher  The media owner / site name     e.g. sky-sports
   placement  Where on the page it appears    e.g. homepage-mpu
-  country    2-letter ISO country code       e.g. GB  (ad server usually knows this)
-  segment    Fan segment label               e.g. season-ticket-holder
+  country    2-letter ISO country code       Supplied by the ad server macro (see below)
+  segment    Fan segment label               e.g. season-ticket-holder  (optional)
 
-  All parameters are optional but strongly recommended for dashboard filtering.
+  COUNTRY — AD SERVER MACROS
+  ──────────────────────────
+  The ad server already knows the user's country via IP geolocation.
+  Replace the country value with the correct macro for your ad server:
 
-  AD SERVER MACROS
-  ────────────────
-  Replace values with your ad server's macros, for example:
-  - Google Ad Manager : %%SITE%% %%PLACEMENT%%
-  - Xandr             : ${SITE_NAME} ${PLACEMENT_ID}
-  - Freewheel         : [siteid] [subsection]
+  Ad server              | Macro to use
+  ───────────────────────|─────────────────────
+  Google Ad Manager      | %%COUNTRY%%
+  Xandr (AppNexus)       | ${GEO_COUNTRY}
+  Freewheel              | [country]
+  The Trade Desk         | ##COUNTRY##
+  Pubmatic               | %%COUNTRY%%
+  Smart AdServer         | [country]
+  Amazon AAP             | ${USER_COUNTRY}
+  DV360                  | %%COUNTRY%%
+
+  The macro is automatically replaced with the 2-letter ISO code (e.g. GB, US, FR)
+  at the moment the ad is served. No action needed from you.
 -->
 
-<!-- Basic embed -->
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- GOOGLE AD MANAGER (DFP) — paste into creative HTML field   -->
+<!-- ═══════════════════════════════════════════════════════════ -->
 <iframe
-  src="https://fanometrix-surveys.vercel.app/embed?campaign=premier-league-2026&publisher=sky-sports&placement=homepage-mpu&country=GB&segment=season-ticket-holder"
+  src="https://fanometrix-surveys.vercel.app/embed?campaign=YOUR_CAMPAIGN&publisher=YOUR_PUBLISHER&placement=YOUR_PLACEMENT&country=%%COUNTRY%%&segment=YOUR_SEGMENT"
   width="300"
   height="250"
   frameborder="0"
@@ -35,18 +49,31 @@
 ></iframe>
 
 
-<!-- ─────────────────────────────────────────────── -->
-<!-- With a border/shadow wrapper (optional styling) -->
-<!-- ─────────────────────────────────────────────── -->
-<div style="width:300px; height:250px; border-radius:8px; overflow:hidden; box-shadow:0 4px 16px rgba(0,0,0,0.18);">
-  <iframe
-    src="https://fanometrix-surveys.vercel.app/embed?campaign=premier-league-2026&publisher=sky-sports&placement=homepage-mpu&country=GB&segment=season-ticket-holder"
-    width="300"
-    height="250"
-    frameborder="0"
-    scrolling="no"
-    style="border:0; overflow:hidden; display:block;"
-    title="Fanometrix Pulse Fan Survey"
-    loading="lazy"
-  ></iframe>
-</div>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- XANDR (APPNEXUS)                                           -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<iframe
+  src="https://fanometrix-surveys.vercel.app/embed?campaign=YOUR_CAMPAIGN&publisher=YOUR_PUBLISHER&placement=YOUR_PLACEMENT&country=${GEO_COUNTRY}&segment=YOUR_SEGMENT"
+  width="300"
+  height="250"
+  frameborder="0"
+  scrolling="no"
+  style="border:0; overflow:hidden; display:block;"
+  title="Fanometrix Pulse Fan Survey"
+  loading="lazy"
+></iframe>
+
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- TESTING (no ad server — country hardcoded for QA)          -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<iframe
+  src="https://fanometrix-surveys.vercel.app/embed?campaign=test&publisher=qa&placement=test-page&country=GB&segment=season-ticket-holder"
+  width="300"
+  height="250"
+  frameborder="0"
+  scrolling="no"
+  style="border:0; overflow:hidden; display:block;"
+  title="Fanometrix Pulse Fan Survey"
+  loading="lazy"
+></iframe>
