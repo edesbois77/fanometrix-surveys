@@ -170,7 +170,7 @@ select
 
 from responses r
 left join campaigns c on c.campaign_id = r.campaign_id
-left join surveys   s on s.id          = r.survey_id;
+left join surveys   s on s.id::text    = r.survey_id;  -- cast uuid→text to match responses.survey_id (text)
 
 -- ── Grant read access to Supabase roles ──────────────────────────────────────
 -- Required for the Supabase JS client (anon key) to query the view.
