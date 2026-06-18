@@ -1,65 +1,178 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
-  return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+import { useState, useEffect } from "react";
+
+const QUESTIONS = [
+  {
+    id: "q1",
+    text: "How often do you attend live events?",
+    options: ["Never", "1–2 times a year", "3–5 times a year", "More than 5 times a year"],
+  },
+  {
+    id: "q2",
+    text: "How would you rate your overall fan experience?",
+    options: ["Poor", "Average", "Good", "Excellent"],
+  },
+  {
+    id: "q3",
+    text: "How likely are you to recommend us to a friend?",
+    options: ["Not likely", "Somewhat likely", "Likely", "Very likely"],
+  },
+];
+
+const COUNTRIES = [
+  "United Kingdom", "United States", "France", "Germany", "Spain",
+  "Italy", "Brazil", "Argentina", "Australia", "Japan", "Other",
+];
+
+export default function SurveyPage() {
+  const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [country, setCountry] = useState("");
+  const [fanSegment, setFanSegment] = useState("");
+  const [campaignId, setCampaignId] = useState("default");
+  const [status, setStatus] = useState<"idle" | "submitting" | "success" | "error">("idle");
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const c = params.get("campaign");
+    if (c) setCampaignId(c);
+  }, []);
+
+  function handleAnswer(questionId: string, value: string) {
+    setAnswers((prev) => ({ ...prev, [questionId]: value }));
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+
+    if (!answers.q1) {
+      alert("Please answer at least the first question.");
+      return;
+    }
+    if (!country) {
+      alert("Please select your country.");
+      return;
+    }
+
+    setStatus("submitting");
+
+    const res = await fetch("/api/submit", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        campaign_id: campaignId,
+        q1: answers.q1 ?? null,
+        q2: answers.q2 ?? null,
+        q3: answers.q3 ?? null,
+        country,
+        fan_segment: fanSegment || null,
+      }),
+    });
+
+    if (res.ok) {
+      setStatus("success");
+    } else {
+      setStatus("error");
+    }
+  }
+
+  if (status === "success") {
+    return (
+      <main className="min-h-screen flex items-center justify-center p-6">
+        <div className="bg-white rounded-2xl shadow-md p-10 max-w-md w-full text-center">
+          <div className="text-5xl mb-4">🎉</div>
+          <h1 className="text-2xl font-bold mb-2">Thank you!</h1>
+          <p className="text-gray-500">Your response has been recorded.</p>
         </div>
       </main>
-    </div>
+    );
+  }
+
+  return (
+    <main className="min-h-screen flex items-center justify-center p-6">
+      <form
+        onSubmit={handleSubmit}
+        className="bg-white rounded-2xl shadow-md p-8 max-w-xl w-full space-y-8"
+      >
+        <div>
+          <h1 className="text-3xl font-bold text-indigo-700">Fanometrix Pulse</h1>
+          <p className="mt-1 text-gray-500 text-sm">
+            Your feedback helps us improve the fan experience. Takes 60 seconds.
+          </p>
+        </div>
+
+        {QUESTIONS.map((q) => (
+          <fieldset key={q.id} className="space-y-3">
+            <legend className="font-semibold text-gray-800">{q.text}</legend>
+            <div className="space-y-2">
+              {q.options.map((opt) => (
+                <label
+                  key={opt}
+                  className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                    answers[q.id] === opt
+                      ? "border-indigo-500 bg-indigo-50"
+                      : "border-gray-200 hover:border-indigo-300"
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name={q.id}
+                    value={opt}
+                    checked={answers[q.id] === opt}
+                    onChange={() => handleAnswer(q.id, opt)}
+                    className="accent-indigo-600"
+                  />
+                  <span className="text-sm text-gray-700">{opt}</span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
+        ))}
+
+        <div className="space-y-2">
+          <label className="font-semibold text-gray-800 block">Country</label>
+          <select
+            value={country}
+            onChange={(e) => setCountry(e.target.value)}
+            className="w-full border border-gray-200 rounded-lg p-3 text-sm text-gray-700 focus:outline-none focus:border-indigo-500"
+            required
+          >
+            <option value="">Select your country…</option>
+            {COUNTRIES.map((c) => (
+              <option key={c} value={c}>{c}</option>
+            ))}
+          </select>
+        </div>
+
+        <div className="space-y-2">
+          <label className="font-semibold text-gray-800 block">
+            Fan segment{" "}
+            <span className="text-gray-400 font-normal">(optional)</span>
+          </label>
+          <p className="text-xs text-gray-400">
+            e.g. Season ticket holder, Casual viewer, VIP member
+          </p>
+          <input
+            type="text"
+            value={fanSegment}
+            onChange={(e) => setFanSegment(e.target.value)}
+            placeholder="Describe your fan type…"
+            className="w-full border border-gray-200 rounded-lg p-3 text-sm text-gray-700 focus:outline-none focus:border-indigo-500"
+          />
+        </div>
+
+        {status === "error" && (
+          <p className="text-red-500 text-sm">Something went wrong. Please try again.</p>
+        )}
+
+        <button
+          type="submit"
+          disabled={status === "submitting"}
+          className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 rounded-xl transition-colors disabled:opacity-60"
+        >
+          {status === "submitting" ? "Submitting…" : "Submit your response"}
+        </button>
+      </form>
+    </main>
   );
 }
