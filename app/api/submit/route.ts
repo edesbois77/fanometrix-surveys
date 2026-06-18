@@ -3,14 +3,14 @@ import { supabase } from "@/lib/supabase";
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
-  const { campaign_id, q1, q2, q3, country, fan_segment } = body;
+  const { campaign_id, q1, q2, q3, country, fan_segment, publisher, placement } = body;
 
   if (!campaign_id || !q1) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
   }
 
   const { error } = await supabase.from("responses").insert([
-    { campaign_id, q1, q2, q3, country, fan_segment },
+    { campaign_id, q1, q2, q3, country, fan_segment, publisher, placement },
   ]);
 
   if (error) {
