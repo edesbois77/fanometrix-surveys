@@ -39,6 +39,8 @@ const FIELDS = [
   { name: "response_month_num",   type: "INTEGER",   note: "Month number 1–12" },
   { name: "response_month_label", type: "TEXT",      note: "e.g. 2026-06" },
   { name: "response_day_of_week", type: "TEXT",      note: "e.g. Monday" },
+  { name: "response_hour",        type: "INTEGER",   note: "Hour of submission 0–23 (UTC)" },
+  { name: "response_daypart",     type: "TEXT",      note: "Morning (05–11) · Afternoon (12–16) · Evening (17–21) · Night (22–04) — UTC" },
 ];
 
 const MEASURES = [

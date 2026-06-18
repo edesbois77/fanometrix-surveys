@@ -71,6 +71,7 @@ export async function GET(req: NextRequest) {
           "q1","q2","q3","response_duration_seconds","is_complete",
           "submitted_at","response_date","response_week","response_month",
           "response_year","response_month_num","response_month_label","response_day_of_week",
+          "response_hour","response_daypart",
         ],
       },
     },
