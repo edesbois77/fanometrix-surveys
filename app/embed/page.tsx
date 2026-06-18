@@ -203,8 +203,6 @@ function EmbedSurvey() {
   const club          = params.get("club")        ?? null;
   const competition   = params.get("competition") ?? null;
   const country       = resolveCountry(params.get("country") ?? "");
-  const ageBand       = params.get("age_band")    ?? null;
-  const gender        = params.get("gender")      ?? null;
   const segment       = params.get("segment")     ?? null;
 
   // Auto-collected
@@ -252,8 +250,6 @@ function EmbedSurvey() {
         q3:                        answers.q3 ?? null,
         country:                   country  || null,
         fan_segment:               segment,
-        age_band:                  ageBand,
-        gender,
         device,
         browser,
         response_duration_seconds: duration,

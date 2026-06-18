@@ -9,7 +9,6 @@ export async function POST(req: NextRequest) {
     country, fan_segment,
     publisher, placement,
     club, competition,
-    age_band, gender,
     device, browser, response_duration_seconds,
   } = body;
 
@@ -23,7 +22,6 @@ export async function POST(req: NextRequest) {
     country, fan_segment,
     publisher, placement,
     club, competition,
-    age_band, gender,
     device, browser, response_duration_seconds,
   }]);
 

@@ -17,8 +17,6 @@ type Response = {
   q3: string | null;
   country: string | null;
   fan_segment: string | null;
-  age_band: string | null;
-  gender: string | null;
   device: string | null;
   browser: string | null;
   response_duration_seconds: number | null;
@@ -101,8 +99,6 @@ export default function DashboardPage() {
         q3: r.q3,
         country: r.country,
         fan_segment: r.fan_segment,
-        age_band: r.age_band,
-        gender: r.gender,
         device: r.device,
         browser: r.browser,
         response_duration_seconds: r.response_duration_seconds,

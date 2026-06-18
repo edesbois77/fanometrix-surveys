@@ -28,7 +28,6 @@ const COUNTRIES = [
 export default function SurveyPage() {
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [country, setCountry] = useState("");
-  const [fanSegment, setFanSegment] = useState("");
   const [campaignId, setCampaignId] = useState("default");
   const [status, setStatus] = useState<"idle" | "submitting" | "success" | "error">("idle");
 
@@ -65,7 +64,6 @@ export default function SurveyPage() {
         q2: answers.q2 ?? null,
         q3: answers.q3 ?? null,
         country,
-        fan_segment: fanSegment || null,
       }),
     });
 
@@ -142,23 +140,6 @@ export default function SurveyPage() {
               <option key={c} value={c}>{c}</option>
             ))}
           </select>
-        </div>
-
-        <div className="space-y-2">
-          <label className="font-semibold text-gray-800 block">
-            Fan segment{" "}
-            <span className="text-gray-400 font-normal">(optional)</span>
-          </label>
-          <p className="text-xs text-gray-400">
-            e.g. Season ticket holder, Casual viewer, VIP member
-          </p>
-          <input
-            type="text"
-            value={fanSegment}
-            onChange={(e) => setFanSegment(e.target.value)}
-            placeholder="Describe your fan type…"
-            className="w-full border border-gray-200 rounded-lg p-3 text-sm text-gray-700 focus:outline-none focus:border-indigo-500"
-          />
         </div>
 
         {status === "error" && (
