@@ -5,14 +5,14 @@ import "./globals.css";
 const geist = Geist({ subsets: ["latin"], variable: "--font-geist" });
 
 export const metadata: Metadata = {
-  title: "Fanometrix Pulse",
-  description: "Fan sentiment survey",
+  title: "Fanometrix Pulse · The Football Collective",
+  description: "Fan insight platform",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${geist.variable} h-full`}>
-      <body className="min-h-full bg-gray-50 text-gray-900 antialiased">{children}</body>
+      <body className="min-h-full antialiased">{children}</body>
     </html>
   );
 }

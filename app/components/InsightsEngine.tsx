@@ -3,205 +3,133 @@
 import { useMemo } from "react";
 import type { SurveyResponse } from "@/lib/types";
 
-// ─── Types ───────────────────────────────────────────────────────────────────
-
 type Confidence = "High" | "Medium" | "Low";
-
-type Insight = {
-  icon: string;
-  title: string;
-  description: string;
-  confidence: Confidence;
-  positive?: boolean;
-};
-
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+type Insight = { icon: string; title: string; description: string; confidence: Confidence; positive?: boolean };
 
 function tally(data: SurveyResponse[], field: keyof SurveyResponse) {
   const m: Record<string, number> = {};
-  for (const r of data) {
-    const v = r[field] as string;
-    if (v) m[v] = (m[v] ?? 0) + 1;
-  }
+  for (const r of data) { const v = r[field] as string; if (v) m[v] = (m[v] ?? 0) + 1; }
   return Object.entries(m).sort((a, b) => b[1] - a[1]);
 }
 
-function confidence(n: number, pct: number, hiPct: number, medPct: number): Confidence {
-  if (n >= 100 && pct >= hiPct)  return "High";
-  if (n >= 30  && pct >= medPct) return "Medium";
-  return "Low";
+function conf(n: number, pct: number, hp: number, mp: number): Confidence {
+  return n >= 100 && pct >= hp ? "High" : n >= 30 && pct >= mp ? "Medium" : "Low";
 }
 
 function daypart(h: number) {
-  if (h >= 5  && h < 12) return "Morning";
-  if (h >= 12 && h < 17) return "Afternoon";
-  if (h >= 17 && h < 22) return "Evening";
-  return "Night";
+  return h >= 5 && h < 12 ? "Morning" : h >= 12 && h < 17 ? "Afternoon" : h >= 17 && h < 22 ? "Evening" : "Night";
 }
 
-// ─── Insight generators ───────────────────────────────────────────────────────
-
-function geographic(data: SurveyResponse[]): Insight | null {
-  if (data.length < 10) return null;
-  const rows = tally(data, "country");
-  if (!rows.length) return null;
-  const [top, topN] = rows[0];
-  const pct = Math.round(topN / data.length * 100);
-  if (pct < 20 || topN < 5) return null;
-
-  const runnerUp = rows[1];
-  const lead = runnerUp ? pct - Math.round(runnerUp[1] / data.length * 100) : null;
-
-  return {
-    icon: "🌍",
-    title: "Geographic",
-    description: lead !== null && lead > 5
-      ? `${top} generated ${pct}% of responses, leading ${runnerUp[0]} by ${lead} percentage points.`
+function geographic(d: SurveyResponse[]): Insight | null {
+  if (d.length < 10) return null;
+  const rows = tally(d, "country"); if (!rows.length) return null;
+  const [top, n] = rows[0]; const pct = Math.round(n / d.length * 100); if (pct < 20 || n < 5) return null;
+  const r = rows[1]; const lead = r ? pct - Math.round(r[1] / d.length * 100) : null;
+  return { icon: "🌍", title: "Geographic",
+    description: lead && lead > 5
+      ? `${top} generated ${pct}% of responses, leading ${r![0]} by ${lead} percentage points.`
       : `${top} generated ${pct}% of all responses.`,
-    confidence: confidence(data.length, pct, 40, 25),
-  };
+    confidence: conf(d.length, pct, 40, 25) };
 }
 
-function device(data: SurveyResponse[]): Insight | null {
-  if (data.length < 15) return null;
-  const rows = tally(data, "device");
-  if (!rows.length) return null;
-  const [top, topN] = rows[0];
-  const pct = Math.round(topN / data.length * 100);
-  if (pct < 50) return null;
-
-  const label = top.charAt(0).toUpperCase() + top.slice(1);
-  const second = rows[1];
-  return {
-    icon: "📱",
-    title: "Device",
-    description: second
-      ? `${label} represented ${pct}% of responses, with ${second[0]} at ${Math.round(second[1] / data.length * 100)}%.`
-      : `${label} represented ${pct}% of responses.`,
-    confidence: confidence(data.length, pct, 65, 55),
-  };
+function deviceInsight(d: SurveyResponse[]): Insight | null {
+  if (d.length < 15) return null;
+  const rows = tally(d, "device"); if (!rows.length) return null;
+  const [top, n] = rows[0]; const pct = Math.round(n / d.length * 100); if (pct < 50) return null;
+  const lbl = top.charAt(0).toUpperCase() + top.slice(1); const s = rows[1];
+  return { icon: "📱", title: "Device",
+    description: s ? `${lbl} represented ${pct}% of responses, with ${s[0]} at ${Math.round(s[1]/d.length*100)}%.`
+                   : `${lbl} represented ${pct}% of responses.`,
+    confidence: conf(d.length, pct, 65, 55) };
 }
 
-function publisher(data: SurveyResponse[]): Insight | null {
-  const pubs: Record<string, { t: number; c: number }> = {};
-  for (const r of data) {
-    if (!r.publisher) continue;
-    if (!pubs[r.publisher]) pubs[r.publisher] = { t: 0, c: 0 };
-    pubs[r.publisher].t++;
-    if (r.q1 && r.q2 && r.q3) pubs[r.publisher].c++;
-  }
-  const valid = Object.entries(pubs).filter(([, v]) => v.t >= 10);
-  if (valid.length < 2) return null;
-
-  const sorted = valid.map(([p, v]) => ({ p, rate: v.c / v.t, t: v.t }))
-    .sort((a, b) => b.rate - a.rate);
-  const best = sorted[0];
-  const pct  = Math.round(best.rate * 100);
-  const conf: Confidence = best.t >= 100 ? "High" : best.t >= 30 ? "Medium" : "Low";
-
-  return {
-    icon: "🏆",
-    title: "Publisher",
+function publisherInsight(d: SurveyResponse[]): Insight | null {
+  const pubs: Record<string,{t:number;c:number}> = {};
+  for (const r of d) { if (!r.publisher) continue; if (!pubs[r.publisher]) pubs[r.publisher]={t:0,c:0}; pubs[r.publisher].t++; if(r.q1&&r.q2&&r.q3)pubs[r.publisher].c++; }
+  const valid = Object.entries(pubs).filter(([,v])=>v.t>=10); if (valid.length < 2) return null;
+  const sorted = valid.map(([p,v])=>({p,rate:v.c/v.t,t:v.t})).sort((a,b)=>b.rate-a.rate);
+  const best = sorted[0]; const pct = Math.round(best.rate*100);
+  return { icon: "🏆", title: "Publisher", positive: true,
     description: `${best.p} delivered the highest completion rate at ${pct}% across ${best.t.toLocaleString()} responses.`,
-    confidence: conf,
-    positive: true,
-  };
+    confidence: best.t >= 100 ? "High" : best.t >= 30 ? "Medium" : "Low" };
 }
 
-function growth(data: SurveyResponse[]): Insight | null {
-  const now  = Date.now();
-  const wk7  = now - 7  * 86_400_000;
-  const wk14 = now - 14 * 86_400_000;
-
-  const recent = data.filter(r => new Date(r.created_at).getTime() >= wk7).length;
-  const prev   = data.filter(r => {
-    const t = new Date(r.created_at).getTime();
-    return t >= wk14 && t < wk7;
-  }).length;
-
+function growthInsight(d: SurveyResponse[]): Insight | null {
+  const now=Date.now(), wk7=now-7*86400000, wk14=now-14*86400000;
+  const recent=d.filter(r=>new Date(r.created_at).getTime()>=wk7).length;
+  const prev=d.filter(r=>{const t=new Date(r.created_at).getTime();return t>=wk14&&t<wk7;}).length;
   if (recent < 3 || prev < 1) return null;
-  const pct = Math.round((recent - prev) / prev * 100);
-  if (Math.abs(pct) < 5) return null;
-
-  const up   = pct > 0;
-  const conf: Confidence = (recent >= 100 && prev >= 100) ? "High"
-             : (recent >= 30  && prev >= 30)  ? "Medium" : "Low";
-
-  return {
-    icon: "📈",
-    title: "Growth",
-    description: `Responses ${up ? "increased" : "decreased"} ${Math.abs(pct)}% ${up ? "↑" : "↓"} vs the previous 7 days (${recent.toLocaleString()} vs ${prev.toLocaleString()}).`,
-    confidence: conf,
-    positive: up,
-  };
+  const pct = Math.round((recent-prev)/prev*100); if (Math.abs(pct) < 5) return null;
+  const up = pct > 0;
+  return { icon: "📈", title: "Growth", positive: up,
+    description: `Responses ${up?"increased":"decreased"} ${Math.abs(pct)}% ${up?"↑":"↓"} vs the previous 7 days (${recent.toLocaleString()} vs ${prev.toLocaleString()}).`,
+    confidence: (recent>=100&&prev>=100)?"High":(recent>=30&&prev>=30)?"Medium":"Low" };
 }
 
-function behavioural(data: SurveyResponse[]): Insight | null {
-  if (data.length < 15) return null;
-
-  const dp: Record<string, number> = { Morning: 0, Afternoon: 0, Evening: 0, Night: 0 };
-  for (const r of data) {
-    const h = new Date(r.created_at).getUTCHours();
-    dp[daypart(h)]++;
-  }
-
-  const sorted = Object.entries(dp).sort((a, b) => b[1] - a[1]);
-  const [top, topN] = sorted[0];
-  const pct = Math.round(topN / data.length * 100);
-  if (pct < 28) return null;
-
-  const ranges: Record<string, string> = {
-    Morning: "05:00–11:59", Afternoon: "12:00–16:59",
-    Evening: "17:00–21:59", Night: "22:00–04:59",
-  };
-
-  return {
-    icon: "⚡",
-    title: "Behavioural",
-    description: `${top} hours (${ranges[top]}) generated the highest response volume at ${pct}% of total responses.`,
-    confidence: confidence(data.length, pct, 40, 30),
-  };
+function behaviouralInsight(d: SurveyResponse[]): Insight | null {
+  if (d.length < 15) return null;
+  const dp: Record<string,number>={Morning:0,Afternoon:0,Evening:0,Night:0};
+  for(const r of d) dp[daypart(new Date(r.created_at).getUTCHours())]++;
+  const sorted=Object.entries(dp).sort((a,b)=>b[1]-a[1]); const [top,n]=sorted[0];
+  const pct=Math.round(n/d.length*100); if(pct<28) return null;
+  const rng:Record<string,string>={Morning:"05:00–11:59",Afternoon:"12:00–16:59",Evening:"17:00–21:59",Night:"22:00–04:59"};
+  return { icon: "⚡", title: "Behavioural",
+    description: `${top} hours (${rng[top]}) generated the highest response volume at ${pct}% of total responses.`,
+    confidence: (d.length>=100&&pct>=40)?"High":(d.length>=30&&pct>=30)?"Medium":"Low" };
 }
 
-// ─── Generate all insights ────────────────────────────────────────────────────
-
-function generate(data: SurveyResponse[]): Insight[] {
-  return [
-    geographic(data),
-    device(data),
-    publisher(data),
-    growth(data),
-    behavioural(data),
-  ].filter(Boolean) as Insight[];
+function generate(d: SurveyResponse[]): Insight[] {
+  return [geographic(d), deviceInsight(d), publisherInsight(d), growthInsight(d), behaviouralInsight(d)].filter(Boolean) as Insight[];
 }
 
-// ─── Insight card ─────────────────────────────────────────────────────────────
+// ─── Confidence badge colors ──────────────────────────────────────────────────
 
-const CONF_STYLES: Record<Confidence, string> = {
-  High:   "bg-green-50 text-green-700 border-green-200",
-  Medium: "bg-amber-50 text-amber-700 border-amber-200",
-  Low:    "bg-gray-100 text-gray-500 border-gray-200",
+const CONF_COLOR: Record<Confidence, string> = {
+  High:   "rgba(215,184,122,0.9)",
+  Medium: "rgba(215,184,122,0.55)",
+  Low:    "rgba(224,225,221,0.3)",
 };
 
-const BORDER: Record<Confidence, string> = {
-  High:   "border-l-green-400",
-  Medium: "border-l-amber-400",
-  Low:    "border-l-gray-300",
+const CONF_BG: Record<Confidence, string> = {
+  High:   "rgba(215,184,122,0.12)",
+  Medium: "rgba(215,184,122,0.07)",
+  Low:    "rgba(255,255,255,0.05)",
 };
+
+// ─── Card ─────────────────────────────────────────────────────────────────────
 
 function InsightCard({ insight }: { insight: Insight }) {
   return (
-    <div className={`bg-white border border-gray-100 border-l-4 ${BORDER[insight.confidence]} rounded-xl p-4 shadow-sm flex flex-col gap-2`}>
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-1.5">
-          <span className="text-base leading-none">{insight.icon}</span>
-          <p className="text-xs font-semibold text-gray-700">{insight.title}</p>
+    <div style={{
+      background: "rgba(255,255,255,0.03)",
+      border: "1px solid rgba(215,184,122,0.2)",
+      borderLeft: "3px solid #D7B87A",
+      borderRadius: 14,
+      padding: "14px 14px",
+      backdropFilter: "blur(8px)",
+      display: "flex",
+      flexDirection: "column",
+      gap: 8,
+    }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ fontSize: 15, lineHeight: 1, filter: "sepia(0.3) saturate(1.5)" }}>{insight.icon}</span>
+          <p style={{ color: "#D7B87A", fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}>
+            {insight.title}
+          </p>
         </div>
-        <span className={`text-xs px-2 py-0.5 rounded-full font-medium border flex-shrink-0 ${CONF_STYLES[insight.confidence]}`}>
+        <span style={{
+          fontSize: 9, fontWeight: 700, letterSpacing: "0.06em",
+          textTransform: "uppercase",
+          color: CONF_COLOR[insight.confidence],
+          background: CONF_BG[insight.confidence],
+          padding: "2px 7px", borderRadius: 20,
+          flexShrink: 0,
+        }}>
           {insight.confidence}
         </span>
       </div>
-      <p className="text-xs text-gray-600 leading-relaxed">{insight.description}</p>
+      <p style={{ color: "#E0E1DD", fontSize: 11.5, lineHeight: 1.55 }}>{insight.description}</p>
     </div>
   );
 }
@@ -213,14 +141,14 @@ export function InsightsEngine({ responses }: { responses: SurveyResponse[] }) {
   if (!insights.length) return null;
 
   return (
-    <div className="mb-4">
-      <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
-        Insights
-        <span className="ml-2 text-gray-300 font-normal normal-case tracking-normal">
-          — updates as filters change
-        </span>
-      </h2>
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+    <div style={{ marginBottom: 16 }}>
+      <p style={{
+        color: "rgba(215,184,122,0.5)", fontSize: 9, fontWeight: 700,
+        letterSpacing: "0.14em", textTransform: "uppercase", marginBottom: 10,
+      }}>
+        Insights &nbsp;<span style={{ fontWeight: 400, letterSpacing: 0, textTransform: "none", color: "rgba(224,225,221,0.3)" }}>— updates as filters change</span>
+      </p>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 10 }}>
         {insights.map(i => <InsightCard key={i.title} insight={i} />)}
       </div>
     </div>

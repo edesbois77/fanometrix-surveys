@@ -4,10 +4,10 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const NAV = [
-  { href: "/dashboard",       label: "Dashboard",       icon: "▦"  },
-  { href: "/surveys",         label: "Surveys",         icon: "◫"  },
-  { href: "/campaigns",       label: "Campaigns",       icon: "◎"  },
-  { href: "/embed-generator", label: "Embed Generator", icon: "</>" },
+  { href: "/dashboard",        label: "Dashboard",        icon: "▦"  },
+  { href: "/surveys",          label: "Surveys",          icon: "◫"  },
+  { href: "/campaigns",        label: "Campaigns",        icon: "◎"  },
+  { href: "/embed-generator",  label: "Embed Generator",  icon: "</>" },
   { href: "/reporting",        label: "Reporting",        icon: "↗"  },
   { href: "/looker-templates", label: "Looker Templates", icon: "◈"  },
   { href: "/demo-data",        label: "Demo Data",        icon: "⚗"  },
@@ -18,44 +18,94 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex min-h-screen">
+
       {/* Sidebar */}
-      <aside className="w-52 flex-shrink-0 bg-indigo-950 flex flex-col">
-        <div className="px-5 py-5 border-b border-indigo-800">
-          <p className="text-white font-bold text-sm tracking-wide">Fanometrix Pulse</p>
-          <p className="text-indigo-400 text-xs mt-0.5">Fan Insight Platform</p>
+      <aside style={{
+        width: 212,
+        flexShrink: 0,
+        backgroundColor: "#07121D",
+        display: "flex",
+        flexDirection: "column",
+        borderRight: "1px solid rgba(215,184,122,0.1)",
+      }}>
+
+        {/* Logo */}
+        <div style={{
+          padding: "24px 20px 20px",
+          borderBottom: "1px solid rgba(215,184,122,0.1)",
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div style={{
+              width: 8, height: 8, borderRadius: "50%",
+              background: "#D7B87A",
+              boxShadow: "0 0 8px rgba(215,184,122,0.6)",
+            }} />
+            <p style={{ color: "#FFFFFF", fontWeight: 700, fontSize: 13, letterSpacing: "0.04em" }}>
+              FANOMETRIX PULSE
+            </p>
+          </div>
+          <p style={{ color: "rgba(215,184,122,0.55)", fontSize: 10, marginTop: 4, letterSpacing: "0.08em" }}>
+            THE FOOTBALL COLLECTIVE
+          </p>
         </div>
 
-        <nav className="flex-1 px-3 py-4 space-y-1">
+        {/* Nav */}
+        <nav style={{ flex: 1, padding: "16px 10px", display: "flex", flexDirection: "column", gap: 2 }}>
           {NAV.map(({ href, label, icon }) => {
-            const active = path === href || path.startsWith(href + "/");
+            const active = path === href || (href !== "/" && path.startsWith(href + "/")) || path.startsWith(href);
             return (
-              <Link key={href} href={href}
-                className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  active
-                    ? "bg-indigo-700 text-white"
-                    : "text-indigo-300 hover:bg-indigo-800 hover:text-white"
-                }`}>
-                <span className="text-xs w-4 text-center">{icon}</span>
+              <Link key={href} href={href} style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                padding: "9px 12px",
+                borderRadius: 8,
+                fontSize: 12,
+                fontWeight: active ? 600 : 400,
+                letterSpacing: "0.02em",
+                textDecoration: "none",
+                color: active ? "#D7B87A" : "rgba(224,225,221,0.65)",
+                backgroundColor: active ? "rgba(215,184,122,0.07)" : "transparent",
+                borderLeft: active ? "2px solid #D7B87A" : "2px solid transparent",
+                transition: "all 0.15s",
+              }}>
+                <span style={{ fontSize: 11, opacity: active ? 1 : 0.7, width: 14, textAlign: "center" }}>{icon}</span>
                 {label}
               </Link>
             );
           })}
         </nav>
 
-        <div className="px-3 py-4 border-t border-indigo-800 space-y-1">
-          <Link href="/privacy"
-            className="flex items-center gap-3 px-3 py-2 rounded-lg text-xs text-indigo-400 hover:text-indigo-200 hover:bg-indigo-900 transition-colors">
-            ⓘ Privacy Policy
-          </Link>
-          <Link href="/publisher-guide"
-            className="flex items-center gap-3 px-3 py-2 rounded-lg text-xs text-indigo-400 hover:text-indigo-200 hover:bg-indigo-900 transition-colors">
-            ☰ Publisher Guide
-          </Link>
+        {/* Footer links */}
+        <div style={{
+          padding: "12px 10px 20px",
+          borderTop: "1px solid rgba(215,184,122,0.1)",
+          display: "flex",
+          flexDirection: "column",
+          gap: 2,
+        }}>
+          {[
+            { href: "/privacy",          label: "ⓘ  Privacy Policy"   },
+            { href: "/publisher-guide",  label: "☰  Publisher Guide"  },
+          ].map(({ href, label }) => (
+            <Link key={href} href={href} style={{
+              display: "block",
+              padding: "7px 12px",
+              borderRadius: 6,
+              fontSize: 11,
+              color: "rgba(215,184,122,0.45)",
+              textDecoration: "none",
+              letterSpacing: "0.02em",
+              transition: "color 0.15s",
+            }}>
+              {label}
+            </Link>
+          ))}
         </div>
       </aside>
 
-      {/* Main */}
-      <main className="flex-1 overflow-auto bg-gray-50">
+      {/* Main content */}
+      <main style={{ flex: 1, overflowY: "auto", minWidth: 0 }}>
         {children}
       </main>
     </div>

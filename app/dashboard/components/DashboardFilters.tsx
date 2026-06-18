@@ -17,33 +17,49 @@ export const EMPTY_DASH_FILTERS: DashFilters = {
 };
 
 const DATE_PRESETS: { key: DatePreset; label: string }[] = [
-  { key: "all",      label: "All Time"      },
-  { key: "today",    label: "Today"         },
-  { key: "7d",       label: "Last 7 Days"   },
-  { key: "30d",      label: "Last 30 Days"  },
-  { key: "campaign", label: "This Campaign" },
-  { key: "custom",   label: "Custom Range"  },
+  { key: "all",      label: "All Time"     },
+  { key: "today",    label: "Today"        },
+  { key: "7d",       label: "Last 7 Days"  },
+  { key: "30d",      label: "Last 30 Days" },
+  { key: "campaign", label: "This Campaign"},
+  { key: "custom",   label: "Custom Range" },
 ];
 
-const DIM_FIELDS: { key: keyof DashFilters; label: string }[] = [
-  { key: "campaign_id",  label: "Campaign"    },
-  { key: "publisher",    label: "Publisher"   },
-  { key: "placement",    label: "Placement"   },
-  { key: "club",         label: "Club"        },
-  { key: "competition",  label: "Competition" },
-  { key: "country",      label: "Country"     },
-  { key: "fan_segment",  label: "Fan Segment" },
-  { key: "device",       label: "Device"      },
-  { key: "browser",      label: "Browser"     },
+const FILTER_FIELDS: { label: string; field: keyof DashFilters }[] = [
+  { label: "Campaign",    field: "campaign_id"  },
+  { label: "Publisher",   field: "publisher"    },
+  { label: "Placement",   field: "placement"    },
+  { label: "Club",        field: "club"         },
+  { label: "Competition", field: "competition"  },
+  { label: "Country",     field: "country"      },
+  { label: "Fan Segment", field: "fan_segment"  },
+  { label: "Device",      field: "device"       },
+  { label: "Browser",     field: "browser"      },
 ];
-
-const Q_LABELS: Partial<Record<keyof DashFilters, string>> = {
-  q1: "Q1", q2: "Q2", q3: "Q3",
-};
 
 function uniqueVals(data: SurveyResponse[], field: keyof SurveyResponse): string[] {
   return [...new Set(data.map(r => r[field] as string).filter(Boolean))].sort();
 }
+
+const cardStyle: React.CSSProperties = {
+  background: "rgba(255,255,255,0.03)",
+  border: "1px solid rgba(215,184,122,0.12)",
+  borderRadius: 16,
+  marginBottom: 12,
+  backdropFilter: "blur(8px)",
+  overflow: "hidden",
+};
+
+const inputStyle: React.CSSProperties = {
+  width: "100%",
+  background: "rgba(255,255,255,0.05)",
+  border: "1px solid rgba(215,184,122,0.15)",
+  borderRadius: 8,
+  padding: "6px 10px",
+  fontSize: 12,
+  color: "#E0E1DD",
+  outline: "none",
+};
 
 interface Props {
   allResponses: SurveyResponse[];
@@ -52,13 +68,10 @@ interface Props {
   clearFilters: () => void;
   datePreset: DatePreset;
   setDatePreset: (p: DatePreset) => void;
-  dateFrom: string;
-  dateTo: string;
-  setDateFrom: (v: string) => void;
-  setDateTo: (v: string) => void;
+  dateFrom: string; dateTo: string;
+  setDateFrom: (v: string) => void; setDateTo: (v: string) => void;
   campaignHasDates: boolean;
-  filteredCount: number;
-  totalCount: number;
+  filteredCount: number; totalCount: number;
 }
 
 export function DashboardFilters({
@@ -66,83 +79,74 @@ export function DashboardFilters({
   datePreset, setDatePreset, dateFrom, dateTo, setDateFrom, setDateTo,
   campaignHasDates, filteredCount, totalCount,
 }: Props) {
-
-  // All active filter chips (dimensions + date + q answers)
   const chips: { label: string; field: keyof DashFilters | "__date__"; value: string }[] = [];
-
-  DIM_FIELDS.forEach(({ key, label }) => {
-    if (filters[key]) chips.push({ label, field: key, value: filters[key] });
+  FILTER_FIELDS.forEach(({ label, field }) => {
+    if (filters[field]) chips.push({ label, field, value: filters[field] });
   });
-  (["q1", "q2", "q3"] as (keyof DashFilters)[]).forEach(k => {
-    if (filters[k]) chips.push({ label: Q_LABELS[k]!, field: k, value: filters[k] });
+  (["q1","q2","q3"] as (keyof DashFilters)[]).forEach(k => {
+    if (filters[k]) chips.push({ label: k.toUpperCase(), field: k, value: filters[k] });
   });
   if (datePreset !== "all") {
     const dl = DATE_PRESETS.find(d => d.key === datePreset)?.label ?? datePreset;
-    const dv = datePreset === "custom" ? `${dateFrom} → ${dateTo}` : dl;
-    chips.push({ label: "Date", field: "__date__", value: dv });
+    chips.push({ label: "Date", field: "__date__",
+      value: datePreset === "custom" ? `${dateFrom} → ${dateTo}` : dl });
   }
-
-  const hasActiveFilters = chips.length > 0;
+  const hasFilters = chips.length > 0;
 
   return (
-    <div className="bg-white border border-gray-100 rounded-xl shadow-sm mb-4 overflow-hidden">
-
-      {/* Date range tabs */}
-      <div className="flex items-center justify-between px-4 pt-4 pb-3 border-b border-gray-50">
-        <div className="flex gap-1 flex-wrap">
+    <div style={cardStyle}>
+      {/* Date tabs */}
+      <div style={{
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        padding: "14px 16px 12px",
+        borderBottom: "1px solid rgba(215,184,122,0.08)",
+        flexWrap: "wrap", gap: 8,
+      }}>
+        <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
           {DATE_PRESETS.map(({ key, label }) => {
             const disabled = key === "campaign" && !campaignHasDates;
+            const active = datePreset === key;
             return (
-              <button
-                key={key}
-                onClick={() => !disabled && setDatePreset(key)}
-                disabled={disabled}
-                className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-colors ${
-                  datePreset === key
-                    ? "bg-indigo-600 text-white"
-                    : disabled
-                    ? "text-gray-300 cursor-not-allowed"
-                    : "text-gray-500 hover:bg-gray-100"
-                }`}
-              >
+              <button key={key} onClick={() => !disabled && setDatePreset(key)} disabled={disabled}
+                style={{
+                  fontSize: 11, fontWeight: active ? 700 : 500, padding: "5px 12px",
+                  borderRadius: 20, border: "none", cursor: disabled ? "not-allowed" : "pointer",
+                  background: active ? "#D7B87A" : "rgba(255,255,255,0.05)",
+                  color: active ? "#07121D" : disabled ? "rgba(255,255,255,0.2)" : "rgba(224,225,221,0.7)",
+                  transition: "all 0.15s",
+                }}>
                 {label}
               </button>
             );
           })}
         </div>
-        <span className="text-xs text-gray-400 ml-4 flex-shrink-0">
-          {filteredCount.toLocaleString()}
-          {filteredCount !== totalCount && ` of ${totalCount.toLocaleString()}`} responses
+        <span style={{ fontSize: 11, color: "rgba(215,184,122,0.5)" }}>
+          {filteredCount.toLocaleString()}{filteredCount !== totalCount && ` of ${totalCount.toLocaleString()}`} responses
         </span>
       </div>
 
-      {/* Custom date inputs */}
+      {/* Custom date */}
       {datePreset === "custom" && (
-        <div className="flex gap-3 px-4 py-3 border-b border-gray-50">
-          <div className="flex items-center gap-2">
-            <label className="text-xs text-gray-400">From</label>
-            <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
-              className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-indigo-400" />
-          </div>
-          <div className="flex items-center gap-2">
-            <label className="text-xs text-gray-400">To</label>
-            <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
-              className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-indigo-400" />
-          </div>
+        <div style={{ display: "flex", gap: 12, padding: "12px 16px", borderBottom: "1px solid rgba(215,184,122,0.08)" }}>
+          {[["From", dateFrom, setDateFrom], ["To", dateTo, setDateTo]].map(([lbl, val, setter]) => (
+            <div key={lbl as string} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <label style={{ fontSize: 11, color: "rgba(215,184,122,0.5)" }}>{lbl as string}</label>
+              <input type="date" value={val as string} onChange={e => (setter as (v:string)=>void)(e.target.value)} style={inputStyle} />
+            </div>
+          ))}
         </div>
       )}
 
       {/* Dimension dropdowns */}
-      <div className="px-4 py-3 grid grid-cols-3 gap-2">
-        {DIM_FIELDS.map(({ key, label }) => (
-          <div key={key}>
-            <select
-              value={filters[key]}
-              onChange={e => setFilter(key, e.target.value)}
-              className="w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 text-gray-700 focus:outline-none focus:border-indigo-400"
-            >
-              <option value="">All {label}s</option>
-              {uniqueVals(allResponses, key as keyof SurveyResponse).map(v => (
+      <div style={{ padding: "12px 16px", display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
+        {FILTER_FIELDS.map(({ label, field }) => (
+          <div key={field}>
+            <label style={{ display: "block", fontSize: 9, color: "rgba(215,184,122,0.5)", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 4 }}>
+              {label}
+            </label>
+            <select value={filters[field]} onChange={e => setFilter(field, e.target.value)} style={inputStyle}>
+              <option value="">All</option>
+              {uniqueVals(allResponses, field as keyof SurveyResponse).map(v => (
                 <option key={v} value={v}>{v}</option>
               ))}
             </select>
@@ -150,30 +154,26 @@ export function DashboardFilters({
         ))}
       </div>
 
-      {/* Active filter chips */}
-      {hasActiveFilters && (
-        <div className="px-4 pb-3 flex flex-wrap gap-2 items-center border-t border-gray-50 pt-3">
+      {/* Active chips */}
+      {hasFilters && (
+        <div style={{ padding: "10px 16px 14px", borderTop: "1px solid rgba(215,184,122,0.06)", display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
           {chips.map(({ label, field, value }) => (
-            <span
-              key={`${field}-${value}`}
-              className="flex items-center gap-1 text-xs bg-indigo-50 text-indigo-700 border border-indigo-100 px-2 py-1 rounded-full"
-            >
-              <span className="text-indigo-400">{label}:</span> {value}
-              <button
-                onClick={() => {
-                  if (field === "__date__") { setDatePreset("all"); setDateFrom(""); setDateTo(""); }
-                  else setFilter(field, "");
-                }}
-                className="ml-0.5 text-indigo-300 hover:text-red-400"
-              >
+            <span key={`${field}-${value}`} style={{
+              display: "flex", alignItems: "center", gap: 6, fontSize: 11,
+              background: "rgba(215,184,122,0.1)", border: "1px solid rgba(215,184,122,0.2)",
+              color: "#D7B87A", padding: "3px 10px", borderRadius: 20,
+            }}>
+              <span style={{ color: "rgba(215,184,122,0.5)" }}>{label}:</span> {value}
+              <button onClick={() => {
+                if (field === "__date__") { setDatePreset("all"); setDateFrom(""); setDateTo(""); }
+                else setFilter(field, "");
+              }} style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(215,184,122,0.5)", fontSize: 13, lineHeight: 1, padding: 0 }}>
                 ×
               </button>
             </span>
           ))}
-          <button
-            onClick={() => { clearFilters(); setDatePreset("all"); setDateFrom(""); setDateTo(""); }}
-            className="text-xs text-gray-400 hover:text-gray-600 underline ml-1"
-          >
+          <button onClick={() => { clearFilters(); setDatePreset("all"); setDateFrom(""); setDateTo(""); }}
+            style={{ fontSize: 11, color: "rgba(224,225,221,0.4)", background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}>
             Clear all
           </button>
         </div>

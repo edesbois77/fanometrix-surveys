@@ -3,164 +3,138 @@
 import { useMemo } from "react";
 import {
   LineChart, Line, BarChart, Bar, Cell,
-  XAxis, YAxis, CartesianGrid,
-  Tooltip as RTooltip, ResponsiveContainer,
+  XAxis, YAxis, CartesianGrid, Tooltip as RTooltip, ResponsiveContainer,
 } from "recharts";
 import type { SurveyResponse } from "@/lib/types";
 import type { DashFilters } from "./DashboardFilters";
 
-const COLORS = ["#6366f1", "#8b5cf6", "#06b6d4", "#f59e0b", "#10b981", "#f43f5e", "#84cc16", "#ec4899"];
-const ACTIVE  = "#312e81";
+const COLORS = ["#D7B87A", "#4F6B8A", "#5E7E67", "#7D617D", "rgba(255,255,255,0.25)", "#8FA8C4", "#7E9E7E", "#9E8A9E"];
+const ACTIVE  = "#D7B87A";
+const GRID    = "rgba(255,255,255,0.06)";
+const TICK    = { fontSize: 9, fill: "rgba(224,225,221,0.4)" };
 
-// ─── Responses Over Time ─────────────────────────────────────────────────────
+const card: React.CSSProperties = {
+  background: "rgba(255,255,255,0.03)",
+  border: "1px solid rgba(215,184,122,0.12)",
+  borderRadius: 16,
+  padding: "20px",
+  backdropFilter: "blur(8px)",
+};
+
+const sectionLabel: React.CSSProperties = {
+  color: "rgba(215,184,122,0.55)",
+  fontSize: 9,
+  fontWeight: 700,
+  letterSpacing: "0.12em",
+  textTransform: "uppercase",
+  marginBottom: 14,
+};
+
+// ─── Responses over time ──────────────────────────────────────────────────────
 
 function ResponsesOverTime({ responses }: { responses: SurveyResponse[] }) {
   const data = useMemo(() => {
-    const m: Record<string, number> = {};
-    for (const r of responses) {
-      const d = r.created_at.slice(0, 10);
-      m[d] = (m[d] ?? 0) + 1;
-    }
-    return Object.entries(m).sort().map(([date, count]) => ({ date, count }));
+    const m: Record<string,number> = {};
+    responses.forEach(r => { const d = r.created_at.slice(0,10); m[d] = (m[d]??0)+1; });
+    return Object.entries(m).sort().map(([date,count]) => ({ date, count }));
   }, [responses]);
-
   if (data.length < 2) return null;
-
   return (
-    <div className="bg-white border border-gray-100 rounded-xl shadow-sm p-5 mb-4">
-      <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-4">Responses Over Time</h3>
+    <div style={{ ...card, marginBottom: 12 }}>
+      <p style={sectionLabel}>Responses Over Time</p>
       <ResponsiveContainer width="100%" height={140}>
         <LineChart data={data} margin={{ left: -10, right: 8, top: 4, bottom: 0 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#e0e7ff" />
-          <XAxis dataKey="date" tick={{ fontSize: 9 }} interval="preserveStartEnd" />
-          <YAxis tick={{ fontSize: 9 }} allowDecimals={false} />
-          <RTooltip contentStyle={{ fontSize: 11 }} />
-          <Line type="monotone" dataKey="count" stroke="#6366f1" strokeWidth={2} dot={data.length < 20} activeDot={{ r: 4 }} />
+          <CartesianGrid strokeDasharray="3 3" stroke={GRID} />
+          <XAxis dataKey="date" tick={TICK} interval="preserveStartEnd" axisLine={false} tickLine={false} />
+          <YAxis tick={TICK} allowDecimals={false} axisLine={false} tickLine={false} />
+          <RTooltip contentStyle={{ background: "#07121D", border: "1px solid rgba(215,184,122,0.25)", borderRadius: 8, fontSize: 11, color: "#E0E1DD" }} />
+          <Line type="monotone" dataKey="count" stroke="#D7B87A" strokeWidth={2} dot={data.length < 20} activeDot={{ r: 4, fill: "#D7B87A" }} />
         </LineChart>
       </ResponsiveContainer>
     </div>
   );
 }
 
-// ─── Clickable simple bar (Q answers) ────────────────────────────────────────
+// ─── Clickable Q-answer bar ───────────────────────────────────────────────────
 
-function QChart({
-  label, responses, field, activeValue, onFilter,
-}: {
-  label: string;
-  responses: SurveyResponse[];
-  field: "q1" | "q2" | "q3";
-  activeValue: string;
-  onFilter: (value: string) => void;
+function QChart({ responses, field, label, activeValue, onFilter }: {
+  responses: SurveyResponse[]; field: "q1"|"q2"|"q3";
+  label: string; activeValue: string; onFilter: (v: string) => void;
 }) {
   const counts = useMemo(() => {
-    const m: Record<string, number> = {};
-    for (const r of responses) {
-      const v = (r[field] as string) ?? "Not answered";
-      m[v] = (m[v] ?? 0) + 1;
-    }
-    return Object.entries(m).sort((a, b) => b[1] - a[1]);
+    const m: Record<string,number> = {};
+    for (const r of responses) { const v = r[field] ?? "Not answered"; m[v] = (m[v]??0)+1; }
+    return Object.entries(m).sort((a,b) => b[1]-a[1]);
   }, [responses, field]);
-
   const total = responses.length;
-  if (!total) return null;
-
+  if (!counts.length) return null;
   return (
-    <div className="bg-white border border-gray-100 rounded-xl shadow-sm p-5">
-      <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">{label}</h3>
-      <div className="space-y-2">
+    <div style={card}>
+      <p style={sectionLabel}>{label}</p>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         {counts.map(([opt, count]) => {
-          const pct = Math.round((count / total) * 100);
+          const pct = Math.round(count / total * 100);
           const active = activeValue === opt;
           return (
-            <button
-              key={opt}
-              onClick={() => onFilter(opt)}
-              className={`w-full text-left space-y-1 group rounded-lg px-1 py-0.5 transition-colors ${active ? "bg-indigo-50" : "hover:bg-gray-50"}`}
-            >
-              <div className="flex justify-between text-xs">
-                <span className={active ? "text-indigo-700 font-semibold" : "text-gray-700"}>{opt}</span>
-                <span className="text-gray-400">{count} ({pct}%)</span>
+            <button key={opt} onClick={() => onFilter(opt)} style={{
+              background: active ? "rgba(215,184,122,0.08)" : "none",
+              border: "none", borderRadius: 8, padding: "4px 4px",
+              cursor: "pointer", textAlign: "left", width: "100%",
+            }}>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginBottom: 4 }}>
+                <span style={{ color: active ? "#D7B87A" : "#E0E1DD", fontWeight: active ? 600 : 400 }}>{opt}</span>
+                <span style={{ color: "rgba(224,225,221,0.4)" }}>{count} ({pct}%)</span>
               </div>
-              <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                <div
-                  className="h-full rounded-full transition-all"
-                  style={{ width: `${pct}%`, background: active ? ACTIVE : "#6366f1" }}
-                />
+              <div style={{ height: 4, background: "rgba(255,255,255,0.07)", borderRadius: 2, overflow: "hidden" }}>
+                <div style={{ height: "100%", width: `${pct}%`, background: active ? "#D7B87A" : "rgba(215,184,122,0.4)", borderRadius: 2 }} />
               </div>
             </button>
           );
         })}
       </div>
       {activeValue && (
-        <p className="text-xs text-indigo-500 mt-2 text-center cursor-pointer hover:text-indigo-700"
-          onClick={() => onFilter("")}>
+        <button onClick={() => onFilter("")} style={{ fontSize: 10, color: "rgba(215,184,122,0.5)", background: "none", border: "none", cursor: "pointer", marginTop: 8 }}>
           ✕ Clear filter
-        </p>
+        </button>
       )}
     </div>
   );
 }
 
-// ─── Clickable dimension chart ────────────────────────────────────────────────
+// ─── Clickable dimension bar ──────────────────────────────────────────────────
 
-function DimChart({
-  label, responses, field, activeValue, onFilter, colorOffset = 0,
-}: {
-  label: string;
-  responses: SurveyResponse[];
-  field: keyof SurveyResponse;
-  activeValue: string;
-  onFilter: (value: string) => void;
-  colorOffset?: number;
+function DimChart({ responses, field, label, activeValue, onFilter, colorOffset = 0 }: {
+  responses: SurveyResponse[]; field: keyof SurveyResponse; label: string;
+  activeValue: string; onFilter: (v: string) => void; colorOffset?: number;
 }) {
   const data = useMemo(() => {
-    const m: Record<string, number> = {};
-    for (const r of responses) {
-      const v = (r[field] as string) || "Unknown";
-      m[v] = (m[v] ?? 0) + 1;
-    }
-    return Object.entries(m)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 10)
-      .map(([fullName, value]) => ({
-        name: fullName.length > 18 ? fullName.slice(0, 17) + "…" : fullName,
-        fullName,
-        value,
-      }));
+    const m: Record<string,number> = {};
+    for (const r of responses) { const v = r[field] as string || "Unknown"; m[v] = (m[v]??0)+1; }
+    return Object.entries(m).sort((a,b)=>b[1]-a[1]).slice(0,10).map(([fullName,value]) => ({
+      name: fullName.length > 18 ? fullName.slice(0,17)+"…" : fullName, fullName, value,
+    }));
   }, [responses, field]);
 
-  if (!data.length) return null;
-
-  const chartH = Math.max(80, data.length * 26 + 24);
+  if (!data.length) return (
+    <div style={{ ...card, display: "flex", alignItems: "center", justifyContent: "center", minHeight: 100 }}>
+      <p style={{ fontSize: 11, color: "rgba(224,225,221,0.2)" }}>No {label.toLowerCase()} data</p>
+    </div>
+  );
 
   return (
-    <div className="bg-white border border-gray-100 rounded-xl shadow-sm p-5">
-      <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">{label}</h3>
-      <ResponsiveContainer width="100%" height={chartH}>
-        <BarChart
-          layout="vertical"
-          data={data}
-          margin={{ left: 0, right: 32, top: 0, bottom: 0 }}
-          // bar clicks handled via Cell onClick below
-        >
-          <XAxis type="number" tick={{ fontSize: 9 }} axisLine={false} tickLine={false} />
-          <YAxis type="category" dataKey="name" tick={{ fontSize: 9 }} width={90} axisLine={false} tickLine={false} />
-          <RTooltip
-            contentStyle={{ fontSize: 11 }}
-            formatter={(v) => [v, "Responses"]}
-          />
-          <Bar
-            dataKey="value"
-            radius={[0, 4, 4, 0]}
-            cursor="pointer"
-            label={{ position: "right", fontSize: 9, fill: "#9ca3af" }}
-          >
+    <div style={card}>
+      <p style={sectionLabel}>{label}</p>
+      <ResponsiveContainer width="100%" height={Math.max(80, data.length * 26 + 20)}>
+        <BarChart layout="vertical" data={data} margin={{ left: 0, right: 36, top: 0, bottom: 0 }}>
+          <XAxis type="number" tick={TICK} axisLine={false} tickLine={false} />
+          <YAxis type="category" dataKey="name" tick={TICK} width={92} axisLine={false} tickLine={false} />
+          <RTooltip contentStyle={{ background: "#07121D", border: "1px solid rgba(215,184,122,0.25)", borderRadius: 8, fontSize: 11, color: "#E0E1DD" }}
+            formatter={(v) => [v, "Responses"]} />
+          <Bar dataKey="value" radius={[0,4,4,0]} cursor="pointer" label={{ position: "right", fontSize: 9, fill: "rgba(224,225,221,0.35)" }}>
             {data.map((d, i) => (
-              <Cell
-                key={d.fullName}
+              <Cell key={d.fullName}
                 fill={d.fullName === activeValue ? ACTIVE : COLORS[(i + colorOffset) % COLORS.length]}
-                opacity={activeValue && d.fullName !== activeValue ? 0.45 : 1}
+                opacity={activeValue && d.fullName !== activeValue ? 0.35 : 1}
                 onClick={() => onFilter(activeValue === d.fullName ? "" : d.fullName)}
               />
             ))}
@@ -168,10 +142,9 @@ function DimChart({
         </BarChart>
       </ResponsiveContainer>
       {activeValue && (
-        <p className="text-xs text-indigo-500 mt-2 text-center cursor-pointer hover:text-indigo-700"
-          onClick={() => onFilter("")}>
+        <button onClick={() => onFilter("")} style={{ fontSize: 10, color: "rgba(215,184,122,0.5)", background: "none", border: "none", cursor: "pointer", marginTop: 8 }}>
           ✕ Clear filter
-        </p>
+        </button>
       )}
     </div>
   );
@@ -198,49 +171,28 @@ const DIM_ROWS: { field: keyof SurveyResponse; label: string; filterKey: keyof D
   ],
 ];
 
-export function ChartGrid({
-  responses,
-  filters,
-  onFilter,
-}: {
-  responses: SurveyResponse[];
-  filters: DashFilters;
+export function ChartGrid({ responses, filters, onFilter }: {
+  responses: SurveyResponse[]; filters: DashFilters;
   onFilter: (field: keyof DashFilters, value: string) => void;
 }) {
   if (!responses.length) return null;
-
   return (
-    <div className="space-y-4">
-      {/* Responses over time */}
+    <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 16 }}>
       <ResponsesOverTime responses={responses} />
 
-      {/* Q1 / Q2 / Q3 */}
-      <div className="grid grid-cols-3 gap-4">
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
         {Q_LABELS.map(({ field, label }) => (
-          <QChart
-            key={field}
-            label={label}
-            responses={responses}
-            field={field}
-            activeValue={filters[field]}
-            onFilter={(v) => onFilter(field, v)}
-          />
+          <QChart key={field} label={label} responses={responses} field={field}
+            activeValue={filters[field]} onFilter={v => onFilter(field, v)} />
         ))}
       </div>
 
-      {/* Dimension charts */}
       {DIM_ROWS.map((row, ri) => (
-        <div key={ri} className="grid grid-cols-3 gap-4">
+        <div key={ri} style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
           {row.map(({ field, label, filterKey }, ci) => (
-            <DimChart
-              key={field as string}
-              label={label}
-              responses={responses}
-              field={field}
-              activeValue={filters[filterKey]}
-              onFilter={(v) => onFilter(filterKey, v)}
-              colorOffset={ri * 3 + ci}
-            />
+            <DimChart key={String(field)} label={label} responses={responses} field={field}
+              activeValue={filters[filterKey]} colorOffset={ri*3+ci}
+              onFilter={v => onFilter(filterKey, v)} />
           ))}
         </div>
       ))}

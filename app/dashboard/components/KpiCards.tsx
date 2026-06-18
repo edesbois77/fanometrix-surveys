@@ -17,21 +17,40 @@ export function KpiCards({ responses }: { responses: SurveyResponse[] }) {
   const campaigns  = new Set(responses.map(r => r.campaign_id).filter(Boolean)).size;
 
   const cards = [
-    { label: "Total Responses",      value: total.toLocaleString(),              sub: "all time"              },
-    { label: "Completion Rate",      value: `${completion}%`,                    sub: "all 3 questions"       },
-    { label: "Avg Response Time",    value: avgTime > 0 ? `${avgTime}s` : "—",  sub: "seconds per survey"    },
-    { label: "Countries",            value: countries || "—",                     sub: "represented"           },
-    { label: "Publishers",           value: publishers || "—",                    sub: "media partners"        },
-    { label: "Campaigns",            value: campaigns  || "—",                    sub: "active"                },
+    { label: "Total Responses",   value: total.toLocaleString(),              sub: "all time"           },
+    { label: "Completion Rate",   value: `${completion}%`,                    sub: "all 3 questions"    },
+    { label: "Avg Response Time", value: avgTime > 0 ? `${avgTime}s` : "—",  sub: "seconds per survey" },
+    { label: "Countries",         value: countries || "—",                     sub: "represented"        },
+    { label: "Publishers",        value: publishers || "—",                    sub: "media partners"     },
+    { label: "Campaigns",         value: campaigns  || "—",                    sub: "active"             },
   ];
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-6">
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 12, marginBottom: 16 }}>
       {cards.map(({ label, value, sub }) => (
-        <div key={label} className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm">
-          <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">{label}</p>
-          <p className="text-2xl font-bold text-indigo-700 mt-1">{value}</p>
-          <p className="text-xs text-gray-400 mt-0.5">{sub}</p>
+        <div key={label} style={{
+          background: "rgba(255,255,255,0.03)",
+          border: "1px solid rgba(215,184,122,0.15)",
+          borderRadius: 16,
+          padding: "18px 16px",
+          backdropFilter: "blur(8px)",
+        }}>
+          <p style={{
+            color: "rgba(215,184,122,0.6)",
+            fontSize: 9,
+            fontWeight: 700,
+            letterSpacing: "0.12em",
+            textTransform: "uppercase",
+            marginBottom: 6,
+          }}>{label}</p>
+          <p style={{
+            color: "#FFFFFF",
+            fontSize: 24,
+            fontWeight: 700,
+            lineHeight: 1,
+            marginBottom: 4,
+          }}>{value}</p>
+          <p style={{ color: "rgba(224,225,221,0.4)", fontSize: 10 }}>{sub}</p>
         </div>
       ))}
     </div>
