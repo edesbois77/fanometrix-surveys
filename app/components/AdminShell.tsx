@@ -8,6 +8,7 @@ const NAV = [
   { href: "/surveys",         label: "Surveys",         icon: "◫"  },
   { href: "/campaigns",       label: "Campaigns",       icon: "◎"  },
   { href: "/embed-generator", label: "Embed Generator", icon: "</>" },
+  { href: "/reporting",       label: "Reporting",       icon: "↗"  },
 ];
 
 export function AdminShell({ children }: { children: React.ReactNode }) {
