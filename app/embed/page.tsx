@@ -187,6 +187,7 @@ const S = {
   successTitle: { color: "#fff", fontSize: 15, fontWeight: 700, margin: 0 },
   successSub:   { color: "rgba(255,255,255,0.6)", fontSize: 11, margin: 0, lineHeight: 1.4 },
   poweredBy:    { color: "rgba(255,255,255,0.28)", fontSize: 9, marginTop: 4, letterSpacing: "0.05em" },
+  privacyLink:  { color: "rgba(255,255,255,0.22)", fontSize: 8, marginTop: 2, textDecoration: "underline" as const, cursor: "pointer" as const },
 };
 
 // ─── Survey component ───────────────────────────────────────────────────────
@@ -267,6 +268,7 @@ function EmbedSurvey() {
           Your feedback has been recorded and will help improve the fan experience.
         </p>
         <p style={S.poweredBy}>POWERED BY FANOMETRIX PULSE</p>
+        <a href="https://fanometrix-surveys.vercel.app/privacy" target="_blank" rel="noopener" style={S.privacyLink}>ⓘ Privacy</a>
       </div>
     );
   }

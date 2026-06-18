@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import Link from "next/link";
 import Papa from "papaparse";
 import type { SurveyResponse } from "@/lib/types";
+import { AdminShell } from "@/app/components/AdminShell";
 import { KpiCards } from "./components/KpiCards";
 import { ResponseExplorer } from "./components/Explorer";
 
@@ -88,7 +90,8 @@ export default function DashboardPage() {
   const total = responses.length;
 
   return (
-    <main className="min-h-screen p-6 max-w-5xl mx-auto">
+    <AdminShell>
+    <div className="p-6 max-w-5xl mx-auto">
 
       {/* ── Dashboard header ── */}
       <div className="flex items-center justify-between mb-6">
@@ -146,6 +149,13 @@ export default function DashboardPage() {
           )}
         </>
       )}
-    </main>
+
+      <footer className="mt-12 pt-6 border-t border-gray-200 flex items-center gap-4 text-xs text-gray-400">
+        <span>Fanometrix Pulse</span>
+        <Link href="/privacy" className="hover:text-indigo-500 transition-colors">ⓘ Privacy Policy</Link>
+        <Link href="/publisher-guide" className="hover:text-indigo-500 transition-colors">☰ Publisher Guide</Link>
+      </footer>
+    </div>
+    </AdminShell>
   );
 }

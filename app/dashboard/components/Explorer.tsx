@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import Papa from "papaparse";
 import {
   PieChart, Pie, Cell,
@@ -99,8 +99,11 @@ function buildGroups(data: SurveyResponse[], field: string): GroupedRow[] {
     const durations = rows.map(r => r.response_duration_seconds).filter((n): n is number => n !== null);
     const dims: Partial<Record<keyof SurveyResponse, string>> = {};
     for (const col of DIM_COLS) {
-      const vals = new Set(rows.map(r => r[col] as string).filter(Boolean));
-      dims[col] = vals.size === 1 ? [...vals][0] : vals.size > 1 ? `${vals.size} values` : "—";
+      const vals = [...new Set(rows.map(r => r[col] as string).filter(Boolean))];
+      if (vals.length === 0) dims[col] = "—";
+      else if (vals.length === 1) dims[col] = vals[0];
+      else if (vals.length === 2) dims[col] = `${vals[0]} (+1)`;
+      else dims[col] = `Multiple (${vals.length})`;
     }
     return {
       key, dims,
@@ -251,14 +254,24 @@ function DetailPanel({ row, groupLabel, onClose }: { row: GroupedRow; groupLabel
 
 // ─── Main Explorer ─────────────────────────────────────────────────────────────
 
+function loadLS<T>(key: string, fallback: T): T {
+  if (typeof window === "undefined") return fallback;
+  try { const s = localStorage.getItem(key); return s ? JSON.parse(s) : fallback; } catch { return fallback; }
+}
+
 export function ResponseExplorer({ responses }: { responses: SurveyResponse[] }) {
-  const [filters,      setFilters]      = useState<Filters>(EMPTY_FILTERS);
-  const [groupByField, setGroupByField] = useState("campaign_id");
-  const [search,       setSearch]       = useState("");
+  const [filters,      setFilters]      = useState<Filters>(() => loadLS("fp_filters", EMPTY_FILTERS));
+  const [groupByField, setGroupByField] = useState<string>(() => loadLS("fp_groupBy", "campaign_id"));
+  const [search,       setSearch]       = useState<string>(() => loadLS("fp_search", ""));
+  const [showPct,      setShowPct]      = useState(false);
   const [sortCol,      setSortCol]      = useState<SortCol>("responses");
   const [sortAsc,      setSortAsc]      = useState(false);
   const [page,         setPage]         = useState(0);
   const [selected,     setSelected]     = useState<GroupedRow | null>(null);
+
+  useEffect(() => { localStorage.setItem("fp_filters",  JSON.stringify(filters));      }, [filters]);
+  useEffect(() => { localStorage.setItem("fp_groupBy",  JSON.stringify(groupByField)); }, [groupByField]);
+  useEffect(() => { localStorage.setItem("fp_search",   JSON.stringify(search));       }, [search]);
 
   function setFilter(field: string, value: string) {
     setFilters(f => ({ ...f, [field]: value }));
@@ -333,6 +346,16 @@ export function ResponseExplorer({ responses }: { responses: SurveyResponse[] })
           </p>
         </div>
         <div className="flex gap-2">
+          <div className="flex items-center border border-gray-200 rounded-lg overflow-hidden text-xs">
+            <button onClick={() => setShowPct(false)}
+              className={`px-3 py-1.5 font-medium transition-colors ${!showPct ? "bg-indigo-600 text-white" : "text-gray-500 hover:bg-gray-50"}`}>
+              Count
+            </button>
+            <button onClick={() => setShowPct(true)}
+              className={`px-3 py-1.5 font-medium transition-colors ${showPct ? "bg-indigo-600 text-white" : "text-gray-500 hover:bg-gray-50"}`}>
+              %
+            </button>
+          </div>
           {activeFilters > 0 && (
             <button
               onClick={() => { setFilters(EMPTY_FILTERS); setPage(0); setSelected(null); }}
@@ -479,7 +502,9 @@ export function ResponseExplorer({ responses }: { responses: SurveyResponse[] })
                     </td>
                   ))}
                   <td className="px-4 py-3 text-right font-semibold text-gray-800 whitespace-nowrap">
-                    {row.responses.toLocaleString()}
+                    {showPct
+                      ? `${filtered.length > 0 ? Math.round(row.responses / filtered.length * 100) : 0}%`
+                      : row.responses.toLocaleString()}
                   </td>
                   <td className="px-4 py-3 text-right text-gray-600 whitespace-nowrap">
                     {Math.round(row.completionRate * 100)}%

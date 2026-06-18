@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { normalisePayload } from "@/lib/normalise";
 
 export async function POST(req: NextRequest) {
-  const body = await req.json();
+  const raw = await req.json();
+  const body = normalisePayload(raw);
+
   const {
     campaign_id, survey_id, question_set_id,
     q1, q2, q3,
@@ -10,7 +13,7 @@ export async function POST(req: NextRequest) {
     publisher, placement,
     club, competition,
     device, browser, response_duration_seconds,
-  } = body;
+  } = body as Record<string, unknown>;
 
   if (!campaign_id || !q1) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
