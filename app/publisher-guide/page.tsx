@@ -356,27 +356,15 @@ export default function PublisherHubPage() {
             collection and minimal implementation effort.
           </p>
 
-          {/* Feature chips */}
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 12, justifyContent: "center", marginBottom: 48 }}>
+          {/* Feature chips — single row, no wrap */}
+          <div style={{ display: "flex", flexWrap: "nowrap", gap: 10, justifyContent: "center" }}>
             {FEATURES.map(({ icon, label }) => (
               <div key={label}
-                style={{ display: "flex", alignItems: "center", gap: 8, background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.14)", borderRadius: 40, padding: "10px 20px" }}>
-                <span style={{ fontSize: 16 }}>{icon}</span>
-                <span style={{ color: "#fff", fontSize: 13, fontWeight: 500 }}>{label}</span>
+                style={{ display: "flex", alignItems: "center", gap: 7, background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.14)", borderRadius: 40, padding: "9px 16px", whiteSpace: "nowrap" }}>
+                <span style={{ fontSize: 15 }}>{icon}</span>
+                <span style={{ color: "#fff", fontSize: 12, fontWeight: 500 }}>{label}</span>
               </div>
             ))}
-          </div>
-
-          {/* CTAs */}
-          <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
-            <a href="mailto:publishers@fanometrix.com?subject=Technical Call Request"
-              style={{ background: G, color: N, fontSize: 14, fontWeight: 700, padding: "14px 28px", borderRadius: 10, textDecoration: "none" }}>
-              Book a Technical Call
-            </a>
-            <a href="mailto:publishers@fanometrix.com"
-              style={{ background: "rgba(255,255,255,0.08)", color: "#fff", fontSize: 14, fontWeight: 600, padding: "14px 28px", borderRadius: 10, textDecoration: "none", border: "1px solid rgba(255,255,255,0.2)" }}>
-              Contact Integration Support
-            </a>
           </div>
         </div>
       </div>
