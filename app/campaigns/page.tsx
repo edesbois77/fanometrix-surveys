@@ -101,7 +101,8 @@ export default function CampaignsPage() {
     if (!editing.campaign_id?.trim())  { setError("Campaign ID is required.");   return; }
     setError(""); setSaving(true);
 
-    const payload = { ...editing };
+    // Strip the joined `surveys` object — only send actual column values
+    const { surveys: _surveys, ...payload } = editing as Campaign;
     if (editing.id) {
       await fetch(`/api/campaigns/${editing.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
     } else {
