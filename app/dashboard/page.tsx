@@ -223,7 +223,7 @@ export default function DashboardPage() {
             ) : filtered.length === 0 ? (
               <div className="text-center py-16">
                 <p className="text-gray-400">No responses match the current filters.</p>
-                <button onClick={clearFilters} className="mt-3 text-sm text-indigo-500 hover:underline">
+                <button onClick={clearFilters} className="mt-3 text-sm hover:underline text-[#D7B87A]">
                   Clear filters
                 </button>
               </div>
@@ -248,8 +248,8 @@ export default function DashboardPage() {
 
         <footer className="mt-12 pt-6 border-t border-gray-200 flex items-center gap-4 text-xs text-gray-400">
           <span>Fanometrix</span>
-          <Link href="/privacy" className="hover:text-indigo-500 transition-colors">ⓘ Privacy Policy</Link>
-          <Link href="/publisher-guide" className="hover:text-indigo-500 transition-colors">☰ Publisher Guide</Link>
+          <Link href="/privacy" className="hover:text-[#D7B87A] transition-colors">ⓘ Privacy Policy</Link>
+          <Link href="/publisher-guide" className="hover:text-[#D7B87A] transition-colors">☰ Publisher Guide</Link>
         </footer>
       </div>
     </AdminShell>

@@ -78,7 +78,7 @@ export default function ReportingPage() {
     <button
       onClick={() => copy(text, key)}
       className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-colors flex-shrink-0 ${
-        copied === key ? "bg-green-100 text-green-700" : "bg-indigo-50 text-indigo-600 hover:bg-indigo-100"
+        copied === key ? "bg-green-100 text-green-700" : "bg-gray-100 text-[#0B1929] hover:bg-gray-200"
       }`}
     >
       {copied === key ? "Copied!" : "Copy"}
@@ -97,7 +97,7 @@ export default function ReportingPage() {
         <div className="grid grid-cols-3 gap-4 mb-6">
           <div className="bg-white border border-gray-100 rounded-xl p-5 shadow-sm">
             <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">Total Rows</p>
-            <p className="text-3xl font-bold text-indigo-700 mt-1">
+            <p className="text-3xl font-bold mt-1 text-[#0B1929]">
               {loading ? "—" : (stats?.total_rows ?? 0).toLocaleString()}
             </p>
             <p className="text-xs text-gray-400 mt-0.5">in vw_campaign_responses</p>
@@ -135,13 +135,13 @@ export default function ReportingPage() {
             <div>
               <p className="font-semibold text-gray-700 mb-1">Query parameters</p>
               <ul className="space-y-0.5">
-                <li><code className="text-indigo-600">limit</code> — rows per page (max 10,000, default 1,000)</li>
-                <li><code className="text-indigo-600">offset</code> — pagination offset</li>
-                <li><code className="text-indigo-600">campaign_id</code> — filter by campaign slug</li>
-                <li><code className="text-indigo-600">publisher</code> — filter by publisher</li>
-                <li><code className="text-indigo-600">country</code> — filter by country</li>
-                <li><code className="text-indigo-600">date_from</code> / <code className="text-indigo-600">date_to</code> — YYYY-MM-DD</li>
-                <li><code className="text-indigo-600">api_key</code> — auth key (or use Authorization header)</li>
+                <li><code className="text-[#0B1929]">limit</code> — rows per page (max 10,000, default 1,000)</li>
+                <li><code className="text-[#0B1929]">offset</code> — pagination offset</li>
+                <li><code className="text-[#0B1929]">campaign_id</code> — filter by campaign slug</li>
+                <li><code className="text-[#0B1929]">publisher</code> — filter by publisher</li>
+                <li><code className="text-[#0B1929]">country</code> — filter by country</li>
+                <li><code className="text-[#0B1929]">date_from</code> / <code className="text-[#0B1929]">date_to</code> — YYYY-MM-DD</li>
+                <li><code className="text-[#0B1929]">api_key</code> — auth key (or use Authorization header)</li>
               </ul>
             </div>
             <div>
@@ -167,7 +167,7 @@ export default function ReportingPage() {
             {/* Method 1 */}
             <div>
               <div className="flex items-center gap-2 mb-2">
-                <span className="w-5 h-5 bg-indigo-600 text-white text-xs font-bold rounded-full flex items-center justify-center flex-shrink-0">1</span>
+                <span className="w-5 h-5 text-[#0B1929] text-xs font-bold rounded-full flex items-center justify-center flex-shrink-0" style={{ background: "#D7B87A" }}>1</span>
                 <p className="text-sm font-semibold text-gray-800">PostgreSQL direct connection (recommended)</p>
               </div>
               <p className="text-xs text-gray-500 mb-3 ml-7">
@@ -244,7 +244,7 @@ export default function ReportingPage() {
             <tbody className="divide-y divide-gray-50">
               {MEASURES.map(m => (
                 <tr key={m.name}>
-                  <td className="py-2 font-mono text-indigo-600">{m.name}</td>
+                  <td className="py-2 font-mono text-[#0B1929]">{m.name}</td>
                   <td className="py-2 font-mono text-gray-700">{m.formula}</td>
                   <td className="py-2 text-gray-500">{m.desc}</td>
                 </tr>
@@ -270,7 +270,7 @@ export default function ReportingPage() {
               <tbody className="divide-y divide-gray-50">
                 {FIELDS.map(f => (
                   <tr key={f.name}>
-                    <td className="py-1.5 font-mono text-indigo-600 whitespace-nowrap">{f.name}</td>
+                    <td className="py-1.5 font-mono text-[#0B1929] whitespace-nowrap">{f.name}</td>
                     <td className="py-1.5 text-gray-400 whitespace-nowrap pl-4">{f.type}</td>
                     <td className="py-1.5 text-gray-500 pl-4">{f.note}</td>
                   </tr>

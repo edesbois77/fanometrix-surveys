@@ -99,10 +99,12 @@ export function DashboardFilters({
                 disabled={disabled}
                 className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-colors ${
                   datePreset === key
-                    ? "bg-indigo-600 text-white"
+                    ? "text-[#0B1929] font-semibold"
                     : disabled
                     ? "text-gray-300 cursor-not-allowed"
                     : "text-gray-500 hover:bg-gray-100"
+                }}
+                style={datePreset === key ? { background: "#D7B87A" } : {}
                 }`}
               >
                 {label}
@@ -122,12 +124,12 @@ export function DashboardFilters({
           <div className="flex items-center gap-2">
             <label className="text-xs text-gray-400">From</label>
             <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
-              className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-indigo-400" />
+              className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-[#D7B87A]" />
           </div>
           <div className="flex items-center gap-2">
             <label className="text-xs text-gray-400">To</label>
             <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
-              className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-indigo-400" />
+              className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-[#D7B87A]" />
           </div>
         </div>
       )}
@@ -139,7 +141,7 @@ export function DashboardFilters({
             <select
               value={filters[key]}
               onChange={e => setFilter(key, e.target.value)}
-              className="w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 text-gray-700 focus:outline-none focus:border-indigo-400"
+              className="w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 text-gray-700 focus:outline-none focus:border-[#D7B87A]"
             >
               <option value="">All {label}s</option>
               {uniqueVals(allResponses, key as keyof SurveyResponse).map(v => (
@@ -156,15 +158,15 @@ export function DashboardFilters({
           {chips.map(({ label, field, value }) => (
             <span
               key={`${field}-${value}`}
-              className="flex items-center gap-1 text-xs bg-indigo-50 text-indigo-700 border border-indigo-100 px-2 py-1 rounded-full"
+              className="flex items-center gap-1 text-xs bg-gray-100 text-[#0B1929] border border-[#E0E1DD] px-2 py-1 rounded-full"
             >
-              <span className="text-indigo-400">{label}:</span> {value}
+              <span className="text-gray-500 font-medium">{label}:</span> {value}
               <button
                 onClick={() => {
                   if (field === "__date__") { setDatePreset("all"); setDateFrom(""); setDateTo(""); }
                   else setFilter(field, "");
                 }}
-                className="ml-0.5 text-indigo-300 hover:text-red-400"
+                className="ml-0.5 text-gray-400 hover:text-red-400"
               >
                 ×
               </button>

@@ -152,19 +152,19 @@ export default function CampaignsPage() {
 
         <div className="space-y-3">
           {campaigns.map(c => (
-            <div key={c.id} className="bg-white border border-gray-100 rounded-xl p-5 shadow-sm hover:border-indigo-100 transition-colors">
+            <div key={c.id} className="bg-white border border-gray-100 rounded-xl p-5 shadow-sm hover:border-gray-300 transition-colors">
               <div className="flex items-start gap-4">
                 <Link href={`/campaigns/${c.id}`} className="flex-1 min-w-0 block group">
                   <div className="flex items-center gap-2 mb-0.5 flex-wrap">
-                    <p className="font-semibold text-gray-900 group-hover:text-indigo-700 transition-colors">{c.brand_name}</p>
+                    <p className="font-semibold text-gray-900 group-hover:text-[#0B1929] transition-colors">{c.brand_name}</p>
                     <span className="text-gray-300">·</span>
-                    <p className="text-gray-700 group-hover:text-indigo-600 transition-colors">{c.campaign_name}</p>
+                    <p className="text-gray-700 group-hover:text-gray-900 transition-colors">{c.campaign_name}</p>
                   </div>
-                  <p className="text-xs font-mono text-indigo-600 mt-0.5">{c.campaign_id}</p>
+                  <p className="text-xs font-mono text-[#0B1929] mt-0.5">{c.campaign_id}</p>
                   {c.campaign_description && <p className="text-xs text-gray-400 mt-0.5">{c.campaign_description}</p>}
                   <div className="flex flex-wrap gap-2 mt-2">
                     {c.surveys?.name && (
-                      <span className="text-xs bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full">
+                      <span className="text-xs bg-gray-100 text-[#0B1929] px-2 py-0.5 rounded-full">
                         Survey: {c.surveys.name}
                       </span>
                     )}
@@ -208,12 +208,12 @@ export default function CampaignsPage() {
                 <div>
                   <label className="text-xs font-semibold text-gray-600 block mb-1">Brand Name *</label>
                   <input value={editing.brand_name ?? ""} onChange={e => setEditing(x => ({ ...x, brand_name: e.target.value }))}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-400" placeholder="e.g. Carlsberg" />
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A]" placeholder="e.g. Carlsberg" />
                 </div>
                 <div>
                   <label className="text-xs font-semibold text-gray-600 block mb-1">Campaign Name *</label>
                   <input value={editing.campaign_name ?? ""} onChange={e => setEditing(x => ({ ...x, campaign_name: e.target.value }))}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-400" placeholder="e.g. UCL 2026" />
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A]" placeholder="e.g. UCL 2026" />
                 </div>
               </div>
 
@@ -221,8 +221,8 @@ export default function CampaignsPage() {
                 <label className="text-xs font-semibold text-gray-600 block mb-1">Campaign ID *</label>
                 <div className="flex gap-2">
                   <input value={editing.campaign_id ?? ""} onChange={e => setEditing(x => ({ ...x, campaign_id: e.target.value }))}
-                    className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:border-indigo-400" placeholder="carlsberg_ucl_2026" />
-                  <button onClick={autoId} className="text-xs border border-indigo-200 text-indigo-600 hover:bg-indigo-50 px-3 rounded-lg">Auto</button>
+                    className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:border-[#D7B87A]" placeholder="carlsberg_ucl_2026" />
+                  <button onClick={autoId} className="text-xs border border-[#E0E1DD] text-[#0B1929] hover:bg-gray-50 px-3 rounded-lg">Auto</button>
                 </div>
                 <p className="text-xs text-gray-400 mt-1">Used in embed URLs. Lowercase, underscores only.</p>
               </div>
@@ -230,19 +230,19 @@ export default function CampaignsPage() {
               <div>
                 <label className="text-xs font-semibold text-gray-600 block mb-1">Description</label>
                 <input value={editing.campaign_description ?? ""} onChange={e => setEditing(x => ({ ...x, campaign_description: e.target.value }))}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-400" placeholder="Optional" />
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A]" placeholder="Optional" />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs font-semibold text-gray-600 block mb-1">Start Date</label>
                   <input type="date" value={editing.start_date ?? ""} onChange={e => setEditing(x => ({ ...x, start_date: e.target.value || null }))}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-400" />
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A]" />
                 </div>
                 <div>
                   <label className="text-xs font-semibold text-gray-600 block mb-1">End Date</label>
                   <input type="date" value={editing.end_date ?? ""} onChange={e => setEditing(x => ({ ...x, end_date: e.target.value || null }))}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-400" />
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A]" />
                 </div>
               </div>
 
@@ -250,7 +250,7 @@ export default function CampaignsPage() {
                 <div>
                   <label className="text-xs font-semibold text-gray-600 block mb-1">Survey</label>
                   <select value={editing.survey_id ?? ""} onChange={e => setEditing(x => ({ ...x, survey_id: e.target.value || null }))}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-400">
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A]">
                     <option value="">None selected</option>
                     {surveys.filter(s => !s.name.includes("(copy)") || true).map(s => (
                       <option key={s.id} value={s.id}>{s.name}</option>
@@ -260,7 +260,7 @@ export default function CampaignsPage() {
                 <div>
                   <label className="text-xs font-semibold text-gray-600 block mb-1">Status</label>
                   <select value={editing.status ?? "draft"} onChange={e => setEditing(x => ({ ...x, status: e.target.value as Campaign["status"] }))}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-400">
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A]">
                     {["draft","live","completed","archived"].map(s => <option key={s} value={s}>{s.charAt(0).toUpperCase()+s.slice(1)}</option>)}
                   </select>
                 </div>
@@ -271,14 +271,14 @@ export default function CampaignsPage() {
                 <div className="flex gap-2 mb-2">
                   <input value={pubInput} onChange={e => setPubInput(e.target.value)}
                     onKeyDown={e => e.key === "Enter" && addPublisher()}
-                    className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-400" placeholder="e.g. sky-sports" />
+                    className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A]" placeholder="e.g. sky-sports" />
                   <button onClick={addPublisher} className="text-xs border border-gray-200 text-gray-600 hover:bg-gray-50 px-3 rounded-lg">Add</button>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {(editing.publishers ?? []).map((p, i) => (
-                    <span key={i} className="flex items-center gap-1 text-xs bg-indigo-50 text-indigo-700 px-2 py-1 rounded-full">
+                    <span key={i} className="flex items-center gap-1 text-xs bg-gray-100 text-[#0B1929] px-2 py-1 rounded-full">
                       {p}
-                      <button onClick={() => removePublisher(i)} className="text-indigo-300 hover:text-red-400 ml-0.5">×</button>
+                      <button onClick={() => removePublisher(i)} className="text-gray-400 hover:text-red-400 ml-0.5">×</button>
                     </span>
                   ))}
                 </div>

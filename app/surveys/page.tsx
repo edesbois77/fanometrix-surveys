@@ -399,7 +399,7 @@ export default function SurveysPage() {
                 <button
                   onClick={() => setPreviewSurvey(s)}
                   disabled={s.questions.length === 0}
-                  className="text-xs border border-indigo-200 text-indigo-600 hover:bg-indigo-50 px-3 py-1.5 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed transition-colors font-medium"
+                  className="text-xs border border-[#E0E1DD] text-[#0B1929] hover:bg-gray-50 px-3 py-1.5 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed transition-colors font-medium"
                 >
                   Preview MPU
                 </button>
@@ -438,24 +438,24 @@ export default function SurveysPage() {
               <div>
                 <label className="text-xs font-semibold text-gray-600 block mb-1">Survey Name *</label>
                 <input value={editing.name ?? ""} onChange={e => setEditing(x => ({ ...x, name: e.target.value }))}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-400" placeholder="e.g. Premier League Fan Pulse" />
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A]" placeholder="e.g. Premier League Fan Pulse" />
               </div>
               <div>
                 <label className="text-xs font-semibold text-gray-600 block mb-1">Description</label>
                 <input value={editing.description ?? ""} onChange={e => setEditing(x => ({ ...x, description: e.target.value }))}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-400" placeholder="Optional description" />
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A]" placeholder="Optional description" />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs font-semibold text-gray-600 block mb-1">Start Date</label>
                   <input type="date" value={editing.start_date ?? ""} onChange={e => setEditing(x => ({ ...x, start_date: e.target.value || null }))}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-400" />
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A]" />
                 </div>
                 <div>
                   <label className="text-xs font-semibold text-gray-600 block mb-1">End Date</label>
                   <input type="date" value={editing.end_date ?? ""} onChange={e => setEditing(x => ({ ...x, end_date: e.target.value || null }))}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-400" />
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A]" />
                 </div>
               </div>
 
@@ -463,14 +463,14 @@ export default function SurveysPage() {
                 <div>
                   <label className="text-xs font-semibold text-gray-600 block mb-1">Status</label>
                   <select value={editing.status ?? "draft"} onChange={e => setEditing(x => ({ ...x, status: e.target.value as Survey["status"] }))}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-400">
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A]">
                     {["draft","live","completed","archived"].map(s => <option key={s} value={s}>{s.charAt(0).toUpperCase()+s.slice(1)}</option>)}
                   </select>
                 </div>
                 <div className="flex items-end pb-2">
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input type="checkbox" checked={editing.is_template ?? false} onChange={e => setEditing(x => ({ ...x, is_template: e.target.checked }))}
-                      className="accent-indigo-600 w-4 h-4" />
+                      className="accent-[#D7B87A] w-4 h-4" />
                     <span className="text-sm text-gray-700">Save as template</span>
                   </label>
                 </div>
@@ -481,16 +481,16 @@ export default function SurveysPage() {
                 <div className="flex items-center justify-between mb-2">
                   <label className="text-xs font-semibold text-gray-600">Questions ({editing.questions?.length ?? 0}/3)</label>
                   <button onClick={addQuestion} disabled={(editing.questions?.length ?? 0) >= 3}
-                    className="text-xs text-indigo-600 hover:text-indigo-800 disabled:opacity-30">+ Add question</button>
+                    className="text-xs text-[#D7B87A] hover:text-[#C9A766] disabled:opacity-30">+ Add question</button>
                 </div>
 
                 <div className="space-y-4">
                   {(editing.questions ?? []).map((q, qi) => (
                     <div key={q.id} className="border border-gray-200 rounded-xl p-4 space-y-3">
                       <div className="flex items-center gap-2">
-                        <span className="text-xs font-bold text-indigo-500 w-6">Q{qi + 1}</span>
+                        <span className="text-xs font-bold text-[#0B1929] w-6">Q{qi + 1}</span>
                         <input value={q.text} onChange={e => setQ(qi, { text: e.target.value })}
-                          className="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-indigo-400" placeholder="Question text…" />
+                          className="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-[#D7B87A]" placeholder="Question text…" />
                         {(editing.questions?.length ?? 0) > 1 && (
                           <button onClick={() => removeQuestion(qi)} className="text-red-400 hover:text-red-600 text-xs">✕</button>
                         )}
@@ -499,14 +499,14 @@ export default function SurveysPage() {
                         {q.options.map((opt, oi) => (
                           <div key={oi} className="flex items-center gap-2">
                             <input value={opt} onChange={e => setOption(qi, oi, e.target.value)}
-                              className="flex-1 border border-gray-100 rounded-lg px-2 py-1 text-xs focus:outline-none focus:border-indigo-300" placeholder={`Option ${oi + 1}`} />
+                              className="flex-1 border border-gray-100 rounded-lg px-2 py-1 text-xs focus:outline-none focus:border-[#D7B87A]" placeholder={`Option ${oi + 1}`} />
                             {q.options.length > 2 && (
                               <button onClick={() => removeOption(qi, oi)} className="text-gray-300 hover:text-red-400 text-xs">✕</button>
                             )}
                           </div>
                         ))}
                         {q.options.length < 6 && (
-                          <button onClick={() => addOption(qi)} className="text-xs text-indigo-500 hover:text-indigo-700">+ Add option</button>
+                          <button onClick={() => addOption(qi)} className="text-xs text-[#D7B87A] hover:text-[#C9A766]">+ Add option</button>
                         )}
                       </div>
                     </div>
@@ -518,9 +518,9 @@ export default function SurveysPage() {
               <div className="border border-gray-100 rounded-xl p-4 space-y-3 bg-gray-50">
                 <p className="text-xs font-semibold text-gray-600">Thank You Screen</p>
                 <input value={editing.thank_you_title ?? ""} onChange={e => setEditing(x => ({ ...x, thank_you_title: e.target.value }))}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-indigo-400 bg-white" placeholder="Thank you title" />
+                  className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-[#D7B87A] bg-white" placeholder="Thank you title" />
                 <input value={editing.thank_you_body ?? ""} onChange={e => setEditing(x => ({ ...x, thank_you_body: e.target.value }))}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-indigo-400 bg-white" placeholder="Thank you message" />
+                  className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-[#D7B87A] bg-white" placeholder="Thank you message" />
               </div>
 
               {error && <p className="text-red-500 text-xs">{error}</p>}

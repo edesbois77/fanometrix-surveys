@@ -76,10 +76,10 @@ function QChart({
             <button
               key={opt}
               onClick={() => onFilter(opt)}
-              className={`w-full text-left space-y-1 group rounded-lg px-1 py-0.5 transition-colors ${active ? "bg-indigo-50" : "hover:bg-gray-50"}`}
+              className={`w-full text-left space-y-1 group rounded-lg px-1 py-0.5 transition-colors ${active ? "bg-[rgba(215,184,122,0.08)]" : "hover:bg-gray-50"}`}
             >
               <div className="flex justify-between text-xs">
-                <span className={active ? "text-indigo-700 font-semibold" : "text-gray-700"}>{opt}</span>
+                <span className={active ? "font-semibold text-[#0B1929]" : "text-gray-700"}>{opt}</span>
                 <span className="text-gray-400">{count} ({pct}%)</span>
               </div>
               <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
@@ -93,7 +93,7 @@ function QChart({
         })}
       </div>
       {activeValue && (
-        <p className="text-xs text-indigo-500 mt-2 text-center cursor-pointer hover:text-indigo-700"
+        <p className="text-xs mt-2 text-center cursor-pointer text-[#D7B87A] hover:text-[#C9A766]"
           onClick={() => onFilter("")}>
           ✕ Clear filter
         </p>
@@ -168,7 +168,7 @@ function DimChart({
         </BarChart>
       </ResponsiveContainer>
       {activeValue && (
-        <p className="text-xs text-indigo-500 mt-2 text-center cursor-pointer hover:text-indigo-700"
+        <p className="text-xs mt-2 text-center cursor-pointer text-[#D7B87A] hover:text-[#C9A766]"
           onClick={() => onFilter("")}>
           ✕ Clear filter
         </p>

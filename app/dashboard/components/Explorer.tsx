@@ -180,12 +180,12 @@ function DetailPanel({ row, groupLabel, onClose }: { row: GroupedRow; groupLabel
   const ctyData  = tallyField(row.rows, "country").slice(0, 8);
 
   return (
-    <div className="mt-4 bg-indigo-50 border border-indigo-100 rounded-2xl p-6">
+    <div className="mt-4 bg-gray-50 border border-[#E0E1DD] rounded-2xl p-6">
       {/* Header */}
       <div className="flex items-start justify-between mb-5">
         <div>
-          <p className="text-xs text-indigo-400 font-semibold uppercase tracking-wide">{groupLabel}</p>
-          <h3 className="text-xl font-bold text-indigo-900 mt-0.5">{row.key}</h3>
+          <p className="text-xs font-semibold uppercase tracking-wide text-[#D7B87A]">{groupLabel}</p>
+          <h3 className="text-xl font-bold mt-0.5 text-[#0B1929]">{row.key}</h3>
           <p className="text-sm text-gray-500 mt-1">
             {row.responses.toLocaleString()} responses
             &nbsp;·&nbsp;{Math.round(row.completionRate * 100)}% completion rate
@@ -198,14 +198,14 @@ function DetailPanel({ row, groupLabel, onClose }: { row: GroupedRow; groupLabel
       {/* Dimension tags */}
       <div className="flex flex-wrap gap-2 mb-5">
         {DIM_COLS.filter(d => row.dims[d] && row.dims[d] !== "—").map(d => (
-          <span key={d} className="bg-white border border-indigo-100 text-indigo-700 text-xs px-2 py-1 rounded-full">
-            <span className="text-indigo-300">{DIM_LABELS[d]}: </span>{row.dims[d]}
+          <span key={d} className="bg-white border border-[#E0E1DD] text-[#0B1929] text-xs px-2 py-1 rounded-full">
+            <span className="text-gray-400">{DIM_LABELS[d]}: </span>{row.dims[d]}
           </span>
         ))}
       </div>
 
       {/* Donut charts */}
-      <div className="grid grid-cols-3 gap-4 mb-6 bg-white rounded-xl p-4 border border-indigo-100">
+      <div className="grid grid-cols-3 gap-4 mb-6 bg-white rounded-xl p-4 border border-[#E0E1DD]">
         <DonutChart title="Q1 · Live event attendance" data={q1Data} />
         <DonutChart title="Q2 · Fan experience rating" data={q2Data} />
         <DonutChart title="Q3 · Likely to recommend"   data={q3Data} />
@@ -213,7 +213,7 @@ function DetailPanel({ row, groupLabel, onClose }: { row: GroupedRow; groupLabel
 
       {/* Trend + country bar */}
       <div className="grid grid-cols-2 gap-4">
-        <div className="bg-white rounded-xl p-4 border border-indigo-100">
+        <div className="bg-white rounded-xl p-4 border border-[#E0E1DD]">
           <p className="text-xs font-semibold text-gray-600 mb-3">Responses over time</p>
           {trend.length > 1 ? (
             <ResponsiveContainer width="100%" height={120}>
@@ -230,7 +230,7 @@ function DetailPanel({ row, groupLabel, onClose }: { row: GroupedRow; groupLabel
           )}
         </div>
 
-        <div className="bg-white rounded-xl p-4 border border-indigo-100">
+        <div className="bg-white rounded-xl p-4 border border-[#E0E1DD]">
           <p className="text-xs font-semibold text-gray-600 mb-3">Responses by country</p>
           {ctyData.length ? (
             <ResponsiveContainer width="100%" height={120}>
@@ -329,7 +329,7 @@ export function ResponseExplorer({ responses }: { responses: SurveyResponse[] })
 
   function SortArrow({ col }: { col: SortCol }) {
     if (sortCol !== col) return <span className="text-gray-300 ml-1">↕</span>;
-    return <span className="text-indigo-500 ml-1">{sortAsc ? "↑" : "↓"}</span>;
+    return <span className="text-[#D7B87A] ml-1">{sortAsc ? "↑" : "↓"}</span>;
   }
 
   return (
@@ -341,18 +341,20 @@ export function ResponseExplorer({ responses }: { responses: SurveyResponse[] })
           <p className="text-sm text-gray-400 mt-0.5">
             {filtered.length.toLocaleString()} of {responses.length.toLocaleString()} responses
             {activeFilters > 0 && (
-              <span className="ml-2 text-indigo-500">{activeFilters} filter{activeFilters > 1 ? "s" : ""} active</span>
+              <span className="ml-2 text-[#D7B87A]">{activeFilters} filter{activeFilters > 1 ? "s" : ""} active</span>
             )}
           </p>
         </div>
         <div className="flex gap-2">
           <div className="flex items-center border border-gray-200 rounded-lg overflow-hidden text-xs">
             <button onClick={() => setShowPct(false)}
-              className={`px-3 py-1.5 font-medium transition-colors ${!showPct ? "bg-indigo-600 text-white" : "text-gray-500 hover:bg-gray-50"}`}>
+              className={`px-3 py-1.5 font-medium transition-colors ${!showPct ? "text-[#0B1929]" : "text-gray-500 hover:bg-gray-50"}`}
+              style={!showPct ? { background: "#D7B87A" } : {}}>
               Count
             </button>
             <button onClick={() => setShowPct(true)}
-              className={`px-3 py-1.5 font-medium transition-colors ${showPct ? "bg-indigo-600 text-white" : "text-gray-500 hover:bg-gray-50"}`}>
+              className={`px-3 py-1.5 font-medium transition-colors ${showPct ? "text-[#0B1929]" : "text-gray-500 hover:bg-gray-50"}`}
+              style={showPct ? { background: "#D7B87A" } : {}}>
               %
             </button>
           </div>
@@ -386,7 +388,7 @@ export function ResponseExplorer({ responses }: { responses: SurveyResponse[] })
               <select
                 value={filters[field as keyof Filters]}
                 onChange={e => setFilter(field, e.target.value)}
-                className="w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 text-gray-700 focus:outline-none focus:border-indigo-400"
+                className="w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 text-gray-700 focus:outline-none focus:border-[#D7B87A]"
               >
                 <option value="">All</option>
                 {uniqueVals(responses, field).map(v => <option key={v} value={v}>{v}</option>)}
@@ -399,13 +401,13 @@ export function ResponseExplorer({ responses }: { responses: SurveyResponse[] })
             <label className="text-xs text-gray-400 font-medium block mb-1">Date from</label>
             <input type="date" value={filters.date_from}
               onChange={e => setFilter("date_from", e.target.value)}
-              className="w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 text-gray-700 focus:outline-none focus:border-indigo-400" />
+              className="w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 text-gray-700 focus:outline-none focus:border-[#D7B87A]" />
           </div>
           <div>
             <label className="text-xs text-gray-400 font-medium block mb-1">Date to</label>
             <input type="date" value={filters.date_to}
               onChange={e => setFilter("date_to", e.target.value)}
-              className="w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 text-gray-700 focus:outline-none focus:border-indigo-400" />
+              className="w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 text-gray-700 focus:outline-none focus:border-[#D7B87A]" />
           </div>
         </div>
       </div>
@@ -418,7 +420,7 @@ export function ResponseExplorer({ responses }: { responses: SurveyResponse[] })
             <select
               value={groupByField}
               onChange={e => { setGroupByField(e.target.value); setPage(0); setSelected(null); }}
-              className="text-sm border border-indigo-200 bg-indigo-50 text-indigo-700 font-semibold rounded-lg px-3 py-1.5 focus:outline-none focus:border-indigo-400"
+              className="text-sm border border-[#E0E1DD] bg-gray-50 text-[#0B1929] font-semibold rounded-lg px-3 py-1.5 focus:outline-none focus:border-[#D7B87A]"
             >
               {GROUP_OPTIONS.map(o => <option key={o.field} value={o.field}>{o.label}</option>)}
             </select>
@@ -430,7 +432,7 @@ export function ResponseExplorer({ responses }: { responses: SurveyResponse[] })
               placeholder={`Search by ${groupLabel}…`}
               value={search}
               onChange={e => { setSearch(e.target.value); setPage(0); }}
-              className="w-full text-xs border border-gray-200 rounded-lg px-3 py-1.5 text-gray-700 focus:outline-none focus:border-indigo-400"
+              className="w-full text-xs border border-gray-200 rounded-lg px-3 py-1.5 text-gray-700 focus:outline-none focus:border-[#D7B87A]"
             />
           </div>
           <p className="text-xs text-gray-400 pb-1.5">{searched.length} group{searched.length !== 1 ? "s" : ""}</p>
@@ -495,7 +497,7 @@ export function ResponseExplorer({ responses }: { responses: SurveyResponse[] })
                   key={row.key}
                   onClick={() => setSelected(selected?.key === row.key ? null : row)}
                   className={`border-b border-gray-50 cursor-pointer transition-colors ${
-                    selected?.key === row.key ? "bg-indigo-50" : "hover:bg-gray-50"
+                    selected?.key === row.key ? "bg-[rgba(215,184,122,0.06)]" : "hover:bg-gray-50"
                   }`}
                 >
                   <td className="px-4 py-3 font-medium text-gray-900 whitespace-nowrap">{row.key}</td>
@@ -535,7 +537,9 @@ export function ResponseExplorer({ responses }: { responses: SurveyResponse[] })
                 return (
                   <button key={p} onClick={() => setPage(p)}
                     className={`w-7 h-7 flex items-center justify-center text-xs border rounded-md transition-colors ${
-                      page === p ? "bg-indigo-600 text-white border-indigo-600" : "border-gray-200 hover:bg-white"
+                      page === p ? "text-[#0B1929] border-[#D7B87A]" : "border-gray-200 hover:bg-white"
+                    }
+                    style={page === p ? { background: "#D7B87A" } : {}
                     }`}>
                     {p + 1}
                   </button>

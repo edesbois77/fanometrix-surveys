@@ -183,11 +183,11 @@ export default function DemoDataPage() {
                 <span className="text-gray-600 font-medium">
                   Generating… {progress.done.toLocaleString()} / {progress.total.toLocaleString()}
                 </span>
-                <span className="text-indigo-600 font-bold">{pct}%</span>
+                <span className="font-bold text-[#D7B87A]">{pct}%</span>
               </div>
               <div className="h-3 bg-gray-100 rounded-full overflow-hidden">
                 <div
-                  className="h-full bg-indigo-500 rounded-full transition-all duration-300"
+                  className="h-full rounded-full transition-all duration-300"
                   style={{ width: `${pct}%` }}
                 />
               </div>
@@ -199,9 +199,9 @@ export default function DemoDataPage() {
                 <button
                   key={count}
                   onClick={() => generate(count)}
-                  className="flex flex-col items-center gap-1 border border-indigo-200 hover:border-indigo-400 hover:bg-indigo-50 rounded-xl p-4 transition-colors group"
+                  className="flex flex-col items-center gap-1 border border-[#E0E1DD] hover:border-[#0B1929] hover:bg-gray-50 rounded-xl p-4 transition-colors group"
                 >
-                  <span className="text-2xl font-bold text-indigo-700 group-hover:text-indigo-800">
+                  <span className="text-2xl font-bold text-[#0B1929]">
                     {label}
                   </span>
                   <span className="text-xs text-gray-400">{note}</span>
@@ -229,7 +229,7 @@ export default function DemoDataPage() {
                       </div>
                       <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
                         <div
-                          className="h-full bg-indigo-400 rounded-full"
+                          className="h-full bg-[#0B1929] opacity-60 rounded-full"
                           style={{ width: `${p}%` }}
                         />
                       </div>

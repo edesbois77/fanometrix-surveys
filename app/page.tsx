@@ -108,8 +108,8 @@ export default function SurveyPage() {
                   key={opt}
                   className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
                     answers[q.id] === opt
-                      ? "border-indigo-500 bg-indigo-50"
-                      : "border-gray-200 hover:border-indigo-300"
+                      ? "border-[#0B1929] bg-gray-50"
+                      : "border-gray-200 hover:border-gray-400"
                   }`}
                 >
                   <input
@@ -118,7 +118,7 @@ export default function SurveyPage() {
                     value={opt}
                     checked={answers[q.id] === opt}
                     onChange={() => handleAnswer(q.id, opt)}
-                    className="accent-indigo-600"
+                    className="accent-[#D7B87A]"
                   />
                   <span className="text-sm text-gray-700">{opt}</span>
                 </label>
@@ -132,7 +132,7 @@ export default function SurveyPage() {
           <select
             value={country}
             onChange={(e) => setCountry(e.target.value)}
-            className="w-full border border-gray-200 rounded-lg p-3 text-sm text-gray-700 focus:outline-none focus:border-indigo-500"
+            className="w-full border border-gray-200 rounded-lg p-3 text-sm text-gray-700 focus:outline-none focus:border-[#D7B87A]"
             required
           >
             <option value="">Select your country…</option>

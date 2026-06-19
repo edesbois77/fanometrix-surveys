@@ -6,7 +6,7 @@ export default function PrivacyPage() {
   return (
     <main className="min-h-screen bg-gray-50 py-12 px-6">
       <div className="max-w-2xl mx-auto">
-        <Link href="/" className="text-indigo-500 text-sm hover:underline">← Back to survey</Link>
+        <Link href="/" className="text-[#D7B87A] text-sm hover:underline">← Back to survey</Link>
 
         <h1 className="text-3xl font-bold text-gray-900 mt-6 mb-2">Privacy Policy</h1>
         <p className="text-sm text-gray-400 mb-8">Fanometrix · Last updated June 2026</p>
@@ -82,7 +82,7 @@ export default function PrivacyPage() {
 
           <section>
             <h2 className="text-lg font-semibold text-gray-900 mb-3">Contact</h2>
-            <p>For questions about this policy, contact: <a href="mailto:privacy@fanometrix.com" className="text-indigo-600 hover:underline">privacy@fanometrix.com</a></p>
+            <p>For questions about this policy, contact: <a href="mailto:privacy@fanometrix.com" className="text-[#D7B87A] hover:underline">privacy@fanometrix.com</a></p>
           </section>
 
         </div>

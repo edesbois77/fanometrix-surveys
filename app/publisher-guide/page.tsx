@@ -28,7 +28,7 @@ export default function PublisherGuidePage() {
   return (
     <main className="min-h-screen bg-gray-50 py-12 px-6">
       <div className="max-w-2xl mx-auto">
-        <Link href="/dashboard" className="text-indigo-500 text-sm hover:underline">← Dashboard</Link>
+        <Link href="/dashboard" className="text-[#D7B87A] text-sm hover:underline">← Dashboard</Link>
 
         <h1 className="text-3xl font-bold text-gray-900 mt-6 mb-2">Publisher Integration Guide</h1>
         <p className="text-sm text-gray-400 mb-8">Fanometrix · Version 1.0 · June 2026</p>
@@ -76,7 +76,7 @@ export default function PublisherGuidePage() {
                   ["survey","Optional — links to survey config","uuid"],
                 ].map(([p,r,e])=>(
                   <tr key={p}>
-                    <td className="px-3 py-2 font-mono text-indigo-700">{p}</td>
+                    <td className="px-3 py-2 font-mono text-[#0B1929]">{p}</td>
                     <td className="px-3 py-2">{r}</td>
                     <td className="px-3 py-2 text-gray-400 font-mono">{e}</td>
                   </tr>
@@ -113,7 +113,7 @@ export default function PublisherGuidePage() {
                 {MACROS.map(([server, param, macro]) => (
                   <tr key={server}>
                     <td className="px-3 py-2">{server}</td>
-                    <td className="px-3 py-2 font-mono text-indigo-700">{param}</td>
+                    <td className="px-3 py-2 font-mono text-[#0B1929]">{param}</td>
                     <td className="px-3 py-2 font-mono text-gray-500">{macro}</td>
                   </tr>
                 ))}
@@ -128,17 +128,17 @@ export default function PublisherGuidePage() {
 
           <section>
             <h2 className="text-lg font-semibold text-gray-900 mb-3">Testing</h2>
-            <p>Use the <Link href="/embed-generator" className="text-indigo-600 hover:underline">Embed Generator</Link> to create and preview your creative tag. For QA, hardcode <code className="bg-gray-100 px-1 rounded">country=GB</code> rather than using an unfired macro.</p>
+            <p>Use the <Link href="/embed-generator" className="text-[#D7B87A] hover:underline">Embed Generator</Link> to create and preview your creative tag. For QA, hardcode <code className="bg-gray-100 px-1 rounded">country=GB</code> rather than using an unfired macro.</p>
           </section>
 
           <section>
             <h2 className="text-lg font-semibold text-gray-900 mb-3">Privacy &amp; compliance</h2>
-            <p>Fanometrix collects only anonymous, non-personal data. No consent mechanism is required from respondents. See the full <Link href="/privacy" className="text-indigo-600 hover:underline">Privacy Policy</Link> for detail.</p>
+            <p>Fanometrix collects only anonymous, non-personal data. No consent mechanism is required from respondents. See the full <Link href="/privacy" className="text-[#D7B87A] hover:underline">Privacy Policy</Link> for detail.</p>
           </section>
 
           <section>
             <h2 className="text-lg font-semibold text-gray-900 mb-3">Contact</h2>
-            <p>Integration support: <a href="mailto:publishers@fanometrix.com" className="text-indigo-600 hover:underline">publishers@fanometrix.com</a></p>
+            <p>Integration support: <a href="mailto:publishers@fanometrix.com" className="text-[#D7B87A] hover:underline">publishers@fanometrix.com</a></p>
           </section>
 
         </div>

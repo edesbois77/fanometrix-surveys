@@ -137,7 +137,7 @@ function CampaignKpis({ responses }: { responses: SurveyResponse[] }) {
       {cards.map(({ label, value, sub }) => (
         <div key={label} className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm">
           <p className="text-xs text-gray-400 font-medium leading-tight">{label}</p>
-          <p className="text-xl font-bold text-indigo-700 mt-1">{value}</p>
+          <p className="text-xl font-bold mt-1 text-[#0B1929]">{value}</p>
           <p className="text-xs text-gray-400 mt-0.5">{sub}</p>
         </div>
       ))}
@@ -187,7 +187,7 @@ function QBar({ responses, field, label }: { responses: SurveyResponse[]; field:
                 <span className="text-gray-400">{count} ({pct}%)</span>
               </div>
               <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                <div className="h-full bg-indigo-500 rounded-full" style={{ width: `${pct}%` }} />
+                <div className="h-full bg-[#0B1929] rounded-full opacity-70" style={{ width: `${pct}%` }} />
               </div>
             </div>
           );
@@ -236,7 +236,7 @@ function DimBar({
         </BarChart>
       </ResponsiveContainer>
       {active && (
-        <button onClick={() => onFilter("")} className="block text-xs text-indigo-500 hover:text-indigo-700 mt-2 mx-auto">
+        <button onClick={() => onFilter("")} className="block text-xs text-[#D7B87A] hover:text-[#C9A766] mt-2 mx-auto">
           ✕ Clear filter
         </button>
       )}
@@ -295,7 +295,7 @@ function RecentTable({ responses }: { responses: SurveyResponse[] }) {
       {responses.length > show && (
         <div className="px-5 py-3 border-t border-gray-50 text-center">
           <button onClick={() => setShow(s => s + 20)}
-            className="text-xs text-indigo-500 hover:text-indigo-700 font-medium">
+            className="text-xs text-[#D7B87A] hover:text-[#C9A766] font-medium">
             Load more ({responses.length - show} remaining)
           </button>
         </div>
@@ -399,7 +399,7 @@ export default function CampaignDetailPage() {
     <AdminShell>
       <div className="p-6 max-w-5xl mx-auto text-center py-20">
         <p className="text-gray-400 mb-4">{error || "Campaign not found."}</p>
-        <Link href="/campaigns" className="text-indigo-500 hover:underline text-sm">← Back to Campaigns</Link>
+        <Link href="/campaigns" className="text-[#D7B87A] hover:underline text-sm">← Back to Campaigns</Link>
       </div>
     </AdminShell>
   );
@@ -410,7 +410,7 @@ export default function CampaignDetailPage() {
 
         {/* Breadcrumb */}
         <div className="flex items-center gap-2 text-xs text-gray-400 mb-4">
-          <Link href="/campaigns" className="hover:text-indigo-500">Campaigns</Link>
+          <Link href="/campaigns" className="hover:text-[#D7B87A]">Campaigns</Link>
           <span>›</span>
           <span className="text-gray-700">{campaign.brand_name} · {campaign.campaign_name}</span>
         </div>
@@ -427,7 +427,7 @@ export default function CampaignDetailPage() {
                   {campaign.status}
                 </span>
               </div>
-              <p className="text-xs font-mono text-indigo-600 mb-3">{campaign.campaign_id}</p>
+              <p className="text-xs font-mono text-[#0B1929] mb-3">{campaign.campaign_id}</p>
               {campaign.campaign_description && (
                 <p className="text-sm text-gray-500 mb-3">{campaign.campaign_description}</p>
               )}
@@ -458,7 +458,7 @@ export default function CampaignDetailPage() {
             {/* Action buttons */}
             <div className="flex flex-col gap-2 flex-shrink-0">
               <Link href={`/embed-generator?campaign=${campaign.id}`}
-                className="text-xs text-center border border-indigo-200 text-indigo-600 hover:bg-indigo-50 px-3 py-1.5 rounded-lg font-medium transition-colors">
+                className="text-xs text-center border border-[#E0E1DD] text-[#0B1929] hover:bg-gray-50 px-3 py-1.5 rounded-lg font-medium transition-colors">
                 Generate Embed
               </Link>
               <button onClick={openDashboard}
@@ -491,7 +491,8 @@ export default function CampaignDetailPage() {
           <div className="flex items-center gap-3 mb-3">
             {DATE_PRESETS.map(({ key, label }) => (
               <button key={key} onClick={() => setDatePreset(key)}
-                className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-colors ${datePreset === key ? "bg-indigo-600 text-white" : "text-gray-500 hover:bg-gray-100"}`}>
+                className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-colors ${datePreset === key ? "text-[#0B1929]" : "text-gray-500 hover:bg-gray-100"}`}
+                style={datePreset === key ? { background: "#D7B87A" } : {}}>
                 {label}
               </button>
             ))}
@@ -507,19 +508,19 @@ export default function CampaignDetailPage() {
               <div className="flex items-center gap-2">
                 <label className="text-xs text-gray-400">From</label>
                 <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
-                  className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-indigo-400" />
+                  className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-[#D7B87A]" />
               </div>
               <div className="flex items-center gap-2">
                 <label className="text-xs text-gray-400">To</label>
                 <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
-                  className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-indigo-400" />
+                  className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-[#D7B87A]" />
               </div>
             </div>
           )}
           <div className="grid grid-cols-4 gap-2">
             {FILTER_FIELDS.map(({ key, label }) => (
               <select key={key} value={filters[key]} onChange={e => setFilter(key, e.target.value)}
-                className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 text-gray-700 focus:outline-none focus:border-indigo-400">
+                className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 text-gray-700 focus:outline-none focus:border-[#D7B87A]">
                 <option value="">All {label}s</option>
                 {uniqueVals(responses, key as keyof SurveyResponse).map(v => (
                   <option key={v} value={v}>{v}</option>
@@ -528,7 +529,7 @@ export default function CampaignDetailPage() {
             ))}
           </div>
           {isFiltered && (
-            <p className="text-xs text-indigo-500 mt-2">
+            <p className="text-xs text-[#D7B87A] mt-2">
               Showing {filtered.length.toLocaleString()} of {responses.length.toLocaleString()} responses
             </p>
           )}
@@ -539,7 +540,7 @@ export default function CampaignDetailPage() {
             <p className="text-4xl mb-3">◎</p>
             <p className="text-gray-400">No responses yet for this campaign.</p>
             <Link href={`/embed-generator?campaign=${campaign.id}`}
-              className="mt-3 inline-block text-sm text-indigo-500 hover:underline">
+              className="mt-3 inline-block text-sm text-[#D7B87A] hover:underline">
               Generate embed code →
             </Link>
           </div>
@@ -582,8 +583,8 @@ export default function CampaignDetailPage() {
 
         <footer className="mt-10 pt-6 border-t border-gray-200 flex items-center gap-4 text-xs text-gray-400">
           <span>Fanometrix</span>
-          <Link href="/privacy" className="hover:text-indigo-500">ⓘ Privacy Policy</Link>
-          <Link href="/publisher-guide" className="hover:text-indigo-500">☰ Publisher Guide</Link>
+          <Link href="/privacy" className="hover:text-[#D7B87A]">ⓘ Privacy Policy</Link>
+          <Link href="/publisher-guide" className="hover:text-[#D7B87A]">☰ Publisher Guide</Link>
         </footer>
       </div>
     </AdminShell>

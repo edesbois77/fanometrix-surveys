@@ -250,7 +250,7 @@ export default function LookerTemplatesPage() {
     <button
       onClick={() => copy(text, key)}
       className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-colors ${
-        copied === key ? "bg-green-100 text-green-700" : "bg-indigo-50 text-indigo-600 hover:bg-indigo-100"
+        copied === key ? "bg-green-100 text-green-700" : "bg-gray-100 text-[#0B1929] hover:bg-gray-200"
       }`}
     >
       {copied === key ? "Copied!" : label}
@@ -299,7 +299,7 @@ export default function LookerTemplatesPage() {
                   onClick={() => setActive(tmpl.id)}
                   className={`w-full text-left flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${
                     active === tmpl.id
-                      ? "bg-indigo-50 text-indigo-700 font-semibold"
+                      ? "bg-[rgba(215,184,122,0.1)] text-[#0B1929] font-semibold"
                       : "text-gray-600 hover:bg-gray-100"
                   }`}
                 >
@@ -382,7 +382,7 @@ export default function LookerTemplatesPage() {
                       {tmpl.measures.map(m => (
                         <div key={m.name}>
                           <p className="text-xs font-semibold text-gray-700">{m.name}</p>
-                          <code className="text-xs text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded block mt-0.5">{m.formula}</code>
+                          <code className="text-xs text-[#0B1929] bg-gray-100 px-2 py-0.5 rounded block mt-0.5">{m.formula}</code>
                         </div>
                       ))}
                     </div>
@@ -412,7 +412,7 @@ export default function LookerTemplatesPage() {
                           <code className="text-xs text-gray-400 ml-auto">{p.hex}</code>
                           <button
                             onClick={() => copy(p.hex, `color-${p.hex}`)}
-                            className="text-xs text-gray-300 hover:text-indigo-500 transition-colors"
+                            className="text-xs text-gray-300 hover:text-[#D7B87A] transition-colors"
                           >
                             {copied === `color-${p.hex}` ? "✓" : "copy"}
                           </button>
@@ -423,9 +423,9 @@ export default function LookerTemplatesPage() {
                 </div>
 
                 {/* Looker Studio tip */}
-                <div className="bg-indigo-50 border border-indigo-100 rounded-xl px-5 py-3 flex items-start gap-3">
-                  <span className="text-indigo-400 flex-shrink-0 mt-0.5">💡</span>
-                  <p className="text-xs text-indigo-700">{tmpl.lookerTip}</p>
+                <div className="bg-gray-50 border border-[#E0E1DD] rounded-xl px-5 py-3 flex items-start gap-3">
+                  <span className="flex-shrink-0 mt-0.5 text-[#D7B87A]">💡</span>
+                  <p className="text-xs text-[#0B1929]">{tmpl.lookerTip}</p>
                 </div>
               </div>
             ))}

@@ -137,7 +137,7 @@ export default function EmbedGeneratorPage() {
   }
 
   const btn = (active: boolean) =>
-    `text-xs px-3 py-1.5 rounded-lg font-medium transition-colors ${active ? "bg-green-100 text-green-700" : "bg-indigo-50 text-indigo-600 hover:bg-indigo-100"}`;
+    `text-xs px-3 py-1.5 rounded-lg font-medium transition-colors ${active ? "bg-green-100 text-green-700" : "bg-gray-100 text-[#0B1929] hover:bg-gray-200"}`;
 
   return (
     <AdminShell>
@@ -159,7 +159,7 @@ export default function EmbedGeneratorPage() {
                 <select
                   value={selectedId}
                   onChange={e => setSelectedId(e.target.value)}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-400"
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A]"
                 >
                   <option value="">— select a campaign —</option>
                   {campaigns.map(c => (
@@ -177,7 +177,7 @@ export default function EmbedGeneratorPage() {
                 <div className="space-y-2 pt-1 border-t border-gray-50">
                   <div className="flex justify-between text-xs">
                     <span className="text-gray-400">Campaign ID</span>
-                    <span className="font-mono text-indigo-700">{campaign.campaign_id}</span>
+                    <span className="font-mono text-[#0B1929]">{campaign.campaign_id}</span>
                   </div>
                   {surveyName && (
                     <div className="flex justify-between text-xs">
@@ -204,8 +204,8 @@ export default function EmbedGeneratorPage() {
                         onClick={() => setPublisher(publisher === p ? "" : p)}
                         className={`text-xs px-3 py-1.5 rounded-full border font-medium transition-colors ${
                           publisher === p
-                            ? "bg-indigo-600 text-white border-indigo-600"
-                            : "border-gray-200 text-gray-600 hover:border-indigo-300 hover:text-indigo-600"
+                            ? "text-[#0B1929] border-[#D7B87A]"
+                            : "border-gray-200 text-gray-600 hover:border-gray-400"
                         }`}
                       >
                         {p}
@@ -216,7 +216,7 @@ export default function EmbedGeneratorPage() {
                   <input
                     value={publisher}
                     onChange={e => setPublisher(e.target.value)}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-400"
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A]"
                     placeholder="e.g. sky-sports"
                   />
                 )}
@@ -228,7 +228,7 @@ export default function EmbedGeneratorPage() {
                 <select
                   value={placementPreset}
                   onChange={e => { setPlacementPreset(e.target.value); if (e.target.value !== "Custom…") setPlacementCustom(""); }}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-400"
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A]"
                 >
                   <option value="">— select placement —</option>
                   {PLACEMENT_OPTIONS.map(p => <option key={p} value={p}>{p}</option>)}
@@ -237,7 +237,7 @@ export default function EmbedGeneratorPage() {
                   <input
                     value={placementCustom}
                     onChange={e => setPlacementCustom(e.target.value)}
-                    className="mt-2 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-400"
+                    className="mt-2 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A]"
                     placeholder="Enter custom placement name"
                     autoFocus
                   />
@@ -250,7 +250,7 @@ export default function EmbedGeneratorPage() {
                 <input
                   value={club}
                   onChange={e => setClub(e.target.value)}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-400"
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A]"
                   placeholder="e.g. Arsenal"
                 />
               </div>
@@ -261,7 +261,7 @@ export default function EmbedGeneratorPage() {
                 <input
                   value={competition}
                   onChange={e => setCompetition(e.target.value)}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-400"
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A]"
                   placeholder="e.g. Premier League"
                 />
               </div>
@@ -272,7 +272,7 @@ export default function EmbedGeneratorPage() {
                 <input
                   value={segment}
                   onChange={e => setSegment(e.target.value)}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-400"
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A]"
                   placeholder="e.g. season-ticket-holder"
                 />
               </div>
@@ -284,12 +284,12 @@ export default function EmbedGeneratorPage() {
               <select
                 value={adServer}
                 onChange={e => setAdServer(e.target.value)}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-400"
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A]"
               >
                 {Object.keys(GEO_MACROS).map(s => <option key={s} value={s}>{s}</option>)}
               </select>
               <p className="text-xs text-gray-400 mt-2">
-                Country macro: <code className="bg-gray-100 px-1 rounded text-indigo-600">{countryMacro}</code>
+                Country macro: <code className="bg-gray-100 px-1 rounded text-[#0B1929]">{countryMacro}</code>
               </p>
             </div>
 
@@ -305,7 +305,7 @@ export default function EmbedGeneratorPage() {
                   ["Club",        club              || <span className="text-gray-300 italic">not set</span>],
                   ["Competition", competition       || <span className="text-gray-300 italic">not set</span>],
                   ["Fan Segment", segment           || <span className="text-gray-300 italic">not set</span>],
-                  ["Country",     <span key="c" className="font-mono text-indigo-600">{countryMacro}</span>],
+                  ["Country",     <span key="c" className="font-mono text-[#0B1929]">{countryMacro}</span>],
                 ].map(([label, val]) => (
                   <div key={label as string} className="flex items-center justify-between gap-2">
                     <span className="text-xs text-gray-400 flex-shrink-0">{label as string}</span>
@@ -336,8 +336,8 @@ export default function EmbedGeneratorPage() {
                     title="Preview"
                   />
                 ) : (
-                  <div className="w-[300px] h-[250px] bg-indigo-950 rounded flex items-center justify-center text-center px-6">
-                    <p className="text-indigo-300 text-xs">Select a campaign to preview the creative</p>
+                  <div className="w-[300px] h-[250px] bg-gray-100 rounded flex items-center justify-center text-center px-6 border border-[#E0E1DD]">
+                    <p className="text-gray-400 text-xs">Select a campaign to preview the creative</p>
                   </div>
                 )}
               </div>
