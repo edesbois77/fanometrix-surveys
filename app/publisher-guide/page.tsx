@@ -832,6 +832,119 @@ export default function PublisherHubPage() {
         </div>
       </section>
 
+      {/* ── Final CTA ────────────────────────────────────────────────────────── */}
+      <section style={{
+        background: N,
+        padding: "100px 24px",
+        position: "relative",
+        overflow: "hidden",
+      }}>
+        {/* Gold radial glow — top left */}
+        <div style={{
+          position: "absolute", top: "-120px", left: "-100px",
+          width: 500, height: 500, borderRadius: "50%",
+          background: `radial-gradient(circle, rgba(215,184,122,0.13) 0%, transparent 70%)`,
+          pointerEvents: "none",
+        }} />
+        {/* Gold radial glow — bottom right */}
+        <div style={{
+          position: "absolute", bottom: "-140px", right: "-80px",
+          width: 520, height: 520, borderRadius: "50%",
+          background: `radial-gradient(circle, rgba(215,184,122,0.10) 0%, transparent 70%)`,
+          pointerEvents: "none",
+        }} />
+        {/* Thin gold top border accent */}
+        <div style={{
+          position: "absolute", top: 0, left: "50%", transform: "translateX(-50%)",
+          width: 120, height: 2,
+          background: `linear-gradient(90deg, transparent, ${G}, transparent)`,
+        }} />
+
+        <div style={{ maxWidth: 720, margin: "0 auto", textAlign: "center", position: "relative" }}>
+
+          {/* Eyebrow pill */}
+          <div style={{
+            display: "inline-flex", alignItems: "center", gap: 8,
+            background: "rgba(215,184,122,0.10)",
+            border: "1px solid rgba(215,184,122,0.25)",
+            borderRadius: 20, padding: "6px 18px", marginBottom: 36,
+          }}>
+            <span style={{ width: 6, height: 6, borderRadius: "50%", background: G, display: "inline-block" }} />
+            <span style={{ color: G, fontSize: 12, fontWeight: 600, letterSpacing: "0.04em" }}>
+              Get started today
+            </span>
+          </div>
+
+          <h2 style={{
+            fontSize: "clamp(28px, 5vw, 48px)",
+            fontWeight: 800,
+            color: "#fff",
+            lineHeight: 1.1,
+            letterSpacing: "-0.02em",
+            marginBottom: 24,
+          }}>
+            Ready to understand football<br />
+            <span style={{ color: G }}>fans at scale?</span>
+          </h2>
+
+          <p style={{
+            fontSize: "clamp(15px, 2.5vw, 18px)",
+            color: "rgba(255,255,255,0.65)",
+            lineHeight: 1.7,
+            maxWidth: 520,
+            margin: "0 auto 52px",
+          }}>
+            Deploy privacy-first surveys in standard inventory and unlock
+            audience intelligence in minutes.
+          </p>
+
+          {/* Buttons */}
+          <div style={{ display: "flex", gap: 14, justifyContent: "center", flexWrap: "wrap" }}>
+            <a
+              href="mailto:publishers@fanometrix.com?subject=Technical Call Request"
+              style={{
+                background: G,
+                color: N,
+                fontSize: 15,
+                fontWeight: 700,
+                padding: "16px 32px",
+                borderRadius: 12,
+                textDecoration: "none",
+                letterSpacing: "0.01em",
+                boxShadow: `0 0 0 1px rgba(215,184,122,0.4), 0 8px 24px rgba(215,184,122,0.25)`,
+              }}
+            >
+              Book a Technical Call
+            </a>
+            <a
+              href="mailto:publishers@fanometrix.com"
+              style={{
+                background: "rgba(255,255,255,0.06)",
+                color: "#fff",
+                fontSize: 15,
+                fontWeight: 600,
+                padding: "16px 32px",
+                borderRadius: 12,
+                textDecoration: "none",
+                border: "1px solid rgba(255,255,255,0.18)",
+              }}
+            >
+              Contact the Fanometrix Team
+            </a>
+          </div>
+
+          {/* Trust micro-copy */}
+          <p style={{
+            marginTop: 40,
+            fontSize: 12,
+            color: "rgba(255,255,255,0.30)",
+            letterSpacing: "0.02em",
+          }}>
+            No commitment required · 15-minute integration · No personal data collected
+          </p>
+        </div>
+      </section>
+
       {/* ── Footer ───────────────────────────────────────────────────────────── */}
       <footer style={{ background: "#060F19", padding: "28px 24px" }}>
         <div style={{ maxWidth: 1100, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
