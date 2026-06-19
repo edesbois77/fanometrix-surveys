@@ -313,7 +313,7 @@ export default function PublisherHubPage() {
             <span style={{ color: G }}>Publisher Hub</span>
           </h1>
 
-          <p style={{ fontSize: "clamp(15px, 2.5vw, 18px)", color: "rgba(255,255,255,0.72)", lineHeight: 1.7, maxWidth: 680, margin: "0 auto 48px" }}>
+          <p style={{ fontSize: "clamp(15px, 2.5vw, 18px)", color: "rgba(255,255,255,0.72)", lineHeight: 1.7, maxWidth: 860, margin: "0 auto 48px" }}>
             Deploy anonymous football fan surveys within standard 300×250 inventory to generate
             fan intelligence and unlock new commercial opportunities — with no personal data
             collection and minimal implementation effort.
@@ -390,7 +390,7 @@ export default function PublisherHubPage() {
             <div style={{ padding: "16px 24px 20px", background: "#fff" }}>
               <p style={{ fontSize: 13, color: "#6B7280", lineHeight: 1.6 }}>
                 A 3-question survey with radio-button answers. Fans complete it in under 60 seconds.
-                Auto-advances on selection — no submit button needed.
+                Auto-advances on selection - no submit button needed.
               </p>
             </div>
           </div>
@@ -431,8 +431,7 @@ export default function PublisherHubPage() {
             </div>
             <div style={{ padding: "16px 24px 20px", background: "#fff" }}>
               <p style={{ fontSize: 13, color: "#6B7280", lineHeight: 1.6 }}>
-                A 3-slide privacy modal is available within every survey. No consent banner required —
-                Fanometrix collects no personal data.
+                A 3-slide privacy modal is available within every survey. No consent banner required - Fanometrix collects no personal data.
               </p>
             </div>
           </div>
