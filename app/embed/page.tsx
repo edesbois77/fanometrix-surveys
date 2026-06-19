@@ -3,11 +3,14 @@
 import { useState, useEffect, useRef, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 
+const NAVY = "#0B1929";
+const GOLD = "#D7B87A";
+
 const QUESTIONS = [
   {
     id: "q1",
     text: "How often do you attend live events?",
-    options: ["Never", "1-2 times a year", "3-5 times a year", "5+ times a year"],
+    options: ["Never", "1–2 times a year", "3–5 times a year", "5+ times a year"],
   },
   {
     id: "q2",
@@ -18,6 +21,30 @@ const QUESTIONS = [
     id: "q3",
     text: "Likely to recommend us to a friend?",
     options: ["Not likely", "Somewhat likely", "Likely", "Very likely"],
+  },
+];
+
+const PRIVACY_SLIDES = [
+  {
+    title: "About Fanometrix",
+    text: "Fanometrix delivers short fan sentiment surveys inside digital media placements on behalf of sports clubs, rights holders, and their media partners.",
+    bullets: null as string[] | null,
+  },
+  {
+    title: "What we collect",
+    text: null as string | null,
+    bullets: [
+      "Multiple-choice survey answers only",
+      "Country — country level only, via ad server",
+      "Device type and browser",
+      "Time taken to complete",
+      "No names, emails, IPs, or cookies — ever",
+    ],
+  },
+  {
+    title: "Your rights",
+    text: "We collect no data that can identify you. Responses feed aggregated fan insight reports only — no individual is profiled or targeted. Questions? Email privacy@fanometrix.com",
+    bullets: null as string[] | null,
   },
 ];
 
@@ -42,160 +69,206 @@ function detectDevice(): string {
 
 function detectBrowser(): string {
   const ua = navigator.userAgent;
-  if (/edg\//i.test(ua))                    return "Edge";
-  if (/opr\//i.test(ua))                    return "Opera";
-  if (/chrome|chromium|crios/i.test(ua))    return "Chrome";
-  if (/firefox|fxios/i.test(ua))            return "Firefox";
-  if (/safari/i.test(ua))                   return "Safari";
+  if (/edg\//i.test(ua)) return "Edge";
+  if (/opr\//i.test(ua)) return "Opera";
+  if (/chrome|chromium|crios/i.test(ua)) return "Chrome";
+  if (/firefox|fxios/i.test(ua)) return "Firefox";
+  if (/safari/i.test(ua)) return "Safari";
   return "Other";
 }
 
-// ─── Styles ────────────────────────────────────────────────────────────────
+// ─── Privacy modal ──────────────────────────────────────────────────────────
 
-const S = {
-  wrap: {
-    width: 300,
-    height: 250,
-    overflow: "hidden" as const,
-    fontFamily: "system-ui, -apple-system, sans-serif",
-    background: "linear-gradient(160deg, #312e81 0%, #1e1b4b 100%)",
-    display: "flex",
-    flexDirection: "column" as const,
-    boxSizing: "border-box" as const,
-  },
-  header: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    padding: "8px 12px 6px",
-    borderBottom: "1px solid rgba(255,255,255,0.1)",
-    flexShrink: 0,
-  },
-  logo: {
-    color: "#fff",
-    fontSize: 11,
-    fontWeight: 700,
-    letterSpacing: "0.02em",
-    display: "flex",
-    alignItems: "center",
-    gap: 4,
-  },
-  dot: {
-    width: 7,
-    height: 7,
-    borderRadius: "50%",
-    background: "#818cf8",
-    display: "inline-block",
-    flexShrink: 0,
-  },
-  step: {
-    color: "rgba(255,255,255,0.5)",
-    fontSize: 10,
-    fontWeight: 600,
-    flexShrink: 0,
-  },
-  contextBar: {
-    padding: "4px 12px 3px",
-    borderBottom: "1px solid rgba(255,255,255,0.07)",
-    flexShrink: 0,
-  },
-  contextText: {
-    color: "rgba(255,255,255,0.55)",
-    fontSize: 9.5,
-    fontWeight: 600,
-    letterSpacing: "0.04em",
-    textTransform: "uppercase" as const,
-  },
-  body: {
-    flex: 1,
-    padding: "8px 12px 8px",
-    display: "flex",
-    flexDirection: "column" as const,
-    gap: 7,
-    minHeight: 0,
-  },
-  question: {
-    color: "#fff",
-    fontSize: 12,
-    fontWeight: 700,
-    lineHeight: 1.35,
-    margin: 0,
-    flexShrink: 0,
-  },
-  options: {
-    display: "flex",
-    flexDirection: "column" as const,
-    gap: 4,
-    flex: 1,
-  },
-  option: (selected: boolean) => ({
-    display: "flex",
-    alignItems: "center",
-    gap: 8,
-    padding: "5px 9px",
-    borderRadius: 6,
-    border: `1px solid ${selected ? "rgba(165,180,252,0.8)" : "rgba(255,255,255,0.15)"}`,
-    background: selected ? "rgba(99,102,241,0.45)" : "rgba(255,255,255,0.06)",
-    cursor: "pointer" as const,
-    transition: "background 0.1s, border-color 0.1s",
-    flexShrink: 0,
-  }),
-  radio: (selected: boolean) => ({
-    width: 12,
-    height: 12,
-    borderRadius: "50%",
-    border: `2px solid ${selected ? "#a5b4fc" : "rgba(255,255,255,0.4)"}`,
-    background: selected ? "#a5b4fc" : "transparent",
-    flexShrink: 0,
-    boxSizing: "border-box" as const,
-  }),
-  optionLabel: {
-    color: "#e0e7ff",
-    fontSize: 10.5,
-    fontWeight: 500,
-    lineHeight: 1,
-  },
-  btn: (disabled: boolean) => ({
-    background: disabled ? "rgba(255,255,255,0.15)" : "#fff",
-    color: disabled ? "rgba(255,255,255,0.35)" : "#312e81",
-    border: "none",
-    borderRadius: 7,
-    padding: "7px 0",
-    fontSize: 11,
-    fontWeight: 700,
-    cursor: disabled ? "not-allowed" as const : "pointer" as const,
-    width: "100%",
-    letterSpacing: "0.03em",
-    flexShrink: 0,
-  }),
-  successWrap: {
-    width: 300,
-    height: 250,
-    overflow: "hidden" as const,
-    background: "linear-gradient(160deg, #312e81 0%, #1e1b4b 100%)",
-    display: "flex",
-    flexDirection: "column" as const,
-    alignItems: "center",
-    justifyContent: "center",
-    fontFamily: "system-ui, -apple-system, sans-serif",
-    gap: 8,
-    textAlign: "center" as const,
-    padding: 20,
-    boxSizing: "border-box" as const,
-  },
-  successIcon:  { fontSize: 34, lineHeight: 1 },
-  successTitle: { color: "#fff", fontSize: 15, fontWeight: 700, margin: 0 },
-  successSub:   { color: "rgba(255,255,255,0.6)", fontSize: 11, margin: 0, lineHeight: 1.4 },
-  poweredBy:    { color: "rgba(255,255,255,0.28)", fontSize: 9, marginTop: 4, letterSpacing: "0.05em" },
-  privacyLink:  { color: "rgba(255,255,255,0.22)", fontSize: 8, marginTop: 2, textDecoration: "underline" as const, cursor: "pointer" as const },
-};
+function PrivacyModal({
+  slide,
+  onClose,
+  onNav,
+}: {
+  slide: number;
+  onClose: () => void;
+  onNav: (dir: -1 | 1) => void;
+}) {
+  const s = PRIVACY_SLIDES[slide];
+  const isFirst = slide === 0;
+  const isLast  = slide === PRIVACY_SLIDES.length - 1;
 
-// ─── Survey component ───────────────────────────────────────────────────────
+  return (
+    <div
+      style={{
+        position: "absolute",
+        inset: 0,
+        background: "#fff",
+        display: "flex",
+        flexDirection: "column",
+        zIndex: 20,
+        overflow: "hidden",
+        boxSizing: "border-box",
+      }}
+    >
+      {/* Modal header — 40px */}
+      <div
+        style={{
+          height: 40,
+          minHeight: 40,
+          background: NAVY,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          padding: "0 12px",
+          flexShrink: 0,
+          boxSizing: "border-box",
+        }}
+      >
+        <span style={{ color: GOLD, fontSize: 11, fontWeight: 700, letterSpacing: "0.03em" }}>
+          Privacy
+        </span>
+        <button
+          onClick={onClose}
+          aria-label="Close privacy"
+          style={{
+            background: "none",
+            border: "none",
+            cursor: "pointer",
+            color: "rgba(255,255,255,0.7)",
+            fontSize: 15,
+            lineHeight: 1,
+            padding: "3px 4px",
+          }}
+        >
+          ✕
+        </button>
+      </div>
+
+      {/* Slide content — flex:1 = 174px */}
+      <div
+        style={{
+          flex: 1,
+          padding: "10px 14px 6px",
+          overflow: "hidden",
+          display: "flex",
+          flexDirection: "column",
+          gap: 7,
+          minHeight: 0,
+        }}
+      >
+        <p style={{ color: NAVY, fontSize: 11.5, fontWeight: 700, margin: 0, flexShrink: 0 }}>
+          {s.title}
+        </p>
+
+        {s.text && (
+          <p style={{ color: "#374151", fontSize: 9.5, lineHeight: 1.5, margin: 0 }}>
+            {s.text}
+          </p>
+        )}
+
+        {s.bullets && (
+          <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 5 }}>
+            {s.bullets.map((b) => (
+              <li key={b} style={{ display: "flex", gap: 6, alignItems: "flex-start" }}>
+                <span style={{ color: GOLD, fontSize: 8, marginTop: 2, flexShrink: 0 }}>●</span>
+                <span style={{ color: "#374151", fontSize: 9.5, lineHeight: 1.4 }}>{b}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      {/* Nav footer — 36px */}
+      <div
+        style={{
+          height: 36,
+          minHeight: 36,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          padding: "0 8px",
+          background: "#F9FAFB",
+          borderTop: "1px solid #E5E7EB",
+          flexShrink: 0,
+          boxSizing: "border-box",
+        }}
+      >
+        <button
+          onClick={() => onNav(-1)}
+          disabled={isFirst}
+          aria-label="Previous slide"
+          style={{
+            background: "none",
+            border: "none",
+            cursor: isFirst ? "default" : "pointer",
+            color: isFirst ? "#D1D5DB" : NAVY,
+            fontSize: 20,
+            lineHeight: 1,
+            padding: "2px 8px",
+            fontWeight: 700,
+          }}
+        >
+          ‹
+        </button>
+
+        <span style={{ color: "#6B7280", fontSize: 9.5, fontWeight: 500 }}>
+          {slide + 1} of {PRIVACY_SLIDES.length}
+        </span>
+
+        <button
+          onClick={() => onNav(1)}
+          disabled={isLast}
+          aria-label="Next slide"
+          style={{
+            background: "none",
+            border: "none",
+            cursor: isLast ? "default" : "pointer",
+            color: isLast ? "#D1D5DB" : NAVY,
+            fontSize: 20,
+            lineHeight: 1,
+            padding: "2px 8px",
+            fontWeight: 700,
+          }}
+        >
+          ›
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Shared header ──────────────────────────────────────────────────────────
+
+function AdHeader({ step, total }: { step?: number; total?: number }) {
+  return (
+    <div
+      style={{
+        height: 46,
+        minHeight: 46,
+        background: NAVY,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        padding: "0 12px",
+        flexShrink: 0,
+        boxSizing: "border-box",
+      }}
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src="/Fanometrix_Logo.png"
+        alt="Fanometrix"
+        style={{ height: 22, objectFit: "contain", objectPosition: "left" }}
+      />
+      {step !== undefined && total !== undefined && (
+        <span style={{ color: GOLD, fontSize: 10, fontWeight: 600, letterSpacing: "0.03em", flexShrink: 0 }}>
+          {step} of {total}
+        </span>
+      )}
+    </div>
+  );
+}
+
+// ─── Main survey component ──────────────────────────────────────────────────
 
 function EmbedSurvey() {
   const params = useSearchParams();
 
-  // URL parameters — all optional except campaign
   const campaign      = params.get("campaign")    ?? "default";
   const surveyId      = params.get("survey")      ?? null;
   const questionSetId = params.get("qset")        ?? null;
@@ -206,7 +279,6 @@ function EmbedSurvey() {
   const country       = resolveCountry(params.get("country") ?? "");
   const segment       = params.get("segment")     ?? null;
 
-  // Auto-collected
   const [device,  setDevice]  = useState<string | null>(null);
   const [browser, setBrowser] = useState<string | null>(null);
   const startRef = useRef<number>(Date.now());
@@ -217,127 +289,328 @@ function EmbedSurvey() {
     startRef.current = Date.now();
   }, []);
 
-  const [step,    setStep]    = useState(0);
-  const [answers, setAnswers] = useState<Record<string, string>>({});
-  const [status,  setStatus]  = useState<"idle" | "submitting" | "success" | "error">("idle");
+  const [step,        setStep]        = useState(0);
+  const [answers,     setAnswers]     = useState<Record<string, string>>({});
+  const [status,      setStatus]      = useState<"idle" | "submitting" | "success" | "error">("idle");
+  const [advancing,   setAdvancing]   = useState(false);
+  const [showPrivacy, setShowPrivacy] = useState(false);
+  const [privacySlide, setPrivacySlide] = useState(0);
 
-  const q        = QUESTIONS[step];
-  const selected = answers[q?.id ?? ""];
-  const isLast   = step === QUESTIONS.length - 1;
+  const q      = QUESTIONS[step];
+  const isLast = step === QUESTIONS.length - 1;
 
-  // Context bar — show if club or competition was passed
-  const context = [club, competition].filter(Boolean).join(" · ");
+  // Progress percentage: 1-indexed step / total
+  const progressPct = status === "success"
+    ? 100
+    : ((step + 1) / QUESTIONS.length) * 100;
 
-  async function handleNext() {
-    if (!selected) return;
-    if (!isLast) { setStep((s) => s + 1); return; }
-
-    setStatus("submitting");
-    const duration = Math.round((Date.now() - startRef.current) / 1000);
-
-    const res = await fetch("/api/submit", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        campaign_id:               campaign,
-        survey_id:                 surveyId,
-        question_set_id:           questionSetId,
-        publisher,
-        placement,
-        club,
-        competition,
-        q1:                        answers.q1 ?? null,
-        q2:                        answers.q2 ?? null,
-        q3:                        answers.q3 ?? null,
-        country:                   country  || null,
-        fan_segment:               segment,
-        device,
-        browser,
-        response_duration_seconds: duration,
-      }),
-    });
-    setStatus(res.ok ? "success" : "error");
+  function openPrivacy() {
+    setPrivacySlide(0);
+    setShowPrivacy(true);
   }
 
-  if (status === "success") {
-    return (
-      <div style={S.successWrap}>
-        <div style={S.successIcon}>🎉</div>
-        <p style={S.successTitle}>Thank you!</p>
-        <p style={S.successSub}>
-          Your feedback has been recorded and will help improve the fan experience.
-        </p>
-        <p style={S.poweredBy}>POWERED BY FANOMETRIX PULSE</p>
-        <a href="https://fanometrix-surveys.vercel.app/privacy" target="_blank" rel="noopener" style={S.privacyLink}>ⓘ Privacy</a>
-      </div>
-    );
+  function handleSelect(opt: string) {
+    if (advancing) return;
+    const newAnswers = { ...answers, [q.id]: opt };
+    setAnswers(newAnswers);
+    setAdvancing(true);
+
+    setTimeout(async () => {
+      if (!isLast) {
+        setStep((s) => s + 1);
+        setAdvancing(false);
+        return;
+      }
+
+      setStatus("submitting");
+      const duration = Math.round((Date.now() - startRef.current) / 1000);
+      try {
+        const res = await fetch("/api/submit", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            campaign_id:               campaign,
+            survey_id:                 surveyId,
+            question_set_id:           questionSetId,
+            publisher,
+            placement,
+            club,
+            competition,
+            q1:                        newAnswers.q1 ?? null,
+            q2:                        newAnswers.q2 ?? null,
+            q3:                        newAnswers.q3 ?? null,
+            country:                   country || null,
+            fan_segment:               segment,
+            device,
+            browser,
+            response_duration_seconds: duration,
+          }),
+        });
+        setStatus(res.ok ? "success" : "error");
+      } catch {
+        setStatus("error");
+      }
+      setAdvancing(false);
+    }, 350);
   }
 
   return (
-    <div style={S.wrap}>
-
-      {/* Header */}
-      <div style={S.header}>
-        <div style={S.logo}>
-          <span style={S.dot} />
-          Fanometrix
-        </div>
-        <span style={S.step}>{step + 1} of {QUESTIONS.length}</span>
-      </div>
-
-      {/* Context bar — only rendered if club/competition passed */}
-      {context && (
-        <div style={S.contextBar}>
-          <span style={S.contextText}>{context}</span>
-        </div>
+    /* Outer frame — exactly 300×250, overflow hidden */
+    <div
+      style={{
+        width: 300,
+        height: 250,
+        overflow: "hidden",
+        fontFamily: "system-ui, -apple-system, sans-serif",
+        display: "flex",
+        flexDirection: "column",
+        boxSizing: "border-box",
+        position: "relative",
+      }}
+    >
+      {/* Privacy modal overlays both survey and thank-you states */}
+      {showPrivacy && (
+        <PrivacyModal
+          slide={privacySlide}
+          onClose={() => setShowPrivacy(false)}
+          onNav={(dir) =>
+            setPrivacySlide((s) =>
+              Math.max(0, Math.min(PRIVACY_SLIDES.length - 1, s + dir))
+            )
+          }
+        />
       )}
 
-      {/* Body */}
-      <div style={S.body}>
-        <p style={S.question}>{q.text}</p>
+      {status === "success" ? (
+        /* ── Thank-you screen ─────────────────────────────────────────── */
+        <>
+          {/* Header — 46px, no step counter */}
+          <AdHeader />
 
-        <div style={S.options}>
-          {q.options.map((opt) => {
-            const isSelected = selected === opt;
-            return (
-              <div
-                key={opt}
-                style={S.option(isSelected)}
-                onClick={() => setAnswers((a) => ({ ...a, [q.id]: opt }))}
-                role="radio"
-                aria-checked={isSelected}
-                tabIndex={0}
-                onKeyDown={(e) => e.key === " " && setAnswers((a) => ({ ...a, [q.id]: opt }))}
+          {/* Progress bar — 100% gold — 3px */}
+          <div style={{ height: 3, minHeight: 3, background: `rgba(215,184,122,0.2)`, flexShrink: 0 }}>
+            <div style={{ height: "100%", width: "100%", background: GOLD }} />
+          </div>
+
+          {/* Body — flex:1, navy background */}
+          <div
+            style={{
+              flex: 1,
+              background: NAVY,
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: "12px 20px",
+              textAlign: "center",
+              gap: 8,
+              minHeight: 0,
+            }}
+          >
+            <div style={{ fontSize: 30, lineHeight: 1 }}>🎉</div>
+            <p style={{ color: "#fff", fontSize: 14, fontWeight: 700, margin: 0 }}>Thank you!</p>
+            <p style={{ color: "rgba(255,255,255,0.65)", fontSize: 10.5, margin: 0, lineHeight: 1.4 }}>
+              Your feedback has been recorded and will help improve the fan experience.
+            </p>
+          </div>
+
+          {/* Thank-you footer — 20px, centred */}
+          <div
+            style={{
+              height: 20,
+              minHeight: 20,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 10,
+              background: NAVY,
+              flexShrink: 0,
+              borderTop: "1px solid rgba(255,255,255,0.08)",
+            }}
+          >
+            <span style={{ color: "rgba(255,255,255,0.28)", fontSize: 8.5, letterSpacing: "0.05em" }}>
+              POWERED BY FANOMETRIX
+            </span>
+            <span
+              onClick={openPrivacy}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => e.key === "Enter" && openPrivacy()}
+              style={{
+                color: "rgba(255,255,255,0.25)",
+                fontSize: 8,
+                textDecoration: "underline",
+                cursor: "pointer",
+              }}
+            >
+              ⓘ Privacy
+            </span>
+          </div>
+        </>
+      ) : (
+        /* ── Survey question screen ───────────────────────────────────── */
+        <>
+          {/* Header — 46px */}
+          <AdHeader step={step + 1} total={QUESTIONS.length} />
+
+          {/* Gold progress bar — 3px */}
+          <div style={{ height: 3, minHeight: 3, background: "rgba(215,184,122,0.2)", flexShrink: 0 }}>
+            <div
+              style={{
+                height: "100%",
+                width: `${progressPct}%`,
+                background: GOLD,
+                transition: "width 0.3s ease",
+              }}
+            />
+          </div>
+
+          {/* Body — white, flex:1 = 181px */}
+          <div
+            style={{
+              flex: 1,
+              background: "#fff",
+              padding: "10px 12px 8px",
+              display: "flex",
+              flexDirection: "column",
+              gap: 6,
+              minHeight: 0,
+              overflow: "hidden",
+              boxSizing: "border-box",
+            }}
+          >
+            <p
+              style={{
+                color: NAVY,
+                fontSize: 11.5,
+                fontWeight: 700,
+                lineHeight: 1.35,
+                margin: 0,
+                flexShrink: 0,
+                display: "-webkit-box",
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: "vertical",
+                overflow: "hidden",
+              }}
+            >
+              {q.text}
+            </p>
+
+            {/* Answer options */}
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: 4,
+                flex: 1,
+                minHeight: 0,
+              }}
+            >
+              {q.options.map((opt) => {
+                const isSel = answers[q.id] === opt;
+                return (
+                  <div
+                    key={opt}
+                    role="radio"
+                    aria-checked={isSel}
+                    tabIndex={0}
+                    onClick={() => handleSelect(opt)}
+                    onKeyDown={(e) => e.key === " " && handleSelect(opt)}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                      padding: "5px 10px",
+                      borderRadius: 6,
+                      border: `1.5px solid ${isSel ? GOLD : "#D1D5DB"}`,
+                      background: isSel ? "rgba(215,184,122,0.10)" : "#fff",
+                      cursor: advancing ? "default" : "pointer",
+                      flexShrink: 0,
+                      boxSizing: "border-box",
+                      transition: "border-color 0.15s, background 0.15s",
+                    }}
+                  >
+                    {/* Radio icon */}
+                    <div
+                      style={{
+                        width: 12,
+                        height: 12,
+                        borderRadius: "50%",
+                        border: `2px solid ${isSel ? GOLD : "#9CA3AF"}`,
+                        background: isSel ? GOLD : "transparent",
+                        flexShrink: 0,
+                        boxSizing: "border-box",
+                        transition: "background 0.15s, border-color 0.15s",
+                      }}
+                    />
+                    <span
+                      style={{
+                        color: NAVY,
+                        fontSize: 10.5,
+                        fontWeight: 500,
+                        lineHeight: 1,
+                      }}
+                    >
+                      {opt}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Inline error (doesn't shift layout — only shown on error) */}
+            {status === "error" && (
+              <p
+                style={{
+                  color: "#DC2626",
+                  fontSize: 9,
+                  margin: 0,
+                  flexShrink: 0,
+                  textAlign: "center",
+                }}
               >
-                <div style={S.radio(isSelected)} />
-                <span style={S.optionLabel}>{opt}</span>
-              </div>
-            );
-          })}
-        </div>
+                Something went wrong — tap an answer to try again.
+              </p>
+            )}
+          </div>
 
-        {status === "error" && (
-          <p style={{ color: "#fca5a5", fontSize: 9, margin: 0, flexShrink: 0 }}>
-            Something went wrong. Please try again.
-          </p>
-        )}
-
-        <button
-          style={S.btn(!selected || status === "submitting")}
-          onClick={handleNext}
-          disabled={!selected || status === "submitting"}
-        >
-          {status === "submitting" ? "Submitting…" : isLast ? "Submit ✓" : "Next →"}
-        </button>
-      </div>
-
+          {/* Privacy footer — 20px, centred, clickable */}
+          <div
+            style={{
+              height: 20,
+              minHeight: 20,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              background: "#fff",
+              flexShrink: 0,
+              borderTop: "1px solid #F3F4F6",
+            }}
+          >
+            <span
+              onClick={openPrivacy}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => e.key === "Enter" && openPrivacy()}
+              style={{
+                color: "#9CA3AF",
+                fontSize: 9,
+                cursor: "pointer",
+                letterSpacing: "0.01em",
+              }}
+            >
+              ⓘ Anonymous insights. No personal information collected.
+            </span>
+          </div>
+        </>
+      )}
     </div>
   );
 }
 
 export default function EmbedPage() {
   return (
-    <Suspense fallback={<div style={{ width: 300, height: 250, background: "#1e1b4b" }} />}>
+    <Suspense fallback={<div style={{ width: 300, height: 250, background: NAVY }} />}>
       <EmbedSurvey />
     </Suspense>
   );
