@@ -14,10 +14,11 @@ const STEPS = [
   { n: "06", label: "Insights Shared",               desc: "Reports and benchmarks are shared with brands, publishers and partners." },
 ];
 
-// Title height: longest title is 3 lines at 14px/1.3 ≈ 55px
+// Title height: longest title is 3 lines at 14px/1.35 ≈ 55px
 const TITLE_HEIGHT = 58;
-// Desc height: longest desc fits in 4 lines at 12px/1.6 ≈ 77px
-const DESC_HEIGHT  = 80;
+// Desc height: longest desc ("Reports and benchmarks are shared with brands,
+// publishers and partners.") needs ~5 lines at 11px/1.6 ≈ 88px
+const DESC_HEIGHT  = 96;
 const CARD_W       = 160;
 
 export function HowItWorksSection() {
