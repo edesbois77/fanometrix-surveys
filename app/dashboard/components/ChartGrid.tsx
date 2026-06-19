@@ -35,7 +35,9 @@ function ResponsesOverTime({ responses }: { responses: SurveyResponse[] }) {
           <XAxis dataKey="date" tick={{ fontSize: 9 }} interval="preserveStartEnd" />
           <YAxis tick={{ fontSize: 9 }} allowDecimals={false} />
           <RTooltip contentStyle={{ fontSize: 11 }} />
-          <Line type="monotone" dataKey="count" stroke="#6366f1" strokeWidth={2} dot={data.length < 20} activeDot={{ r: 4 }} />
+          <Line type="monotone" dataKey="count" stroke="#D7B87A" strokeWidth={2}
+            dot={data.length < 20 ? { fill: "#D7B87A", stroke: "#D7B87A", r: 3 } : false}
+            activeDot={{ r: 4, fill: "#D7B87A", stroke: "#D7B87A" }} />
         </LineChart>
       </ResponsiveContainer>
     </div>
@@ -85,7 +87,7 @@ function QChart({
               <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
                 <div
                   className="h-full rounded-full transition-all"
-                  style={{ width: `${pct}%`, background: active ? ACTIVE : "#6366f1" }}
+                  style={{ width: `${pct}%`, background: "#D7B87A" }}
                 />
               </div>
             </button>
@@ -159,8 +161,8 @@ function DimChart({
             {data.map((d, i) => (
               <Cell
                 key={d.fullName}
-                fill={d.fullName === activeValue ? ACTIVE : COLORS[(i + colorOffset) % COLORS.length]}
-                opacity={activeValue && d.fullName !== activeValue ? 0.45 : 1}
+                fill="#D7B87A"
+                opacity={activeValue && d.fullName !== activeValue ? 0.35 : 1}
                 onClick={() => onFilter(activeValue === d.fullName ? "" : d.fullName)}
               />
             ))}

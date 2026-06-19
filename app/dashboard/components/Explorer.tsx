@@ -222,7 +222,7 @@ function DetailPanel({ row, groupLabel, onClose }: { row: GroupedRow; groupLabel
                 <XAxis dataKey="date" tick={{ fontSize: 9 }} interval="preserveStartEnd" />
                 <YAxis tick={{ fontSize: 9 }} allowDecimals={false} />
                 <RTooltip contentStyle={{ fontSize: 11 }} />
-                <Line type="monotone" dataKey="count" stroke="#6366f1" strokeWidth={2} dot={false} />
+                <Line type="monotone" dataKey="count" stroke="#D7B87A" strokeWidth={2} dot={false} activeDot={{ r: 4, fill: "#D7B87A", stroke: "#D7B87A" }} />
               </LineChart>
             </ResponsiveContainer>
           ) : (
@@ -239,7 +239,7 @@ function DetailPanel({ row, groupLabel, onClose }: { row: GroupedRow; groupLabel
                 <YAxis type="category" dataKey="name" tick={{ fontSize: 9 }} width={80} />
                 <RTooltip contentStyle={{ fontSize: 11 }} />
                 <Bar dataKey="value" radius={[0, 3, 3, 0]}>
-                  {ctyData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                  {ctyData.map((_, i) => <Cell key={i} fill="#D7B87A" />)}
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
@@ -446,7 +446,7 @@ export function ResponseExplorer({ responses }: { responses: SurveyResponse[] })
               <RTooltip contentStyle={{ fontSize: 11 }} />
               <Bar dataKey="value" radius={[0, 4, 4, 0]}
                 label={{ position: "right", fontSize: 10, fill: "#6b7280" }}>
-                {barData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                {barData.map((_, i) => <Cell key={i} fill="#D7B87A" />)}
               </Bar>
             </BarChart>
           </ResponsiveContainer>
