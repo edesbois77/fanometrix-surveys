@@ -78,8 +78,10 @@ export function computeStatusWithReason(
   }
 
   // Stored is "scheduled" or "live" — check auto-transitions
-  const start = campaign.start_date ? new Date(campaign.start_date) : null;
-  const end   = campaign.end_date   ? new Date(campaign.end_date)   : null;
+  // Append explicit time so dates are interpreted in local time, not UTC midnight.
+  // Start = 00:00:00 (beginning of day), End = 23:59:59 (end of day).
+  const start = campaign.start_date ? new Date(`${campaign.start_date}T00:00:00`) : null;
+  const end   = campaign.end_date   ? new Date(`${campaign.end_date}T23:59:59`)   : null;
 
   if (start && now < start) {
     return {
