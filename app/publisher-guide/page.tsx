@@ -336,7 +336,7 @@ export default function PublisherHubPage() {
       </header>
 
       {/* ── 1. HERO ──────────────────────────────────────────────────────────── */}
-      <div style={{ background: N, padding: "96px 24px 80px" }}>
+      <div style={{ background: N, padding: "48px 24px 64px" }}>
         <div style={{ maxWidth: 820, margin: "0 auto", textAlign: "center" }}>
           <h1 style={{ fontSize: "clamp(32px, 6vw, 56px)", fontWeight: 800, color: "#fff", lineHeight: 1.1, letterSpacing: "-0.02em", marginBottom: 24 }}>
             Fanometrix<br />
