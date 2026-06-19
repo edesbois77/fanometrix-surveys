@@ -3,65 +3,9 @@
 import { useState, useEffect, useCallback } from "react";
 import { AdminShell } from "@/app/components/AdminShell";
 
-// ─── MPU inline styles (mirrors /embed page exactly) ────────────────────────
-
-const M = {
-  wrap: {
-    width: 300, height: 250, overflow: "hidden" as const,
-    fontFamily: "system-ui, -apple-system, sans-serif",
-    background: "linear-gradient(160deg, #312e81 0%, #1e1b4b 100%)",
-    display: "flex", flexDirection: "column" as const,
-    boxSizing: "border-box" as const, borderRadius: 10,
-    boxShadow: "0 8px 32px rgba(0,0,0,0.4)",
-  },
-  header: {
-    display: "flex", alignItems: "center", justifyContent: "space-between",
-    padding: "8px 12px 6px",
-    borderBottom: "1px solid rgba(255,255,255,0.1)", flexShrink: 0,
-  },
-  logo: {
-    color: "#fff", fontSize: 11, fontWeight: 700, letterSpacing: "0.02em",
-    display: "flex", alignItems: "center", gap: 4,
-  },
-  dot:  { width: 7, height: 7, borderRadius: "50%", background: "#818cf8", display: "inline-block", flexShrink: 0 },
-  step: { color: "rgba(255,255,255,0.5)", fontSize: 10, fontWeight: 600, flexShrink: 0 },
-  body: {
-    flex: 1, padding: "8px 12px 8px",
-    display: "flex", flexDirection: "column" as const, gap: 7, minHeight: 0,
-  },
-  question: { color: "#fff", fontSize: 12, fontWeight: 700, lineHeight: 1.35, margin: 0, flexShrink: 0 },
-  options:  { display: "flex", flexDirection: "column" as const, gap: 4, flex: 1 },
-  option: (sel: boolean) => ({
-    display: "flex", alignItems: "center", gap: 8, padding: "5px 9px",
-    borderRadius: 6, flexShrink: 0, cursor: "pointer" as const,
-    border:      `1px solid ${sel ? "rgba(165,180,252,0.8)" : "rgba(255,255,255,0.15)"}`,
-    background:  sel ? "rgba(99,102,241,0.45)" : "rgba(255,255,255,0.06)",
-    transition: "background 0.1s, border-color 0.1s",
-  }),
-  radio: (sel: boolean) => ({
-    width: 12, height: 12, borderRadius: "50%", flexShrink: 0,
-    border: `2px solid ${sel ? "#a5b4fc" : "rgba(255,255,255,0.4)"}`,
-    background: sel ? "#a5b4fc" : "transparent",
-    boxSizing: "border-box" as const,
-  }),
-  label: { color: "#e0e7ff", fontSize: 10.5, fontWeight: 500, lineHeight: 1 },
-  btn: (dis: boolean) => ({
-    background: dis ? "rgba(255,255,255,0.15)" : "#fff",
-    color:      dis ? "rgba(255,255,255,0.35)" : "#312e81",
-    border: "none", borderRadius: 7, padding: "7px 0", fontSize: 11,
-    fontWeight: 700, letterSpacing: "0.03em",
-    cursor: dis ? "not-allowed" as const : "pointer" as const,
-    width: "100%", flexShrink: 0,
-  }),
-  success: {
-    width: 300, height: 250, overflow: "hidden" as const, borderRadius: 10,
-    background: "linear-gradient(160deg, #312e81 0%, #1e1b4b 100%)",
-    display: "flex", flexDirection: "column" as const, alignItems: "center",
-    justifyContent: "center", fontFamily: "system-ui, -apple-system, sans-serif",
-    gap: 8, textAlign: "center" as const, padding: 20,
-    boxSizing: "border-box" as const, boxShadow: "0 8px 32px rgba(0,0,0,0.4)",
-  },
-};
+// ─── MPU colours (matches /embed page exactly) ───────────────────────────────
+const NAVY = "#071B2F";
+const GOLD = "#D7B87A";
 
 // ─── MPU Preview Modal ────────────────────────────────────────────────────────
 
@@ -77,24 +21,37 @@ function MPUPreviewModal({ survey, onClose }: { survey: PreviewSurvey; onClose: 
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [done,    setDone]    = useState(false);
 
-  const questions = survey.questions ?? [];
-  const q         = questions[step];
-  const selected  = q ? (answers[q.id] ?? "") : "";
-  const isLast    = step === questions.length - 1;
-  const isFirst   = step === 0;
+  const questions   = survey.questions ?? [];
+  const q           = questions[step];
+  const selected    = q ? (answers[q.id] ?? "") : "";
+  const isLast      = step === questions.length - 1;
+  const isFirst     = step === 0;
+  const progressPct = done ? 100 : ((step + 1) / Math.max(questions.length, 1)) * 100;
 
   function restart() { setStep(0); setAnswers({}); setDone(false); }
 
-  function handleNext() {
-    if (!selected) return;
-    if (isLast) { setDone(true); return; }
-    setStep(s => s + 1);
+  function handleSelect(opt: string) {
+    if (!q) return;
+    const newAnswers = { ...answers, [q.id]: opt };
+    setAnswers(newAnswers);
+    setTimeout(() => {
+      if (isLast) { setDone(true); return; }
+      setStep(s => s + 1);
+    }, 350);
   }
 
-  // Close on backdrop click
   function onBackdrop(e: React.MouseEvent<HTMLDivElement>) {
     if (e.target === e.currentTarget) onClose();
   }
+
+  // Outer frame — 300×250, no border-radius (matches real ad slot)
+  const frame: React.CSSProperties = {
+    width: 300, height: 250, overflow: "hidden",
+    fontFamily: "system-ui, -apple-system, sans-serif",
+    display: "flex", flexDirection: "column",
+    boxSizing: "border-box", position: "relative",
+    boxShadow: "0 4px 24px rgba(0,0,0,0.35)",
+  };
 
   return (
     <div
@@ -112,56 +69,99 @@ function MPUPreviewModal({ survey, onClose }: { survey: PreviewSurvey; onClose: 
 
         {/* 300 × 250 MPU */}
         {done ? (
-          <div style={M.success}>
-            <div style={{ fontSize: 34, lineHeight: 1 }}>🎉</div>
-            <p style={{ color: "#fff", fontSize: 15, fontWeight: 700, margin: 0 }}>
-              {survey.thank_you_title || "Thank you!"}
-            </p>
-            <p style={{ color: "rgba(255,255,255,0.6)", fontSize: 11, margin: 0, lineHeight: 1.4 }}>
-              {survey.thank_you_body || "Your response has been recorded."}
-            </p>
-            <p style={{ color: "rgba(255,255,255,0.25)", fontSize: 9, marginTop: 6, letterSpacing: "0.06em" }}>
-              PREVIEW MODE · NOT RECORDED
-            </p>
+          /* ── Thank-you screen ── */
+          <div style={frame}>
+            {/* Navy header */}
+            <div style={{ height: 46, minHeight: 46, background: NAVY, display: "flex", alignItems: "center", padding: "0 12px", flexShrink: 0 }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/Fanometrix_Logo.png" alt="Fanometrix" style={{ height: 15, objectFit: "contain" }} />
+            </div>
+            {/* Gold progress bar — full */}
+            <div style={{ height: 3, minHeight: 3, background: `rgba(215,184,122,0.2)`, flexShrink: 0 }}>
+              <div style={{ height: "100%", width: "100%", background: GOLD }} />
+            </div>
+            {/* Body */}
+            <div style={{ flex: 1, background: NAVY, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "12px 20px", textAlign: "center", gap: 8, minHeight: 0 }}>
+              <div style={{ fontSize: 30, lineHeight: 1 }}>🎉</div>
+              <p style={{ color: "#fff", fontSize: 14, fontWeight: 700, margin: 0 }}>
+                {survey.thank_you_title || "Thank you!"}
+              </p>
+              <p style={{ color: "rgba(255,255,255,0.75)", fontSize: 10.5, margin: 0, lineHeight: 1.4 }}>
+                {survey.thank_you_body || "Your anonymous feedback helps improve the football experience for fans everywhere."}
+              </p>
+            </div>
+            {/* Footer */}
+            <div style={{ height: 22, minHeight: 22, display: "flex", alignItems: "center", justifyContent: "center", background: NAVY, borderTop: "1px solid rgba(255,255,255,0.10)", flexShrink: 0 }}>
+              <span style={{ color: "#8C9DB5", fontSize: 9 }}>Powered by Fanometrix • <span style={{ color: GOLD }}>Privacy</span></span>
+            </div>
           </div>
         ) : (
-          <div style={M.wrap}>
-            {/* Header */}
-            <div style={M.header}>
-              <div style={M.logo}>
-                <span style={M.dot} />
-                Fanometrix
-              </div>
-              <span style={M.step}>{step + 1} of {questions.length}</span>
+          /* ── Survey question screen ── */
+          <div style={frame}>
+            {/* Navy header — 46px */}
+            <div style={{ height: 46, minHeight: 46, background: NAVY, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 12px", flexShrink: 0, boxSizing: "border-box" }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/Fanometrix_Logo.png" alt="Fanometrix" style={{ height: 15, objectFit: "contain" }} />
+              <span style={{ color: GOLD, fontSize: 10, fontWeight: 600, letterSpacing: "0.03em", flexShrink: 0 }}>
+                {step + 1} of {questions.length}
+              </span>
             </div>
 
-            {/* Body */}
-            <div style={M.body}>
-              <p style={M.question}>{q?.text}</p>
+            {/* Gold progress bar — 3px */}
+            <div style={{ height: 3, minHeight: 3, background: `rgba(215,184,122,0.2)`, flexShrink: 0 }}>
+              <div style={{ height: "100%", width: `${progressPct}%`, background: GOLD, transition: "width 0.3s ease" }} />
+            </div>
 
-              <div style={M.options}>
+            {/* White body */}
+            <div style={{ flex: 1, background: "#fff", padding: "10px 12px 0", display: "flex", flexDirection: "column", minHeight: 0, overflow: "hidden", boxSizing: "border-box" }}>
+              {/* Question — fixed 2-line height */}
+              <div style={{ height: 33, minHeight: 33, overflow: "hidden", flexShrink: 0, marginBottom: 8 }}>
+                <p style={{ color: NAVY, fontSize: 11.5, fontWeight: 700, lineHeight: 1.35, margin: 0 }}>
+                  {q?.text}
+                </p>
+              </div>
+
+              {/* Options */}
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                 {(q?.options ?? []).map(opt => {
                   const sel = selected === opt;
                   return (
                     <div
                       key={opt}
-                      style={M.option(sel)}
-                      onClick={() => setAnswers(a => ({ ...a, [q.id]: opt }))}
                       role="radio"
                       aria-checked={sel}
                       tabIndex={0}
-                      onKeyDown={e => e.key === " " && setAnswers(a => ({ ...a, [q.id]: opt }))}
+                      onClick={() => handleSelect(opt)}
+                      onKeyDown={e => e.key === " " && handleSelect(opt)}
+                      style={{
+                        display: "flex", alignItems: "center", gap: 8,
+                        padding: "5px 10px", borderRadius: 8, flexShrink: 0,
+                        background: sel ? "rgba(215,184,122,0.10)" : "#FAFAFA",
+                        boxShadow: sel
+                          ? `0 0 0 1.5px ${GOLD}, 0 2px 6px rgba(215,184,122,0.18)`
+                          : "0 1px 3px rgba(0,0,0,0.08), 0 0 0 1px rgba(0,0,0,0.06)",
+                        cursor: "pointer", boxSizing: "border-box",
+                        transition: "box-shadow 0.15s, background 0.15s",
+                      }}
                     >
-                      <div style={M.radio(sel)} />
-                      <span style={M.label}>{opt}</span>
+                      <div style={{
+                        width: 12, height: 12, borderRadius: "50%", flexShrink: 0,
+                        border: `2px solid ${sel ? GOLD : "#9CA3AF"}`,
+                        background: sel ? GOLD : "transparent",
+                        boxSizing: "border-box", transition: "background 0.15s, border-color 0.15s",
+                      }} />
+                      <span style={{ color: NAVY, fontSize: 10.5, fontWeight: 500, lineHeight: 1 }}>{opt}</span>
                     </div>
                   );
                 })}
               </div>
+            </div>
 
-              <button style={M.btn(!selected)} onClick={handleNext} disabled={!selected}>
-                {isLast ? "Submit ✓" : "Next →"}
-              </button>
+            {/* Privacy footer — 22px */}
+            <div style={{ height: 22, minHeight: 22, display: "flex", alignItems: "center", justifyContent: "center", background: "#EDEEF0", borderTop: "1.5px solid #C9CDD6", flexShrink: 0 }}>
+              <span style={{ color: "#374151", fontSize: 9.5, fontWeight: 500 }}>
+                🛡 Anonymous insights • No personal data collected
+              </span>
             </div>
           </div>
         )}
@@ -169,31 +169,14 @@ function MPUPreviewModal({ survey, onClose }: { survey: PreviewSurvey; onClose: 
         {/* Controls below the frame */}
         <div className="flex items-center gap-2">
           {!done && !isFirst && (
-            <button
-              onClick={() => setStep(s => s - 1)}
-              className="text-xs border border-white/30 text-white hover:bg-white/15 px-3 py-1.5 rounded-lg transition-colors"
-            >
+            <button onClick={() => setStep(s => s - 1)} className="text-xs border border-white/30 text-white hover:bg-white/15 px-3 py-1.5 rounded-lg transition-colors">
               ← Previous
             </button>
           )}
-          <button
-            onClick={restart}
-            className="text-xs border border-white/30 text-white hover:bg-white/15 px-3 py-1.5 rounded-lg transition-colors"
-          >
+          <button onClick={restart} className="text-xs border border-white/30 text-white hover:bg-white/15 px-3 py-1.5 rounded-lg transition-colors">
             ↺ Restart
           </button>
-          {!done && !isLast && (
-            <button
-              onClick={() => setStep(s => s + 1)}
-              className="text-xs border border-white/30 text-white hover:bg-white/15 px-3 py-1.5 rounded-lg transition-colors"
-            >
-              Next →
-            </button>
-          )}
-          <button
-            onClick={onClose}
-            className="text-xs bg-white/20 hover:bg-white/30 text-white font-semibold px-4 py-1.5 rounded-lg transition-colors ml-2"
-          >
+          <button onClick={onClose} className="text-xs bg-white/20 hover:bg-white/30 text-white font-semibold px-4 py-1.5 rounded-lg transition-colors ml-2">
             Close
           </button>
         </div>
