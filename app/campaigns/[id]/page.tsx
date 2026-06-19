@@ -457,7 +457,7 @@ export default function CampaignDetailPage() {
 
             {/* Action buttons */}
             <div className="flex flex-col gap-2 flex-shrink-0">
-              <Link href={`/embed-generator?campaign=${campaign.id}`}
+              <Link href={`/campaign-deployment?campaign=${campaign.id}`}
                 className="text-xs text-center border border-[#E0E1DD] text-[#0B1929] hover:bg-gray-50 px-3 py-1.5 rounded-lg font-medium transition-colors">
                 Generate Embed
               </Link>
@@ -539,7 +539,7 @@ export default function CampaignDetailPage() {
           <div className="text-center py-16">
             <p className="text-4xl mb-3">◎</p>
             <p className="text-gray-400">No responses yet for this campaign.</p>
-            <Link href={`/embed-generator?campaign=${campaign.id}`}
+            <Link href={`/campaign-deployment?campaign=${campaign.id}`}
               className="mt-3 inline-block text-sm text-[#D7B87A] hover:underline">
               Generate embed code →
             </Link>

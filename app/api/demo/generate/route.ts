@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { requireSession } from "@/lib/auth";
 
 // ─── Weighted random helper ───────────────────────────────────────────────────
 
@@ -104,6 +105,12 @@ function buildResponse(campaignSlug: string) {
 // ─── Route ───────────────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
+  try {
+    await requireSession(req, ["admin"]);
+  } catch (err) {
+    return err as Response;
+  }
+
   const { count = 100 } = await req.json();
   const safeCount = Math.min(Math.max(1, count), 500); // max 500 per call
 

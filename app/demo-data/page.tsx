@@ -124,7 +124,14 @@ export default function DemoDataPage() {
     const json = await res.json();
     setDeleting(false);
     await loadStats();
-    showToast(`${(json.deleted ?? 0).toLocaleString()} demo responses deleted.`);
+
+    if (!res.ok || json.error) {
+      showToast(json.error ?? "Delete failed — check server logs.", false);
+    } else if ((json.deleted ?? 0) > 0) {
+      showToast(`${json.deleted.toLocaleString()} demo responses deleted.`);
+    } else {
+      showToast("Delete ran but no rows were removed — check server logs.", false);
+    }
   }
 
   const pct = progress.total > 0 ? Math.round((progress.done / progress.total) * 100) : 0;

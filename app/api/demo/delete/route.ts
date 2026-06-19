@@ -1,23 +1,62 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { requireSession } from "@/lib/auth";
 
-export async function DELETE() {
-  // Count first so we can report back
-  const { count } = await supabase
+export async function DELETE(req: NextRequest) {
+  try {
+    await requireSession(req, ["admin"]);
+  } catch (err) {
+    return err as Response;
+  }
+
+  // Step 1: count demo rows before delete
+  const { count: beforeCount, error: beforeError } = await supabase
     .from("responses")
     .select("*", { count: "exact", head: true })
     .eq("is_demo", true);
 
-  // Only ever deletes rows where is_demo = true — real data is never touched
-  const { error } = await supabase
+  if (beforeError) {
+    console.error("Demo delete – pre-count error:", beforeError);
+    return NextResponse.json({ error: beforeError.message }, { status: 500 });
+  }
+
+  console.log(`Demo delete – rows before delete: ${beforeCount}`);
+
+  // Step 2: execute delete (RLS policy "Anyone can delete demo rows" permits this)
+  const { data, error, count } = await supabase
     .from("responses")
-    .delete()
-    .eq("is_demo", true);
+    .delete({ count: "exact" })
+    .eq("is_demo", true)
+    .select();
+
+  console.log({ error, count, deletedRows: data?.length });
 
   if (error) {
-    console.error("Demo delete error:", error);
+    console.error("Demo delete – delete error:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ deleted: count ?? 0 });
+  // Step 3: recount to verify
+  const { count: afterCount, error: afterError } = await supabase
+    .from("responses")
+    .select("*", { count: "exact", head: true })
+    .eq("is_demo", true);
+
+  if (afterError) {
+    console.error("Demo delete – post-count error:", afterError);
+  }
+
+  console.log(`Demo delete – rows after delete: ${afterCount}`);
+
+  const deleted = (beforeCount ?? 0) - (afterCount ?? 0);
+
+  if (deleted === 0) {
+    const msg =
+      `Delete ran but removed 0 rows (before: ${beforeCount}, after: ${afterCount}). ` +
+      "Check RLS policies on the responses table.";
+    console.error("Demo delete –", msg);
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
+
+  return NextResponse.json({ deleted });
 }

@@ -1,162 +1,104 @@
-"use client";
+import Link from "next/link";
 
-import { useState, useEffect } from "react";
+export default function HomePage() {
+  return (
+    <div className="min-h-screen bg-white flex flex-col" style={{ fontFamily: "system-ui, -apple-system, sans-serif" }}>
 
-const QUESTIONS = [
-  {
-    id: "q1",
-    text: "How often do you attend live events?",
-    options: ["Never", "1-2 times a year", "3-5 times a year", "More than 5 times a year"],
-  },
-  {
-    id: "q2",
-    text: "How would you rate your overall fan experience?",
-    options: ["Poor", "Average", "Good", "Excellent"],
-  },
-  {
-    id: "q3",
-    text: "How likely are you to recommend us to a friend?",
-    options: ["Not likely", "Somewhat likely", "Likely", "Very likely"],
-  },
-];
+      {/* Nav */}
+      <header className="px-8 py-5 flex items-center justify-between border-b border-gray-100">
+        <span className="text-lg font-bold tracking-tight" style={{ color: "#0B1929" }}>
+          Fanometrix
+        </span>
+        <Link
+          href="/login"
+          className="text-sm font-semibold px-4 py-2 rounded-lg transition-colors"
+          style={{ background: "#0B1929", color: "#D7B87A" }}
+        >
+          Enter Platform
+        </Link>
+      </header>
 
-const COUNTRIES = [
-  "United Kingdom", "United States", "France", "Germany", "Spain",
-  "Italy", "Brazil", "Argentina", "Australia", "Japan", "Other",
-];
+      {/* Hero */}
+      <main className="flex-1 flex flex-col items-center justify-center px-6 text-center py-24">
+        <div className="max-w-3xl mx-auto">
 
-export default function SurveyPage() {
-  const [answers, setAnswers] = useState<Record<string, string>>({});
-  const [country, setCountry] = useState("");
-  const [campaignId, setCampaignId] = useState("default");
-  const [status, setStatus] = useState<"idle" | "submitting" | "success" | "error">("idle");
+          {/* Badge */}
+          <div
+            className="inline-flex items-center gap-2 text-xs font-semibold tracking-widest uppercase px-4 py-1.5 rounded-full mb-10"
+            style={{ background: "#FBF5E6", color: "#D7B87A", border: "1px solid #E8D5A3" }}
+          >
+            Fan Insight Platform
+          </div>
 
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const c = params.get("campaign");
-    if (c) setCampaignId(c);
-  }, []);
+          {/* Headline */}
+          <h1
+            className="text-5xl sm:text-6xl font-bold leading-tight mb-6"
+            style={{ color: "#0B1929", letterSpacing: "-0.02em" }}
+          >
+            Football fan intelligence.
+          </h1>
 
-  function handleAnswer(questionId: string, value: string) {
-    setAnswers((prev) => ({ ...prev, [questionId]: value }));
-  }
+          {/* Subheadline */}
+          <p
+            className="text-xl sm:text-2xl font-medium mb-6"
+            style={{ color: "#4A6080" }}
+          >
+            Understand audiences. Measure impact. Discover opportunities.
+          </p>
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
+          {/* Body */}
+          <p className="text-base text-gray-500 max-w-xl mx-auto mb-12 leading-relaxed">
+            Fanometrix combines anonymous fan surveys, campaign analytics and first-party publisher
+            context to help brands, rights holders and media partners better understand football
+            supporters.
+          </p>
 
-    if (!answers.q1) {
-      alert("Please answer at least the first question.");
-      return;
-    }
-    if (!country) {
-      alert("Please select your country.");
-      return;
-    }
-
-    setStatus("submitting");
-
-    const res = await fetch("/api/submit", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        campaign_id: campaignId,
-        q1: answers.q1 ?? null,
-        q2: answers.q2 ?? null,
-        q3: answers.q3 ?? null,
-        country,
-      }),
-    });
-
-    if (res.ok) {
-      setStatus("success");
-    } else {
-      setStatus("error");
-    }
-  }
-
-  if (status === "success") {
-    return (
-      <main className="min-h-screen flex items-center justify-center p-6">
-        <div className="bg-white rounded-2xl shadow-md p-10 max-w-md w-full text-center">
-          <div className="text-5xl mb-4">🎉</div>
-          <h1 className="text-2xl font-bold mb-2">Thank you!</h1>
-          <p className="text-gray-500">Your response has been recorded.</p>
+          {/* CTAs */}
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <Link
+              href="/login"
+              className="px-8 py-3.5 rounded-xl text-sm font-semibold transition-colors"
+              style={{ background: "#0B1929", color: "#D7B87A" }}
+            >
+              Enter Platform
+            </Link>
+            <Link
+              href="/login"
+              className="px-8 py-3.5 rounded-xl text-sm font-semibold border transition-colors"
+              style={{ borderColor: "#D7B87A", color: "#0B1929" }}
+            >
+              Request Access
+            </Link>
+          </div>
         </div>
       </main>
-    );
-  }
 
-  return (
-    <main className="min-h-screen flex items-center justify-center p-6">
-      <form
-        onSubmit={handleSubmit}
-        className="bg-white rounded-2xl shadow-md p-8 max-w-xl w-full space-y-8"
-      >
-        <div>
-          <h1 className="text-3xl font-bold" style={{ color: "#0B1929" }}>Fanometrix</h1>
-          <p className="mt-1 text-gray-500 text-sm">
-            Your feedback helps us improve the fan experience. Takes 60 seconds.
-          </p>
-        </div>
-
-        {QUESTIONS.map((q) => (
-          <fieldset key={q.id} className="space-y-3">
-            <legend className="font-semibold text-gray-800">{q.text}</legend>
-            <div className="space-y-2">
-              {q.options.map((opt) => (
-                <label
-                  key={opt}
-                  className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
-                    answers[q.id] === opt
-                      ? "border-[#0B1929] bg-gray-50"
-                      : "border-gray-200 hover:border-gray-400"
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name={q.id}
-                    value={opt}
-                    checked={answers[q.id] === opt}
-                    onChange={() => handleAnswer(q.id, opt)}
-                    className="accent-[#D7B87A]"
-                  />
-                  <span className="text-sm text-gray-700">{opt}</span>
-                </label>
-              ))}
+      {/* Stats strip */}
+      <section className="border-t border-gray-100 py-12 px-8">
+        <div className="max-w-4xl mx-auto grid grid-cols-3 gap-8 text-center">
+          {[
+            { value: "First-party", label: "Fan data, privacy safe" },
+            { value: "Real-time", label: "Campaign analytics" },
+            { value: "Multi-publisher", label: "Audience context" },
+          ].map(({ value, label }) => (
+            <div key={label}>
+              <p className="text-2xl font-bold mb-1" style={{ color: "#0B1929" }}>{value}</p>
+              <p className="text-sm text-gray-400">{label}</p>
             </div>
-          </fieldset>
-        ))}
-
-        <div className="space-y-2">
-          <label className="font-semibold text-gray-800 block">Country</label>
-          <select
-            value={country}
-            onChange={(e) => setCountry(e.target.value)}
-            className="w-full border border-gray-200 rounded-lg p-3 text-sm text-gray-700 focus:outline-none focus:border-[#D7B87A]"
-            required
-          >
-            <option value="">Select your country…</option>
-            {COUNTRIES.map((c) => (
-              <option key={c} value={c}>{c}</option>
-            ))}
-          </select>
+          ))}
         </div>
+      </section>
 
-        {status === "error" && (
-          <p className="text-red-500 text-sm">Something went wrong. Please try again.</p>
-        )}
-
-        <button
-          type="submit"
-          disabled={status === "submitting"}
-          className="w-full font-semibold py-3 rounded-xl transition-colors disabled:opacity-60"
-          style={{ background: "#D7B87A", color: "#0B1929" }}
-          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#C9A766"; }}
-          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "#D7B87A"; }}
-        >
-          {status === "submitting" ? "Submitting…" : "Submit your response"}
-        </button>
-      </form>
-    </main>
+      {/* Footer */}
+      <footer
+        className="px-8 py-6 border-t border-gray-100 flex items-center justify-between text-xs text-gray-400"
+      >
+        <span>© {new Date().getFullYear()} Fanometrix</span>
+        <nav className="flex gap-6">
+          <Link href="/privacy" className="hover:text-gray-600 transition-colors">Privacy Policy</Link>
+          <Link href="/publisher-hub" className="hover:text-gray-600 transition-colors">Publisher Hub</Link>
+        </nav>
+      </footer>
+    </div>
   );
 }

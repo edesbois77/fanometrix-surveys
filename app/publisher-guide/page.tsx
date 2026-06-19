@@ -128,7 +128,7 @@ export default function PublisherGuidePage() {
 
           <section>
             <h2 className="text-lg font-semibold text-gray-900 mb-3">Testing</h2>
-            <p>Use the <Link href="/embed-generator" className="text-[#D7B87A] hover:underline">Embed Generator</Link> to create and preview your creative tag. For QA, hardcode <code className="bg-gray-100 px-1 rounded">country=GB</code> rather than using an unfired macro.</p>
+            <p>Use the <Link href="/campaign-deployment" className="text-[#D7B87A] hover:underline">Campaign Deployment</Link> to create and preview your creative tag. For QA, hardcode <code className="bg-gray-100 px-1 rounded">country=GB</code> rather than using an unfired macro.</p>
           </section>
 
           <section>
