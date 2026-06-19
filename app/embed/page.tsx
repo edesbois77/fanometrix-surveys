@@ -253,7 +253,7 @@ function AdHeader({ step, total }: { step?: number; total?: number }) {
       <img
         src="/Fanometrix_Logo.png"
         alt="Fanometrix"
-        style={{ height: 22, objectFit: "contain", objectPosition: "left" }}
+        style={{ height: 17, objectFit: "contain", objectPosition: "left" }}
       />
       {step !== undefined && total !== undefined && (
         <span style={{ color: GOLD, fontSize: 10, fontWeight: 600, letterSpacing: "0.03em", flexShrink: 0 }}>
@@ -414,11 +414,11 @@ function EmbedSurvey() {
             </p>
           </div>
 
-          {/* Thank-you footer — 20px, centred */}
+          {/* Thank-you footer — 22px, centred, #E0E1DD text */}
           <div
             style={{
-              height: 20,
-              minHeight: 20,
+              height: 22,
+              minHeight: 22,
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
@@ -428,7 +428,7 @@ function EmbedSurvey() {
               borderTop: "1px solid rgba(255,255,255,0.08)",
             }}
           >
-            <span style={{ color: "rgba(255,255,255,0.28)", fontSize: 8.5, letterSpacing: "0.05em" }}>
+            <span style={{ color: "rgba(224,225,221,0.45)", fontSize: 8.5, letterSpacing: "0.05em" }}>
               POWERED BY FANOMETRIX
             </span>
             <span
@@ -437,8 +437,8 @@ function EmbedSurvey() {
               tabIndex={0}
               onKeyDown={(e) => e.key === "Enter" && openPrivacy()}
               style={{
-                color: "rgba(255,255,255,0.25)",
-                fontSize: 8,
+                color: "#E0E1DD",
+                fontSize: 8.5,
                 textDecoration: "underline",
                 cursor: "pointer",
               }}
@@ -465,47 +465,42 @@ function EmbedSurvey() {
             />
           </div>
 
-          {/* Body — white, flex:1 = 181px */}
+          {/* Body — white, flex:1 = 179px, top-anchored, no gap */}
           <div
             style={{
               flex: 1,
               background: "#fff",
-              padding: "10px 12px 8px",
+              padding: "10px 12px 0",
               display: "flex",
               flexDirection: "column",
-              gap: 6,
               minHeight: 0,
               overflow: "hidden",
               boxSizing: "border-box",
             }}
           >
-            <p
-              style={{
-                color: NAVY,
-                fontSize: 11.5,
-                fontWeight: 700,
-                lineHeight: 1.35,
-                margin: 0,
-                flexShrink: 0,
-                display: "-webkit-box",
-                WebkitLineClamp: 2,
-                WebkitBoxOrient: "vertical",
-                overflow: "hidden",
-              }}
-            >
-              {q.text}
-            </p>
-
-            {/* Answer options */}
+            {/* Fixed-height question area — exactly 2 lines (rule 3 & 10) */}
             <div
               style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: 4,
-                flex: 1,
-                minHeight: 0,
+                height: 33,
+                minHeight: 33,
+                overflow: "hidden",
+                flexShrink: 0,
+                marginBottom: 8,
               }}
             >
+              {status === "error" ? (
+                <p style={{ color: "#DC2626", fontSize: 10.5, fontWeight: 600, lineHeight: 1.35, margin: 0 }}>
+                  Something went wrong — tap an answer to try again.
+                </p>
+              ) : (
+                <p style={{ color: NAVY, fontSize: 11.5, fontWeight: 700, lineHeight: 1.35, margin: 0 }}>
+                  {q.text}
+                </p>
+              )}
+            </div>
+
+            {/* Answer options — top-anchored, no flex:1 (rules 4 & 5) */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
               {q.options.map((opt) => {
                 const isSel = answers[q.id] === opt;
                 return (
@@ -521,13 +516,15 @@ function EmbedSurvey() {
                       alignItems: "center",
                       gap: 8,
                       padding: "5px 10px",
-                      borderRadius: 6,
-                      border: `1.5px solid ${isSel ? GOLD : "#D1D5DB"}`,
-                      background: isSel ? "rgba(215,184,122,0.10)" : "#fff",
+                      borderRadius: 8,
+                      background: isSel ? "rgba(215,184,122,0.10)" : "#FAFAFA",
+                      boxShadow: isSel
+                        ? "0 0 0 1.5px #D7B87A, 0 2px 6px rgba(215,184,122,0.18)"
+                        : "0 1px 3px rgba(0,0,0,0.08), 0 0 0 1px rgba(0,0,0,0.06)",
                       cursor: advancing ? "default" : "pointer",
                       flexShrink: 0,
                       boxSizing: "border-box",
-                      transition: "border-color 0.15s, background 0.15s",
+                      transition: "box-shadow 0.15s, background 0.15s",
                     }}
                   >
                     {/* Radio icon */}
@@ -543,48 +540,26 @@ function EmbedSurvey() {
                         transition: "background 0.15s, border-color 0.15s",
                       }}
                     />
-                    <span
-                      style={{
-                        color: NAVY,
-                        fontSize: 10.5,
-                        fontWeight: 500,
-                        lineHeight: 1,
-                      }}
-                    >
+                    <span style={{ color: NAVY, fontSize: 10.5, fontWeight: 500, lineHeight: 1 }}>
                       {opt}
                     </span>
                   </div>
                 );
               })}
             </div>
-
-            {/* Inline error (doesn't shift layout — only shown on error) */}
-            {status === "error" && (
-              <p
-                style={{
-                  color: "#DC2626",
-                  fontSize: 9,
-                  margin: 0,
-                  flexShrink: 0,
-                  textAlign: "center",
-                }}
-              >
-                Something went wrong — tap an answer to try again.
-              </p>
-            )}
           </div>
 
-          {/* Privacy footer — 20px, centred, clickable */}
+          {/* Privacy footer — dedicated band, 22px, top border (rules 6 & 7) */}
           <div
             style={{
-              height: 20,
-              minHeight: 20,
+              height: 22,
+              minHeight: 22,
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              background: "#fff",
+              background: "#F8F9FA",
               flexShrink: 0,
-              borderTop: "1px solid #F3F4F6",
+              borderTop: "1.5px solid #E5E7EB",
             }}
           >
             <span
@@ -593,8 +568,8 @@ function EmbedSurvey() {
               tabIndex={0}
               onKeyDown={(e) => e.key === "Enter" && openPrivacy()}
               style={{
-                color: "#9CA3AF",
-                fontSize: 9,
+                color: "#6B7280",
+                fontSize: 9.5,
                 cursor: "pointer",
                 letterSpacing: "0.01em",
               }}
