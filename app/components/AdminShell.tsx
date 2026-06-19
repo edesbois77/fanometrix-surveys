@@ -26,7 +26,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
         {/* Logo area */}
         <div className="px-5 py-5" style={{ borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
           <Image
-            src="/fanometrix-logo.png"
+            src="/Fanometrix_Logo.png"
             alt="Fanometrix"
             width={140}
             height={32}
