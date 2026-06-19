@@ -370,6 +370,8 @@ function AdHeader({ step, total }: { step?: number; total?: number }) {
 // Outer frame: 300×250px
 // Header: 46px | Progress: 3px | Body: flex:1 (179px) | Footer: 22px
 
+type Question = { id: string; text: string; options: string[] };
+
 function EmbedSurvey() {
   const params = useSearchParams();
 
@@ -387,11 +389,31 @@ function EmbedSurvey() {
   const [browser, setBrowser] = useState<string | null>(null);
   const startRef = useRef<number>(Date.now());
 
+  // Survey questions — defaults to hardcoded fallback, replaced when a survey is linked
+  const [questions,      setQuestions]      = useState<Question[]>(QUESTIONS);
+  const [thankYouTitle,  setThankYouTitle]  = useState("Thank you!");
+  const [thankYouBody,   setThankYouBody]   = useState("Your anonymous feedback helps improve the football experience for fans everywhere.");
+
   useEffect(() => {
     setDevice(detectDevice());
     setBrowser(detectBrowser());
     startRef.current = Date.now();
   }, []);
+
+  // Fetch survey questions when a survey UUID is provided
+  useEffect(() => {
+    if (!surveyId) return;
+    fetch(`/api/embed/survey?id=${surveyId}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data?.questions?.length) {
+          setQuestions(data.questions);
+          setThankYouTitle(data.thank_you_title);
+          setThankYouBody(data.thank_you_body);
+        }
+      })
+      .catch(() => {/* keep fallback questions */});
+  }, [surveyId]);
 
   const [step,         setStep]         = useState(0);
   const [answers,      setAnswers]      = useState<Record<string, string>>({});
@@ -400,12 +422,12 @@ function EmbedSurvey() {
   const [showPrivacy,  setShowPrivacy]  = useState(false);
   const [privacySlide, setPrivacySlide] = useState(0);
 
-  const q      = QUESTIONS[step];
-  const isLast = step === QUESTIONS.length - 1;
+  const q      = questions[step];
+  const isLast = step === questions.length - 1;
 
   const progressPct = status === "success"
     ? 100
-    : ((step + 1) / QUESTIONS.length) * 100;
+    : ((step + 1) / questions.length) * 100;
 
   function openPrivacy() {
     setPrivacySlide(0);
@@ -509,10 +531,10 @@ function EmbedSurvey() {
           >
             <div style={{ fontSize: 30, lineHeight: 1 }}>🎉</div>
             <p style={{ color: "#fff", fontSize: 14, fontWeight: 700, margin: 0 }}>
-              Thank you!
+              {thankYouTitle}
             </p>
             <p style={{ color: "rgba(255,255,255,0.78)", fontSize: 10.5, margin: 0, lineHeight: 1.4 }}>
-              Your anonymous feedback helps improve the football experience for fans everywhere.
+              {thankYouBody}
             </p>
           </div>
 
