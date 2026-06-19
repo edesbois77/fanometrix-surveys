@@ -142,7 +142,7 @@ export default function EmbedGeneratorPage() {
   return (
     <AdminShell>
       <div className="p-6 max-w-5xl mx-auto">
-        <h1 className="text-2xl font-bold text-gray-900 mb-1">Embed Generator</h1>
+        <h1 className="text-2xl font-bold text-gray-900 mb-1">Deployment</h1>
         <p className="text-sm text-gray-400 mb-6">Configure your embed and copy the tag to your ad server.</p>
 
         <div className="grid grid-cols-5 gap-6">
