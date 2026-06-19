@@ -65,14 +65,13 @@ function StatusBadge({ status }: { status: CampaignStatus }) {
 // ─── Action button ────────────────────────────────────────────────────────────
 
 const ACTION_STYLE: Record<string, string> = {
-  go_live:  "border-green-200 text-green-700 hover:bg-green-50",
   publish:  "border-blue-200 text-blue-700 hover:bg-blue-50",
-  resume:   "border-green-200 text-green-700 hover:bg-green-50",
+  go_live:  "border-green-200 text-green-700 hover:bg-green-50",
   pause:    "border-orange-200 text-orange-700 hover:bg-orange-50",
+  resume:   "border-green-200 text-green-700 hover:bg-green-50",
   close:    "border-gray-200 text-gray-600 hover:bg-gray-50",
   archive:  "border-gray-200 text-gray-500 hover:bg-gray-50",
-  reopen:   "border-blue-200 text-blue-700 hover:bg-blue-50",
-  back_to_draft: "border-gray-200 text-gray-500 hover:bg-gray-50",
+  restore:  "border-blue-200 text-blue-700 hover:bg-blue-50",
 };
 
 // ─── Progress bar ─────────────────────────────────────────────────────────────
@@ -422,10 +421,13 @@ export default function CampaignsPage() {
                 <Field label="Status">
                   <select value={editing.status ?? "draft"} onChange={e => setEditing(x => ({ ...x, status: e.target.value }))}
                     className={INP}>
-                    {["draft","scheduled","live","paused","closed","archived"].map(s => (
+                    {(["draft","scheduled","live","paused","closed","archived"] as const).map(s => (
                       <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>
                     ))}
                   </select>
+                  <p className="text-xs text-gray-400 mt-1.5 leading-relaxed">
+                    Status controls whether the survey can accept responses. Certain statuses update automatically based on campaign dates and response targets.
+                  </p>
                 </Field>
               </div>
 

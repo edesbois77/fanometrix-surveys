@@ -44,8 +44,6 @@ const STATUS_COLOURS: Record<string, string> = {
   paused:    "bg-orange-50 text-orange-700",
   closed:    "bg-gray-100 text-gray-600",
   archived:  "bg-gray-50 text-gray-400",
-  // legacy
-  completed: "bg-gray-100 text-gray-600",
 };
 
 const FILTER_FIELDS: { key: keyof CampaignFilters; label: string }[] = [
