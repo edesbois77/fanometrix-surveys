@@ -306,7 +306,7 @@ export default function PublisherHubPage() {
         <div style={{ maxWidth: 1100, margin: "0 auto", padding: "0 24px", height: 60, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/Fanometrix_Logo.png" alt="Fanometrix" style={{ height: 18, objectFit: "contain" }} />
+            <Link href="/"><img src="/Fanometrix_Logo.png" alt="Fanometrix" style={{ height: 18, objectFit: "contain", display: "block" }} /></Link>
           </div>
           <nav style={{ display: "flex", alignItems: "center", gap: 24 }}>
             <a href="#how-it-works" style={{ color: "rgba(255,255,255,0.7)", fontSize: 13, textDecoration: "none" }}>How it works</a>
