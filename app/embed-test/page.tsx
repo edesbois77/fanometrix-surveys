@@ -67,38 +67,28 @@ async function performHealthChecks(campaign: Campaign | null): Promise<HealthChe
     detail: campaign?.surveys?.name ?? (campaign?.survey_id ? campaign.survey_id : "No survey linked"),
   });
 
-  // 3. Status allows responses
-  const { accepting, reason } = campaign
-    ? getAcceptingStatus(campaign as unknown as CampaignForStatus, campaign.response_count)
-    : { accepting: false, reason: "No campaign selected" };
-  checks.push({
-    label: "Status Allows Responses",
-    ok:    accepting,
-    detail: reason,
-  });
-
-  // 4. Database reachable
+  // 3. Database reachable
   try {
     const r = await fetch("/api/demo/stats");
-    checks.push({ label: "Database Reachable", ok: r.ok, detail: r.ok ? "Connected" : `HTTP ${r.status}` });
+    checks.push({ label: "Database Reachable", ok: r.ok, detail: r.ok ? "Connected" : `HTTP ${r.status} — DB error` });
   } catch {
-    checks.push({ label: "Database Reachable", ok: false, detail: "Network error" });
+    checks.push({ label: "Database Reachable", ok: false, detail: "Network error — cannot reach API" });
   }
 
-  // 5. Response API reachable
+  // 4. Response API reachable
   try {
     const r = await fetch("/api/campaigns");
-    checks.push({ label: "Response API Reachable", ok: r.ok, detail: r.ok ? "Connected" : `HTTP ${r.status}` });
+    checks.push({ label: "Response API Reachable", ok: r.ok, detail: r.ok ? "Connected" : `HTTP ${r.status} — API error` });
   } catch {
-    checks.push({ label: "Response API Reachable", ok: false, detail: "Network error" });
+    checks.push({ label: "Response API Reachable", ok: false, detail: "Network error — cannot reach API" });
   }
 
-  // 6. Embed URL valid
+  // 5. Embed URL valid
   const embedUrl = campaign ? `${BASE}/embed?campaign=${campaign.campaign_id}` : null;
   if (embedUrl) {
     try {
       const r = await fetch(embedUrl, { method: "HEAD" });
-      checks.push({ label: "Embed URL Valid", ok: r.ok, detail: r.ok ? embedUrl : `HTTP ${r.status}` });
+      checks.push({ label: "Embed URL Valid", ok: r.ok, detail: r.ok ? "URL reachable" : `HTTP ${r.status} — URL returned error` });
     } catch {
       checks.push({ label: "Embed URL Valid", ok: false, detail: "Could not reach embed URL" });
     }
@@ -106,7 +96,7 @@ async function performHealthChecks(campaign: Campaign | null): Promise<HealthChe
     checks.push({ label: "Embed URL Valid", ok: null, detail: "Select a campaign first" });
   }
 
-  // 7. Insert permissions working — test with a dry-run (we'll use is_demo flag)
+  // 6. Response Insert Working — test with is_demo flag, clean up immediately
   if (campaign) {
     try {
       const r = await fetch("/api/submit", {
@@ -118,21 +108,22 @@ async function performHealthChecks(campaign: Campaign | null): Promise<HealthChe
           publisher: "health-check", is_demo: true,
         }),
       });
-      const wasAccepted = r.ok || r.status === 403; // 403 = reached the check, DB works
-      checks.push({
-        label:  "Insert Permissions Working",
-        ok:     wasAccepted,
-        detail: wasAccepted ? "DB connection and permissions OK" : `HTTP ${r.status}`,
-      });
-      // Clean up the health-check demo response
+      // 200 = inserted; 403 = campaign not live but DB/API works
+      const dbWorking = r.ok || r.status === 403;
+      const detail = r.ok
+        ? "Insert succeeded — test response cleaned up"
+        : r.status === 403
+          ? `Insert API reachable (campaign not live: ${r.status})`
+          : `Insert failed: HTTP ${r.status}`;
+      checks.push({ label: "Response Insert Working", ok: dbWorking, detail });
       if (r.ok) {
         await fetch(`/api/demo/delete?campaign_id=${campaign.campaign_id}`, { method: "DELETE" });
       }
     } catch {
-      checks.push({ label: "Insert Permissions Working", ok: false, detail: "Network error" });
+      checks.push({ label: "Response Insert Working", ok: false, detail: "Network error — cannot reach submit API" });
     }
   } else {
-    checks.push({ label: "Insert Permissions Working", ok: null, detail: "Select a campaign first" });
+    checks.push({ label: "Response Insert Working", ok: null, detail: "Select a campaign first" });
   }
 
   return checks;
@@ -150,6 +141,8 @@ export default function EmbedTestPage() {
   const [logs,           setLogs]           = useState<SubmissionLog[]>([]);
   const [logsLoading,    setLogsLoading]    = useState(false);
   const [logFilter,      setLogFilter]      = useState<"all"|"success"|"failed">("all");
+  const [logPubFilter,   setLogPubFilter]   = useState("");
+  const [logDateFilter,  setLogDateFilter]  = useState("");
   const [healthChecks,   setHealthChecks]   = useState<HealthCheck[] | null>(null);
   const [healthRunning,  setHealthRunning]  = useState(false);
   const [simProgress,    setSimProgress]    = useState({ done: 0, total: 0, running: false });
@@ -175,16 +168,18 @@ export default function EmbedTestPage() {
   // Fetch logs
   const fetchLogs = useCallback(async () => {
     setLogsLoading(true);
-    const params = new URLSearchParams({ limit: "50" });
-    if (campaign)             params.set("campaign_id", campaign.campaign_id);
-    if (logFilter !== "all")  params.set("result",      logFilter);
+    const params = new URLSearchParams({ limit: "20" });
+    if (campaign)              params.set("campaign_id", campaign.campaign_id);
+    if (logFilter !== "all")   params.set("result",      logFilter);
+    if (logPubFilter.trim())   params.set("publisher",   logPubFilter.trim());
+    if (logDateFilter)         params.set("date_from",   logDateFilter);
     const r = await fetch(`/api/embed/logs?${params}`);
     const j = await r.json();
     setLogs(j.data ?? []);
     setLogsLoading(false);
-  }, [campaign, logFilter]);
+  }, [campaign, logFilter, logPubFilter, logDateFilter]);
 
-  useEffect(() => { fetchLogs(); }, [fetchLogs]);
+  useEffect(() => { fetchLogs(); }, [fetchLogs, logPubFilter, logDateFilter]);
 
   // Computed values for selected campaign
   const statusDetail = campaign
@@ -270,8 +265,24 @@ export default function EmbedTestPage() {
     }
 
     setSimProgress(p => ({ ...p, running: false }));
-    setSimResult(`${succeeded} / ${count} responses submitted successfully.`);
-    setTimeout(() => { fetchLogs(); refreshCampaigns(); }, 500);
+
+    // Detect if campaign auto-transitioned to Closed after simulation
+    const prevStatus = campaign.effective_status;
+    await Promise.all([fetchLogs(), refreshCampaigns()]);
+
+    // Re-read updated campaign to detect auto-close
+    const updatedCampaigns: Campaign[] = await fetch("/api/campaigns")
+      .then(r => r.json()).then(j => j.data ?? []);
+    const updated = updatedCampaigns.find(c => c.id === campaign.id);
+    const newStatus = updated?.effective_status ?? prevStatus;
+
+    let resultMsg = `${succeeded} / ${count} responses submitted. `;
+    if (prevStatus === "live" && newStatus === "closed") {
+      resultMsg += "⚠️ Campaign automatically transitioned to Closed.";
+    } else {
+      resultMsg += `Effective status: ${newStatus.toUpperCase()}.`;
+    }
+    setSimResult(resultMsg);
   }, [campaign, publisher, fetchLogs, refreshCampaigns]);
 
   const simulateToTarget = useCallback(async () => {
@@ -309,15 +320,13 @@ export default function EmbedTestPage() {
       `Campaign ID:       ${campaign.campaign_id}`,
       `Manual Status:     ${campaign.status}`,
       `Effective Status:  ${campaign.effective_status}`,
-      `Accepting:         ${accepting?.accepting ? "YES" : "NO"}`,
-      `Reason:            ${accepting?.reason ?? "—"}`,
-      `Auto-transition:   ${statusDetail?.isAutoTransition ? `Yes — ${statusDetail.reason}` : "No"}`,
-      `Response Count:    ${campaign.response_count.toLocaleString()}${campaign.target_responses ? ` / ${campaign.target_responses.toLocaleString()} target` : ""}`,
+      `Accepting Responses: ${accepting?.accepting ? "YES" : "NO"}`,
+      `Failure Reason:    ${accepting?.accepting ? "N/A" : accepting?.reason}`,
+      `Response Count:    ${campaign.response_count.toLocaleString()}`,
+      `Target Responses:  ${campaign.target_responses?.toLocaleString() ?? "None"}`,
       `Survey Linked:     ${campaign.surveys?.name ?? "None"}`,
-      `Survey ID:         ${campaign.survey_id ?? "None"}`,
       `Start Date:        ${campaign.start_date ?? "None"}`,
       `End Date:          ${campaign.end_date ?? "None"}`,
-      `Failure Reason:    ${accepting?.accepting ? "N/A" : accepting?.reason}`,
       ``,
       `Copied from Fanometrix Embed Test — ${new Date().toISOString()}`,
     ].join("\n");
@@ -610,9 +619,13 @@ export default function EmbedTestPage() {
 
             {/* ── 3: Submission logs ────────────────────────────────────────────── */}
             <div className="bg-white border border-gray-100 rounded-xl shadow-sm overflow-hidden">
-              <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Submission Logs</p>
-                <div className="flex items-center gap-2">
+              <div className="px-5 py-4 border-b border-gray-100 space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Submission Logs <span className="font-normal text-gray-400 normal-case">(last 20)</span></p>
+                  <button onClick={fetchLogs} className="text-xs border border-gray-200 text-gray-500 hover:bg-gray-50 px-3 py-1.5 rounded-lg">↺ Refresh</button>
+                </div>
+                {/* Filters */}
+                <div className="flex flex-wrap items-center gap-2">
                   {(["all","success","failed"] as const).map(f => (
                     <button key={f}
                       onClick={() => setLogFilter(f)}
@@ -621,7 +634,22 @@ export default function EmbedTestPage() {
                       {f.charAt(0).toUpperCase() + f.slice(1)}
                     </button>
                   ))}
-                  <button onClick={fetchLogs} className="text-xs border border-gray-200 text-gray-500 hover:bg-gray-50 px-3 py-1.5 rounded-lg">↺</button>
+                  <input
+                    value={logPubFilter}
+                    onChange={e => setLogPubFilter(e.target.value)}
+                    placeholder="Filter publisher…"
+                    className="text-xs border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:border-[#D7B87A] w-36"
+                  />
+                  <input
+                    type="date"
+                    value={logDateFilter}
+                    onChange={e => setLogDateFilter(e.target.value)}
+                    className="text-xs border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:border-[#D7B87A]"
+                  />
+                  {(logPubFilter || logDateFilter) && (
+                    <button onClick={() => { setLogPubFilter(""); setLogDateFilter(""); }}
+                      className="text-xs text-gray-400 hover:text-gray-600">Clear</button>
+                  )}
                 </div>
               </div>
 
@@ -637,7 +665,7 @@ export default function EmbedTestPage() {
                   <table className="w-full text-xs">
                     <thead>
                       <tr className="border-b border-gray-100 bg-gray-50">
-                        {["Timestamp","Campaign","Publisher","Manual","Effective","Code","Result","Reason"].map(h => (
+                        {["Timestamp","Campaign","Publisher","Status","HTTP Code","Result","Reason"].map(h => (
                           <th key={h} className="text-left px-4 py-2.5 font-semibold text-gray-400 uppercase tracking-wide text-[10px]">{h}</th>
                         ))}
                       </tr>
@@ -651,9 +679,6 @@ export default function EmbedTestPage() {
                           </td>
                           <td className="px-4 py-2.5 text-gray-700 max-w-[120px] truncate" title={log.campaign_name}>{log.campaign_name}</td>
                           <td className="px-4 py-2.5 text-gray-500">{log.publisher ?? "—"}</td>
-                          <td className="px-4 py-2.5">
-                            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 uppercase">{log.manual_status ?? "?"}</span>
-                          </td>
                           <td className="px-4 py-2.5">
                             <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded uppercase ${log.effective_status === "live" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600"}`}>
                               {log.effective_status}

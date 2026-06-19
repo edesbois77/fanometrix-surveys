@@ -88,7 +88,8 @@ function CampaignProgress({ c }: { c: Campaign }) {
   const end      = c.end_date ? new Date(c.end_date) : null;
   const daysLeft = end ? Math.ceil((end.getTime() - now.getTime()) / 86_400_000) : null;
 
-  if (!hasTarget && !end) return null;
+  // Always render if there's an auto-close reason to show, even without target/end
+  if (!hasTarget && !end && !c.is_auto_transition) return null;
 
   return (
     <div className="mt-3 space-y-1.5">

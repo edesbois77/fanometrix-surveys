@@ -92,7 +92,7 @@ export function computeStatusWithReason(
   if (campaign.target_responses !== null && responseCount >= campaign.target_responses) {
     return {
       effective: "closed",
-      reason: `Target responses reached (${responseCount.toLocaleString()} / ${campaign.target_responses.toLocaleString()})`,
+      reason: `Closed automatically because target responses reached (${responseCount.toLocaleString()}/${campaign.target_responses.toLocaleString()})`,
       isAutoTransition: true,
     };
   }
@@ -100,7 +100,7 @@ export function computeStatusWithReason(
   if (end && now > end) {
     return {
       effective: "closed",
-      reason: `End date reached (${campaign.end_date})`,
+      reason: "Closed automatically because end date has passed",
       isAutoTransition: true,
     };
   }
