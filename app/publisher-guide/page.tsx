@@ -302,7 +302,7 @@ export default function PublisherHubPage() {
     <div style={{ fontFamily: "system-ui, -apple-system, sans-serif", minHeight: "100vh", background: "#fff" }}>
 
       {/* ── Navigation ───────────────────────────────────────────────────────── */}
-      <header style={{ background: N, position: "sticky", top: 0, zIndex: 40 }}>
+      <header style={{ background: "rgba(11,25,41,0.82)", backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)", position: "sticky", top: 0, zIndex: 40, borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
         <div style={{ maxWidth: 1100, margin: "0 auto", padding: "0 24px", height: 60, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
