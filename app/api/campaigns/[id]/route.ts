@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { requireSession } from "@/lib/auth";
+import { computeEffectiveStatus, type CampaignForStatus } from "@/lib/campaign-status";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   let session;
@@ -11,22 +12,23 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   }
 
   const { id } = await params;
-  const { data, error } = await supabase
-    .from("campaigns")
-    .select("*, surveys(name)")
-    .eq("id", id)
-    .single();
+  const [{ data, error }, { data: statsData }] = await Promise.all([
+    supabase.from("campaigns").select("*, surveys(name)").eq("id", id).single(),
+    supabase.from("vw_campaign_stats").select("response_count").eq("campaign_db_id", id).single(),
+  ]);
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 404 });
+  if (error || !data) return NextResponse.json({ error: error?.message ?? "Not found" }, { status: 404 });
 
-  // Brand/agency can only access their allowed campaigns
   if (session.role === "brand" || session.role === "agency") {
     if (!session.allowedCampaignIds.includes(data.campaign_id)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
   }
 
-  return NextResponse.json({ data });
+  const responseCount = Number(statsData?.response_count ?? 0);
+  const effective = computeEffectiveStatus(data as CampaignForStatus, responseCount);
+
+  return NextResponse.json({ data: { ...data, effective_status: effective, response_count: responseCount } });
 }
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {

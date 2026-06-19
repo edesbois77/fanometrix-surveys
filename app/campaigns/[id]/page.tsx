@@ -19,7 +19,9 @@ type Campaign = {
   id: string; campaign_id: string; brand_name: string; campaign_name: string;
   campaign_description: string | null; start_date: string | null; end_date: string | null;
   survey_id: string | null; surveys?: { name: string } | null;
-  publishers: string[]; status: string; created_at: string;
+  publishers: string[]; status: string; effective_status: string;
+  response_count: number; target_responses: number | null;
+  created_at: string;
 };
 
 type CampaignFilters = {
@@ -36,8 +38,14 @@ const COLORS  = ["#6366f1","#8b5cf6","#06b6d4","#f59e0b","#10b981","#f43f5e","#8
 const ACTIVE  = "#312e81";
 
 const STATUS_COLOURS: Record<string, string> = {
-  draft: "bg-gray-100 text-gray-600", live: "bg-green-100 text-green-700",
-  completed: "bg-blue-100 text-blue-700", archived: "bg-amber-100 text-amber-700",
+  draft:     "bg-amber-50 text-amber-700",
+  scheduled: "bg-blue-50 text-blue-700",
+  live:      "bg-green-50 text-green-700",
+  paused:    "bg-orange-50 text-orange-700",
+  closed:    "bg-gray-100 text-gray-600",
+  archived:  "bg-gray-50 text-gray-400",
+  // legacy
+  completed: "bg-gray-100 text-gray-600",
 };
 
 const FILTER_FIELDS: { key: keyof CampaignFilters; label: string }[] = [
@@ -369,11 +377,11 @@ export default function CampaignDetailPage() {
   }
 
   async function handleArchive() {
-    if (!confirm("Archive this campaign? It will no longer appear as active.")) return;
-    await fetch(`/api/campaigns/${id}`, {
-      method: "PUT",
+    if (!confirm("Archive this campaign? It will be read-only.")) return;
+    await fetch(`/api/campaigns/${id}/actions`, {
+      method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...campaign, status: "archived" }),
+      body: JSON.stringify({ action: "archive" }),
     });
     load();
   }
@@ -423,15 +431,15 @@ export default function CampaignDetailPage() {
                 <h1 className="text-xl font-bold text-gray-900">{campaign.brand_name}</h1>
                 <span className="text-gray-300">·</span>
                 <span className="text-lg text-gray-700">{campaign.campaign_name}</span>
-                <span className={`text-xs font-semibold px-2.5 py-1 rounded-full capitalize ${STATUS_COLOURS[campaign.status] ?? "bg-gray-100 text-gray-600"}`}>
-                  {campaign.status}
+                <span className={`text-xs font-semibold px-2.5 py-1 rounded-full capitalize ${STATUS_COLOURS[campaign.effective_status ?? campaign.status] ?? "bg-gray-100 text-gray-600"}`}>
+                  {campaign.effective_status ?? campaign.status}
                 </span>
               </div>
               <p className="text-xs font-mono text-[#0B1929] mb-3">{campaign.campaign_id}</p>
               {campaign.campaign_description && (
                 <p className="text-sm text-gray-500 mb-3">{campaign.campaign_description}</p>
               )}
-              <div className="flex flex-wrap gap-4 text-xs text-gray-500">
+              <div className="flex flex-wrap gap-4 text-xs text-gray-500 mb-4">
                 {campaign.start_date && (
                   <span>
                     <span className="text-gray-400">Duration </span>
@@ -453,6 +461,52 @@ export default function CampaignDetailPage() {
                   </span>
                 )}
               </div>
+
+              {/* Progress */}
+              {(() => {
+                const target = campaign.target_responses;
+                const count  = campaign.response_count ?? 0;
+                const hasTarget = target !== null && target > 0;
+                const pct = hasTarget ? Math.min(100, Math.round((count / target!) * 100)) : null;
+                const now = new Date();
+                const end = campaign.end_date ? new Date(campaign.end_date) : null;
+                const daysLeft = end ? Math.ceil((end.getTime() - now.getTime()) / 86_400_000) : null;
+
+                return (
+                  <div className="space-y-2">
+                    {hasTarget && (
+                      <>
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-gray-600 font-medium">
+                            {count.toLocaleString()} / {target!.toLocaleString()} responses
+                            <span className="text-gray-400 ml-2">{pct}% complete</span>
+                          </span>
+                          {daysLeft !== null && (
+                            <span className="text-gray-400">
+                              {daysLeft > 0 ? `${daysLeft} days remaining` : "Ended"}
+                            </span>
+                          )}
+                        </div>
+                        <div className="h-2 bg-gray-100 rounded-full overflow-hidden w-full max-w-sm">
+                          <div
+                            className="h-full rounded-full transition-all duration-500"
+                            style={{
+                              width: `${pct}%`,
+                              background: pct! >= 100 ? "#10b981" : pct! >= 75 ? "#D7B87A" : "#0B1929",
+                            }}
+                          />
+                        </div>
+                      </>
+                    )}
+                    {!hasTarget && count > 0 && (
+                      <p className="text-xs text-gray-500">
+                        {count.toLocaleString()} responses collected
+                        {daysLeft !== null && ` · ${daysLeft > 0 ? `${daysLeft} days remaining` : "Ended"}`}
+                      </p>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
 
             {/* Action buttons */}
@@ -476,7 +530,7 @@ export default function CampaignDetailPage() {
                 className={`text-xs border px-3 py-1.5 rounded-lg transition-colors ${copied ? "border-green-200 text-green-600 bg-green-50" : "border-gray-200 text-gray-600 hover:bg-gray-50"}`}>
                 {copied ? "URL Copied!" : "Copy URL"}
               </button>
-              {campaign.status !== "archived" && (
+              {(campaign.effective_status ?? campaign.status) !== "archived" && (
                 <button onClick={handleArchive}
                   className="text-xs border border-amber-100 text-amber-600 hover:bg-amber-50 px-3 py-1.5 rounded-lg transition-colors">
                   Archive

@@ -3,6 +3,13 @@
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { AdminShell } from "@/app/components/AdminShell";
+import {
+  availableActions,
+  ACTION_LABELS,
+  STATUS_META,
+  type CampaignStatus,
+  type CampaignAction,
+} from "@/lib/campaign-status";
 
 type Survey = { id: string; name: string };
 type Campaign = {
@@ -16,15 +23,20 @@ type Campaign = {
   survey_id: string | null;
   surveys?: { name: string } | null;
   publishers: string[];
-  status: "draft" | "live" | "completed" | "archived";
+  status: string;
+  effective_status: CampaignStatus;
+  response_count: number;
+  target_responses: number | null;
+  archive_after_days: number;
+  manual_status_override: string | null;
   created_at: string;
 };
 
-const STATUS_COLOURS: Record<string, string> = {
-  draft:     "bg-gray-100 text-gray-600",
-  live:      "bg-green-100 text-green-700",
-  completed: "bg-blue-100 text-blue-700",
-  archived:  "bg-amber-100 text-amber-700",
+const BLANK: Partial<Campaign> = {
+  campaign_id: "", brand_name: "", campaign_name: "",
+  campaign_description: "", start_date: null, end_date: null,
+  survey_id: null, publishers: [], status: "draft",
+  target_responses: null, archive_after_days: 90,
 };
 
 function generateCampaignId(brand: string, name: string): string {
@@ -38,11 +50,81 @@ function generateCampaignId(brand: string, name: string): string {
     .slice(0, 80);
 }
 
-const BLANK: Partial<Campaign> = {
-  campaign_id: "", brand_name: "", campaign_name: "",
-  campaign_description: "", start_date: null, end_date: null,
-  survey_id: null, publishers: [], status: "draft",
+// ─── Status badge ─────────────────────────────────────────────────────────────
+
+function StatusBadge({ status }: { status: CampaignStatus }) {
+  const m = STATUS_META[status];
+  return (
+    <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full ${m.bg} ${m.text}`}>
+      <span className="text-[9px] leading-none">{m.dot}</span>
+      {m.label}
+    </span>
+  );
+}
+
+// ─── Action button ────────────────────────────────────────────────────────────
+
+const ACTION_STYLE: Record<string, string> = {
+  go_live:  "border-green-200 text-green-700 hover:bg-green-50",
+  publish:  "border-blue-200 text-blue-700 hover:bg-blue-50",
+  resume:   "border-green-200 text-green-700 hover:bg-green-50",
+  pause:    "border-orange-200 text-orange-700 hover:bg-orange-50",
+  close:    "border-gray-200 text-gray-600 hover:bg-gray-50",
+  archive:  "border-gray-200 text-gray-500 hover:bg-gray-50",
+  reopen:   "border-blue-200 text-blue-700 hover:bg-blue-50",
+  back_to_draft: "border-gray-200 text-gray-500 hover:bg-gray-50",
 };
+
+// ─── Progress bar ─────────────────────────────────────────────────────────────
+
+function CampaignProgress({ c }: { c: Campaign }) {
+  const hasTarget = c.target_responses !== null && c.target_responses > 0;
+  const pct = hasTarget
+    ? Math.min(100, Math.round((c.response_count / c.target_responses!) * 100))
+    : null;
+
+  const now      = new Date();
+  const end      = c.end_date ? new Date(c.end_date) : null;
+  const daysLeft = end ? Math.ceil((end.getTime() - now.getTime()) / 86_400_000) : null;
+
+  if (!hasTarget && !end) return null;
+
+  return (
+    <div className="mt-3 space-y-1.5">
+      {hasTarget && (
+        <>
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-gray-500">
+              {c.response_count.toLocaleString()} / {c.target_responses!.toLocaleString()} responses
+            </span>
+            <span className="font-semibold text-gray-700">{pct}%</span>
+          </div>
+          <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+            <div
+              className="h-full rounded-full transition-all duration-500"
+              style={{
+                width: `${pct}%`,
+                background: pct! >= 100 ? "#10b981" : pct! >= 75 ? "#D7B87A" : "#0B1929",
+              }}
+            />
+          </div>
+        </>
+      )}
+      {!hasTarget && c.response_count > 0 && (
+        <p className="text-xs text-gray-400">{c.response_count.toLocaleString()} responses collected</p>
+      )}
+      {daysLeft !== null && c.effective_status === "live" && (
+        <p className="text-xs text-gray-400">
+          {daysLeft > 0
+            ? `${daysLeft} day${daysLeft !== 1 ? "s" : ""} remaining`
+            : "Ending today"}
+        </p>
+      )}
+    </div>
+  );
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function CampaignsPage() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
@@ -52,7 +134,14 @@ export default function CampaignsPage() {
   const [editing,   setEditing]   = useState<Partial<Campaign>>(BLANK);
   const [pubInput,  setPubInput]  = useState("");
   const [saving,    setSaving]    = useState(false);
+  const [actioning, setActioning] = useState<string | null>(null);
   const [error,     setError]     = useState("");
+  const [toast,     setToast]     = useState<{ msg: string; ok: boolean } | null>(null);
+
+  function showToast(msg: string, ok = true) {
+    setToast({ msg, ok });
+    setTimeout(() => setToast(null), 4000);
+  }
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -70,12 +159,15 @@ export default function CampaignsPage() {
   function openCreate() {
     setEditing({ ...BLANK, publishers: [] });
     setPubInput("");
+    setError("");
     setDrawerOpen(true);
   }
 
   function openEdit(c: Campaign) {
-    setEditing({ ...c });
+    const { surveys: _surveys, ...rest } = c as Campaign & { surveys?: unknown };
+    setEditing({ ...rest });
     setPubInput("");
+    setError("");
     setDrawerOpen(true);
   }
 
@@ -101,27 +193,55 @@ export default function CampaignsPage() {
     if (!editing.campaign_id?.trim())  { setError("Campaign ID is required.");   return; }
     setError(""); setSaving(true);
 
-    // Strip the joined `surveys` object — only send actual column values
-    const { surveys: _surveys, ...payload } = editing as Campaign;
-    if (editing.id) {
-      await fetch(`/api/campaigns/${editing.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-    } else {
-      await fetch("/api/campaigns", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-    }
+    // Strip joined fields before sending to API
+    const {
+      surveys: _s, effective_status: _es, response_count: _rc,
+      ...payload
+    } = editing as Campaign;
+
+    const url    = editing.id ? `/api/campaigns/${editing.id}` : "/api/campaigns";
+    const method = editing.id ? "PUT" : "POST";
+
+    const res  = await fetch(url, {
+      method,
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify(payload),
+    });
+    const json = await res.json();
     setSaving(false);
+
+    if (!res.ok) {
+      setError(json.error ?? "Failed to save.");
+      return;
+    }
     setDrawerOpen(false);
+    showToast(editing.id ? "Campaign updated." : "Campaign created.");
     load();
   }
 
   async function handleDelete(id: string) {
-    if (!confirm("Delete this campaign?")) return;
+    if (!confirm("Delete this campaign? This cannot be undone.")) return;
     await fetch(`/api/campaigns/${id}`, { method: "DELETE" });
+    showToast("Campaign deleted.");
     load();
   }
 
-  async function changeStatus(c: Campaign, status: string) {
-    await fetch(`/api/campaigns/${c.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...c, status }) });
-    load();
+  async function handleAction(campaignId: string, action: CampaignAction) {
+    setActioning(campaignId + action);
+    const res  = await fetch(`/api/campaigns/${campaignId}/actions`, {
+      method:  "POST",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify({ action }),
+    });
+    const json = await res.json();
+    setActioning(null);
+
+    if (!res.ok) {
+      showToast(json.error ?? "Action failed.", false);
+    } else {
+      showToast(`Campaign ${ACTION_LABELS[action].toLowerCase()}d.`);
+      load();
+    }
   }
 
   return (
@@ -132,69 +252,100 @@ export default function CampaignsPage() {
             <h1 className="text-2xl font-bold text-gray-900">Campaigns</h1>
             <p className="text-sm text-gray-400 mt-0.5">{campaigns.length} campaign{campaigns.length !== 1 ? "s" : ""}</p>
           </div>
-          <button onClick={openCreate}
-            className="text-sm font-semibold px-4 py-2 rounded-lg transition-colors"
+          <button
+            onClick={openCreate}
+            className="text-sm font-semibold px-4 py-2 rounded-lg"
             style={{ background: "#D7B87A", color: "#0B1929" }}
-            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#C9A766"; }}
-            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "#D7B87A"; }}>
+          >
             + Create Campaign
           </button>
         </div>
 
-        {loading && <p className="text-gray-400">Loading…</p>}
+        {loading && <p className="text-gray-400 text-sm">Loading…</p>}
 
         {!loading && campaigns.length === 0 && (
           <div className="text-center py-20 text-gray-400">
             <p className="text-4xl mb-3">◎</p>
             <p className="font-medium">No campaigns yet</p>
-            <p className="text-sm mt-1">Create your first campaign to generate embed codes.</p>
+            <p className="text-sm mt-1">Create your first campaign to get started.</p>
           </div>
         )}
 
         <div className="space-y-3">
-          {campaigns.map(c => (
-            <div key={c.id} className="bg-white border border-gray-100 rounded-xl p-5 shadow-sm hover:border-gray-300 transition-colors">
-              <div className="flex items-start gap-4">
-                <Link href={`/campaigns/${c.id}`} className="flex-1 min-w-0 block group">
-                  <div className="flex items-center gap-2 mb-0.5 flex-wrap">
-                    <p className="font-semibold text-gray-900 group-hover:text-[#0B1929] transition-colors">{c.brand_name}</p>
-                    <span className="text-gray-300">·</span>
-                    <p className="text-gray-700 group-hover:text-gray-900 transition-colors">{c.campaign_name}</p>
-                  </div>
-                  <p className="text-xs font-mono text-[#0B1929] mt-0.5">{c.campaign_id}</p>
-                  {c.campaign_description && <p className="text-xs text-gray-400 mt-0.5">{c.campaign_description}</p>}
-                  <div className="flex flex-wrap gap-2 mt-2">
-                    {c.surveys?.name && (
-                      <span className="text-xs bg-gray-100 text-[#0B1929] px-2 py-0.5 rounded-full">
-                        Survey: {c.surveys.name}
-                      </span>
-                    )}
-                    {c.publishers.map(p => (
-                      <span key={p} className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">{p}</span>
-                    ))}
-                    {c.start_date && <span className="text-xs text-gray-400">{c.start_date} → {c.end_date ?? "ongoing"}</span>}
-                  </div>
-                </Link>
+          {campaigns.map(c => {
+            const actions = availableActions(c.effective_status ?? c.status as CampaignStatus);
+            return (
+              <div key={c.id} className="bg-white border border-gray-100 rounded-xl p-5 shadow-sm hover:border-gray-200 transition-colors">
+                <div className="flex items-start gap-4">
 
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  <select value={c.status} onChange={e => changeStatus(c, e.target.value)}
-                    className={`text-xs font-semibold px-2 py-1 rounded-full border-0 cursor-pointer focus:outline-none ${STATUS_COLOURS[c.status]}`}>
-                    {["draft","live","completed","archived"].map(s => (
-                      <option key={s} value={s}>{s.charAt(0).toUpperCase()+s.slice(1)}</option>
-                    ))}
-                  </select>
-                  <button onClick={() => openEdit(c)}
-                    className="text-xs border border-gray-200 text-gray-600 hover:bg-gray-50 px-3 py-1.5 rounded-lg">Edit</button>
-                  <button onClick={() => handleDelete(c.id)}
-                    className="text-xs border border-red-100 text-red-500 hover:bg-red-50 px-3 py-1.5 rounded-lg">Delete</button>
+                  {/* Left: campaign info */}
+                  <Link href={`/campaigns/${c.id}`} className="flex-1 min-w-0 block group">
+                    <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+                      <p className="font-semibold text-gray-900 group-hover:text-[#0B1929]">{c.brand_name}</p>
+                      <span className="text-gray-300">·</span>
+                      <p className="text-gray-700">{c.campaign_name}</p>
+                      <StatusBadge status={c.effective_status ?? c.status as CampaignStatus} />
+                    </div>
+                    <p className="text-xs font-mono text-gray-400 mt-0.5">{c.campaign_id}</p>
+
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {c.surveys?.name && (
+                        <span className="text-xs bg-gray-100 text-[#0B1929] px-2 py-0.5 rounded-full">
+                          Survey: {c.surveys.name}
+                        </span>
+                      )}
+                      {(c.publishers ?? []).map(p => (
+                        <span key={p} className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">{p}</span>
+                      ))}
+                      {c.start_date && (
+                        <span className="text-xs text-gray-400">
+                          {c.start_date} → {c.end_date ?? "ongoing"}
+                        </span>
+                      )}
+                    </div>
+
+                    <CampaignProgress c={c} />
+                  </Link>
+
+                  {/* Right: action buttons */}
+                  <div className="flex flex-col items-end gap-2 flex-shrink-0">
+                    {/* Primary actions */}
+                    <div className="flex flex-wrap gap-1.5 justify-end">
+                      {actions.map(action => (
+                        <button
+                          key={action}
+                          onClick={() => handleAction(c.id, action)}
+                          disabled={actioning === c.id + action}
+                          className={`text-xs border px-3 py-1.5 rounded-lg font-medium transition-colors disabled:opacity-50 ${ACTION_STYLE[action] ?? "border-gray-200 text-gray-600 hover:bg-gray-50"}`}
+                        >
+                          {actioning === c.id + action ? "…" : ACTION_LABELS[action]}
+                        </button>
+                      ))}
+                    </div>
+                    {/* Edit / Delete */}
+                    <div className="flex gap-1.5">
+                      <button
+                        onClick={() => openEdit(c)}
+                        className="text-xs border border-gray-200 text-gray-600 hover:bg-gray-50 px-3 py-1.5 rounded-lg"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => handleDelete(c.id)}
+                        className="text-xs border border-red-100 text-red-400 hover:bg-red-50 px-3 py-1.5 rounded-lg"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
-      {/* Drawer */}
+      {/* ── Edit / Create Drawer ─────────────────────────────────────────────── */}
       {drawerOpen && (
         <div className="fixed inset-0 z-50 flex">
           <div className="flex-1 bg-black/40" onClick={() => setDrawerOpen(false)} />
@@ -206,73 +357,83 @@ export default function CampaignsPage() {
 
             <div className="flex-1 overflow-y-auto p-6 space-y-4">
               <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-semibold text-gray-600 block mb-1">Brand Name *</label>
+                <Field label="Brand Name *">
                   <input value={editing.brand_name ?? ""} onChange={e => setEditing(x => ({ ...x, brand_name: e.target.value }))}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A]" placeholder="e.g. Carlsberg" />
-                </div>
-                <div>
-                  <label className="text-xs font-semibold text-gray-600 block mb-1">Campaign Name *</label>
+                    className={INP} placeholder="e.g. Carlsberg" />
+                </Field>
+                <Field label="Campaign Name *">
                   <input value={editing.campaign_name ?? ""} onChange={e => setEditing(x => ({ ...x, campaign_name: e.target.value }))}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A]" placeholder="e.g. UCL 2026" />
-                </div>
+                    className={INP} placeholder="e.g. UCL 2026" />
+                </Field>
               </div>
 
-              <div>
-                <label className="text-xs font-semibold text-gray-600 block mb-1">Campaign ID *</label>
+              <Field label="Campaign ID *">
                 <div className="flex gap-2">
                   <input value={editing.campaign_id ?? ""} onChange={e => setEditing(x => ({ ...x, campaign_id: e.target.value }))}
-                    className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:border-[#D7B87A]" placeholder="carlsberg_ucl_2026" />
+                    className={`flex-1 ${INP} font-mono`} placeholder="carlsberg_ucl_2026" />
                   <button onClick={autoId} className="text-xs border border-[#E0E1DD] text-[#0B1929] hover:bg-gray-50 px-3 rounded-lg">Auto</button>
                 </div>
                 <p className="text-xs text-gray-400 mt-1">Used in embed URLs. Lowercase, underscores only.</p>
-              </div>
+              </Field>
 
-              <div>
-                <label className="text-xs font-semibold text-gray-600 block mb-1">Description</label>
+              <Field label="Description">
                 <input value={editing.campaign_description ?? ""} onChange={e => setEditing(x => ({ ...x, campaign_description: e.target.value }))}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A]" placeholder="Optional" />
-              </div>
+                  className={INP} placeholder="Optional" />
+              </Field>
 
               <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-semibold text-gray-600 block mb-1">Start Date</label>
+                <Field label="Start Date">
                   <input type="date" value={editing.start_date ?? ""} onChange={e => setEditing(x => ({ ...x, start_date: e.target.value || null }))}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A]" />
-                </div>
-                <div>
-                  <label className="text-xs font-semibold text-gray-600 block mb-1">End Date</label>
+                    className={INP} />
+                </Field>
+                <Field label="End Date">
                   <input type="date" value={editing.end_date ?? ""} onChange={e => setEditing(x => ({ ...x, end_date: e.target.value || null }))}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A]" />
-                </div>
+                    className={INP} />
+                </Field>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-semibold text-gray-600 block mb-1">Survey</label>
+                <Field label="Target Responses">
+                  <input
+                    type="number" min={1}
+                    value={editing.target_responses ?? ""}
+                    onChange={e => setEditing(x => ({ ...x, target_responses: e.target.value ? Number(e.target.value) : null }))}
+                    className={INP} placeholder="e.g. 10000 (optional)"
+                  />
+                </Field>
+                <Field label="Archive After (days)">
+                  <input
+                    type="number" min={1}
+                    value={editing.archive_after_days ?? 90}
+                    onChange={e => setEditing(x => ({ ...x, archive_after_days: Number(e.target.value) || 90 }))}
+                    className={INP} placeholder="90"
+                  />
+                </Field>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Survey">
                   <select value={editing.survey_id ?? ""} onChange={e => setEditing(x => ({ ...x, survey_id: e.target.value || null }))}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A]">
+                    className={INP}>
                     <option value="">None selected</option>
-                    {surveys.filter(s => !s.name.includes("(copy)") || true).map(s => (
-                      <option key={s.id} value={s.id}>{s.name}</option>
+                    {surveys.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  </select>
+                </Field>
+                <Field label="Status">
+                  <select value={editing.status ?? "draft"} onChange={e => setEditing(x => ({ ...x, status: e.target.value }))}
+                    className={INP}>
+                    {["draft","scheduled","live","paused","closed","archived"].map(s => (
+                      <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>
                     ))}
                   </select>
-                </div>
-                <div>
-                  <label className="text-xs font-semibold text-gray-600 block mb-1">Status</label>
-                  <select value={editing.status ?? "draft"} onChange={e => setEditing(x => ({ ...x, status: e.target.value as Campaign["status"] }))}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A]">
-                    {["draft","live","completed","archived"].map(s => <option key={s} value={s}>{s.charAt(0).toUpperCase()+s.slice(1)}</option>)}
-                  </select>
-                </div>
+                </Field>
               </div>
 
-              <div>
-                <label className="text-xs font-semibold text-gray-600 block mb-1">Publishers</label>
+              <Field label="Publishers">
                 <div className="flex gap-2 mb-2">
                   <input value={pubInput} onChange={e => setPubInput(e.target.value)}
                     onKeyDown={e => e.key === "Enter" && addPublisher()}
-                    className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A]" placeholder="e.g. sky-sports" />
+                    className={INP} placeholder="e.g. FotMob" />
                   <button onClick={addPublisher} className="text-xs border border-gray-200 text-gray-600 hover:bg-gray-50 px-3 rounded-lg">Add</button>
                 </div>
                 <div className="flex flex-wrap gap-2">
@@ -283,7 +444,7 @@ export default function CampaignsPage() {
                     </span>
                   ))}
                 </div>
-              </div>
+              </Field>
 
               {error && <p className="text-red-500 text-xs">{error}</p>}
             </div>
@@ -292,15 +453,33 @@ export default function CampaignsPage() {
               <button onClick={() => setDrawerOpen(false)} className="text-sm text-gray-500 px-4 py-2">Cancel</button>
               <button onClick={handleSave} disabled={saving}
                 className="text-sm font-semibold px-5 py-2 rounded-lg disabled:opacity-60"
-                style={{ background: "#D7B87A", color: "#0B1929" }}
-                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#C9A766"; }}
-                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "#D7B87A"; }}>
+                style={{ background: "#D7B87A", color: "#0B1929" }}>
                 {saving ? "Saving…" : "Save Campaign"}
               </button>
             </div>
           </div>
         </div>
       )}
+
+      {/* Toast */}
+      {toast && (
+        <div className={`fixed bottom-6 right-6 z-50 px-5 py-3 rounded-xl shadow-lg text-sm font-medium ${
+          toast.ok ? "bg-green-600 text-white" : "bg-red-600 text-white"
+        }`}>
+          {toast.ok ? "✓" : "✕"} {toast.msg}
+        </div>
+      )}
     </AdminShell>
+  );
+}
+
+const INP = "w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A]";
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block mb-1.5">{label}</label>
+      {children}
+    </div>
   );
 }
