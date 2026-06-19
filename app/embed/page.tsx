@@ -393,6 +393,7 @@ function EmbedSurvey() {
   const [questions,      setQuestions]      = useState<Question[]>(QUESTIONS);
   const [thankYouTitle,  setThankYouTitle]  = useState("Thank you!");
   const [thankYouBody,   setThankYouBody]   = useState("Your anonymous feedback helps improve the football experience for fans everywhere.");
+  const [errorMsg,       setErrorMsg]       = useState("Something went wrong — tap an answer to try again.");
 
   useEffect(() => {
     setDevice(detectDevice());
@@ -449,6 +450,13 @@ function EmbedSurvey() {
 
       setStatus("submitting");
       const duration = Math.round((Date.now() - startRef.current) / 1000);
+
+      // Map answers by question index (not hardcoded q1/q2/q3 keys) so
+      // surveys with non-standard question IDs still submit correctly.
+      const q1ans = newAnswers[questions[0]?.id] ?? null;
+      const q2ans = newAnswers[questions[1]?.id] ?? null;
+      const q3ans = newAnswers[questions[2]?.id] ?? null;
+
       try {
         const res = await fetch("/api/submit", {
           method: "POST",
@@ -461,9 +469,9 @@ function EmbedSurvey() {
             placement,
             club,
             competition,
-            q1:                        newAnswers.q1 ?? null,
-            q2:                        newAnswers.q2 ?? null,
-            q3:                        newAnswers.q3 ?? null,
+            q1:                        q1ans,
+            q2:                        q2ans,
+            q3:                        q3ans,
             country:                   country || null,
             fan_segment:               segment,
             device,
@@ -471,8 +479,18 @@ function EmbedSurvey() {
             response_duration_seconds: duration,
           }),
         });
-        setStatus(res.ok ? "success" : "error");
-      } catch {
+        if (res.ok) {
+          setStatus("success");
+        } else {
+          const json = await res.json().catch(() => ({}));
+          const msg = json.error ?? "Something went wrong — tap an answer to try again.";
+          console.error("[Fanometrix embed] Submission failed:", res.status, msg);
+          setErrorMsg(msg);
+          setStatus("error");
+        }
+      } catch (err) {
+        console.error("[Fanometrix embed] Network error:", err);
+        setErrorMsg("Network error — please check your connection and try again.");
         setStatus("error");
       }
       setAdvancing(false);
@@ -622,7 +640,7 @@ function EmbedSurvey() {
                     margin: 0,
                   }}
                 >
-                  Something went wrong — tap an answer to try again.
+                  {errorMsg}
                 </p>
               ) : (
                 <p

@@ -315,7 +315,7 @@ export default function PublisherHubPage() {
 
           <p style={{ fontSize: "clamp(15px, 2.5vw, 18px)", color: "rgba(255,255,255,0.72)", lineHeight: 1.7, maxWidth: 860, margin: "0 auto 48px" }}>
             Deploy anonymous football fan surveys within standard 300×250 inventory to generate
-            fan intelligence and unlock new commercial opportunities — with no personal data
+            fan intelligence and unlock new commercial opportunities - with no personal data
             collection and minimal implementation effort.
           </p>
 

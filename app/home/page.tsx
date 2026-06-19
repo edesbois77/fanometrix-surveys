@@ -23,7 +23,8 @@ const ROLE_CARDS: Record<UserRole, Card[]> = {
     { href: "/looker-templates",    icon: "◈",  title: "Looker Templates",    description: "Pre-built Looker Studio report templates for client-ready dashboards.", cta: "View Templates" },
     { href: "/demo-data",           icon: "⚗",  title: "Demo Data",           description: "Generate and manage realistic demo fan responses for testing and presentations.", cta: "Manage Demo Data" },
     { href: "/user-management",     icon: "◉",  title: "User Management",     description: "Create and manage platform user accounts, roles and data access permissions.", cta: "Manage Users" },
-    { href: "/publisher-hub",       icon: "☰",  title: "Publisher Hub",        description: "Integration documentation, privacy information and technical resources for publishers.", cta: "View Publisher Hub" },
+    { href: "/publisher-hub",        icon: "☰",  title: "Publisher Hub",        description: "Integration documentation, privacy information and technical resources for publishers.", cta: "View Publisher Hub" },
+    { href: "/embed-test",           icon: "⬡",  title: "Embed Test",           description: "Verify that a campaign embed is loading and accepting responses correctly.", cta: "Open Embed Test" },
   ],
   brand: [
     { href: "/dashboard",        icon: "▦", title: "Dashboard",        description: "Your campaign performance — fan response data filtered to your brand.", cta: "Open Dashboard" },

@@ -25,6 +25,7 @@ const ADMIN_ONLY_PREFIXES = [
   "/looker-templates",
   "/demo-data",
   "/user-management",
+  "/embed-test",
   "/api/users",
   "/api/surveys",
   "/api/campaigns",

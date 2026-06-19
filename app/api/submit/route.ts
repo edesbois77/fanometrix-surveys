@@ -16,16 +16,25 @@ export async function POST(req: NextRequest) {
     device, browser, response_duration_seconds,
   } = body as Record<string, unknown>;
 
-  if (!campaign_id || !q1) {
-    return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+  if (!campaign_id) {
+    return NextResponse.json({ error: "campaign_id is required." }, { status: 400 });
+  }
+  if (!q1) {
+    return NextResponse.json({ error: "At least one survey answer (q1) is required." }, { status: 400 });
   }
 
-  // Check campaign exists and is accepting responses
-  const { data: campaign } = await supabase
+  // Look up campaign and check it is accepting responses
+  const { data: campaign, error: campaignError } = await supabase
     .from("campaigns")
-    .select("status, manual_status_override, start_date, end_date, target_responses, archive_after_days")
+    .select("id, status, manual_status_override, start_date, end_date, target_responses, archive_after_days")
     .eq("campaign_id", campaign_id as string)
     .single();
+
+  if (campaignError && campaignError.code !== "PGRST116") {
+    // PGRST116 = row not found — allow submission for standalone/demo embeds
+    console.error("[submit] Campaign lookup error:", campaignError);
+    return NextResponse.json({ error: "Campaign not found." }, { status: 404 });
+  }
 
   if (campaign) {
     // Get current response count to check against target
@@ -41,13 +50,19 @@ export async function POST(req: NextRequest) {
     );
 
     if (effective !== "live") {
-      return NextResponse.json(
-        { error: "This survey is not currently accepting responses." },
-        { status: 403 }
-      );
+      const statusMessages: Record<string, string> = {
+        draft:     "This survey is not currently live. The campaign is still in Draft.",
+        scheduled: "This survey is not currently live. The campaign has not started yet.",
+        paused:    "This survey is not currently live. The campaign is paused.",
+        closed:    "This survey is not currently live. The campaign has closed.",
+        archived:  "This survey is not currently live. The campaign has been archived.",
+      };
+      const msg = statusMessages[effective] ?? "This survey is not currently live.";
+      console.warn(`[submit] Rejected — campaign "${campaign_id}" is "${effective}"`);
+      return NextResponse.json({ error: msg }, { status: 403 });
     }
   }
-  // If campaign not found, allow submission (standalone embeds without a campaign record)
+  // If campaign not found in DB, allow submission (standalone / demo embeds without a DB record)
 
   const { error } = await supabase.from("responses").insert([{
     campaign_id, survey_id, question_set_id,
@@ -59,8 +74,8 @@ export async function POST(req: NextRequest) {
   }]);
 
   if (error) {
-    console.error("Supabase insert error:", error);
-    return NextResponse.json({ error: "Failed to save response" }, { status: 500 });
+    console.error("[submit] Supabase insert error:", error);
+    return NextResponse.json({ error: "Failed to save response. Please try again." }, { status: 500 });
   }
 
   return NextResponse.json({ success: true });

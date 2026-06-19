@@ -6,8 +6,6 @@ export default function PrivacyPage() {
   return (
     <main className="min-h-screen bg-gray-50 py-12 px-6">
       <div className="max-w-2xl mx-auto">
-        <Link href="/" className="text-[#D7B87A] text-sm hover:underline">← Back to survey</Link>
-
         <h1 className="text-3xl font-bold text-gray-900 mt-6 mb-2">Privacy Policy</h1>
         <p className="text-sm text-gray-400 mb-8">Fanometrix · Last updated June 2026</p>
 
@@ -35,7 +33,7 @@ export default function PrivacyPage() {
                   ["Publisher", "The media partner where the survey was displayed"],
                   ["Placement", "The position on the page (e.g. homepage MPU)"],
                   ["Club / Competition", "The football club or competition the survey relates to"],
-                  ["Country", "Your country, supplied by the ad server — country level only"],
+                  ["Country", "Country-level location only (e.g. United Kingdom). No city, postcode, GPS or precise location data is collected."],
                   ["Fan segment", "A category label set by the publisher, not entered by you"],
                   ["Device type", "Mobile, tablet, or desktop — derived from your browser"],
                   ["Browser", "Chrome, Safari, Firefox, Edge, or Other"],
@@ -56,23 +54,24 @@ export default function PrivacyPage() {
             <ul className="list-disc list-inside space-y-1 text-gray-600">
               <li>Names, email addresses, phone numbers, or any contact information</li>
               <li>User IDs, login credentials, or account data</li>
-              <li>Exact location data — only country level</li>
-              <li>IP addresses — not stored</li>
-              <li>Cookies or persistent identifiers</li>
+              <li>Precise location data (GPS, city, postcode or address). Country-level information only may be provided by the ad server.</li>
+              <li>IP addresses are not collected, stored, or retained by Fanometrix.</li>
+              <li>Cookies, advertising IDs, or persistent identifiers</li>
               <li>Free-text personal information</li>
-              <li>Any data from children under 16</li>
+              <li>Fanometrix does not knowingly collect information from children under 16 and surveys are not intentionally targeted towards children.</li>
             </ul>
           </section>
 
           <section>
             <h2 className="text-lg font-semibold text-gray-900 mb-3">Why we collect it</h2>
             <p>Survey responses are collected to produce aggregated fan insight reports for sports rights holders and their commercial partners. No individual is profiled, targeted, or identified from the data we collect.</p>
-            <p className="mt-2">The data is anonymous — the combination of fields we collect cannot realistically be used to identify a specific person. As such, it falls outside the personal data processing requirements of UK GDPR.</p>
+            <p className="mt-2">The data is anonymous - the combination of fields we collect cannot realistically be used to identify a specific person.</p>
+            <p className="mt-2">The information collected by Fanometrix is intentionally limited to anonymous, non-identifiable survey responses and is designed to minimise privacy risk. Publishers and partners should assess implementation within their own legal and compliance frameworks.</p>
           </section>
 
           <section>
             <h2 className="text-lg font-semibold text-gray-900 mb-3">Data storage and retention</h2>
-            <p>Data is stored securely in a Supabase (Postgres) database hosted in the EU West (London) region. Data is retained for a maximum of 24 months from the date of collection, after which it is deleted.</p>
+            <p>Data is stored securely in a Supabase (Postgres) database hosted in the EU West (London) region. Data is retained for a maximum of 24 months from the date of collection, after which it is deleted. Access is restricted to authorised Fanometrix administrators.</p>
           </section>
 
           <section>

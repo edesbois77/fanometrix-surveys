@@ -18,6 +18,7 @@ const NAV_BY_ROLE: Record<UserRole, NavItem[]> = {
     { href: "/looker-templates",    label: "Looker Templates",    icon: "◈"   },
     { href: "/demo-data",           label: "Demo Data",           icon: "⚗"   },
     { href: "/user-management",     label: "User Management",     icon: "◉"   },
+    { href: "/embed-test",          label: "Embed Test",          icon: "⬡"   },
   ],
   brand: [
     { href: "/dashboard",        label: "Dashboard",        icon: "▦" },
