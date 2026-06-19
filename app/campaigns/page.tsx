@@ -200,6 +200,12 @@ export default function CampaignsPage() {
     if (!editing.brand_name?.trim())   { setError("Brand name is required.");   return; }
     if (!editing.campaign_name?.trim()) { setError("Campaign name is required."); return; }
     if (!editing.campaign_id?.trim())  { setError("Campaign ID is required.");   return; }
+    if (editing.start_date && editing.end_date && editing.start_date > editing.end_date) {
+      setError("Start date cannot be after end date."); return;
+    }
+    if (editing.target_responses !== null && editing.target_responses !== undefined && editing.target_responses < 1) {
+      setError("Target responses must be at least 1."); return;
+    }
     setError(""); setSaving(true);
 
     // Strip computed/joined fields — not DB columns, Supabase rejects them
@@ -407,10 +413,15 @@ export default function CampaignsPage() {
                     className={INP} />
                 </Field>
                 <Field label="End Date">
-                  <input type="date" value={editing.end_date ?? ""} onChange={e => setEditing(x => ({ ...x, end_date: e.target.value || null }))}
+                  <input type="date" value={editing.end_date ?? ""}
+                    min={editing.start_date ?? undefined}
+                    onChange={e => setEditing(x => ({ ...x, end_date: e.target.value || null }))}
                     className={INP} />
                 </Field>
               </div>
+              {editing.start_date && editing.end_date && editing.start_date > editing.end_date && (
+                <p className="text-xs text-red-500 -mt-2">End date must be on or after the start date.</p>
+              )}
 
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Target Responses">
