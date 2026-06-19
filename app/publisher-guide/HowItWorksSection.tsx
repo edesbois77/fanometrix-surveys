@@ -84,6 +84,7 @@ export function HowItWorksSection() {
               justifyContent: "center",
               gap: 0,
               minWidth: "max-content",
+              padding: "0 16px", // breathing room so last card isn't clipped
             }}
           >
             {STEPS.map((step, i) => {
@@ -114,17 +115,17 @@ export function HowItWorksSection() {
                         boxSizing:     "border-box",
                       }}
                     >
-                      {/* Step number — fixed height row */}
+                      {/* Step number */}
                       <p
                         className="fm-step-num"
-                        style={{ fontSize: 11, fontWeight: 700, color: N, letterSpacing: "0.08em", marginBottom: 10, flexShrink: 0 }}
+                        style={{ fontSize: 11, fontWeight: 700, color: N, letterSpacing: "0.08em", marginBottom: 10, flexShrink: 0, textAlign: "center" }}
                       >
                         {step.n}
                       </p>
 
-                      {/* Title — fixed height so all titles end at the same line */}
-                      <div style={{ height: TITLE_HEIGHT, flexShrink: 0, overflow: "hidden" }}>
-                        <p style={{ fontSize: 13, fontWeight: 700, color: N, lineHeight: 1.35, margin: 0 }}>
+                      {/* Title — fixed height so all titles end at the same baseline */}
+                      <div style={{ height: TITLE_HEIGHT, flexShrink: 0, overflow: "hidden", display: "flex", alignItems: "flex-start" }}>
+                        <p style={{ fontSize: 13, fontWeight: 700, color: N, lineHeight: 1.35, margin: 0, textAlign: "center", width: "100%" }}>
                           {step.label}
                         </p>
                       </div>
@@ -132,9 +133,9 @@ export function HowItWorksSection() {
                       {/* Divider */}
                       <div style={{ height: 1, background: "#F3F4F6", margin: "10px 0", flexShrink: 0 }} />
 
-                      {/* Description — fixed height so all desc start at the same line */}
+                      {/* Description — fixed height so all descriptions start at the same line */}
                       <div style={{ height: DESC_HEIGHT, overflow: "hidden" }}>
-                        <p style={{ fontSize: 11, color: "#9CA3AF", lineHeight: 1.6, margin: 0 }}>
+                        <p style={{ fontSize: 11, color: "#9CA3AF", lineHeight: 1.6, margin: 0, textAlign: "center" }}>
                           {step.desc}
                         </p>
                       </div>
