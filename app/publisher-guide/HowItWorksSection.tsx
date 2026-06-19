@@ -62,48 +62,55 @@ export function HowItWorksSection() {
           </h2>
         </div>
 
-        {/* Step cards + connectors */}
-        <div
-          ref={containerRef}
-          style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "center", gap: 0 }}
-        >
-          {STEPS.map((step, i) => {
-            const delay = i * 0.12;
-            return (
-              <div key={step.n} style={{ display: "flex", alignItems: "center" }}>
+        {/* Step cards + connectors — nowrap, scrollable on mobile */}
+        <div style={{ overflowX: "auto", paddingBottom: 4 }}>
+          <div
+            ref={containerRef}
+            style={{ display: "flex", flexWrap: "nowrap", alignItems: "stretch", justifyContent: "center", gap: 0, minWidth: "max-content" }}
+          >
+            {STEPS.map((step, i) => {
+              const delay = i * 0.12;
+              return (
+                <div key={step.n} style={{ display: "flex", alignItems: "center" }}>
 
-                {/* Entry animation wrapper */}
-                <div style={{
-                  opacity:   visible ? 1 : 0,
-                  transform: visible ? "translateY(0)" : "translateY(22px)",
-                  transition: `opacity 0.55s ease ${delay}s, transform 0.55s ease ${delay}s`,
-                }}>
-                  {/* Hover card */}
-                  <div
-                    className="fm-step-card"
-                    style={{
-                      background: "#fff",
-                      border: "1px solid #E5E7EB",
-                      borderRadius: 16,
-                      padding: "24px 20px",
-                      width: 158,
-                      boxShadow: "0 2px 8px rgba(11,25,41,0.05)",
-                    }}
-                  >
-                    <p
-                      className="fm-step-num"
-                      style={{ fontSize: 11, fontWeight: 700, color: N, letterSpacing: "0.08em", marginBottom: 10 }}
+                  {/* Entry animation wrapper */}
+                  <div style={{
+                    opacity:   visible ? 1 : 0,
+                    transform: visible ? "translateY(0)" : "translateY(22px)",
+                    transition: `opacity 0.55s ease ${delay}s, transform 0.55s ease ${delay}s`,
+                    height: "100%",
+                    display: "flex",
+                  }}>
+                    {/* Hover card — fixed size so all six are identical */}
+                    <div
+                      className="fm-step-card"
+                      style={{
+                        background: "#fff",
+                        border: "1px solid #E5E7EB",
+                        borderRadius: 16,
+                        padding: "22px 18px",
+                        width: 140,
+                        height: 172,
+                        boxShadow: "0 2px 8px rgba(11,25,41,0.05)",
+                        display: "flex",
+                        flexDirection: "column",
+                        boxSizing: "border-box",
+                      }}
                     >
-                      {step.n}
-                    </p>
-                    <p style={{ fontSize: 13, fontWeight: 700, color: N, lineHeight: 1.3, marginBottom: 8 }}>
-                      {step.label}
-                    </p>
-                    <p style={{ fontSize: 11, color: "#9CA3AF", lineHeight: 1.5 }}>
-                      {step.desc}
-                    </p>
+                      <p
+                        className="fm-step-num"
+                        style={{ fontSize: 11, fontWeight: 700, color: N, letterSpacing: "0.08em", marginBottom: 10, flexShrink: 0 }}
+                      >
+                        {step.n}
+                      </p>
+                      <p style={{ fontSize: 13, fontWeight: 700, color: N, lineHeight: 1.3, marginBottom: 8, flexShrink: 0 }}>
+                        {step.label}
+                      </p>
+                      <p style={{ fontSize: 11, color: "#9CA3AF", lineHeight: 1.5, margin: 0 }}>
+                        {step.desc}
+                      </p>
+                    </div>
                   </div>
-                </div>
 
                 {/* Connector: gold line + enlarged arrow */}
                 {i < STEPS.length - 1 && (
@@ -122,6 +129,7 @@ export function HowItWorksSection() {
               </div>
             );
           })}
+          </div>
         </div>
 
         {/* Caption */}
