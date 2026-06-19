@@ -5,8 +5,8 @@ import "./globals.css";
 const geist = Geist({ subsets: ["latin"], variable: "--font-geist" });
 
 export const metadata: Metadata = {
-  title: "Fanometrix Pulse",
-  description: "Fan sentiment survey",
+  title: "Fanometrix",
+  description: "Fan Insight Platform",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

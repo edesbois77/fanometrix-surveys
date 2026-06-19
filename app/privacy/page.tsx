@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-export const metadata = { title: "Privacy Policy – Fanometrix Pulse" };
+export const metadata = { title: "Privacy Policy – Fanometrix" };
 
 export default function PrivacyPage() {
   return (
@@ -9,13 +9,13 @@ export default function PrivacyPage() {
         <Link href="/" className="text-indigo-500 text-sm hover:underline">← Back to survey</Link>
 
         <h1 className="text-3xl font-bold text-gray-900 mt-6 mb-2">Privacy Policy</h1>
-        <p className="text-sm text-gray-400 mb-8">Fanometrix Pulse · Last updated June 2026</p>
+        <p className="text-sm text-gray-400 mb-8">Fanometrix · Last updated June 2026</p>
 
         <div className="space-y-8 text-gray-700 text-sm leading-relaxed">
 
           <section>
-            <h2 className="text-lg font-semibold text-gray-900 mb-3">What is Fanometrix Pulse?</h2>
-            <p>Fanometrix Pulse is a fan sentiment survey platform that collects anonymous feedback on behalf of sports clubs, competition rights holders, and their media partners. Surveys are delivered as short embedded units within digital media placements.</p>
+            <h2 className="text-lg font-semibold text-gray-900 mb-3">What is Fanometrix?</h2>
+            <p>Fanometrix is a fan sentiment survey platform that collects anonymous feedback on behalf of sports clubs, competition rights holders, and their media partners. Surveys are delivered as short embedded units within digital media placements.</p>
           </section>
 
           <section>
@@ -88,7 +88,7 @@ export default function PrivacyPage() {
         </div>
 
         <p className="text-xs text-gray-400 mt-10 pt-6 border-t border-gray-200">
-          Fanometrix Pulse · Fan Insight Platform · <Link href="/" className="hover:underline">fanometrix-surveys.vercel.app</Link>
+          Fanometrix · Fan Insight Platform · <Link href="/" className="hover:underline">fanometrix-surveys.vercel.app</Link>
         </p>
       </div>
     </main>

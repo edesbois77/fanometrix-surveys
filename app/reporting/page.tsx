@@ -90,7 +90,7 @@ export default function ReportingPage() {
       <div className="p-6 max-w-4xl mx-auto">
         <h1 className="text-2xl font-bold text-gray-900 mb-1">Reporting</h1>
         <p className="text-sm text-gray-400 mb-6">
-          Connect Fanometrix Pulse data to Google Looker Studio or any BI tool.
+          Connect Fanometrix data to Google Looker Studio or any BI tool.
         </p>
 
         {/* Status cards */}

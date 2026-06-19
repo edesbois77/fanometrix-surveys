@@ -5,7 +5,7 @@ import { AdminShell } from "@/app/components/AdminShell";
 
 // ─── Template data ────────────────────────────────────────────────────────────
 
-const CALCULATED_FIELDS = `-- Fanometrix Pulse · Calculated Fields for Looker Studio
+const CALCULATED_FIELDS = `-- Fanometrix · Calculated Fields for Looker Studio
 -- Add these in: Data source → Add a field → Custom formula
 
 Total Responses       = COUNT(response_id)
@@ -14,7 +14,7 @@ Avg Response Time (s) = AVG(response_duration_seconds)
 Response Share (%)    = COUNT(response_id) / COUNT_DISTINCT(response_id) * 100
 Mobile Share (%)      = COUNTIF(device = "mobile") / COUNT(response_id) * 100`;
 
-const FIELD_REFERENCE = `-- Fanometrix Pulse · vw_campaign_responses field reference
+const FIELD_REFERENCE = `-- Fanometrix · vw_campaign_responses field reference
 
 IDENTITY
   response_id             TEXT      Unique response UUID
@@ -283,7 +283,7 @@ export default function LookerTemplatesPage() {
 
         {/* Print header */}
         <div className="hidden print:block mb-8">
-          <h1 className="text-2xl font-bold">Fanometrix Pulse · Looker Studio Template Library</h1>
+          <h1 className="text-2xl font-bold">Fanometrix · Looker Studio Template Library</h1>
           <p className="text-sm text-gray-500 mt-1">vw_campaign_responses · {new Date().toLocaleDateString("en-GB", { dateStyle: "long" })}</p>
         </div>
 

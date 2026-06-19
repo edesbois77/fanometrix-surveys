@@ -132,7 +132,10 @@ export default function CampaignsPage() {
             <p className="text-sm text-gray-400 mt-0.5">{campaigns.length} campaign{campaigns.length !== 1 ? "s" : ""}</p>
           </div>
           <button onClick={openCreate}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors">
+            className="text-sm font-semibold px-4 py-2 rounded-lg transition-colors"
+            style={{ background: "#D7B87A", color: "#0B1929" }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#C9A766"; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "#D7B87A"; }}>
             + Create Campaign
           </button>
         </div>
@@ -287,7 +290,10 @@ export default function CampaignsPage() {
             <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-3">
               <button onClick={() => setDrawerOpen(false)} className="text-sm text-gray-500 px-4 py-2">Cancel</button>
               <button onClick={handleSave} disabled={saving}
-                className="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-5 py-2 rounded-lg disabled:opacity-60">
+                className="text-sm font-semibold px-5 py-2 rounded-lg disabled:opacity-60"
+                style={{ background: "#D7B87A", color: "#0B1929" }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#C9A766"; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "#D7B87A"; }}>
                 {saving ? "Saving…" : "Save Campaign"}
               </button>
             </div>

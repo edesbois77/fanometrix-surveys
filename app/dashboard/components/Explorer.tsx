@@ -367,7 +367,10 @@ export function ResponseExplorer({ responses }: { responses: SurveyResponse[] })
           <button
             onClick={exportCSV}
             disabled={filtered.length === 0}
-            className="text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-3 py-1.5 rounded-lg transition-colors disabled:opacity-40"
+            className="text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors disabled:opacity-40"
+            style={{ background: "#D7B87A", color: "#0B1929" }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#C9A766"; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "#D7B87A"; }}
           >
             Export CSV
           </button>

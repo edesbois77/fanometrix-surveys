@@ -112,7 +112,7 @@ export default function EmbedGeneratorPage() {
     `  width="300" height="250"`,
     `  frameborder="0" scrolling="no"`,
     `  style="border:0;overflow:hidden;display:block;"`,
-    `  title="Fanometrix Pulse Fan Survey"`,
+    `  title="Fanometrix Fan Survey"`,
     `></iframe>`,
   ].join("\n");
 

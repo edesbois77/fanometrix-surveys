@@ -1,8 +1,8 @@
 import Link from "next/link";
 
-export const metadata = { title: "Publisher Integration Guide – Fanometrix Pulse" };
+export const metadata = { title: "Publisher Integration Guide – Fanometrix" };
 
-const CODE = `<!-- Fanometrix Pulse MPU (300x250) — Google Ad Manager -->
+const CODE = `<!-- Fanometrix MPU (300x250) — Google Ad Manager -->
 <iframe
   src="https://fanometrix-surveys.vercel.app/embed
     ?campaign=YOUR_CAMPAIGN_ID
@@ -13,7 +13,7 @@ const CODE = `<!-- Fanometrix Pulse MPU (300x250) — Google Ad Manager -->
   width="300" height="250" frameborder="0"
   scrolling="no"
   style="border:0;overflow:hidden;display:block;"
-  title="Fanometrix Pulse Fan Survey"
+  title="Fanometrix Fan Survey"
 ></iframe>`;
 
 const MACROS: [string, string, string][] = [
@@ -31,13 +31,13 @@ export default function PublisherGuidePage() {
         <Link href="/dashboard" className="text-indigo-500 text-sm hover:underline">← Dashboard</Link>
 
         <h1 className="text-3xl font-bold text-gray-900 mt-6 mb-2">Publisher Integration Guide</h1>
-        <p className="text-sm text-gray-400 mb-8">Fanometrix Pulse · Version 1.0 · June 2026</p>
+        <p className="text-sm text-gray-400 mb-8">Fanometrix · Version 1.0 · June 2026</p>
 
         <div className="space-y-8 text-gray-700 text-sm leading-relaxed">
 
           <section>
             <h2 className="text-lg font-semibold text-gray-900 mb-2">Overview</h2>
-            <p>Fanometrix Pulse delivers fan sentiment surveys as standard 300×250 MPU creatives. They are trafficked as third-party iframe or script-tag HTML creatives within your ad server.</p>
+            <p>Fanometrix delivers fan sentiment surveys as standard 300×250 MPU creatives. They are trafficked as third-party iframe or script-tag HTML creatives within your ad server.</p>
             <p className="mt-2">Surveys are typically 3 questions with radio-button answers and take under 60 seconds to complete. Responses are stored anonymously — no personal data is collected.</p>
           </section>
 
@@ -133,7 +133,7 @@ export default function PublisherGuidePage() {
 
           <section>
             <h2 className="text-lg font-semibold text-gray-900 mb-3">Privacy &amp; compliance</h2>
-            <p>Fanometrix Pulse collects only anonymous, non-personal data. No consent mechanism is required from respondents. See the full <Link href="/privacy" className="text-indigo-600 hover:underline">Privacy Policy</Link> for detail.</p>
+            <p>Fanometrix collects only anonymous, non-personal data. No consent mechanism is required from respondents. See the full <Link href="/privacy" className="text-indigo-600 hover:underline">Privacy Policy</Link> for detail.</p>
           </section>
 
           <section>
@@ -144,7 +144,7 @@ export default function PublisherGuidePage() {
         </div>
 
         <p className="text-xs text-gray-400 mt-10 pt-6 border-t border-gray-200">
-          Fanometrix Pulse · Publisher Integration Guide v1.0
+          Fanometrix · Publisher Integration Guide v1.0
         </p>
       </div>
     </main>

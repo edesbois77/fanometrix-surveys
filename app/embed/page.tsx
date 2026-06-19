@@ -280,7 +280,7 @@ function EmbedSurvey() {
       <div style={S.header}>
         <div style={S.logo}>
           <span style={S.dot} />
-          Fanometrix Pulse
+          Fanometrix
         </div>
         <span style={S.step}>{step + 1} of {QUESTIONS.length}</span>
       </div>

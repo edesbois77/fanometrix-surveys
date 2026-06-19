@@ -93,7 +93,7 @@ export default function SurveyPage() {
         className="bg-white rounded-2xl shadow-md p-8 max-w-xl w-full space-y-8"
       >
         <div>
-          <h1 className="text-3xl font-bold text-indigo-700">Fanometrix Pulse</h1>
+          <h1 className="text-3xl font-bold" style={{ color: "#0B1929" }}>Fanometrix</h1>
           <p className="mt-1 text-gray-500 text-sm">
             Your feedback helps us improve the fan experience. Takes 60 seconds.
           </p>
@@ -149,7 +149,10 @@ export default function SurveyPage() {
         <button
           type="submit"
           disabled={status === "submitting"}
-          className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 rounded-xl transition-colors disabled:opacity-60"
+          className="w-full font-semibold py-3 rounded-xl transition-colors disabled:opacity-60"
+          style={{ background: "#D7B87A", color: "#0B1929" }}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#C9A766"; }}
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "#D7B87A"; }}
         >
           {status === "submitting" ? "Submitting…" : "Submit your response"}
         </button>
