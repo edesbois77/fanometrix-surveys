@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { HowItWorksSection } from "./HowItWorksSection";
+import { NavHeader } from "./NavHeader";
 
 export const metadata = {
   title: "Publisher Hub – Fanometrix",
@@ -302,23 +303,7 @@ export default function PublisherHubPage() {
     <div style={{ fontFamily: "system-ui, -apple-system, sans-serif", minHeight: "100vh", background: "#fff" }}>
 
       {/* ── Navigation ───────────────────────────────────────────────────────── */}
-      <header style={{ background: "rgba(11,25,41,0.82)", backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)", position: "sticky", top: 0, zIndex: 40, borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
-        <div style={{ maxWidth: 1100, margin: "0 auto", padding: "0 24px", height: 60, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <Link href="/"><img src="/Fanometrix_Logo.png" alt="Fanometrix" style={{ height: 18, objectFit: "contain", display: "block" }} /></Link>
-          </div>
-          <nav style={{ display: "flex", alignItems: "center", gap: 24 }}>
-            <a href="#how-it-works" style={{ color: "rgba(255,255,255,0.7)", fontSize: 13, textDecoration: "none" }}>How it works</a>
-            <a href="#privacy"      style={{ color: "rgba(255,255,255,0.7)", fontSize: 13, textDecoration: "none" }}>Privacy</a>
-            <a href="#technical"    style={{ color: "rgba(255,255,255,0.7)", fontSize: 13, textDecoration: "none" }}>Technical</a>
-            <a href="#contact"
-              style={{ background: G, color: N, fontSize: 12, fontWeight: 700, padding: "7px 16px", borderRadius: 20, textDecoration: "none" }}>
-              Get in touch
-            </a>
-          </nav>
-        </div>
-      </header>
+      <NavHeader />
 
       {/* ── 1. HERO ──────────────────────────────────────────────────────────── */}
       <div style={{ background: N, padding: "48px 24px 64px" }}>
