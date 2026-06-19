@@ -202,9 +202,10 @@ export default function CampaignsPage() {
     if (!editing.campaign_id?.trim())  { setError("Campaign ID is required.");   return; }
     setError(""); setSaving(true);
 
-    // Strip joined fields before sending to API
+    // Strip computed/joined fields — not DB columns, Supabase rejects them
     const {
       surveys: _s, effective_status: _es, response_count: _rc,
+      status_reason: _sr, is_auto_transition: _iat,
       ...payload
     } = editing as Campaign;
 
