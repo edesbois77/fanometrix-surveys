@@ -3,7 +3,7 @@ import { supabase } from "@/lib/supabase";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { requireSession } from "@/lib/auth";
 import {
-  computeEffectiveStatus,
+  computeStatusWithReason,
   ACTION_NOTIFICATIONS,
   type CampaignForStatus,
 } from "@/lib/campaign-status";
@@ -45,11 +45,12 @@ export async function GET(req: NextRequest) {
   const enriched = await Promise.all(
     (campaigns ?? []).map(async (c) => {
       const responseCount = statsMap[c.campaign_id] ?? 0;
-      const effective = computeEffectiveStatus(c as CampaignForStatus, responseCount, now);
+      const detail = computeStatusWithReason(c as CampaignForStatus, responseCount, now);
+      const { effective, reason, isAutoTransition } = detail;
 
       // Persist auto-transition if stored status differs from computed
       if (
-        c.status !== effective &&
+        isAutoTransition &&
         c.status !== "draft" &&
         c.status !== "archived" &&
         c.manual_status_override !== "paused"
@@ -59,7 +60,6 @@ export async function GET(req: NextRequest) {
           .update({ status: effective, status_updated_at: now.toISOString() })
           .eq("id", c.id);
 
-        // Create notification for meaningful auto-transitions
         const notifType =
           effective === "live"     ? "went_live"  :
           effective === "closed"   ? "closed"     :
@@ -81,7 +81,13 @@ export async function GET(req: NextRequest) {
         }
       }
 
-      return { ...c, effective_status: effective, response_count: responseCount };
+      return {
+        ...c,
+        effective_status:    effective,
+        status_reason:       reason,          // human-readable reason for effective status
+        is_auto_transition:  isAutoTransition, // stored !== effective
+        response_count:      responseCount,
+      };
     })
   );
 

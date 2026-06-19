@@ -25,6 +25,8 @@ type Campaign = {
   publishers: string[];
   status: string;
   effective_status: CampaignStatus;
+  status_reason: string | null;
+  is_auto_transition: boolean;
   response_count: number;
   target_responses: number | null;
   archive_after_days: number;
@@ -117,6 +119,13 @@ function CampaignProgress({ c }: { c: Campaign }) {
           {daysLeft > 0
             ? `${daysLeft} day${daysLeft !== 1 ? "s" : ""} remaining`
             : "Ending today"}
+        </p>
+      )}
+      {/* Auto-close / auto-transition reason — shown directly on the card */}
+      {c.is_auto_transition && c.status_reason && (
+        <p className="text-xs text-red-500 flex items-center gap-1 mt-1">
+          <span>🔴</span>
+          <span>{c.status_reason}</span>
         </p>
       )}
     </div>
@@ -329,12 +338,22 @@ export default function CampaignsPage() {
                       >
                         Edit
                       </button>
-                      <button
-                        onClick={() => handleDelete(c.id)}
-                        className="text-xs border border-red-100 text-red-400 hover:bg-red-50 px-3 py-1.5 rounded-lg"
-                      >
-                        Delete
-                      </button>
+                      {/* Delete only available for Draft/Scheduled with zero responses */}
+                      {(c.status === "draft" || c.status === "scheduled") && c.response_count === 0 ? (
+                        <button
+                          onClick={() => handleDelete(c.id)}
+                          className="text-xs border border-red-100 text-red-400 hover:bg-red-50 px-3 py-1.5 rounded-lg"
+                        >
+                          Delete
+                        </button>
+                      ) : (
+                        <span
+                          title="Campaigns with responses cannot be deleted to preserve reporting integrity."
+                          className="text-xs border border-gray-100 text-gray-300 px-3 py-1.5 rounded-lg cursor-not-allowed select-none"
+                        >
+                          Delete
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>

@@ -9,11 +9,17 @@ export async function DELETE(req: NextRequest) {
     return err as Response;
   }
 
+  // Optional: scope deletion to a specific campaign (used by the traffic simulator cleanup)
+  const campaignId = req.nextUrl.searchParams.get("campaign_id");
+
   // Step 1: count demo rows before delete
-  const { count: beforeCount, error: beforeError } = await supabase
+  let countQuery = supabase
     .from("responses")
     .select("*", { count: "exact", head: true })
     .eq("is_demo", true);
+  if (campaignId) countQuery = countQuery.eq("campaign_id", campaignId);
+
+  const { count: beforeCount, error: beforeError } = await countQuery;
 
   if (beforeError) {
     console.error("Demo delete – pre-count error:", beforeError);
@@ -23,11 +29,12 @@ export async function DELETE(req: NextRequest) {
   console.log(`Demo delete – rows before delete: ${beforeCount}`);
 
   // Step 2: execute delete (RLS policy "Anyone can delete demo rows" permits this)
-  const { data, error, count } = await supabase
+  let deleteQuery = supabase
     .from("responses")
     .delete({ count: "exact" })
-    .eq("is_demo", true)
-    .select();
+    .eq("is_demo", true);
+  if (campaignId) deleteQuery = deleteQuery.eq("campaign_id", campaignId);
+  const { data, error, count } = await deleteQuery.select();
 
   console.log({ error, count, deletedRows: data?.length });
 
@@ -37,10 +44,12 @@ export async function DELETE(req: NextRequest) {
   }
 
   // Step 3: recount to verify
-  const { count: afterCount, error: afterError } = await supabase
+  let afterQuery = supabase
     .from("responses")
     .select("*", { count: "exact", head: true })
     .eq("is_demo", true);
+  if (campaignId) afterQuery = afterQuery.eq("campaign_id", campaignId);
+  const { count: afterCount, error: afterError } = await afterQuery;
 
   if (afterError) {
     console.error("Demo delete – post-count error:", afterError);
@@ -50,7 +59,7 @@ export async function DELETE(req: NextRequest) {
 
   const deleted = (beforeCount ?? 0) - (afterCount ?? 0);
 
-  if (deleted === 0) {
+  if (deleted === 0 && (beforeCount ?? 0) > 0) {
     const msg =
       `Delete ran but removed 0 rows (before: ${beforeCount}, after: ${afterCount}). ` +
       "Check RLS policies on the responses table.";
@@ -58,5 +67,5 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 
-  return NextResponse.json({ deleted });
+  return NextResponse.json({ deleted: deleted > 0 ? deleted : 0 });
 }
