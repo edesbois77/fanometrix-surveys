@@ -14,6 +14,12 @@ const STEPS = [
   { n: "06", label: "Insights Shared",               desc: "Reports and benchmarks are shared with brands, publishers and partners." },
 ];
 
+// Title height: longest title is 3 lines at 14px/1.3 ≈ 55px
+const TITLE_HEIGHT = 58;
+// Desc height: longest desc fits in 4 lines at 12px/1.6 ≈ 77px
+const DESC_HEIGHT  = 80;
+const CARD_W       = 160;
+
 export function HowItWorksSection() {
   const [visible, setVisible] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -31,15 +37,20 @@ export function HowItWorksSection() {
 
   return (
     <section id="how-it-works" style={{ background: "#F9FAFB", padding: "80px 24px" }}>
-      {/* Hover + step-number colour CSS */}
       <style>{`
         .fm-step-card {
           transition: transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease;
           will-change: transform;
         }
+        /* Extra padding-top on scroll wrapper ensures the lifted card top border stays visible */
+        .fm-step-scroll {
+          overflow-x: auto;
+          overflow-y: visible;
+          padding: 12px 0 8px;
+        }
         .fm-step-card:hover {
           transform: translateY(-6px);
-          box-shadow: 0 16px 48px rgba(11,25,41,0.13);
+          box-shadow: 0 16px 40px rgba(11,25,41,0.12);
           border-color: ${G} !important;
         }
         .fm-step-num {
@@ -50,10 +61,10 @@ export function HowItWorksSection() {
         }
       `}</style>
 
-      <div style={{ maxWidth: 1100, margin: "0 auto" }}>
+      <div style={{ maxWidth: 1200, margin: "0 auto" }}>
 
         {/* Header */}
-        <div style={{ textAlign: "center", marginBottom: 56 }}>
+        <div style={{ textAlign: "center", marginBottom: 52 }}>
           <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase" as const, color: G, marginBottom: 12 }}>
             Process
           </p>
@@ -62,85 +73,96 @@ export function HowItWorksSection() {
           </h2>
         </div>
 
-        {/* Step cards + connectors — nowrap, scrollable on mobile */}
-        <div style={{ overflowX: "auto", paddingBottom: 4 }}>
+        {/* Scroll wrapper — overflow-y: visible so lifted card border isn't clipped */}
+        <div className="fm-step-scroll">
           <div
             ref={containerRef}
-            style={{ display: "flex", flexWrap: "nowrap", alignItems: "stretch", justifyContent: "center", gap: 0, minWidth: "max-content" }}
+            style={{
+              display: "flex",
+              flexWrap: "nowrap",
+              alignItems: "stretch",
+              justifyContent: "center",
+              gap: 0,
+              minWidth: "max-content",
+            }}
           >
             {STEPS.map((step, i) => {
               const delay = i * 0.12;
               return (
                 <div key={step.n} style={{ display: "flex", alignItems: "center" }}>
 
-                  {/* Entry animation wrapper */}
+                  {/* Entry animation wrapper — overflow visible so border shows when card lifts */}
                   <div style={{
-                    opacity:   visible ? 1 : 0,
-                    transform: visible ? "translateY(0)" : "translateY(22px)",
+                    opacity:    visible ? 1 : 0,
+                    transform:  visible ? "translateY(0)" : "translateY(20px)",
                     transition: `opacity 0.55s ease ${delay}s, transform 0.55s ease ${delay}s`,
-                    height: "100%",
-                    display: "flex",
+                    overflow:   "visible",
+                    display:    "flex",
+                    height:     "100%",
                   }}>
-                    {/* Hover card — fixed size so all six are identical */}
                     <div
                       className="fm-step-card"
                       style={{
-                        background: "#fff",
-                        border: "1px solid #E5E7EB",
-                        borderRadius: 16,
-                        padding: "22px 18px",
-                        width: 140,
-                        height: 172,
-                        boxShadow: "0 2px 8px rgba(11,25,41,0.05)",
-                        display: "flex",
+                        background:    "#fff",
+                        border:        "1px solid #E5E7EB",
+                        borderRadius:  16,
+                        padding:       "22px 20px",
+                        width:         CARD_W,
+                        boxShadow:     "0 2px 8px rgba(11,25,41,0.05)",
+                        display:       "flex",
                         flexDirection: "column",
-                        boxSizing: "border-box",
+                        boxSizing:     "border-box",
                       }}
                     >
+                      {/* Step number — fixed height row */}
                       <p
                         className="fm-step-num"
                         style={{ fontSize: 11, fontWeight: 700, color: N, letterSpacing: "0.08em", marginBottom: 10, flexShrink: 0 }}
                       >
                         {step.n}
                       </p>
-                      <p style={{ fontSize: 13, fontWeight: 700, color: N, lineHeight: 1.3, marginBottom: 8, flexShrink: 0 }}>
-                        {step.label}
-                      </p>
-                      <p style={{ fontSize: 11, color: "#9CA3AF", lineHeight: 1.5, margin: 0 }}>
-                        {step.desc}
-                      </p>
+
+                      {/* Title — fixed height so all titles end at the same line */}
+                      <div style={{ height: TITLE_HEIGHT, flexShrink: 0, overflow: "hidden" }}>
+                        <p style={{ fontSize: 13, fontWeight: 700, color: N, lineHeight: 1.35, margin: 0 }}>
+                          {step.label}
+                        </p>
+                      </div>
+
+                      {/* Divider */}
+                      <div style={{ height: 1, background: "#F3F4F6", margin: "10px 0", flexShrink: 0 }} />
+
+                      {/* Description — fixed height so all desc start at the same line */}
+                      <div style={{ height: DESC_HEIGHT, overflow: "hidden" }}>
+                        <p style={{ fontSize: 11, color: "#9CA3AF", lineHeight: 1.6, margin: 0 }}>
+                          {step.desc}
+                        </p>
+                      </div>
                     </div>
                   </div>
 
-                {/* Connector: gold line + enlarged arrow */}
-                {i < STEPS.length - 1 && (
-                  <div style={{
-                    display: "flex",
-                    alignItems: "center",
-                    flexShrink: 0,
-                    opacity:   visible ? 1 : 0,
-                    transition: `opacity 0.55s ease ${delay + 0.08}s`,
-                  }}>
-                    <div style={{ width: 12, height: 1.5, background: G, opacity: 0.55 }} />
-                    <span style={{ color: G, fontSize: 24, lineHeight: 1, padding: "0 1px" }}>›</span>
-                    <div style={{ width: 12, height: 1.5, background: G, opacity: 0.55 }} />
-                  </div>
-                )}
-              </div>
-            );
-          })}
+                  {/* Connector */}
+                  {i < STEPS.length - 1 && (
+                    <div style={{
+                      display:    "flex",
+                      alignItems: "center",
+                      flexShrink: 0,
+                      opacity:    visible ? 1 : 0,
+                      transition: `opacity 0.55s ease ${delay + 0.08}s`,
+                    }}>
+                      <div style={{ width: 10, height: 1.5, background: G, opacity: 0.5 }} />
+                      <span style={{ color: G, fontSize: 24, lineHeight: 1, padding: "0 1px" }}>›</span>
+                      <div style={{ width: 10, height: 1.5, background: G, opacity: 0.5 }} />
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
 
         {/* Caption */}
-        <p style={{
-          textAlign: "center",
-          marginTop: 40,
-          fontSize: 14,
-          color: "#9CA3AF",
-          fontStyle: "italic",
-          letterSpacing: "0.01em",
-        }}>
+        <p style={{ textAlign: "center", marginTop: 36, fontSize: 14, color: "#9CA3AF", fontStyle: "italic" }}>
           From deployment to insight generation in six simple steps.
         </p>
       </div>
