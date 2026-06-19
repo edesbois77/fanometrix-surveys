@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { HowItWorksSection } from "./HowItWorksSection";
 
 export const metadata = {
   title: "Publisher Hub – Fanometrix",
@@ -24,7 +25,6 @@ const PARTNERS: { name: string; slug: string }[] = [
   { name: "Futbin",           slug: "futbin"           },
   { name: "Sofascore",        slug: "sofascore"        },
   { name: "Snack Media",      slug: "snack-media"      },
-  { name: "Publisher Partner",slug: "publisher-partner"},
 ];
 
 // ─── Data ─────────────────────────────────────────────────────────────────────
@@ -45,14 +45,6 @@ const BENEFITS = [
   { icon: "🌍", title: "Global Scalability",             body: "Run surveys across multiple markets and languages with a single implementation." },
 ];
 
-const STEPS = [
-  { n: "01", label: "Create Campaign",                desc: "Admin creates a campaign with survey, publishers and targeting." },
-  { n: "02", label: "Generate Deployment Tag",        desc: "A unique iframe or script tag is generated for the campaign." },
-  { n: "03", label: "Publisher Traffics MPU",         desc: "Tag is trafficked as a standard HTML creative in your ad server." },
-  { n: "04", label: "Anonymous Responses Collected",  desc: "Fans complete the 3-question survey. No personal data is stored." },
-  { n: "05", label: "Real-Time Reporting",            desc: "Responses appear in the Fanometrix dashboard immediately." },
-  { n: "06", label: "Insights Shared",                desc: "Reports and benchmarks are shared with brands, publishers and partners." },
-];
 
 const COLLECTED = [
   { field: "Survey Answer",     example: "Likely",           personal: false },
@@ -552,28 +544,7 @@ export default function PublisherHubPage() {
       </Section>
 
       {/* ── 3. HOW IT WORKS ──────────────────────────────────────────────────── */}
-      <section id="how-it-works" style={{ background: "#F9FAFB", padding: "80px 24px" }}>
-        <div style={{ maxWidth: 1100, margin: "0 auto" }}>
-          <div style={{ textAlign: "center", marginBottom: 56 }}>
-            <SectionLabel>Process</SectionLabel>
-            <SectionTitle>How it works</SectionTitle>
-          </div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 0, alignItems: "stretch", justifyContent: "center" }}>
-            {STEPS.map((step, i) => (
-              <div key={step.n} style={{ display: "flex", alignItems: "center", flexShrink: 0 }}>
-                <div style={{ background: "#fff", border: "1px solid #E5E7EB", borderRadius: 16, padding: "24px 22px", width: 160, boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}>
-                  <p style={{ fontSize: 11, fontWeight: 700, color: G, letterSpacing: "0.08em", marginBottom: 10 }}>{step.n}</p>
-                  <p style={{ fontSize: 13, fontWeight: 700, color: N, lineHeight: 1.3, marginBottom: 8 }}>{step.label}</p>
-                  <p style={{ fontSize: 11, color: "#9CA3AF", lineHeight: 1.5 }}>{step.desc}</p>
-                </div>
-                {i < STEPS.length - 1 && (
-                  <div style={{ padding: "0 6px", color: G, fontSize: 20, flexShrink: 0 }}>›</div>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
+      <HowItWorksSection />
 
       {/* ── 4. PRODUCT DEMO ──────────────────────────────────────────────────── */}
       <Section id="demo">
