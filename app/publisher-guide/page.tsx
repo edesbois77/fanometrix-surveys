@@ -372,6 +372,71 @@ export default function PublisherHubPage() {
         </div>
       </div>
 
+      {/* ── 1b. SCALE & TRUST ────────────────────────────────────────────────── */}
+      <section style={{ background: "#fff", padding: "72px 24px" }}>
+        <div style={{ maxWidth: 1100, margin: "0 auto" }}>
+          <style>{`
+            .fm-metric-card {
+              transition: transform 0.2s ease, box-shadow 0.2s ease;
+            }
+            .fm-metric-card:hover {
+              transform: translateY(-4px);
+              box-shadow: 0 12px 40px rgba(11,25,41,0.10);
+            }
+          `}</style>
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+            gap: 20,
+          }}>
+            {[
+              { value: "300M+", label: "Monthly football fans reachable" },
+              { value: "190+",  label: "Markets supported"               },
+              { value: "<60s",  label: "Average survey completion"       },
+              { value: "100%",  label: "Anonymous responses"             },
+            ].map(({ value, label }) => (
+              <div
+                key={label}
+                className="fm-metric-card"
+                style={{
+                  background: "#fff",
+                  border: "1px solid #E5E7EB",
+                  borderRadius: 20,
+                  padding: "36px 28px 32px",
+                  textAlign: "center",
+                  boxShadow: "0 2px 8px rgba(11,25,41,0.05)",
+                }}
+              >
+                {/* Gold accent line */}
+                <div style={{
+                  width: 32, height: 3, background: G,
+                  borderRadius: 2, margin: "0 auto 20px",
+                }} />
+                <p style={{
+                  fontSize: "clamp(32px, 5vw, 44px)",
+                  fontWeight: 800,
+                  color: N,
+                  lineHeight: 1,
+                  letterSpacing: "-0.02em",
+                  marginBottom: 12,
+                }}>
+                  {value}
+                </p>
+                <p style={{
+                  fontSize: 14,
+                  color: "#6B7280",
+                  lineHeight: 1.5,
+                  maxWidth: 160,
+                  margin: "0 auto",
+                }}>
+                  {label}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* ── 2. WHY PARTNER ───────────────────────────────────────────────────── */}
       <Section>
         <div style={{ textAlign: "center", marginBottom: 56 }}>
@@ -590,7 +655,7 @@ export default function PublisherHubPage() {
           <SectionLabel>Compliance</SectionLabel>
           <SectionTitle>Privacy by Design</SectionTitle>
           <p style={{ fontSize: 16, color: "#6B7280", lineHeight: 1.7, maxWidth: 560, margin: "0 auto" }}>
-            Fanometrix has been built specifically to minimise privacy risk. No consent banner is required.
+            Fanometrix has been intentionally designed to minimise privacy risk and collect anonymous, non-identifiable responses only. Publishers should assess implementation within their own legal and privacy frameworks.
           </p>
         </div>
 
