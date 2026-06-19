@@ -98,8 +98,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
         {/* Footer: links + user / logout */}
         <div className="px-3 py-4 space-y-0.5" style={{ borderTop: "1px solid rgba(255,255,255,0.08)" }}>
           {[
-            { href: "/privacy",       label: "ⓘ Privacy Policy"  },
-            { href: "/publisher-hub", label: "☰ Publisher Hub"   },
+            { href: "/privacy", label: "ⓘ Privacy Policy" },
           ].map(({ href, label }) => (
             <Link
               key={href}
