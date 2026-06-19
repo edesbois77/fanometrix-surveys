@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 
-const NAVY = "#0B1929";
+const NAVY = "#071B2F";
 const GOLD = "#D7B87A";
 
 const QUESTIONS = [
@@ -24,27 +24,34 @@ const QUESTIONS = [
   },
 ];
 
-const PRIVACY_SLIDES = [
+type Bullet = { text: string; highlight?: boolean };
+
+const PRIVACY_SLIDES: Array<{
+  title: string;
+  text: string | null;
+  bullets: Bullet[] | null;
+}> = [
   {
     title: "About Fanometrix",
-    text: "Fanometrix delivers short fan sentiment surveys inside digital media placements on behalf of sports clubs, rights holders, and their media partners.",
-    bullets: null as string[] | null,
+    text: "Fanometrix runs short anonymous football fan surveys on behalf of clubs, competitions and media partners.",
+    bullets: null,
   },
   {
     title: "What we collect",
-    text: null as string | null,
+    text: null,
     bullets: [
-      "Multiple-choice survey answers only",
-      "Country — country level only, via ad server",
-      "Device type and browser",
-      "Time taken to complete",
-      "No names, emails, IPs, or cookies — ever",
+      { text: "Multiple-choice survey answers only" },
+      { text: "Country, country level only, via ad server" },
+      { text: "Device type and browser" },
+      { text: "Time taken to complete" },
+      { text: "No names, emails, IPs or cookies, ever", highlight: true },
     ],
   },
   {
-    title: "Your rights",
-    text: "We collect no data that can identify you. Responses feed aggregated fan insight reports only — no individual is profiled or targeted. Questions? Email privacy@fanometrix.com",
-    bullets: null as string[] | null,
+    // Slide 3 is rendered as a special centred layout — title/text/bullets unused
+    title: "",
+    text: null,
+    bullets: null,
   },
 ];
 
@@ -78,6 +85,7 @@ function detectBrowser(): string {
 }
 
 // ─── Privacy modal ──────────────────────────────────────────────────────────
+// Layout: header 40px + content flex:1 (174px) + nav 36px = 250px
 
 function PrivacyModal({
   slide,
@@ -88,7 +96,7 @@ function PrivacyModal({
   onClose: () => void;
   onNav: (dir: -1 | 1) => void;
 }) {
-  const s = PRIVACY_SLIDES[slide];
+  const s      = PRIVACY_SLIDES[slide];
   const isFirst = slide === 0;
   const isLast  = slide === PRIVACY_SLIDES.length - 1;
 
@@ -140,38 +148,124 @@ function PrivacyModal({
       </div>
 
       {/* Slide content — flex:1 = 174px */}
-      <div
-        style={{
-          flex: 1,
-          padding: "10px 14px 6px",
-          overflow: "hidden",
-          display: "flex",
-          flexDirection: "column",
-          gap: 7,
-          minHeight: 0,
-        }}
-      >
-        <p style={{ color: NAVY, fontSize: 11.5, fontWeight: 700, margin: 0, flexShrink: 0 }}>
-          {s.title}
-        </p>
-
-        {s.text && (
-          <p style={{ color: "#374151", fontSize: 9.5, lineHeight: 1.5, margin: 0 }}>
-            {s.text}
+      {slide === 2 ? (
+        /* ── Slide 3: centred redesign ── */
+        <div
+          style={{
+            flex: 1,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "10px 20px",
+            textAlign: "center",
+            gap: 7,
+            minHeight: 0,
+            overflow: "hidden",
+          }}
+        >
+          <div style={{ fontSize: 24, lineHeight: 1, flexShrink: 0 }}>🛡️</div>
+          <p
+            style={{
+              color: NAVY,
+              fontSize: 10.5,
+              fontWeight: 700,
+              lineHeight: 1.3,
+              margin: 0,
+              flexShrink: 0,
+            }}
+          >
+            Your responses cannot identify you
           </p>
-        )}
+          <p style={{ color: "#4B5563", fontSize: 9.5, lineHeight: 1.45, margin: 0 }}>
+            Responses are analysed in aggregate and cannot be linked back to individuals.
+          </p>
+          <p style={{ color: "#6B7280", fontSize: 9, margin: 0, lineHeight: 1.5 }}>
+            Questions?{" "}
+            <a
+              href="mailto:privacy@fanometrix.com"
+              style={{ color: GOLD, textDecoration: "none", fontWeight: 600 }}
+            >
+              privacy@fanometrix.com
+            </a>
+          </p>
+          <a
+            href="/privacy"
+            target="_blank"
+            rel="noopener"
+            style={{
+              display: "inline-block",
+              marginTop: 2,
+              background: NAVY,
+              color: GOLD,
+              fontSize: 9.5,
+              fontWeight: 700,
+              padding: "5px 16px",
+              borderRadius: 20,
+              textDecoration: "none",
+              letterSpacing: "0.02em",
+            }}
+          >
+            Privacy Policy →
+          </a>
+        </div>
+      ) : (
+        /* ── Slides 1 & 2: standard layout ── */
+        <div
+          style={{
+            flex: 1,
+            padding: "10px 14px 6px",
+            overflow: "hidden",
+            display: "flex",
+            flexDirection: "column",
+            gap: 7,
+            minHeight: 0,
+          }}
+        >
+          <p style={{ color: NAVY, fontSize: 11.5, fontWeight: 700, margin: 0, flexShrink: 0 }}>
+            {s.title}
+          </p>
 
-        {s.bullets && (
-          <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 5 }}>
-            {s.bullets.map((b) => (
-              <li key={b} style={{ display: "flex", gap: 6, alignItems: "flex-start" }}>
-                <span style={{ color: GOLD, fontSize: 8, marginTop: 2, flexShrink: 0 }}>●</span>
-                <span style={{ color: "#374151", fontSize: 9.5, lineHeight: 1.4 }}>{b}</span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
+          {s.text && (
+            <p style={{ color: "#374151", fontSize: 9.5, lineHeight: 1.5, margin: 0 }}>
+              {s.text}
+            </p>
+          )}
+
+          {s.bullets && (
+            <ul
+              style={{
+                margin: 0,
+                padding: 0,
+                listStyle: "none",
+                display: "flex",
+                flexDirection: "column",
+                gap: 5,
+              }}
+            >
+              {s.bullets.map((b) => (
+                <li key={b.text} style={{ display: "flex", gap: 6, alignItems: "flex-start" }}>
+                  <span
+                    style={{ color: GOLD, fontSize: 8, marginTop: 2, flexShrink: 0 }}
+                  >
+                    ●
+                  </span>
+                  <span
+                    style={{
+                      color: b.highlight ? GOLD : "#374151",
+                      fontSize: 9.5,
+                      lineHeight: 1.4,
+                      fontWeight: b.highlight ? 700 : 400,
+                    }}
+                  >
+                    {b.text}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
 
       {/* Nav footer — 36px */}
       <div
@@ -253,10 +347,18 @@ function AdHeader({ step, total }: { step?: number; total?: number }) {
       <img
         src="/Fanometrix_Logo.png"
         alt="Fanometrix"
-        style={{ height: 17, objectFit: "contain", objectPosition: "left" }}
+        style={{ height: 15, objectFit: "contain", objectPosition: "left" }}
       />
       {step !== undefined && total !== undefined && (
-        <span style={{ color: GOLD, fontSize: 10, fontWeight: 600, letterSpacing: "0.03em", flexShrink: 0 }}>
+        <span
+          style={{
+            color: GOLD,
+            fontSize: 10,
+            fontWeight: 600,
+            letterSpacing: "0.03em",
+            flexShrink: 0,
+          }}
+        >
           {step} of {total}
         </span>
       )}
@@ -265,6 +367,8 @@ function AdHeader({ step, total }: { step?: number; total?: number }) {
 }
 
 // ─── Main survey component ──────────────────────────────────────────────────
+// Outer frame: 300×250px
+// Header: 46px | Progress: 3px | Body: flex:1 (179px) | Footer: 22px
 
 function EmbedSurvey() {
   const params = useSearchParams();
@@ -289,17 +393,16 @@ function EmbedSurvey() {
     startRef.current = Date.now();
   }, []);
 
-  const [step,        setStep]        = useState(0);
-  const [answers,     setAnswers]     = useState<Record<string, string>>({});
-  const [status,      setStatus]      = useState<"idle" | "submitting" | "success" | "error">("idle");
-  const [advancing,   setAdvancing]   = useState(false);
-  const [showPrivacy, setShowPrivacy] = useState(false);
+  const [step,         setStep]         = useState(0);
+  const [answers,      setAnswers]      = useState<Record<string, string>>({});
+  const [status,       setStatus]       = useState<"idle" | "submitting" | "success" | "error">("idle");
+  const [advancing,    setAdvancing]    = useState(false);
+  const [showPrivacy,  setShowPrivacy]  = useState(false);
   const [privacySlide, setPrivacySlide] = useState(0);
 
   const q      = QUESTIONS[step];
   const isLast = step === QUESTIONS.length - 1;
 
-  // Progress percentage: 1-indexed step / total
   const progressPct = status === "success"
     ? 100
     : ((step + 1) / QUESTIONS.length) * 100;
@@ -355,7 +458,6 @@ function EmbedSurvey() {
   }
 
   return (
-    /* Outer frame — exactly 300×250, overflow hidden */
     <div
       style={{
         width: 300,
@@ -368,7 +470,6 @@ function EmbedSurvey() {
         position: "relative",
       }}
     >
-      {/* Privacy modal overlays both survey and thank-you states */}
       {showPrivacy && (
         <PrivacyModal
           slide={privacySlide}
@@ -384,15 +485,14 @@ function EmbedSurvey() {
       {status === "success" ? (
         /* ── Thank-you screen ─────────────────────────────────────────── */
         <>
-          {/* Header — 46px, no step counter */}
           <AdHeader />
 
-          {/* Progress bar — 100% gold — 3px */}
-          <div style={{ height: 3, minHeight: 3, background: `rgba(215,184,122,0.2)`, flexShrink: 0 }}>
+          {/* Progress bar — 100% */}
+          <div style={{ height: 3, minHeight: 3, background: "rgba(215,184,122,0.2)", flexShrink: 0 }}>
             <div style={{ height: "100%", width: "100%", background: GOLD }} />
           </div>
 
-          {/* Body — flex:1, navy background */}
+          {/* Body — navy, centred */}
           <div
             style={{
               flex: 1,
@@ -408,13 +508,15 @@ function EmbedSurvey() {
             }}
           >
             <div style={{ fontSize: 30, lineHeight: 1 }}>🎉</div>
-            <p style={{ color: "#fff", fontSize: 14, fontWeight: 700, margin: 0 }}>Thank you!</p>
-            <p style={{ color: "rgba(255,255,255,0.65)", fontSize: 10.5, margin: 0, lineHeight: 1.4 }}>
-              Your feedback has been recorded and will help improve the fan experience.
+            <p style={{ color: "#fff", fontSize: 14, fontWeight: 700, margin: 0 }}>
+              Thank you!
+            </p>
+            <p style={{ color: "rgba(255,255,255,0.78)", fontSize: 10.5, margin: 0, lineHeight: 1.4 }}>
+              Your anonymous feedback helps improve the football experience for fans everywhere.
             </p>
           </div>
 
-          {/* Thank-you footer — 22px, centred, #E0E1DD text */}
+          {/* Thank-you footer — "Powered by Fanometrix • Privacy" */}
           <div
             style={{
               height: 22,
@@ -422,14 +524,14 @@ function EmbedSurvey() {
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              gap: 10,
               background: NAVY,
               flexShrink: 0,
-              borderTop: "1px solid rgba(255,255,255,0.08)",
+              borderTop: "1px solid rgba(255,255,255,0.10)",
             }}
           >
-            <span style={{ color: "rgba(224,225,221,0.45)", fontSize: 8.5, letterSpacing: "0.05em" }}>
-              POWERED BY FANOMETRIX
+            <span style={{ color: "#8C9DB5", fontSize: 9, letterSpacing: "0.01em" }}>
+              Powered by Fanometrix{" "}
+              <span style={{ color: "#8C9DB5" }}>•</span>{" "}
             </span>
             <span
               onClick={openPrivacy}
@@ -437,23 +539,23 @@ function EmbedSurvey() {
               tabIndex={0}
               onKeyDown={(e) => e.key === "Enter" && openPrivacy()}
               style={{
-                color: "#E0E1DD",
-                fontSize: 8.5,
-                textDecoration: "underline",
+                color: GOLD,
+                fontSize: 9,
                 cursor: "pointer",
+                textDecoration: "underline",
+                textDecorationColor: "rgba(215,184,122,0.5)",
               }}
             >
-              ⓘ Privacy
+              Privacy
             </span>
           </div>
         </>
       ) : (
         /* ── Survey question screen ───────────────────────────────────── */
         <>
-          {/* Header — 46px */}
           <AdHeader step={step + 1} total={QUESTIONS.length} />
 
-          {/* Gold progress bar — 3px */}
+          {/* Gold progress bar */}
           <div style={{ height: 3, minHeight: 3, background: "rgba(215,184,122,0.2)", flexShrink: 0 }}>
             <div
               style={{
@@ -465,7 +567,7 @@ function EmbedSurvey() {
             />
           </div>
 
-          {/* Body — white, flex:1 = 179px, top-anchored, no gap */}
+          {/* Body — white, top-anchored */}
           <div
             style={{
               flex: 1,
@@ -478,7 +580,7 @@ function EmbedSurvey() {
               boxSizing: "border-box",
             }}
           >
-            {/* Fixed-height question area — exactly 2 lines (rule 3 & 10) */}
+            {/* Fixed two-line question container */}
             <div
               style={{
                 height: 33,
@@ -489,17 +591,33 @@ function EmbedSurvey() {
               }}
             >
               {status === "error" ? (
-                <p style={{ color: "#DC2626", fontSize: 10.5, fontWeight: 600, lineHeight: 1.35, margin: 0 }}>
+                <p
+                  style={{
+                    color: "#DC2626",
+                    fontSize: 10.5,
+                    fontWeight: 600,
+                    lineHeight: 1.35,
+                    margin: 0,
+                  }}
+                >
                   Something went wrong — tap an answer to try again.
                 </p>
               ) : (
-                <p style={{ color: NAVY, fontSize: 11.5, fontWeight: 700, lineHeight: 1.35, margin: 0 }}>
+                <p
+                  style={{
+                    color: NAVY,
+                    fontSize: 11.5,
+                    fontWeight: 700,
+                    lineHeight: 1.35,
+                    margin: 0,
+                  }}
+                >
                   {q.text}
                 </p>
               )}
             </div>
 
-            {/* Answer options — top-anchored, no flex:1 (rules 4 & 5) */}
+            {/* Answer options — top-anchored */}
             <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
               {q.options.map((opt) => {
                 const isSel = answers[q.id] === opt;
@@ -527,7 +645,6 @@ function EmbedSurvey() {
                       transition: "box-shadow 0.15s, background 0.15s",
                     }}
                   >
-                    {/* Radio icon */}
                     <div
                       style={{
                         width: 12,
@@ -540,7 +657,14 @@ function EmbedSurvey() {
                         transition: "background 0.15s, border-color 0.15s",
                       }}
                     />
-                    <span style={{ color: NAVY, fontSize: 10.5, fontWeight: 500, lineHeight: 1 }}>
+                    <span
+                      style={{
+                        color: NAVY,
+                        fontSize: 10.5,
+                        fontWeight: 500,
+                        lineHeight: 1,
+                      }}
+                    >
                       {opt}
                     </span>
                   </div>
@@ -549,7 +673,7 @@ function EmbedSurvey() {
             </div>
           </div>
 
-          {/* Privacy footer — dedicated band, 22px, top border (rules 6 & 7) */}
+          {/* Privacy footer — shield, higher contrast */}
           <div
             style={{
               height: 22,
@@ -557,9 +681,9 @@ function EmbedSurvey() {
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              background: "#F8F9FA",
+              background: "#EDEEF0",
               flexShrink: 0,
-              borderTop: "1.5px solid #E5E7EB",
+              borderTop: "1.5px solid #C9CDD6",
             }}
           >
             <span
@@ -568,13 +692,14 @@ function EmbedSurvey() {
               tabIndex={0}
               onKeyDown={(e) => e.key === "Enter" && openPrivacy()}
               style={{
-                color: "#6B7280",
+                color: "#374151",
                 fontSize: 9.5,
+                fontWeight: 500,
                 cursor: "pointer",
                 letterSpacing: "0.01em",
               }}
             >
-              ⓘ Anonymous insights. No personal information collected.
+              🛡 Anonymous insights • No personal data collected
             </span>
           </div>
         </>
