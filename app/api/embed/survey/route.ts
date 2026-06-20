@@ -14,6 +14,7 @@ export async function GET(req: NextRequest) {
     .from("surveys")
     .select("id, questions, thank_you_title, thank_you_body")
     .eq("id", id)
+    .neq("status", "deleted")  // soft-deleted surveys must not be served
     .single();
 
   if (error || !data) {

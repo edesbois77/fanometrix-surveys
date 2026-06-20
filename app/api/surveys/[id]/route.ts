@@ -54,9 +54,13 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         updated_at: now,
       };
       break;
-    default:
-      // Regular content edit — only draft/ready status editable this way
-      patch = { ...rest, updated_at: now };
+    default: {
+      // Regular content edit — status may only be set to draft or ready this way.
+      // Lifecycle transitions (archive, restore, delete) require an explicit _action.
+      const { status, ...contentRest } = rest as Record<string, unknown>;
+      const safeStatus = status === "draft" || status === "ready" ? status : undefined;
+      patch = { ...contentRest, ...(safeStatus ? { status: safeStatus } : {}), updated_at: now };
+    }
   }
 
   const { data, error } = await supabaseAdmin

@@ -11,7 +11,7 @@ import {
   type CampaignAction,
 } from "@/lib/campaign-status";
 
-type Survey = { id: string; name: string };
+type Survey = { id: string; name: string; status: string };
 type Campaign = {
   id: string;
   campaign_id: string;
@@ -447,7 +447,9 @@ export default function CampaignsPage() {
                   <select value={editing.survey_id ?? ""} onChange={e => setEditing(x => ({ ...x, survey_id: e.target.value || null }))}
                     className={INP}>
                     <option value="">None selected</option>
-                    {surveys.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                    {surveys
+                      .filter(s => s.status === "draft" || s.status === "ready")
+                      .map(s => <option key={s.id} value={s.id}>{s.name}{s.status === "draft" ? " (Draft)" : ""}</option>)}
                   </select>
                 </Field>
                 <Field label="Status">
