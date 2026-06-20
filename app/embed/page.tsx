@@ -87,14 +87,21 @@ function detectBrowser(): string {
 // ─── Privacy modal ──────────────────────────────────────────────────────────
 // Layout: header 40px + content flex:1 (174px) + nav 36px = 250px
 
+const SUPPORTED_LANGS = new Set(["en","de","fr","es","it","pt","sv","zh","hi"]);
+function resolvePrivacyLang(lang: string): string {
+  return SUPPORTED_LANGS.has(lang) ? lang : "en";
+}
+
 function PrivacyModal({
   slide,
   onClose,
   onNav,
+  lang = "en",
 }: {
   slide: number;
   onClose: () => void;
   onNav: (dir: -1 | 1) => void;
+  lang?: string;
 }) {
   const s      = PRIVACY_SLIDES[slide];
   const isFirst = slide === 0;
@@ -190,7 +197,7 @@ function PrivacyModal({
             </a>
           </p>
           <a
-            href="/privacy"
+            href={`/${resolvePrivacyLang(lang)}/privacy`}
             target="_blank"
             rel="noopener"
             style={{
@@ -377,6 +384,7 @@ function EmbedSurvey() {
 
   const campaign      = params.get("campaign")    ?? "default";
   const groupSlug     = params.get("group")       ?? null;
+  const lang          = params.get("lang")        ?? "en";
   const surveyId      = params.get("survey")      ?? null;
   const questionSetId = params.get("qset")        ?? null;
   const publisher     = params.get("publisher")   ?? null;
@@ -544,6 +552,7 @@ function EmbedSurvey() {
       {showPrivacy && (
         <PrivacyModal
           slide={privacySlide}
+          lang={lang}
           onClose={() => setShowPrivacy(false)}
           onNav={(dir) =>
             setPrivacySlide((s) =>

@@ -51,6 +51,11 @@ export async function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
+  // Localised privacy pages — /en/privacy, /de/privacy, /fr/privacy, etc.
+  if (/^\/[a-z]{2}\/privacy$/.test(pathname)) {
+    return NextResponse.next();
+  }
+
   // Public pages — only special-case /login to redirect logged-in users
   if (PUBLIC_PATHS.has(pathname)) {
     if (pathname === "/login") {

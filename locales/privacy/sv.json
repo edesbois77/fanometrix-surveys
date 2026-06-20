@@ -1,0 +1,72 @@
+{
+  "lang": "sv",
+  "langName": "Swedish",
+  "nativeName": "Svenska",
+  "title": "Integritetspolicy",
+  "subtitle": "Fanometrix integritetsmeddelande för fan-undersökningar",
+  "updated": "Senast uppdaterad: juni 2026",
+  "sections": [
+    {
+      "heading": "Vad är Fanometrix?",
+      "body": [
+        "Fanometrix är en fan intelligence-plattform som genomför korta, anonyma undersökningar på uppdrag av sportklubbar, tävlingar, varumärken och medieföretag. Undersökningarna levereras som inbäddade enheter i digitala medieplaceringar.",
+        "Vi är engagerade i att skydda integriteten för alla som deltar i våra undersökningar."
+      ]
+    },
+    {
+      "heading": "Vilka uppgifter vi samlar in",
+      "body": ["Vi samlar in endast de minimala uppgifter som krävs för att producera meningsfull fansinsikt:"],
+      "table": [
+        { "f": "Undersökningssvar (F1–F3)", "d": "Dina svar på flervalsfrågor" },
+        { "f": "Kampanj", "d": "Identifierar vilket varumärke eller vilken kampanj undersökningen tillhör" },
+        { "f": "Utgivare", "d": "Mediepartnern där undersökningen visades" },
+        { "f": "Placering", "d": "Positionen på sidan (t.ex. startsida-MPU)" },
+        { "f": "Klubb / Tävling", "d": "Fotbollsklubben eller tävlingen som undersökningen rör" },
+        { "f": "Land", "d": "Endast på landsnivå (t.ex. Sverige). Ingen stad, postnummer, GPS eller precis platsdata." },
+        { "f": "Enhetstyp", "d": "Mobil, surfplatta eller dator — härledd från din webbläsare" },
+        { "f": "Webbläsare", "d": "Chrome, Safari, Firefox, Edge eller Annan" },
+        { "f": "Svarstid", "d": "Antal sekunder det tog att fylla i undersökningen" },
+        { "f": "Tidsstämpel", "d": "Datum och ungefärlig tid för inlämningen" }
+      ]
+    },
+    {
+      "heading": "Vad vi INTE samlar in",
+      "body": [],
+      "list": [
+        "Namn, e-postadresser, telefonnummer eller annan kontaktinformation",
+        "Användar-ID, inloggningsuppgifter eller kontodata",
+        "Precis platsdata — GPS, stad, postnummer eller adress. Endast land.",
+        "IP-adresser — samlas inte in, lagras inte eller behålls inte av Fanometrix",
+        "Cookies, annons-ID eller bestående identifierare",
+        "Personlig information i fritext",
+        "Fanometrix samlar medvetet inte in information från barn under 16 år"
+      ]
+    },
+    {
+      "heading": "Varför vi samlar in dem",
+      "body": [
+        "Undersökningssvar samlas in för att producera aggregerade fansinsiktsrapporter för sportens rättighetsinnehavare och deras affärspartners. Ingen individ profileras, riktas mot eller identifieras från de data vi samlar in.",
+        "Data är anonyma — kombinationen av fält vi samlar in kan realistiskt sett inte användas för att identifiera en specifik person.",
+        "Informationen som samlas in av Fanometrix är avsiktligt begränsad till anonyma, icke-identifierbara undersökningssvar och är utformad för att minimera integritetsrisker."
+      ]
+    },
+    {
+      "heading": "Datalagring och bevarandetid",
+      "body": [
+        "Data lagras säkert i en databas som är värd i regionen EU Väst (London). Data bevaras i maximalt 36 månader från insamlingsdatum, varefter de raderas permanent och säkert. Åtkomst är begränsad till auktoriserade Fanometrix-administratörer."
+      ]
+    },
+    {
+      "heading": "Dina rättigheter",
+      "body": [
+        "Eftersom vi inte samlar in någon information som kan identifiera dig kan vi inte hitta, ändra eller radera en specifik persons svar. Om du har funderingar kring data som samlats in via en specifik undersökningsplacering, kontakta den utgivare som visade den.",
+        "Om du har frågor om våra integritetspraxis, tveka inte att kontakta oss direkt."
+      ]
+    }
+  ],
+  "contactHeading": "Kontakt",
+  "contactBody": "För frågor om denna policy, kontakta oss på:",
+  "contactEmail": "privacy@fanometrix.com",
+  "discrepancy": "I händelse av avvikelse mellan översättningar av denna Integritetspolicy ska den engelska versionen ha företräde.",
+  "languagesLabel": "Även tillgänglig på:"
+}

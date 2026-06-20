@@ -1,0 +1,72 @@
+{
+  "lang": "it",
+  "langName": "Italian",
+  "nativeName": "Italiano",
+  "title": "Informativa sulla privacy",
+  "subtitle": "Informativa sulla privacy per i sondaggi fan di Fanometrix",
+  "updated": "Ultimo aggiornamento: giugno 2026",
+  "sections": [
+    {
+      "heading": "Cos'è Fanometrix?",
+      "body": [
+        "Fanometrix è una piattaforma di fan intelligence che conduce brevi sondaggi anonimi per conto di club sportivi, competizioni, marchi ed editori di media. I sondaggi vengono distribuiti come unità integrate all'interno di posizionamenti di media digitali.",
+        "Ci impegniamo a tutelare la privacy di tutti coloro che partecipano ai nostri sondaggi."
+      ]
+    },
+    {
+      "heading": "Quali dati raccogliamo",
+      "body": ["Raccogliamo solo i dati minimi necessari per produrre insight significativi sui fan:"],
+      "table": [
+        { "f": "Risposte al sondaggio (D1–D3)", "d": "Le tue risposte alle domande a scelta multipla" },
+        { "f": "Campagna", "d": "Identifica il marchio o la campagna a cui appartiene il sondaggio" },
+        { "f": "Editore", "d": "Il partner mediatico dove è stato visualizzato il sondaggio" },
+        { "f": "Posizionamento", "d": "La posizione sulla pagina (es. MPU homepage)" },
+        { "f": "Club / Competizione", "d": "Il club di calcio o la competizione a cui si riferisce il sondaggio" },
+        { "f": "Paese", "d": "Solo a livello di paese (es. Italia). Nessuna città, codice postale, GPS o dato di localizzazione precisa." },
+        { "f": "Tipo di dispositivo", "d": "Mobile, tablet o desktop — derivato dal tuo browser" },
+        { "f": "Browser", "d": "Chrome, Safari, Firefox, Edge o Altro" },
+        { "f": "Tempo di risposta", "d": "Numero di secondi impiegati per completare il sondaggio" },
+        { "f": "Timestamp", "d": "Data e ora approssimativa dell'invio" }
+      ]
+    },
+    {
+      "heading": "Cosa NON raccogliamo",
+      "body": [],
+      "list": [
+        "Nomi, indirizzi e-mail, numeri di telefono o qualsiasi altra informazione di contatto",
+        "ID utente, credenziali di accesso o dati dell'account",
+        "Dati di localizzazione precisa — GPS, città, codice postale o indirizzo. Solo paese.",
+        "Indirizzi IP — non raccolti, archiviati né conservati da Fanometrix",
+        "Cookie, ID pubblicitari o identificatori persistenti",
+        "Informazioni personali in testo libero",
+        "Fanometrix non raccoglie consapevolmente informazioni da bambini di età inferiore a 16 anni"
+      ]
+    },
+    {
+      "heading": "Perché li raccogliamo",
+      "body": [
+        "Le risposte ai sondaggi vengono raccolte per produrre report aggregati di fan insight per i titolari di diritti sportivi e i loro partner commerciali. Nessun individuo viene profilato, targetizzato o identificato dai dati che raccogliamo.",
+        "I dati sono anonimi — la combinazione di campi che raccogliamo non può realisticamente essere utilizzata per identificare una persona specifica.",
+        "Le informazioni raccolte da Fanometrix sono intenzionalmente limitate a risposte di sondaggio anonime e non identificabili, progettate per ridurre al minimo il rischio per la privacy."
+      ]
+    },
+    {
+      "heading": "Archiviazione e conservazione dei dati",
+      "body": [
+        "I dati vengono archiviati in modo sicuro in un database ospitato nella regione EU West (Londra). I dati vengono conservati per un massimo di 36 mesi dalla data di raccolta, dopodiché vengono eliminati definitivamente e in modo sicuro. L'accesso è limitato agli amministratori Fanometrix autorizzati."
+      ]
+    },
+    {
+      "heading": "I tuoi diritti",
+      "body": [
+        "Poiché non raccogliamo alcuna informazione che possa identificarti, non siamo in grado di individuare, modificare o eliminare la risposta di un individuo specifico. Se hai dubbi sui dati raccolti tramite un posizionamento specifico del sondaggio, contatta l'editore che lo ha visualizzato.",
+        "Se hai domande sulle nostre pratiche di privacy, non esitare a contattarci direttamente."
+      ]
+    }
+  ],
+  "contactHeading": "Contatti",
+  "contactBody": "Per domande su questa informativa, contattaci a:",
+  "contactEmail": "privacy@fanometrix.com",
+  "discrepancy": "In caso di discrepanza tra le traduzioni della presente Informativa sulla privacy, prevarrà la versione inglese.",
+  "languagesLabel": "Disponibile anche in:"
+}

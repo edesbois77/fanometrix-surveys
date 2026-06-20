@@ -1,0 +1,72 @@
+{
+  "lang": "en",
+  "langName": "English",
+  "nativeName": "English",
+  "title": "Privacy Policy",
+  "subtitle": "Fanometrix Fan Survey Privacy Notice",
+  "updated": "Last updated June 2026",
+  "sections": [
+    {
+      "heading": "What is Fanometrix?",
+      "body": [
+        "Fanometrix is a fan intelligence platform that runs short, anonymous survey campaigns on behalf of sports clubs, competitions, brands and media publishers. Surveys are delivered as embedded units within digital media placements.",
+        "We are committed to protecting the privacy of everyone who participates in our surveys."
+      ]
+    },
+    {
+      "heading": "What data we collect",
+      "body": ["We collect only the minimum data necessary to produce meaningful fan insight:"],
+      "table": [
+        { "f": "Survey responses (Q1–Q3)", "d": "Your answers to the multiple-choice questions" },
+        { "f": "Campaign", "d": "Identifies which brand or campaign the survey belongs to" },
+        { "f": "Publisher", "d": "The media partner where the survey was displayed" },
+        { "f": "Placement", "d": "The position on the page (e.g. homepage MPU)" },
+        { "f": "Club / Competition", "d": "The football club or competition the survey relates to" },
+        { "f": "Country", "d": "Country-level location only (e.g. United Kingdom). No city, postcode, GPS or precise location data." },
+        { "f": "Device type", "d": "Mobile, tablet or desktop — derived from your browser" },
+        { "f": "Browser", "d": "Chrome, Safari, Firefox, Edge or Other" },
+        { "f": "Response time", "d": "How many seconds the survey took to complete" },
+        { "f": "Timestamp", "d": "Date and approximate time of submission" }
+      ]
+    },
+    {
+      "heading": "What we do NOT collect",
+      "body": [],
+      "list": [
+        "Names, email addresses, phone numbers or any contact information",
+        "User IDs, login credentials or account data",
+        "Precise location data — GPS, city, postcode or address. Country-level only.",
+        "IP addresses — not collected, stored or retained by Fanometrix",
+        "Cookies, advertising IDs or persistent identifiers",
+        "Free-text personal information",
+        "Fanometrix does not knowingly collect information from children under 16"
+      ]
+    },
+    {
+      "heading": "Why we collect it",
+      "body": [
+        "Survey responses are collected to produce aggregated fan insight reports for sports rights holders and their commercial partners. No individual is profiled, targeted or identified from the data we collect.",
+        "The data is anonymous — the combination of fields we collect cannot realistically be used to identify a specific person.",
+        "The information collected by Fanometrix is intentionally limited to anonymous, non-identifiable survey responses and is designed to minimise privacy risk."
+      ]
+    },
+    {
+      "heading": "Data storage and retention",
+      "body": [
+        "Data is stored securely in a database hosted in the EU West (London) region. Data is retained for a maximum of 36 months from the date of collection, after which it is permanently and securely deleted. Access is restricted to authorised Fanometrix administrators."
+      ]
+    },
+    {
+      "heading": "Your rights",
+      "body": [
+        "Because we do not collect any information that can identify you, we are unable to locate, modify or delete a specific individual's response. If you have a concern about data collected via a specific survey placement, please contact the publisher who displayed it.",
+        "If you have any questions about our privacy practices, please contact us directly."
+      ]
+    }
+  ],
+  "contactHeading": "Contact",
+  "contactBody": "For questions about this policy, contact us at:",
+  "contactEmail": "privacy@fanometrix.com",
+  "discrepancy": "In the event of any discrepancy between translations of this Privacy Policy, the English version shall prevail.",
+  "languagesLabel": "Also available in:"
+}
