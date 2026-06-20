@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { AdminShell } from "@/app/components/AdminShell";
 
+// ─── Types ────────────────────────────────────────────────────────────────────
 type User = {
   id: string;
   username: string;
@@ -15,33 +16,164 @@ type User = {
   created_at: string;
 };
 
+type Option = { value: string; label: string };
+type CampaignOption = Option & { created_at: string };
+
+// ─── Constants ────────────────────────────────────────────────────────────────
 const ROLES = ["admin", "brand", "agency", "publisher"] as const;
 
-const EMPTY_FORM = {
-  username: "",
-  password: "",
-  role: "brand" as User["role"],
-  organisation_name: "",
-  organisation_type: "",
-  allowed_campaign_ids: "",
-  allowed_publisher_ids: "",
-  is_active: true,
-};
+const ORG_TYPES = ["Admin", "Agency", "Brand", "Publisher"] as const;
 
-export default function UserManagementPage() {
-  const [users,       setUsers]       = useState<User[]>([]);
-  const [loading,     setLoading]     = useState(true);
-  const [showModal,   setShowModal]   = useState(false);
-  const [editUser,    setEditUser]    = useState<User | null>(null);
-  const [form,        setForm]        = useState({ ...EMPTY_FORM });
-  const [saving,      setSaving]      = useState(false);
-  const [toast,       setToast]       = useState<{ msg: string; ok: boolean } | null>(null);
+const KNOWN_PUBLISHERS = [
+  "FotMob", "LiveScore", "SofaScore", "Flashscore",
+  "Forza Football", "OneFootball", "WhoScored", "Sofascore",
+];
 
-  function showToast(msg: string, ok = true) {
-    setToast({ msg, ok });
-    setTimeout(() => setToast(null), 4000);
+// ─── Searchable multi-select ──────────────────────────────────────────────────
+function MultiSelect({
+  options,
+  selected,
+  onChange,
+  placeholder = "Search…",
+  helperText,
+}: {
+  options: Option[];
+  selected: string[];
+  onChange: (values: string[]) => void;
+  placeholder?: string;
+  helperText?: string;
+}) {
+  const [search, setSearch] = useState("");
+  const [open, setOpen]     = useState(false);
+  const inputRef            = useRef<HTMLInputElement>(null);
+  const dropRef             = useRef<HTMLDivElement>(null);
+
+  // Close when clicking outside
+  useEffect(() => {
+    function handle(e: MouseEvent) {
+      if (
+        dropRef.current && !dropRef.current.contains(e.target as Node) &&
+        inputRef.current && !inputRef.current.contains(e.target as Node)
+      ) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handle);
+    return () => document.removeEventListener("mousedown", handle);
+  }, []);
+
+  const remaining = options.filter(
+    o => !selected.includes(o.value) &&
+         o.label.toLowerCase().includes(search.toLowerCase())
+  );
+
+  function add(value: string) {
+    onChange([...selected, value]);
+    setSearch("");
+    inputRef.current?.focus();
   }
 
+  function remove(value: string) {
+    onChange(selected.filter(v => v !== value));
+  }
+
+  function labelFor(v: string) {
+    return options.find(o => o.value === v)?.label ?? v;
+  }
+
+  return (
+    <div>
+      {/* Selected chips */}
+      {selected.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 mb-2">
+          {selected.map(v => (
+            <span key={v} className="inline-flex items-center gap-1 text-xs bg-[#0B1929]/8 text-[#0B1929] border border-[#0B1929]/15 px-2.5 py-1 rounded-full">
+              {labelFor(v)}
+              <button type="button" onClick={() => remove(v)} className="text-gray-400 hover:text-gray-700 leading-none">×</button>
+            </span>
+          ))}
+        </div>
+      )}
+
+      {/* Input + dropdown */}
+      <div className="relative">
+        <input
+          ref={inputRef}
+          type="text"
+          value={search}
+          onChange={e => { setSearch(e.target.value); setOpen(true); }}
+          onFocus={() => setOpen(true)}
+          placeholder={selected.length === 0 ? placeholder : "Add another…"}
+          className={INPUT}
+          autoComplete="off"
+        />
+
+        {open && (
+          <div ref={dropRef} className="absolute z-20 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+            {remaining.length === 0 ? (
+              <p className="px-3 py-2.5 text-xs text-gray-400">
+                {search ? "No matches found" : selected.length === options.length ? "All selected" : "No options"}
+              </p>
+            ) : (
+              remaining.map(o => (
+                <button
+                  key={o.value}
+                  type="button"
+                  onMouseDown={e => { e.preventDefault(); add(o.value); }}
+                  className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                >
+                  {o.label}
+                </button>
+              ))
+            )}
+          </div>
+        )}
+      </div>
+
+      {helperText && <p className="text-xs text-gray-400 mt-1.5 leading-relaxed">{helperText}</p>}
+    </div>
+  );
+}
+
+// ─── Form state ───────────────────────────────────────────────────────────────
+type FormState = {
+  username:              string;
+  password:              string;
+  role:                  User["role"];
+  organisation_name:     string;
+  organisation_type:     string;
+  allowed_campaign_ids:  string[];
+  allowed_publisher_ids: string[];
+  is_active:             boolean;
+};
+
+const EMPTY_FORM: FormState = {
+  username:              "",
+  password:              "",
+  role:                  "brand",
+  organisation_name:     "",
+  organisation_type:     "",
+  allowed_campaign_ids:  [],
+  allowed_publisher_ids: [],
+  is_active:             true,
+};
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
+export default function UserManagementPage() {
+  const [users,         setUsers]         = useState<User[]>([]);
+  const [loading,       setLoading]       = useState(true);
+  const [showModal,     setShowModal]     = useState(false);
+  const [editUser,      setEditUser]      = useState<User | null>(null);
+  const [form,          setForm]          = useState<FormState>({ ...EMPTY_FORM });
+  const [saving,        setSaving]        = useState(false);
+  const [toast,         setToast]         = useState<{ msg: string; ok: boolean } | null>(null);
+
+  // Options for the multi-selects
+  const [campaignOptions,  setCampaignOptions]  = useState<CampaignOption[]>([]);
+  const [publisherOptions, setPublisherOptions] = useState<Option[]>([]);
+  const [campaignSort,     setCampaignSort]     = useState<"recent" | "alpha">("recent");
+
+  // ── Load users ──────────────────────────────────────────────────────────────
   const loadUsers = useCallback(async () => {
     setLoading(true);
     const res = await fetch("/api/users");
@@ -53,6 +185,59 @@ export default function UserManagementPage() {
   }, []);
 
   useEffect(() => { loadUsers(); }, [loadUsers]);
+
+  // ── Load campaign + publisher options ───────────────────────────────────────
+  useEffect(() => {
+    fetch("/api/campaigns")
+      .then(r => r.json())
+      .then(json => {
+        const data: Array<{
+          campaign_id: string;
+          campaign_name: string;
+          brand_name: string;
+          publishers: string[];
+          created_at: string;
+        }> = json.data ?? [];
+
+        setCampaignOptions(
+          data.map(c => ({
+            value:      c.campaign_id,
+            label:      `${c.campaign_name} — ${c.brand_name}`,
+            created_at: c.created_at,
+          }))
+        );
+
+        // Merge publishers from campaigns + known static list, deduplicate
+        const seen = new Set<string>(KNOWN_PUBLISHERS);
+        for (const c of data) {
+          for (const p of c.publishers ?? []) {
+            if (p.trim()) seen.add(p.trim());
+          }
+        }
+        setPublisherOptions(
+          [...seen].sort().map(p => ({ value: p, label: p }))
+        );
+      })
+      .catch(() => {
+        // Fallback to static publisher list if campaigns fetch fails
+        setPublisherOptions(
+          KNOWN_PUBLISHERS.map(p => ({ value: p, label: p }))
+        );
+      });
+  }, []);
+
+  // Sorted campaign options
+  const sortedCampaignOptions: Option[] = campaignSort === "alpha"
+    ? [...campaignOptions].sort((a, b) => a.label.localeCompare(b.label))
+    : [...campaignOptions].sort(
+        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
+
+  // ── Modal helpers ────────────────────────────────────────────────────────────
+  function showToast(msg: string, ok = true) {
+    setToast({ msg, ok });
+    setTimeout(() => setToast(null), 4000);
+  }
 
   function openCreate() {
     setEditUser(null);
@@ -68,15 +253,11 @@ export default function UserManagementPage() {
       role:                  u.role,
       organisation_name:     u.organisation_name,
       organisation_type:     u.organisation_type,
-      allowed_campaign_ids:  u.allowed_campaign_ids.join(", "),
-      allowed_publisher_ids: u.allowed_publisher_ids.join(", "),
+      allowed_campaign_ids:  u.allowed_campaign_ids  ?? [],
+      allowed_publisher_ids: u.allowed_publisher_ids ?? [],
       is_active:             u.is_active,
     });
     setShowModal(true);
-  }
-
-  function parseIds(raw: string): string[] {
-    return raw.split(",").map(s => s.trim()).filter(Boolean);
   }
 
   async function handleSave(e: React.FormEvent) {
@@ -88,8 +269,8 @@ export default function UserManagementPage() {
       role:                  form.role,
       organisation_name:     form.organisation_name,
       organisation_type:     form.organisation_type,
-      allowed_campaign_ids:  parseIds(form.allowed_campaign_ids),
-      allowed_publisher_ids: parseIds(form.allowed_publisher_ids),
+      allowed_campaign_ids:  form.allowed_campaign_ids,
+      allowed_publisher_ids: form.allowed_publisher_ids,
       is_active:             form.is_active,
       ...(form.password ? { password: form.password } : {}),
     };
@@ -137,6 +318,7 @@ export default function UserManagementPage() {
     publisher: "bg-green-100 text-green-800",
   };
 
+  // ── Render ───────────────────────────────────────────────────────────────────
   return (
     <AdminShell>
       <div className="p-6 max-w-5xl mx-auto">
@@ -192,7 +374,7 @@ export default function UserManagementPage() {
                       </span>
                     </td>
                     <td className="px-5 py-3 text-gray-400 text-xs">
-                      {new Date(u.created_at).toLocaleDateString()}
+                      {new Date(u.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
                     </td>
                     <td className="px-5 py-3">
                       <div className="flex items-center gap-3 justify-end">
@@ -220,15 +402,17 @@ export default function UserManagementPage() {
         </div>
       </div>
 
-      {/* Modal */}
+      {/* ── Modal ── */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl p-7 max-w-md w-full mx-4 max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl p-7 max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto">
             <h2 className="text-lg font-bold text-gray-900 mb-5">
               {editUser ? `Edit ${editUser.username}` : "New User"}
             </h2>
 
             <form onSubmit={handleSave} className="space-y-4">
+
+              {/* Username — create only */}
               {!editUser && (
                 <Field label="Username">
                   <input
@@ -242,6 +426,7 @@ export default function UserManagementPage() {
                 </Field>
               )}
 
+              {/* Password */}
               <Field label={editUser ? "New Password (leave blank to keep current)" : "Password"}>
                 <input
                   type="password"
@@ -253,6 +438,7 @@ export default function UserManagementPage() {
                 />
               </Field>
 
+              {/* Role */}
               <Field label="Role">
                 <select
                   value={form.role}
@@ -261,11 +447,12 @@ export default function UserManagementPage() {
                   required
                 >
                   {ROLES.map(r => (
-                    <option key={r} value={r}>{r}</option>
+                    <option key={r} value={r}>{r.charAt(0).toUpperCase() + r.slice(1)}</option>
                   ))}
                 </select>
               </Field>
 
+              {/* Organisation Name */}
               <Field label="Organisation Name">
                 <input
                   type="text"
@@ -276,37 +463,65 @@ export default function UserManagementPage() {
                 />
               </Field>
 
+              {/* Organisation Type — dropdown */}
               <Field label="Organisation Type">
-                <input
-                  type="text"
+                <select
                   value={form.organisation_type}
                   onChange={e => setForm(f => ({ ...f, organisation_type: e.target.value }))}
-                  placeholder="e.g. brand, agency, publisher"
                   className={INPUT}
+                >
+                  <option value="">Select type…</option>
+                  {ORG_TYPES.map(t => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
+                </select>
+              </Field>
+
+              {/* Campaign Access */}
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                    Campaign Access
+                  </label>
+                  <div className="flex rounded-md border border-gray-200 overflow-hidden text-xs">
+                    <button
+                      type="button"
+                      onClick={() => setCampaignSort("recent")}
+                      className={`px-2.5 py-1 transition-colors ${campaignSort === "recent" ? "bg-[#0B1929] text-white" : "text-gray-500 hover:bg-gray-50"}`}
+                    >
+                      Recent
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCampaignSort("alpha")}
+                      className={`px-2.5 py-1 border-l border-gray-200 transition-colors ${campaignSort === "alpha" ? "bg-[#0B1929] text-white" : "text-gray-500 hover:bg-gray-50"}`}
+                    >
+                      A–Z
+                    </button>
+                  </div>
+                </div>
+                <MultiSelect
+                  options={sortedCampaignOptions}
+                  selected={form.allowed_campaign_ids}
+                  onChange={v => setForm(f => ({ ...f, allowed_campaign_ids: v }))}
+                  placeholder="Search campaigns…"
+                  helperText="Restrict this account to specific campaigns. Leave blank for access to all campaigns."
+                />
+              </div>
+
+              {/* Publisher Access */}
+              <Field label="Publisher Access">
+                <MultiSelect
+                  options={publisherOptions}
+                  selected={form.allowed_publisher_ids}
+                  onChange={v => setForm(f => ({ ...f, allowed_publisher_ids: v }))}
+                  placeholder="Search publishers…"
+                  helperText="Restrict this account to specific publishers. Leave blank for access to all publishers."
                 />
               </Field>
 
-              <Field label="Allowed Campaign IDs (comma-separated)">
-                <input
-                  type="text"
-                  value={form.allowed_campaign_ids}
-                  onChange={e => setForm(f => ({ ...f, allowed_campaign_ids: e.target.value }))}
-                  placeholder="e.g. carlsberg_ucl_2026, carlsberg_el_2026"
-                  className={INPUT}
-                />
-              </Field>
-
-              <Field label="Allowed Publisher IDs (comma-separated)">
-                <input
-                  type="text"
-                  value={form.allowed_publisher_ids}
-                  onChange={e => setForm(f => ({ ...f, allowed_publisher_ids: e.target.value }))}
-                  placeholder="e.g. FotMob, LiveScore"
-                  className={INPUT}
-                />
-              </Field>
-
-              <label className="flex items-center gap-3 cursor-pointer">
+              {/* Active toggle */}
+              <label className="flex items-center gap-3 cursor-pointer pt-1">
                 <input
                   type="checkbox"
                   checked={form.is_active}
@@ -316,6 +531,7 @@ export default function UserManagementPage() {
                 <span className="text-sm text-gray-700">Account active</span>
               </label>
 
+              {/* Actions */}
               <div className="flex gap-3 pt-2">
                 <button
                   type="button"
@@ -350,7 +566,8 @@ export default function UserManagementPage() {
   );
 }
 
-const INPUT = "w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm focus:outline-none focus:border-[#D7B87A] transition-colors";
+// ─── Shared styles ────────────────────────────────────────────────────────────
+const INPUT = "w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm focus:outline-none focus:border-[#D7B87A] transition-colors bg-white";
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
