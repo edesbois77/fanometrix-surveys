@@ -20,6 +20,7 @@ const PUBLIC_API_PREFIXES = ["/api/auth", "/api/submit", "/api/reporting", "/api
 const ADMIN_ONLY_PREFIXES = [
   "/survey-templates",
   "/campaigns",
+  "/campaign-groups",
   "/campaign-deployment",
   "/reporting",
   "/looker-templates",
@@ -29,6 +30,7 @@ const ADMIN_ONLY_PREFIXES = [
   "/api/users",
   "/api/surveys",
   "/api/campaigns",
+  "/api/campaign-groups",
   "/api/demo",
 ];
 

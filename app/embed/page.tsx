@@ -376,6 +376,7 @@ function EmbedSurvey() {
   const params = useSearchParams();
 
   const campaign      = params.get("campaign")    ?? "default";
+  const groupSlug     = params.get("group")       ?? null;
   const surveyId      = params.get("survey")      ?? null;
   const questionSetId = params.get("qset")        ?? null;
   const publisher     = params.get("publisher")   ?? null;
@@ -395,15 +396,39 @@ function EmbedSurvey() {
   const [thankYouBody,   setThankYouBody]   = useState("Your anonymous feedback helps improve the football experience for fans everywhere.");
   const [errorMsg,       setErrorMsg]       = useState("Something went wrong — tap an answer to try again.");
 
+  // In group mode the campaign_id comes from the API (so responses link to the
+  // specific campaign served, not just the group slug).
+  const [resolvedCampaignId, setResolvedCampaignId] = useState<string>(campaign);
+  const [groupReady,         setGroupReady]         = useState(!groupSlug);
+
   useEffect(() => {
     setDevice(detectDevice());
     setBrowser(detectBrowser());
     startRef.current = Date.now();
   }, []);
 
-  // Fetch survey questions when a survey UUID is provided
+  // Group mode: resolve which campaign to serve and fetch its questions
   useEffect(() => {
-    if (!surveyId) return;
+    if (!groupSlug) return;
+    fetch(`/api/embed/group?slug=${encodeURIComponent(groupSlug)}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data?.campaign_id && data?.questions?.length) {
+          setResolvedCampaignId(data.campaign_id);
+          setQuestions(data.questions);
+          setThankYouTitle(data.thank_you_title ?? thankYouTitle);
+          setThankYouBody(data.thank_you_body   ?? thankYouBody);
+        }
+        // If no eligible campaign, groupReady stays false → blank frame
+        setGroupReady(!!data?.campaign_id);
+      })
+      .catch(() => setGroupReady(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [groupSlug]);
+
+  // Single-campaign mode: fetch survey questions when a survey UUID is provided
+  useEffect(() => {
+    if (groupSlug || !surveyId) return;
     fetch(`/api/embed/survey?id=${surveyId}`)
       .then(r => r.ok ? r.json() : null)
       .then(data => {
@@ -414,7 +439,7 @@ function EmbedSurvey() {
         }
       })
       .catch(() => {/* keep fallback questions */});
-  }, [surveyId]);
+  }, [surveyId, groupSlug]);
 
   const [step,         setStep]         = useState(0);
   const [answers,      setAnswers]      = useState<Record<string, string>>({});
@@ -462,7 +487,7 @@ function EmbedSurvey() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            campaign_id:               campaign,
+            campaign_id:               resolvedCampaignId,
             survey_id:                 surveyId,
             question_set_id:           questionSetId,
             publisher,
@@ -495,6 +520,12 @@ function EmbedSurvey() {
       }
       setAdvancing(false);
     }, 350);
+  }
+
+  // Group mode: don't render until the group API has resolved.
+  // If no eligible campaign exists, render transparent (publisher sees nothing).
+  if (groupSlug && !groupReady) {
+    return <div style={{ width: 300, height: 250, background: "transparent" }} />;
   }
 
   return (
@@ -593,7 +624,7 @@ function EmbedSurvey() {
       ) : (
         /* ── Survey question screen ───────────────────────────────────── */
         <>
-          <AdHeader step={step + 1} total={QUESTIONS.length} />
+          <AdHeader step={step + 1} total={questions.length} />
 
           {/* Gold progress bar */}
           <div style={{ height: 3, minHeight: 3, background: "rgba(215,184,122,0.2)", flexShrink: 0 }}>

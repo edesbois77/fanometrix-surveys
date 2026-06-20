@@ -13,6 +13,7 @@ const NAV_BY_ROLE: Record<UserRole, NavItem[]> = {
     { href: "/dashboard",           label: "Dashboard",           icon: "▦"   },
     { href: "/survey-templates",    label: "Survey Templates",    icon: "◫"   },
     { href: "/campaigns",           label: "Campaigns",           icon: "◎"   },
+    { href: "/campaign-groups",     label: "Campaign Groups",     icon: "⬡"   },
     { href: "/campaign-deployment", label: "Deployment",          icon: "</>" },
     { href: "/reporting",           label: "Reporting",           icon: "↗"   },
     { href: "/looker-templates",    label: "Looker Templates",    icon: "◈"   },
