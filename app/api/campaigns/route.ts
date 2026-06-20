@@ -4,7 +4,6 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 import { requireSession } from "@/lib/auth";
 import {
   computeStatusWithReason,
-  ACTION_NOTIFICATIONS,
   type CampaignForStatus,
 } from "@/lib/campaign-status";
 
@@ -16,9 +15,45 @@ export async function GET(req: NextRequest) {
     return err as Response;
   }
 
+  const { searchParams } = new URL(req.url);
+  const viewDeleted = searchParams.get("view") === "deleted";
+
+  // ── Deleted view (admin only, no auto-transitions) ─────────────────────────
+  if (viewDeleted) {
+    if (session.role !== "admin") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    const [{ data: campaigns, error }, { data: statsData }] = await Promise.all([
+      supabaseAdmin
+        .from("campaigns")
+        .select("*, surveys(name)")
+        .not("deleted_at", "is", null)
+        .order("deleted_at", { ascending: false }),
+      supabaseAdmin.from("vw_campaign_stats").select("campaign_id, response_count"),
+    ]);
+
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+    const statsMap: Record<string, number> = {};
+    for (const s of statsData ?? []) statsMap[s.campaign_id] = Number(s.response_count ?? 0);
+
+    const data = (campaigns ?? []).map(c => ({
+      ...c,
+      effective_status:   c.status,
+      status_reason:      null,
+      is_auto_transition: false,
+      response_count:     statsMap[c.campaign_id] ?? 0,
+    }));
+
+    return NextResponse.json({ data });
+  }
+
+  // ── Normal view — exclude soft-deleted, enforce role-based access ───────────
   let query = supabase
     .from("campaigns")
     .select("*, surveys(name)")
+    .is("deleted_at", null)
     .order("created_at", { ascending: false });
 
   if (session.role === "brand" || session.role === "agency") {
@@ -35,20 +70,16 @@ export async function GET(req: NextRequest) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   const statsMap: Record<string, number> = {};
-  for (const s of statsData ?? []) {
-    statsMap[s.campaign_id] = Number(s.response_count ?? 0);
-  }
+  for (const s of statsData ?? []) statsMap[s.campaign_id] = Number(s.response_count ?? 0);
 
   const now = new Date();
 
-  // Compute effective status and detect auto-transitions
   const enriched = await Promise.all(
     (campaigns ?? []).map(async (c) => {
       const responseCount = statsMap[c.campaign_id] ?? 0;
       const detail = computeStatusWithReason(c as CampaignForStatus, responseCount, now);
       const { effective, reason, isAutoTransition } = detail;
 
-      // Persist auto-transition if stored status differs from computed
       if (
         isAutoTransition &&
         c.status !== "draft" &&
@@ -83,10 +114,10 @@ export async function GET(req: NextRequest) {
 
       return {
         ...c,
-        effective_status:    effective,
-        status_reason:       reason,          // human-readable reason for effective status
-        is_auto_transition:  isAutoTransition, // stored !== effective
-        response_count:      responseCount,
+        effective_status:   effective,
+        status_reason:      reason,
+        is_auto_transition: isAutoTransition,
+        response_count:     responseCount,
       };
     })
   );
@@ -102,11 +133,20 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json();
+
+  // Strip any soft-delete / computed fields that should never be set on create
+  const {
+    deleted_at: _da, deleted_by: _db, delete_reason: _dr,
+    effective_status: _es, status_reason: _sr, is_auto_transition: _iat, response_count: _rc,
+    ...safe
+  } = body;
+
   const { data, error } = await supabase
     .from("campaigns")
-    .insert([{ ...body, updated_at: new Date().toISOString() }])
+    .insert([{ ...safe, updated_at: new Date().toISOString() }])
     .select()
     .single();
+
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ data });
 }

@@ -12,8 +12,9 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  let session;
   try {
-    await requireSession(req, ["admin"]);
+    session = await requireSession(req, ["admin"]);
   } catch (err) {
     return err as Response;
   }
@@ -33,7 +34,6 @@ export async function POST(
     return NextResponse.json({ error: `Unknown action: ${action}` }, { status: 400 });
   }
 
-  // Fetch current campaign
   const { data: campaign, error: fetchError } = await supabase
     .from("campaigns")
     .select("id, brand_name, campaign_name, status")
@@ -44,13 +44,15 @@ export async function POST(
     return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
   }
 
+  const now = new Date().toISOString();
+
   const { data, error } = await supabase
     .from("campaigns")
     .update({
       status:                 transition.status,
       manual_status_override: transition.manual_status_override,
-      status_updated_at:      new Date().toISOString(),
-      updated_at:             new Date().toISOString(),
+      status_updated_at:      now,
+      updated_at:             now,
     })
     .eq("id", id)
     .select()
@@ -58,10 +60,20 @@ export async function POST(
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
+  const campaignName = `${campaign.brand_name} – ${campaign.campaign_name}`;
+
+  // Log to audit history
+  await supabaseAdmin.from("campaign_status_history").insert({
+    campaign_id: id,
+    old_status:  campaign.status,
+    new_status:  transition.status,
+    reason:      `Manual action: ${action}`,
+    changed_by:  session.username,
+  });
+
   // Create notification for meaningful actions
   const notifConfig = ACTION_NOTIFICATIONS[action];
   if (notifConfig) {
-    const campaignName = `${campaign.brand_name} – ${campaign.campaign_name}`;
     await supabaseAdmin.from("campaign_notifications").insert({
       campaign_id:   id,
       campaign_name: campaignName,
