@@ -1,22 +1,116 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { AdminShell } from "@/app/components/AdminShell";
 
-// ─── MPU colours (matches /embed page exactly) ───────────────────────────────
+// ─── MPU colours ─────────────────────────────────────────────────────────────
 const NAVY = "#071B2F";
 const GOLD = "#D7B87A";
 
-// ─── MPU Preview Modal ────────────────────────────────────────────────────────
+// ─── Types ────────────────────────────────────────────────────────────────────
+type Question = { id: string; text: string; options: string[] };
 
-type PreviewSurvey = {
+type Survey = {
+  id: string;
   name: string;
-  questions: { id: string; text: string; options: string[] }[];
+  description: string | null;
+  questions: Question[];
   thank_you_title: string;
   thank_you_body: string;
+  status: "draft" | "ready" | "archived" | "deleted";
+  is_template: boolean;
+  created_at: string;
+  updated_at: string;
+  created_by: string | null;
+  archived_at: string | null;
+  deleted_at: string | null;
+  deleted_by: string | null;
+  delete_reason: string | null;
+  campaign_count: number;
+  live_campaign_count: number;
+  response_count: number;
+  last_used_at: string | null;
+  last_response_at: string | null;
 };
 
-function MPUPreviewModal({ survey, onClose }: { survey: PreviewSurvey; onClose: () => void }) {
+// Content-only fields for the edit drawer
+type EditFields = {
+  name: string;
+  description: string | null;
+  questions: Question[];
+  thank_you_title: string;
+  thank_you_body: string;
+  status: "draft" | "ready";
+  is_template: boolean;
+};
+
+// Campaigns linked to a survey (for the usage modal)
+type ModalCampaign = {
+  id: string;
+  campaign_id: string;
+  brand_name: string;
+  campaign_name: string;
+  status: string;
+  start_date: string | null;
+  end_date: string | null;
+  created_at: string;
+  publishers: string[];
+  response_count: number;
+};
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+function formatDate(isoStr: string | null | undefined): string {
+  if (!isoStr) return "—";
+  const d = new Date(isoStr);
+  const today = new Date();
+  if (d.toDateString() === today.toDateString()) return "Today";
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+  if (d.toDateString() === yesterday.toDateString()) return "Yesterday";
+  return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+}
+
+function formatRelativeTime(isoStr: string | null | undefined): string | null {
+  if (!isoStr) return null;
+  const d = new Date(isoStr);
+  const diffMs = Date.now() - d.getTime();
+  const mins  = Math.floor(diffMs / 60_000);
+  const hours = Math.floor(diffMs / 3_600_000);
+  const days  = Math.floor(diffMs / 86_400_000);
+  if (mins  <  1) return "just now";
+  if (mins  < 60) return `${mins} min${mins  !== 1 ? "s" : ""} ago`;
+  if (hours < 24) return `${hours} hour${hours !== 1 ? "s" : ""} ago`;
+  if (days  <  7) return `${days} day${days  !== 1 ? "s" : ""} ago`;
+  return formatDate(isoStr);
+}
+
+function formatDatetime(isoStr: string): string {
+  const d = new Date(isoStr);
+  return (
+    d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) +
+    " at " +
+    d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })
+  );
+}
+
+const STATUS_COLOURS: Record<string, string> = {
+  draft:     "bg-gray-100 text-gray-600",
+  ready:     "bg-green-100 text-green-700",
+  archived:  "bg-amber-100 text-amber-700",
+  deleted:   "bg-red-100 text-red-600",
+};
+
+const CAMPAIGN_STATUS_COLOURS: Record<string, string> = {
+  draft:     "bg-gray-100 text-gray-600",
+  scheduled: "bg-blue-100 text-blue-700",
+  live:      "bg-green-100 text-green-700",
+  paused:    "bg-yellow-100 text-yellow-700",
+  closed:    "bg-gray-100 text-gray-500",
+  archived:  "bg-amber-100 text-amber-700",
+};
+
+// ─── MPU Preview Modal ────────────────────────────────────────────────────────
+function MPUPreviewModal({ survey, onClose }: { survey: Survey; onClose: () => void }) {
   const [step,    setStep]    = useState(0);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [done,    setDone]    = useState(false);
@@ -44,7 +138,6 @@ function MPUPreviewModal({ survey, onClose }: { survey: PreviewSurvey; onClose: 
     if (e.target === e.currentTarget) onClose();
   }
 
-  // Outer frame — 300×250, no border-radius (matches real ad slot)
   const frame: React.CSSProperties = {
     width: 300, height: 250, overflow: "hidden",
     fontFamily: "system-ui, -apple-system, sans-serif",
@@ -54,182 +147,220 @@ function MPUPreviewModal({ survey, onClose }: { survey: PreviewSurvey; onClose: 
   };
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
-      onClick={onBackdrop}
-    >
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={onBackdrop}>
       <div className="flex flex-col items-center gap-4">
-
-        {/* PREVIEW MODE badge */}
         <div className="bg-amber-50 border border-amber-200 rounded-xl px-5 py-3 text-center shadow">
           <p className="text-xs font-bold text-amber-700 uppercase tracking-widest">◆ Preview Mode</p>
           <p className="text-xs text-amber-600 mt-0.5">No responses are recorded.</p>
           <p className="text-xs text-amber-500 mt-0.5 font-medium">{survey.name}</p>
         </div>
 
-        {/* 300 × 250 MPU */}
         {done ? (
-          /* ── Thank-you screen ── */
           <div style={frame}>
-            {/* Navy header */}
             <div style={{ height: 46, minHeight: 46, background: NAVY, display: "flex", alignItems: "center", padding: "0 12px", flexShrink: 0 }}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src="/Fanometrix_Logo.png" alt="Fanometrix" style={{ height: 15, objectFit: "contain" }} />
             </div>
-            {/* Gold progress bar — full */}
             <div style={{ height: 3, minHeight: 3, background: `rgba(215,184,122,0.2)`, flexShrink: 0 }}>
               <div style={{ height: "100%", width: "100%", background: GOLD }} />
             </div>
-            {/* Body */}
             <div style={{ flex: 1, background: NAVY, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "12px 20px", textAlign: "center", gap: 8, minHeight: 0 }}>
               <div style={{ fontSize: 30, lineHeight: 1 }}>🎉</div>
-              <p style={{ color: "#fff", fontSize: 14, fontWeight: 700, margin: 0 }}>
-                {survey.thank_you_title || "Thank you!"}
-              </p>
-              <p style={{ color: "rgba(255,255,255,0.75)", fontSize: 10.5, margin: 0, lineHeight: 1.4 }}>
-                {survey.thank_you_body || "Your anonymous feedback helps improve the football experience for fans everywhere."}
-              </p>
+              <p style={{ color: "#fff", fontSize: 14, fontWeight: 700, margin: 0 }}>{survey.thank_you_title || "Thank you!"}</p>
+              <p style={{ color: "rgba(255,255,255,0.75)", fontSize: 10.5, margin: 0, lineHeight: 1.4 }}>{survey.thank_you_body || "Your anonymous feedback helps improve the football experience for fans everywhere."}</p>
             </div>
-            {/* Footer */}
             <div style={{ height: 22, minHeight: 22, display: "flex", alignItems: "center", justifyContent: "center", background: NAVY, borderTop: "1px solid rgba(255,255,255,0.10)", flexShrink: 0 }}>
               <span style={{ color: "#8C9DB5", fontSize: 9 }}>Powered by Fanometrix • <span style={{ color: GOLD }}>Privacy</span></span>
             </div>
           </div>
         ) : (
-          /* ── Survey question screen ── */
           <div style={frame}>
-            {/* Navy header — 46px */}
             <div style={{ height: 46, minHeight: 46, background: NAVY, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 12px", flexShrink: 0, boxSizing: "border-box" }}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src="/Fanometrix_Logo.png" alt="Fanometrix" style={{ height: 15, objectFit: "contain" }} />
-              <span style={{ color: GOLD, fontSize: 10, fontWeight: 600, letterSpacing: "0.03em", flexShrink: 0 }}>
-                {step + 1} of {questions.length}
-              </span>
+              <span style={{ color: GOLD, fontSize: 10, fontWeight: 600, letterSpacing: "0.03em", flexShrink: 0 }}>{step + 1} of {questions.length}</span>
             </div>
-
-            {/* Gold progress bar — 3px */}
             <div style={{ height: 3, minHeight: 3, background: `rgba(215,184,122,0.2)`, flexShrink: 0 }}>
               <div style={{ height: "100%", width: `${progressPct}%`, background: GOLD, transition: "width 0.3s ease" }} />
             </div>
-
-            {/* White body */}
             <div style={{ flex: 1, background: "#fff", padding: "10px 12px 0", display: "flex", flexDirection: "column", minHeight: 0, overflow: "hidden", boxSizing: "border-box" }}>
-              {/* Question — fixed 2-line height */}
               <div style={{ height: 33, minHeight: 33, overflow: "hidden", flexShrink: 0, marginBottom: 8 }}>
-                <p style={{ color: NAVY, fontSize: 11.5, fontWeight: 700, lineHeight: 1.35, margin: 0 }}>
-                  {q?.text}
-                </p>
+                <p style={{ color: NAVY, fontSize: 11.5, fontWeight: 700, lineHeight: 1.35, margin: 0 }}>{q?.text}</p>
               </div>
-
-              {/* Options */}
               <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                 {(q?.options ?? []).map(opt => {
                   const sel = selected === opt;
                   return (
                     <div
-                      key={opt}
-                      role="radio"
-                      aria-checked={sel}
-                      tabIndex={0}
-                      onClick={() => handleSelect(opt)}
-                      onKeyDown={e => e.key === " " && handleSelect(opt)}
+                      key={opt} role="radio" aria-checked={sel} tabIndex={0}
+                      onClick={() => handleSelect(opt)} onKeyDown={e => e.key === " " && handleSelect(opt)}
                       style={{
                         display: "flex", alignItems: "center", gap: 8,
                         padding: "5px 10px", borderRadius: 8, flexShrink: 0,
                         background: sel ? "rgba(215,184,122,0.10)" : "#FAFAFA",
-                        boxShadow: sel
-                          ? `0 0 0 1.5px ${GOLD}, 0 2px 6px rgba(215,184,122,0.18)`
-                          : "0 1px 3px rgba(0,0,0,0.08), 0 0 0 1px rgba(0,0,0,0.06)",
+                        boxShadow: sel ? `0 0 0 1.5px ${GOLD}, 0 2px 6px rgba(215,184,122,0.18)` : "0 1px 3px rgba(0,0,0,0.08), 0 0 0 1px rgba(0,0,0,0.06)",
                         cursor: "pointer", boxSizing: "border-box",
                         transition: "box-shadow 0.15s, background 0.15s",
                       }}
                     >
-                      <div style={{
-                        width: 12, height: 12, borderRadius: "50%", flexShrink: 0,
-                        border: `2px solid ${sel ? GOLD : "#9CA3AF"}`,
-                        background: sel ? GOLD : "transparent",
-                        boxSizing: "border-box", transition: "background 0.15s, border-color 0.15s",
-                      }} />
+                      <div style={{ width: 12, height: 12, borderRadius: "50%", flexShrink: 0, border: `2px solid ${sel ? GOLD : "#9CA3AF"}`, background: sel ? GOLD : "transparent", boxSizing: "border-box", transition: "background 0.15s, border-color 0.15s" }} />
                       <span style={{ color: NAVY, fontSize: 10.5, fontWeight: 500, lineHeight: 1 }}>{opt}</span>
                     </div>
                   );
                 })}
               </div>
             </div>
-
-            {/* Privacy footer — 22px */}
             <div style={{ height: 22, minHeight: 22, display: "flex", alignItems: "center", justifyContent: "center", background: "#EDEEF0", borderTop: "1.5px solid #C9CDD6", flexShrink: 0 }}>
-              <span style={{ color: "#374151", fontSize: 9.5, fontWeight: 500 }}>
-                🛡 Anonymous insights • No personal data collected
-              </span>
+              <span style={{ color: "#374151", fontSize: 9.5, fontWeight: 500 }}>🛡 Anonymous insights • No personal data collected</span>
             </div>
           </div>
         )}
 
-        {/* Controls below the frame */}
         <div className="flex items-center gap-2">
           {!done && !isFirst && (
-            <button onClick={() => setStep(s => s - 1)} className="text-xs border border-white/30 text-white hover:bg-white/15 px-3 py-1.5 rounded-lg transition-colors">
-              ← Previous
-            </button>
+            <button onClick={() => setStep(s => s - 1)} className="text-xs border border-white/30 text-white hover:bg-white/15 px-3 py-1.5 rounded-lg transition-colors">← Previous</button>
           )}
-          <button onClick={restart} className="text-xs border border-white/30 text-white hover:bg-white/15 px-3 py-1.5 rounded-lg transition-colors">
-            ↺ Restart
-          </button>
-          <button onClick={onClose} className="text-xs bg-white/20 hover:bg-white/30 text-white font-semibold px-4 py-1.5 rounded-lg transition-colors ml-2">
-            Close
-          </button>
+          <button onClick={restart} className="text-xs border border-white/30 text-white hover:bg-white/15 px-3 py-1.5 rounded-lg transition-colors">↺ Restart</button>
+          <button onClick={onClose} className="text-xs bg-white/20 hover:bg-white/30 text-white font-semibold px-4 py-1.5 rounded-lg transition-colors ml-2">Close</button>
         </div>
       </div>
     </div>
   );
 }
 
-type Question = { id: string; text: string; options: string[] };
-type Survey = {
-  id: string;
-  name: string;
-  description: string | null;
-  questions: Question[];
-  thank_you_title: string;
-  thank_you_body: string;
-  start_date: string | null;
-  end_date: string | null;
-  status: "draft" | "live" | "completed" | "archived";
-  is_template: boolean;
-  created_at: string;
-};
+// ─── Survey Usage Modal ───────────────────────────────────────────────────────
+function SurveyUsageModal({ survey, campaigns, loading, onClose }: {
+  survey: Survey;
+  campaigns: ModalCampaign[] | null;
+  loading: boolean;
+  onClose: () => void;
+}) {
+  const liveCount = (campaigns ?? []).filter(c => c.status === "live").length;
 
-const STATUS_COLOURS: Record<string, string> = {
-  draft:     "bg-gray-100 text-gray-600",
-  live:      "bg-green-100 text-green-700",
-  completed: "bg-blue-100 text-blue-700",
-  archived:  "bg-amber-100 text-amber-700",
-};
+  function onBackdrop(e: React.MouseEvent<HTMLDivElement>) {
+    if (e.target === e.currentTarget) onClose();
+  }
 
-const BLANK_Q = (): Question => ({
-  id: `q${Date.now()}`,
-  text: "",
-  options: ["", ""],
-});
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={onBackdrop}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl mx-4 overflow-hidden">
+        <div className="flex items-start justify-between px-6 py-5 border-b border-gray-100">
+          <div className="min-w-0 flex-1">
+            <h2 className="font-bold text-gray-900 text-lg">Campaign Usage</h2>
+            <p className="text-sm text-gray-500 mt-0.5 truncate">{survey.name}</p>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none ml-4 flex-shrink-0">×</button>
+        </div>
 
-const BLANK_SURVEY: Omit<Survey, "id" | "created_at"> = {
+        <div className="px-6 py-5 max-h-[65vh] overflow-y-auto">
+          {loading && (
+            <p className="text-gray-400 text-sm text-center py-10">Loading campaigns…</p>
+          )}
+
+          {!loading && campaigns?.length === 0 && (
+            <div className="text-center py-10 text-gray-400">
+              <p className="text-3xl mb-2">◫</p>
+              <p className="text-sm">No campaigns are using this survey yet.</p>
+            </div>
+          )}
+
+          {!loading && campaigns && campaigns.length > 0 && (
+            <>
+              <p className="text-xs text-gray-400 mb-4">
+                {campaigns.length} campaign{campaigns.length !== 1 ? "s" : ""}
+                {liveCount > 0 && (
+                  <> · <span className="text-green-600 font-medium">{liveCount} live</span></>
+                )}
+              </p>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs border-collapse">
+                  <thead>
+                    <tr className="border-b border-gray-100">
+                      <th className="text-left pb-2.5 pr-4 font-semibold text-gray-500">Campaign</th>
+                      <th className="text-left pb-2.5 pr-4 font-semibold text-gray-500">Brand</th>
+                      <th className="text-left pb-2.5 pr-4 font-semibold text-gray-500">Publisher</th>
+                      <th className="text-left pb-2.5 pr-4 font-semibold text-gray-500">Status</th>
+                      <th className="text-left pb-2.5 pr-4 font-semibold text-gray-500">Date Range</th>
+                      <th className="text-right pb-2.5 font-semibold text-gray-500">Responses</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {campaigns.map(c => (
+                      <tr key={c.id} className="hover:bg-gray-50/50">
+                        <td className="py-3 pr-4 font-medium text-gray-900">{c.campaign_name}</td>
+                        <td className="py-3 pr-4 text-gray-600">{c.brand_name}</td>
+                        <td className="py-3 pr-4 text-gray-500">
+                          {(c.publishers ?? []).length > 0 ? c.publishers.join(", ") : "—"}
+                        </td>
+                        <td className="py-3 pr-4">
+                          <span className={`font-semibold px-2 py-0.5 rounded-full capitalize ${CAMPAIGN_STATUS_COLOURS[c.status] ?? "bg-gray-100 text-gray-600"}`}>
+                            {c.status}
+                          </span>
+                        </td>
+                        <td className="py-3 pr-4 text-gray-400">
+                          {c.start_date ? `${c.start_date} → ${c.end_date ?? "ongoing"}` : "—"}
+                        </td>
+                        <td className="py-3 text-right font-medium text-gray-900">
+                          {(c.response_count ?? 0).toLocaleString()}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+        </div>
+
+        <div className="px-6 py-4 border-t border-gray-100 flex justify-end">
+          <button onClick={onClose} className="text-sm text-gray-500 hover:text-gray-700 px-4 py-2">Close</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Blank state ──────────────────────────────────────────────────────────────
+const BLANK_Q = (): Question => ({ id: `q${Date.now()}`, text: "", options: ["", ""] });
+
+const BLANK_FIELDS: EditFields = {
   name: "", description: "", questions: [BLANK_Q()],
   thank_you_title: "Thank you!",
   thank_you_body: "Your response has been recorded.",
-  start_date: null, end_date: null,
   status: "draft", is_template: false,
 };
 
+// ─── Main component ───────────────────────────────────────────────────────────
 export default function SurveysPage() {
+  // Data
   const [surveys,  setSurveys]  = useState<Survey[]>([]);
   const [loading,  setLoading]  = useState(true);
-  const [previewSurvey, setPreviewSurvey] = useState<Survey | null>(null);
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const [editing,  setEditing]  = useState<Partial<Survey>>(BLANK_SURVEY);
-  const [saving,   setSaving]   = useState(false);
-  const [error,    setError]    = useState("");
 
+  // Toolbar
+  const [activeTab,     setActiveTab]     = useState<"active" | "archived" | "deleted">("active");
+  const [search,        setSearch]        = useState("");
+  const [statusFilter,  setStatusFilter]  = useState<"all" | "draft" | "ready">("all");
+  const [usageFilter,   setUsageFilter]   = useState<"all" | "unused" | "used" | "live">("all");
+  const [createdFilter, setCreatedFilter] = useState<"all" | "today" | "7days" | "30days">("all");
+
+  // Preview modal
+  const [previewSurvey, setPreviewSurvey] = useState<Survey | null>(null);
+
+  // Usage modal
+  const [usageSurvey,    setUsageSurvey]    = useState<Survey | null>(null);
+  const [modalCampaigns, setModalCampaigns] = useState<ModalCampaign[] | null>(null);
+  const [loadingModal,   setLoadingModal]   = useState(false);
+
+  // Edit drawer
+  const [drawerOpen,           setDrawerOpen]           = useState(false);
+  const [editingId,            setEditingId]            = useState<string | null>(null);
+  const [editingOriginalStatus, setEditingOriginalStatus] = useState<Survey["status"] | null>(null);
+  const [fields,               setFields]               = useState<EditFields>(BLANK_FIELDS);
+  const [saving,               setSaving]               = useState(false);
+  const [formError,            setFormError]            = useState("");
+
+  // ── Load ──────────────────────────────────────────────────────────────────
   const load = useCallback(async () => {
     setLoading(true);
     const res = await fetch("/api/surveys");
@@ -240,46 +371,101 @@ export default function SurveysPage() {
 
   useEffect(() => { load(); }, [load]);
 
+  // ── Derived data ──────────────────────────────────────────────────────────
+  const activeSurveys   = useMemo(() => surveys.filter(s => s.status === "draft" || s.status === "ready"), [surveys]);
+  const archivedSurveys = useMemo(() => surveys.filter(s => s.status === "archived"), [surveys]);
+  const deletedSurveys  = useMemo(() => surveys.filter(s => s.status === "deleted"),  [surveys]);
+
+  const displayed = useMemo(() => {
+    let list: Survey[];
+    if (activeTab === "active")        list = activeSurveys;
+    else if (activeTab === "archived") list = archivedSurveys;
+    else                               list = deletedSurveys;
+
+    if (activeTab === "active" && statusFilter !== "all") list = list.filter(s => s.status === statusFilter);
+    if (usageFilter === "unused") list = list.filter(s => s.campaign_count === 0);
+    if (usageFilter === "used")   list = list.filter(s => s.campaign_count > 0);
+    if (usageFilter === "live")   list = list.filter(s => s.live_campaign_count > 0);
+
+    const now = new Date();
+    if (createdFilter === "today") {
+      list = list.filter(s => new Date(s.created_at).toDateString() === now.toDateString());
+    } else if (createdFilter === "7days") {
+      const cutoff = new Date(now); cutoff.setDate(cutoff.getDate() - 7);
+      list = list.filter(s => new Date(s.created_at) >= cutoff);
+    } else if (createdFilter === "30days") {
+      const cutoff = new Date(now); cutoff.setDate(cutoff.getDate() - 30);
+      list = list.filter(s => new Date(s.created_at) >= cutoff);
+    }
+
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      list = list.filter(s =>
+        s.name.toLowerCase().includes(q) ||
+        (s.description ?? "").toLowerCase().includes(q) ||
+        (s.created_by ?? "").toLowerCase().includes(q)
+      );
+    }
+
+    return list;
+  }, [surveys, activeTab, statusFilter, usageFilter, createdFilter, search, activeSurveys, archivedSurveys, deletedSurveys]);
+
+  // ── Usage modal ───────────────────────────────────────────────────────────
+  async function openUsageModal(s: Survey) {
+    setUsageSurvey(s);
+    setModalCampaigns(null);
+    setLoadingModal(true);
+    const res = await fetch(`/api/surveys/${s.id}/campaigns`);
+    const json = await res.json();
+    setModalCampaigns(json.data ?? []);
+    setLoadingModal(false);
+  }
+
+  // ── Drawer helpers ─────────────────────────────────────────────────────────
   function openCreate() {
-    setEditing({ ...BLANK_SURVEY, questions: [BLANK_Q()] });
+    setFields({ ...BLANK_FIELDS, questions: [BLANK_Q()] });
+    setEditingId(null);
+    setEditingOriginalStatus(null);
+    setFormError("");
     setDrawerOpen(true);
   }
 
   function openEdit(s: Survey) {
-    setEditing({ ...s });
+    setEditingOriginalStatus(s.status);
+    setFields({
+      name: s.name,
+      description: s.description,
+      questions: s.questions,
+      thank_you_title: s.thank_you_title,
+      thank_you_body: s.thank_you_body,
+      // Archived surveys preserve their lifecycle status on save; form only shows draft/ready
+      status: (s.status === "draft" || s.status === "ready") ? s.status : "draft",
+      is_template: s.is_template,
+    });
+    setEditingId(s.id);
+    setFormError("");
     setDrawerOpen(true);
   }
 
-  async function openDuplicate(s: Survey) {
-    const payload = { ...s, name: `${s.name} (copy)`, status: "draft", id: undefined, created_at: undefined };
-    delete payload.id; delete payload.created_at;
-    await fetch("/api/surveys", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-    load();
-  }
-
-  async function handleDelete(id: string) {
-    if (!confirm("Delete this survey? This cannot be undone.")) return;
-    await fetch(`/api/surveys/${id}`, { method: "DELETE" });
-    load();
-  }
-
   async function handleSave() {
-    if (!editing.name?.trim()) { setError("Survey name is required."); return; }
-    const qs = editing.questions ?? [];
-    if (!qs.length) { setError("At least one question is required."); return; }
+    if (!fields.name?.trim()) { setFormError("Survey name is required."); return; }
+    const qs = fields.questions ?? [];
+    if (!qs.length) { setFormError("At least one question is required."); return; }
     for (const q of qs) {
-      if (!q.text.trim()) { setError("All questions need text."); return; }
-      if (q.options.filter(o => o.trim()).length < 2) { setError("Each question needs at least 2 options."); return; }
+      if (!q.text.trim()) { setFormError("All questions need text."); return; }
+      if (q.options.filter(o => o.trim()).length < 2) { setFormError("Each question needs at least 2 options."); return; }
     }
-    setError(""); setSaving(true);
+    setFormError(""); setSaving(true);
 
     const payload = {
-      ...editing,
+      ...fields,
       questions: qs.map(q => ({ ...q, options: q.options.filter(o => o.trim()) })),
+      // Archived surveys: preserve their status — content edits don't un-archive
+      ...(editingOriginalStatus === "archived" ? { status: "archived" } : {}),
     };
 
-    if (editing.id) {
-      await fetch(`/api/surveys/${editing.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+    if (editingId) {
+      await fetch(`/api/surveys/${editingId}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
     } else {
       await fetch("/api/surveys", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
     }
@@ -288,201 +474,500 @@ export default function SurveysPage() {
     load();
   }
 
+  // ── Question editing ───────────────────────────────────────────────────────
   function setQ(idx: number, patch: Partial<Question>) {
-    setEditing(e => ({
-      ...e,
-      questions: (e.questions ?? []).map((q, i) => i === idx ? { ...q, ...patch } : q),
-    }));
+    setFields(f => ({ ...f, questions: f.questions.map((q, i) => i === idx ? { ...q, ...patch } : q) }));
   }
-
   function addQuestion() {
-    if ((editing.questions?.length ?? 0) >= 3) return;
-    setEditing(e => ({ ...e, questions: [...(e.questions ?? []), BLANK_Q()] }));
+    if (fields.questions.length >= 3) return;
+    setFields(f => ({ ...f, questions: [...f.questions, BLANK_Q()] }));
   }
-
   function removeQuestion(idx: number) {
-    setEditing(e => ({ ...e, questions: (e.questions ?? []).filter((_, i) => i !== idx) }));
+    setFields(f => ({ ...f, questions: f.questions.filter((_, i) => i !== idx) }));
   }
-
   function setOption(qIdx: number, oIdx: number, val: string) {
-    setEditing(e => ({
-      ...e,
-      questions: (e.questions ?? []).map((q, i) => i === qIdx
-        ? { ...q, options: q.options.map((o, j) => j === oIdx ? val : o) }
-        : q),
-    }));
+    setFields(f => ({ ...f, questions: f.questions.map((q, i) => i === qIdx ? { ...q, options: q.options.map((o, j) => j === oIdx ? val : o) } : q) }));
   }
-
   function addOption(qIdx: number) {
-    setEditing(e => ({
-      ...e,
-      questions: (e.questions ?? []).map((q, i) => i === qIdx
-        ? { ...q, options: [...q.options, ""] }
-        : q),
-    }));
+    setFields(f => ({ ...f, questions: f.questions.map((q, i) => i === qIdx ? { ...q, options: [...q.options, ""] } : q) }));
   }
-
   function removeOption(qIdx: number, oIdx: number) {
-    setEditing(e => ({
-      ...e,
-      questions: (e.questions ?? []).map((q, i) => i === qIdx
-        ? { ...q, options: q.options.filter((_, j) => j !== oIdx) }
-        : q),
-    }));
+    setFields(f => ({ ...f, questions: f.questions.map((q, i) => i === qIdx ? { ...q, options: q.options.filter((_, j) => j !== oIdx) } : q) }));
   }
 
+  // ── Survey actions ─────────────────────────────────────────────────────────
+  async function openDuplicate(s: Survey) {
+    const payload: EditFields = {
+      name: `${s.name} (Copy)`,
+      description: s.description,
+      questions: s.questions,
+      thank_you_title: s.thank_you_title,
+      thank_you_body: s.thank_you_body,
+      status: "draft",
+      is_template: s.is_template,
+    };
+    await fetch("/api/surveys", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+    load();
+  }
+
+  async function handleArchive(id: string) {
+    if (!confirm("Archive this survey? It will be hidden from the active list but can be restored at any time.")) return;
+    await fetch(`/api/surveys/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ _action: "archive" }),
+    });
+    load();
+  }
+
+  async function handleRestore(id: string) {
+    await fetch(`/api/surveys/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ _action: "restore" }),
+    });
+    load();
+  }
+
+  async function handleSoftDelete(s: Survey) {
+    if (!confirm(`Move "${s.name}" to deleted items? It can be restored later.`)) return;
+    const res = await fetch(`/api/surveys/${s.id}`, { method: "DELETE" });
+    if (!res.ok) {
+      const json = await res.json().catch(() => ({}));
+      alert(json.error ?? "Could not delete survey.");
+    }
+    load();
+  }
+
+  // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <AdminShell>
       <div className="p-6 max-w-5xl mx-auto">
+
+        {/* ── Page header ── */}
         <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Surveys</h1>
-            <p className="text-sm text-gray-400 mt-0.5">{surveys.length} survey{surveys.length !== 1 ? "s" : ""}</p>
+            <p className="text-sm text-gray-400 mt-0.5">
+              {activeSurveys.length} active · {archivedSurveys.length} archived · {deletedSurveys.length} deleted
+            </p>
           </div>
-          <button onClick={openCreate}
+          <button
+            onClick={openCreate}
             className="text-sm font-semibold px-4 py-2 rounded-lg transition-colors"
-            style={{ background: "#D7B87A", color: "#0B1929" }}
+            style={{ background: GOLD, color: "#0B1929" }}
             onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#C9A766"; }}
-            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "#D7B87A"; }}>
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = GOLD; }}
+          >
             + Create Survey
           </button>
         </div>
 
-        {loading && <p className="text-gray-400">Loading…</p>}
+        {/* ── Search + Filters ── */}
+        <div className="flex gap-3 mb-5 flex-wrap">
+          <div className="flex-1 min-w-[200px] relative">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm pointer-events-none">🔍</span>
+            <input
+              type="search"
+              placeholder="Search surveys…"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="w-full border border-gray-200 rounded-lg pl-8 pr-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A]"
+            />
+          </div>
 
-        {!loading && surveys.length === 0 && (
+          {activeTab === "active" && (
+            <select
+              value={statusFilter}
+              onChange={e => setStatusFilter(e.target.value as typeof statusFilter)}
+              className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A] text-gray-600"
+            >
+              <option value="all">All Statuses</option>
+              <option value="draft">Draft</option>
+              <option value="ready">Ready</option>
+            </select>
+          )}
+
+          <select
+            value={usageFilter}
+            onChange={e => setUsageFilter(e.target.value as typeof usageFilter)}
+            className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A] text-gray-600"
+          >
+            <option value="all">All Usage</option>
+            <option value="unused">Unused</option>
+            <option value="used">Used by campaigns</option>
+            <option value="live">Serving live campaigns</option>
+          </select>
+
+          <select
+            value={createdFilter}
+            onChange={e => setCreatedFilter(e.target.value as typeof createdFilter)}
+            className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A] text-gray-600"
+          >
+            <option value="all">Any time</option>
+            <option value="today">Today</option>
+            <option value="7days">Last 7 days</option>
+            <option value="30days">Last 30 days</option>
+          </select>
+        </div>
+
+        {/* ── Tabs ── */}
+        <div className="flex gap-0 mb-5 border-b border-gray-200">
+          {(
+            [
+              { key: "active",   label: `Active (${activeSurveys.length})`    },
+              { key: "archived", label: `Archived (${archivedSurveys.length})` },
+              { key: "deleted",  label: `Deleted (${deletedSurveys.length})`   },
+            ] as const
+          ).map(({ key, label }) => (
+            <button
+              key={key}
+              onClick={() => { setActiveTab(key); setStatusFilter("all"); setUsageFilter("all"); setCreatedFilter("all"); setSearch(""); }}
+              className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === key
+                  ? "border-[#D7B87A] text-[#0B1929]"
+                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {/* ── List ── */}
+        {loading && <p className="text-gray-400 text-sm">Loading…</p>}
+
+        {!loading && displayed.length === 0 && (
           <div className="text-center py-20 text-gray-400">
             <p className="text-4xl mb-3">◫</p>
-            <p className="font-medium">No surveys yet</p>
-            <p className="text-sm mt-1">Create your first survey to get started.</p>
+            <p className="font-medium">
+              {activeTab === "active"   ? "No active surveys"   :
+               activeTab === "archived" ? "No archived surveys" :
+                                          "No deleted surveys"}
+            </p>
+            {activeTab === "active" && <p className="text-sm mt-1">Create your first survey to get started.</p>}
           </div>
         )}
 
         <div className="space-y-3">
-          {surveys.map(s => (
-            <div key={s.id} className="bg-white border border-gray-100 rounded-xl p-5 flex items-center gap-4 shadow-sm">
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-0.5">
-                  <p className="font-semibold text-gray-900 truncate">{s.name}</p>
-                  {s.is_template && (
-                    <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">Template</span>
-                  )}
-                </div>
-                {s.description && <p className="text-xs text-gray-400 truncate">{s.description}</p>}
-                <p className="text-xs text-gray-400 mt-1">
-                  {s.questions.length} question{s.questions.length !== 1 ? "s" : ""}
-                  {s.start_date && <> · from {s.start_date}</>}
-                  {s.end_date   && <> to {s.end_date}</>}
-                </p>
-              </div>
-              <span className={`text-xs font-semibold px-2 py-1 rounded-full capitalize ${STATUS_COLOURS[s.status]}`}>
-                {s.status}
-              </span>
-              <div className="flex gap-2 flex-shrink-0">
-                <button
-                  onClick={() => setPreviewSurvey(s)}
-                  disabled={s.questions.length === 0}
-                  className="text-xs border border-[#E0E1DD] text-[#0B1929] hover:bg-gray-50 px-3 py-1.5 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed transition-colors font-medium"
-                >
-                  Preview MPU
-                </button>
-                <button onClick={() => openEdit(s)}
-                  className="text-xs border border-gray-200 text-gray-600 hover:bg-gray-50 px-3 py-1.5 rounded-lg">Edit</button>
-                <button onClick={() => openDuplicate(s)}
-                  className="text-xs border border-gray-200 text-gray-600 hover:bg-gray-50 px-3 py-1.5 rounded-lg">Duplicate</button>
-                <button onClick={() => handleDelete(s.id)}
-                  className="text-xs border border-red-100 text-red-500 hover:bg-red-50 px-3 py-1.5 rounded-lg">Delete</button>
-              </div>
+          {displayed.map(s => (
+            <div key={s.id} className="bg-white border border-gray-100 rounded-xl p-5 shadow-sm">
+
+              {/* ── Active / Archived card ── */}
+              {s.status !== "deleted" && (
+                <>
+                  {/* Card header */}
+                  <div className="flex items-start justify-between gap-3 mb-1">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="font-semibold text-gray-900">{s.name}</p>
+                        {s.is_template && (
+                          <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">Template</span>
+                        )}
+                      </div>
+                      {s.description && <p className="text-sm text-gray-500 mt-0.5">{s.description}</p>}
+                      {s.created_by && (
+                        <p className="text-xs text-gray-400 mt-0.5">Created by {s.created_by}</p>
+                      )}
+                    </div>
+                    {/* Lifecycle badge — top-right, subtle */}
+                    <span className={`text-xs font-medium px-2.5 py-1 rounded-full flex-shrink-0 capitalize whitespace-nowrap ${STATUS_COLOURS[s.status]}`}>
+                      {s.status}
+                    </span>
+                  </div>
+
+                  {/* Row 1: structure + dates */}
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 text-xs text-gray-400">
+                    <span>{s.questions.length} question{s.questions.length !== 1 ? "s" : ""}</span>
+                    <span className="text-gray-200">·</span>
+                    <span>Created: {formatDate(s.created_at)}</span>
+                    <span className="text-gray-200">·</span>
+                    <span>Updated: {formatDate(s.updated_at)}</span>
+                    {s.status === "archived" && s.archived_at && (
+                      <>
+                        <span className="text-gray-200">·</span>
+                        <span className="text-amber-600">Archived: {formatDate(s.archived_at)}</span>
+                      </>
+                    )}
+                  </div>
+
+                  {/* Row 2: usage stats */}
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-xs text-gray-400">
+                    {s.campaign_count > 0 ? (
+                      <button
+                        onClick={() => openUsageModal(s)}
+                        className="text-[#0B1929] font-medium hover:text-[#D7B87A] hover:underline transition-colors"
+                      >
+                        Used by: {s.campaign_count} campaign{s.campaign_count !== 1 ? "s" : ""}
+                      </button>
+                    ) : (
+                      <span>Not yet used</span>
+                    )}
+
+                    {s.live_campaign_count > 0 && (
+                      <>
+                        <span className="text-gray-200">·</span>
+                        <span className="text-green-600 font-medium">
+                          Serving in: {s.live_campaign_count} live campaign{s.live_campaign_count !== 1 ? "s" : ""}
+                        </span>
+                      </>
+                    )}
+
+                    {s.last_used_at && (
+                      <>
+                        <span className="text-gray-200">·</span>
+                        <span>Last used: {formatDate(s.last_used_at)}</span>
+                      </>
+                    )}
+
+                    {s.last_response_at && formatRelativeTime(s.last_response_at) && (
+                      <>
+                        <span className="text-gray-200">·</span>
+                        <span title={formatDatetime(s.last_response_at)}>
+                          Last response: {formatRelativeTime(s.last_response_at)}
+                        </span>
+                      </>
+                    )}
+                  </div>
+
+                  {/* Action buttons */}
+                  <div className="flex gap-2 mt-4 flex-wrap">
+                    <button
+                      onClick={() => setPreviewSurvey(s)}
+                      disabled={s.questions.length === 0}
+                      className="text-xs border border-gray-200 text-gray-700 hover:bg-gray-50 px-3 py-1.5 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed transition-colors font-medium"
+                    >
+                      Preview
+                    </button>
+
+                    <button
+                      onClick={() => openEdit(s)}
+                      className="text-xs border border-gray-200 text-gray-600 hover:bg-gray-50 px-3 py-1.5 rounded-lg transition-colors"
+                    >
+                      Edit
+                    </button>
+
+                    <button
+                      onClick={() => openDuplicate(s)}
+                      className="text-xs border border-gray-200 text-gray-600 hover:bg-gray-50 px-3 py-1.5 rounded-lg transition-colors"
+                    >
+                      Duplicate
+                    </button>
+
+                    {s.status !== "archived" ? (
+                      <>
+                        <button
+                          onClick={() => handleArchive(s.id)}
+                          className="text-xs border border-amber-200 text-amber-700 hover:bg-amber-50 px-3 py-1.5 rounded-lg transition-colors"
+                        >
+                          Archive
+                        </button>
+                        <button
+                          onClick={() => handleSoftDelete(s)}
+                          disabled={s.campaign_count > 0 || s.response_count > 0}
+                          title={
+                            s.campaign_count > 0 || s.response_count > 0
+                              ? "This survey has responses or is linked to campaign history. Archive instead."
+                              : "Move to deleted items"
+                          }
+                          className="text-xs border border-red-100 text-red-400 hover:bg-red-50 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                        >
+                          Delete
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        onClick={() => handleRestore(s.id)}
+                        className="text-xs border border-green-200 text-green-700 hover:bg-green-50 px-3 py-1.5 rounded-lg transition-colors"
+                      >
+                        Restore
+                      </button>
+                    )}
+                  </div>
+                </>
+              )}
+
+              {/* ── Deleted card ── */}
+              {s.status === "deleted" && (
+                <>
+                  <div>
+                    <div className="flex items-start justify-between gap-3 mb-0.5">
+                      <p className="font-semibold text-gray-400 line-through">{s.name}</p>
+                      <span className="text-xs font-medium bg-red-100 text-red-600 px-2.5 py-1 rounded-full flex-shrink-0 whitespace-nowrap">Deleted</span>
+                    </div>
+                    {s.description && <p className="text-xs text-gray-400">{s.description}</p>}
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5 text-xs text-gray-400">
+                      {s.deleted_by && <span>Deleted by: <span className="font-medium text-gray-500">{s.deleted_by}</span></span>}
+                      {s.deleted_at && <><span className="text-gray-200">·</span><span>Deleted: {formatDate(s.deleted_at)}</span></>}
+                      {s.delete_reason && <><span className="text-gray-200">·</span><span>Reason: {s.delete_reason}</span></>}
+                      <span className="text-gray-200">·</span>
+                      <span>{s.questions.length} question{s.questions.length !== 1 ? "s" : ""}</span>
+                    </div>
+                  </div>
+                  <div className="flex gap-2 mt-3 flex-wrap">
+                    <button
+                      onClick={() => setPreviewSurvey(s)}
+                      disabled={s.questions.length === 0}
+                      className="text-xs border border-gray-200 text-gray-600 hover:bg-gray-50 px-3 py-1.5 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                    >
+                      Preview
+                    </button>
+                    <button
+                      onClick={() => openDuplicate(s)}
+                      className="text-xs border border-gray-200 text-gray-600 hover:bg-gray-50 px-3 py-1.5 rounded-lg transition-colors"
+                    >
+                      Duplicate
+                    </button>
+                    <button
+                      onClick={() => handleRestore(s.id)}
+                      className="text-xs border border-green-200 text-green-700 hover:bg-green-50 px-3 py-1.5 rounded-lg transition-colors"
+                    >
+                      Restore
+                    </button>
+                  </div>
+                </>
+              )}
+
             </div>
           ))}
         </div>
+
       </div>
 
-      {/* MPU Preview Modal */}
+      {/* ── MPU Preview Modal ── */}
       {previewSurvey && (
-        <MPUPreviewModal
-          survey={previewSurvey}
-          onClose={() => setPreviewSurvey(null)}
+        <MPUPreviewModal survey={previewSurvey} onClose={() => setPreviewSurvey(null)} />
+      )}
+
+      {/* ── Survey Usage Modal ── */}
+      {usageSurvey && (
+        <SurveyUsageModal
+          survey={usageSurvey}
+          campaigns={modalCampaigns}
+          loading={loadingModal}
+          onClose={() => { setUsageSurvey(null); setModalCampaigns(null); }}
         />
       )}
 
-      {/* Drawer */}
+      {/* ── Edit / Create Drawer ── */}
       {drawerOpen && (
         <div className="fixed inset-0 z-50 flex">
           <div className="flex-1 bg-black/40" onClick={() => setDrawerOpen(false)} />
           <div className="w-[520px] bg-white flex flex-col shadow-2xl overflow-hidden">
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-              <h2 className="font-bold text-gray-900">{editing.id ? "Edit Survey" : "Create Survey"}</h2>
-              <button onClick={() => setDrawerOpen(false)} className="text-gray-400 hover:text-gray-600 text-xl">×</button>
+              <h2 className="font-bold text-gray-900">{editingId ? "Edit Survey" : "Create Survey"}</h2>
+              <button onClick={() => setDrawerOpen(false)} className="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
             </div>
 
             <div className="flex-1 overflow-y-auto p-6 space-y-5">
-              {/* Basic fields */}
+
+              {/* Info banner for archived surveys */}
+              {editingOriginalStatus === "archived" && (
+                <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
+                  <p className="text-xs font-semibold text-amber-800">Editing an archived survey</p>
+                  <p className="text-xs text-amber-700 mt-0.5">Content changes will be saved. The survey will remain archived — use Restore to make it active again.</p>
+                </div>
+              )}
+
               <div>
                 <label className="text-xs font-semibold text-gray-600 block mb-1">Survey Name *</label>
-                <input value={editing.name ?? ""} onChange={e => setEditing(x => ({ ...x, name: e.target.value }))}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A]" placeholder="e.g. Premier League Fan Pulse" />
+                <input
+                  value={fields.name}
+                  onChange={e => setFields(f => ({ ...f, name: e.target.value }))}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A]"
+                  placeholder="e.g. Premier League Fan Pulse"
+                />
               </div>
+
               <div>
                 <label className="text-xs font-semibold text-gray-600 block mb-1">Description</label>
-                <input value={editing.description ?? ""} onChange={e => setEditing(x => ({ ...x, description: e.target.value }))}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A]" placeholder="Optional description" />
+                <input
+                  value={fields.description ?? ""}
+                  onChange={e => setFields(f => ({ ...f, description: e.target.value || null }))}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A]"
+                  placeholder="Optional description"
+                />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-semibold text-gray-600 block mb-1">Start Date</label>
-                  <input type="date" value={editing.start_date ?? ""} onChange={e => setEditing(x => ({ ...x, start_date: e.target.value || null }))}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A]" />
+              {/* Status select — hidden when editing an archived survey (status is preserved automatically) */}
+              {editingOriginalStatus !== "archived" && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-semibold text-gray-600 block mb-1">Status</label>
+                    <select
+                      value={fields.status}
+                      onChange={e => setFields(f => ({ ...f, status: e.target.value as "draft" | "ready" }))}
+                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A]"
+                    >
+                      <option value="draft">Draft — still being edited</option>
+                      <option value="ready">Ready — can be attached to campaigns</option>
+                    </select>
+                  </div>
+                  <div className="flex items-end pb-2">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={fields.is_template}
+                        onChange={e => setFields(f => ({ ...f, is_template: e.target.checked }))}
+                        className="accent-[#D7B87A] w-4 h-4"
+                      />
+                      <span className="text-sm text-gray-700">Mark as template</span>
+                    </label>
+                  </div>
                 </div>
-                <div>
-                  <label className="text-xs font-semibold text-gray-600 block mb-1">End Date</label>
-                  <input type="date" value={editing.end_date ?? ""} onChange={e => setEditing(x => ({ ...x, end_date: e.target.value || null }))}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A]" />
-                </div>
-              </div>
+              )}
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-semibold text-gray-600 block mb-1">Status</label>
-                  <select value={editing.status ?? "draft"} onChange={e => setEditing(x => ({ ...x, status: e.target.value as Survey["status"] }))}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A]">
-                    {["draft","live","completed","archived"].map(s => <option key={s} value={s}>{s.charAt(0).toUpperCase()+s.slice(1)}</option>)}
-                  </select>
-                </div>
-                <div className="flex items-end pb-2">
+              {editingOriginalStatus === "archived" && (
+                <div className="flex items-center pb-1">
                   <label className="flex items-center gap-2 cursor-pointer">
-                    <input type="checkbox" checked={editing.is_template ?? false} onChange={e => setEditing(x => ({ ...x, is_template: e.target.checked }))}
-                      className="accent-[#D7B87A] w-4 h-4" />
-                    <span className="text-sm text-gray-700">Save as template</span>
+                    <input
+                      type="checkbox"
+                      checked={fields.is_template}
+                      onChange={e => setFields(f => ({ ...f, is_template: e.target.checked }))}
+                      className="accent-[#D7B87A] w-4 h-4"
+                    />
+                    <span className="text-sm text-gray-700">Mark as template</span>
                   </label>
                 </div>
-              </div>
+              )}
 
               {/* Questions */}
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <label className="text-xs font-semibold text-gray-600">Questions ({editing.questions?.length ?? 0}/3)</label>
-                  <button onClick={addQuestion} disabled={(editing.questions?.length ?? 0) >= 3}
-                    className="text-xs text-[#D7B87A] hover:text-[#C9A766] disabled:opacity-30">+ Add question</button>
+                  <label className="text-xs font-semibold text-gray-600">Questions ({fields.questions.length}/3)</label>
+                  <button
+                    onClick={addQuestion}
+                    disabled={fields.questions.length >= 3}
+                    className="text-xs text-[#D7B87A] hover:text-[#C9A766] disabled:opacity-30"
+                  >
+                    + Add question
+                  </button>
                 </div>
 
                 <div className="space-y-4">
-                  {(editing.questions ?? []).map((q, qi) => (
+                  {fields.questions.map((q, qi) => (
                     <div key={q.id} className="border border-gray-200 rounded-xl p-4 space-y-3">
                       <div className="flex items-center gap-2">
                         <span className="text-xs font-bold text-[#0B1929] w-6">Q{qi + 1}</span>
-                        <input value={q.text} onChange={e => setQ(qi, { text: e.target.value })}
-                          className="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-[#D7B87A]" placeholder="Question text…" />
-                        {(editing.questions?.length ?? 0) > 1 && (
+                        <input
+                          value={q.text}
+                          onChange={e => setQ(qi, { text: e.target.value })}
+                          className="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-[#D7B87A]"
+                          placeholder="Question text…"
+                        />
+                        {fields.questions.length > 1 && (
                           <button onClick={() => removeQuestion(qi)} className="text-red-400 hover:text-red-600 text-xs">✕</button>
                         )}
                       </div>
                       <div className="space-y-2 pl-8">
                         {q.options.map((opt, oi) => (
                           <div key={oi} className="flex items-center gap-2">
-                            <input value={opt} onChange={e => setOption(qi, oi, e.target.value)}
-                              className="flex-1 border border-gray-100 rounded-lg px-2 py-1 text-xs focus:outline-none focus:border-[#D7B87A]" placeholder={`Option ${oi + 1}`} />
+                            <input
+                              value={opt}
+                              onChange={e => setOption(qi, oi, e.target.value)}
+                              className="flex-1 border border-gray-100 rounded-lg px-2 py-1 text-xs focus:outline-none focus:border-[#D7B87A]"
+                              placeholder={`Option ${oi + 1}`}
+                            />
                             {q.options.length > 2 && (
                               <button onClick={() => removeOption(qi, oi)} className="text-gray-300 hover:text-red-400 text-xs">✕</button>
                             )}
@@ -500,22 +985,33 @@ export default function SurveysPage() {
               {/* Thank you screen */}
               <div className="border border-gray-100 rounded-xl p-4 space-y-3 bg-gray-50">
                 <p className="text-xs font-semibold text-gray-600">Thank You Screen</p>
-                <input value={editing.thank_you_title ?? ""} onChange={e => setEditing(x => ({ ...x, thank_you_title: e.target.value }))}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-[#D7B87A] bg-white" placeholder="Thank you title" />
-                <input value={editing.thank_you_body ?? ""} onChange={e => setEditing(x => ({ ...x, thank_you_body: e.target.value }))}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-[#D7B87A] bg-white" placeholder="Thank you message" />
+                <input
+                  value={fields.thank_you_title}
+                  onChange={e => setFields(f => ({ ...f, thank_you_title: e.target.value }))}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-[#D7B87A] bg-white"
+                  placeholder="Thank you title"
+                />
+                <input
+                  value={fields.thank_you_body}
+                  onChange={e => setFields(f => ({ ...f, thank_you_body: e.target.value }))}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-[#D7B87A] bg-white"
+                  placeholder="Thank you message"
+                />
               </div>
 
-              {error && <p className="text-red-500 text-xs">{error}</p>}
+              {formError && <p className="text-red-500 text-xs">{formError}</p>}
             </div>
 
             <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-3">
               <button onClick={() => setDrawerOpen(false)} className="text-sm text-gray-500 hover:text-gray-700 px-4 py-2">Cancel</button>
-              <button onClick={handleSave} disabled={saving}
+              <button
+                onClick={handleSave}
+                disabled={saving}
                 className="text-sm font-semibold px-5 py-2 rounded-lg disabled:opacity-60"
-                style={{ background: "#D7B87A", color: "#0B1929" }}
+                style={{ background: GOLD, color: "#0B1929" }}
                 onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#C9A766"; }}
-                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "#D7B87A"; }}>
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = GOLD; }}
+              >
                 {saving ? "Saving…" : "Save Survey"}
               </button>
             </div>
