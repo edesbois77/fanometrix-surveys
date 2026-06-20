@@ -3,7 +3,7 @@ import bcrypt from "bcryptjs";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { requireSession } from "@/lib/auth";
 
-const USER_SELECT = "id,username,role,organisation_name,organisation_type,allowed_campaign_ids,allowed_publisher_ids,is_active,force_password_change,created_at,updated_at";
+const USER_SELECT = "id,username,role,organisation_name,allowed_campaign_ids,allowed_publisher_ids,is_active,force_password_change,created_at,updated_at";
 
 export async function GET(req: NextRequest) {
   try {
@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
 
   const {
     username, password, role,
-    organisation_name, organisation_type,
+    organisation_name,
     allowed_campaign_ids, allowed_publisher_ids,
     is_active, force_password_change,
   } = body as {
@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
     password: string;
     role: string;
     organisation_name?: string;
-    organisation_type?: string;
+
     allowed_campaign_ids?: string[];
     allowed_publisher_ids?: string[];
     is_active?: boolean;
@@ -77,7 +77,6 @@ export async function POST(req: NextRequest) {
       hashed_password,
       role,
       organisation_name:    organisation_name    ?? "",
-      organisation_type:    organisation_type    ?? "",
       allowed_campaign_ids: allowed_campaign_ids  ?? [],
       allowed_publisher_ids: allowed_publisher_ids ?? [],
       is_active:            is_active            ?? true,

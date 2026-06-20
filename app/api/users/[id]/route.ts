@@ -3,7 +3,7 @@ import bcrypt from "bcryptjs";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { requireSession } from "@/lib/auth";
 
-const USER_SELECT = "id,username,role,organisation_name,organisation_type,allowed_campaign_ids,allowed_publisher_ids,is_active,force_password_change,created_at,updated_at";
+const USER_SELECT = "id,username,role,organisation_name,allowed_campaign_ids,allowed_publisher_ids,is_active,force_password_change,created_at,updated_at";
 
 export async function PUT(
   req: NextRequest,
@@ -40,7 +40,7 @@ export async function PUT(
 
   if (body.role)                            update.role              = body.role;
   if (body.organisation_name  !== undefined) update.organisation_name  = body.organisation_name;
-  if (body.organisation_type  !== undefined) update.organisation_type  = body.organisation_type;
+
   if (body.allowed_campaign_ids)             update.allowed_campaign_ids  = body.allowed_campaign_ids;
   if (body.allowed_publisher_ids)            update.allowed_publisher_ids = body.allowed_publisher_ids;
   if (body.is_active          !== undefined) update.is_active          = body.is_active;

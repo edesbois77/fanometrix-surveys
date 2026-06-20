@@ -9,7 +9,6 @@ type User = {
   username: string;
   role: "admin" | "brand" | "agency" | "publisher";
   organisation_name: string;
-  organisation_type: string;
   allowed_campaign_ids: string[];
   allowed_publisher_ids: string[];
   is_active: boolean;
@@ -22,8 +21,7 @@ type Option = { value: string; label: string };
 type CampaignOption = Option & { created_at: string };
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const ROLES      = ["admin", "brand", "agency", "publisher"] as const;
-const ORG_TYPES  = ["Admin", "Agency", "Brand", "Publisher"] as const;
+const ROLES = ["admin", "brand", "agency", "publisher"] as const;
 
 const KNOWN_PUBLISHERS = [
   "FotMob", "Flashscore", "Forza Football", "LiveScore",
@@ -229,7 +227,6 @@ type FormState = {
   force_password_change: boolean;
   role:                  User["role"];
   organisation_name:     string;
-  organisation_type:     string;
   allowed_campaign_ids:  string[];
   allowed_publisher_ids: string[];
   is_active:             boolean;
@@ -242,7 +239,6 @@ const EMPTY_FORM: FormState = {
   force_password_change: true,
   role:                  "brand",
   organisation_name:     "",
-  organisation_type:     "",
   allowed_campaign_ids:  [],
   allowed_publisher_ids: [],
   is_active:             true,
@@ -328,7 +324,6 @@ export default function UserManagementPage() {
       force_password_change: u.force_password_change,
       role:                  u.role,
       organisation_name:     u.organisation_name,
-      organisation_type:     u.organisation_type,
       allowed_campaign_ids:  u.allowed_campaign_ids  ?? [],
       allowed_publisher_ids: u.allowed_publisher_ids ?? [],
       is_active:             u.is_active,
@@ -368,7 +363,6 @@ export default function UserManagementPage() {
       username:              cleanUsername,
       role:                  form.role,
       organisation_name:     form.organisation_name,
-      organisation_type:     form.organisation_type,
       allowed_campaign_ids:  form.allowed_campaign_ids,
       allowed_publisher_ids: form.allowed_publisher_ids,
       is_active:             form.is_active,
@@ -449,7 +443,6 @@ export default function UserManagementPage() {
                   <th className="text-left px-5 py-3 font-semibold">Username</th>
                   <th className="text-left px-5 py-3 font-semibold">Role</th>
                   <th className="text-left px-5 py-3 font-semibold">Organisation</th>
-                  <th className="text-left px-5 py-3 font-semibold">Type</th>
                   <th className="text-left px-5 py-3 font-semibold">Status</th>
                   <th className="text-left px-5 py-3 font-semibold">Last Updated</th>
                   <th className="px-5 py-3" />
@@ -473,9 +466,6 @@ export default function UserManagementPage() {
                     </td>
                     <td className="px-5 py-3 text-gray-600">
                       {u.organisation_name || <span className="text-gray-300">—</span>}
-                    </td>
-                    <td className="px-5 py-3 text-gray-500 text-xs">
-                      {u.organisation_type || <span className="text-gray-300">—</span>}
                     </td>
                     <td className="px-5 py-3">
                       <span className={`text-xs font-semibold ${u.is_active ? "text-green-600" : "text-gray-400"}`}>
@@ -619,18 +609,6 @@ export default function UserManagementPage() {
                   placeholder="e.g. Carlsberg" className={INPUT} />
               </Field>
 
-              {/* Organisation Type */}
-              <Field label="Organisation Type">
-                <select value={form.organisation_type}
-                  onChange={e => setForm(f => ({ ...f, organisation_type: e.target.value }))}
-                  className={INPUT}>
-                  <option value="">Select type…</option>
-                  {ORG_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-                </select>
-                <p className="text-xs text-gray-400 mt-1">
-                  The type of organisation this account belongs to.
-                </p>
-              </Field>
 
               <hr className="border-gray-100" />
 
