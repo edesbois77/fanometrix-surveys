@@ -44,12 +44,13 @@ export async function POST(req: NextRequest) {
   }
 
   const token = await signJwt({
-    sub: user.id,
-    username: user.username,
-    role: user.role,
-    organisationName: user.organisation_name ?? null,
-    allowedCampaignIds: user.allowed_campaign_ids ?? [],
+    sub:                 user.id,
+    username:            user.username,
+    role:                user.role,
+    organisationName:    user.organisation_name    ?? null,
+    allowedCampaignIds:  user.allowed_campaign_ids  ?? [],
     allowedPublisherIds: user.allowed_publisher_ids ?? [],
+    forcePasswordChange: user.force_password_change ?? false,
   });
 
   const response = NextResponse.json({

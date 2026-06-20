@@ -3,7 +3,7 @@ import bcrypt from "bcryptjs";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { requireSession } from "@/lib/auth";
 
-const USER_SELECT = "id,username,role,organisation_name,organisation_type,allowed_campaign_ids,allowed_publisher_ids,is_active,created_at";
+const USER_SELECT = "id,username,role,organisation_name,organisation_type,allowed_campaign_ids,allowed_publisher_ids,is_active,force_password_change,created_at,updated_at";
 
 export async function GET(req: NextRequest) {
   try {
@@ -35,8 +35,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
   }
 
-  const { username, password, role, organisation_name, organisation_type,
-          allowed_campaign_ids, allowed_publisher_ids, is_active } = body as {
+  const {
+    username, password, role,
+    organisation_name, organisation_type,
+    allowed_campaign_ids, allowed_publisher_ids,
+    is_active, force_password_change,
+  } = body as {
     username: string;
     password: string;
     role: string;
@@ -45,10 +49,23 @@ export async function POST(req: NextRequest) {
     allowed_campaign_ids?: string[];
     allowed_publisher_ids?: string[];
     is_active?: boolean;
+    force_password_change?: boolean;
   };
 
   if (!username || !password || !role) {
-    return NextResponse.json({ error: "username, password and role are required" }, { status: 400 });
+    return NextResponse.json(
+      { error: "Username, password and role are required" },
+      { status: 400 }
+    );
+  }
+
+  // Validate username format
+  const cleanUsername = username.toLowerCase().trim();
+  if (!/^[a-z0-9_-]+$/.test(cleanUsername)) {
+    return NextResponse.json(
+      { error: "Username may only contain lowercase letters, numbers, underscores and hyphens" },
+      { status: 400 }
+    );
   }
 
   const hashed_password = await bcrypt.hash(password, 10);
@@ -56,14 +73,15 @@ export async function POST(req: NextRequest) {
   const { data, error } = await supabaseAdmin
     .from("users")
     .insert({
-      username: username.toLowerCase().trim(),
+      username:             cleanUsername,
       hashed_password,
       role,
-      organisation_name: organisation_name ?? "",
-      organisation_type: organisation_type ?? "",
-      allowed_campaign_ids: allowed_campaign_ids ?? [],
+      organisation_name:    organisation_name    ?? "",
+      organisation_type:    organisation_type    ?? "",
+      allowed_campaign_ids: allowed_campaign_ids  ?? [],
       allowed_publisher_ids: allowed_publisher_ids ?? [],
-      is_active: is_active ?? true,
+      is_active:            is_active            ?? true,
+      force_password_change: force_password_change ?? true,
     })
     .select(USER_SELECT)
     .single();

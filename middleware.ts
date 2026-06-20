@@ -68,6 +68,11 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
+  // Force password change — gate all protected routes until the user sets a new password
+  if (session.forcePasswordChange && pathname !== "/change-password") {
+    return NextResponse.redirect(new URL("/change-password", req.url));
+  }
+
   // Admin-only routes
   const isAdminOnly = ADMIN_ONLY_PREFIXES.some((p) => pathname.startsWith(p));
   if (isAdminOnly && session.role !== "admin") {

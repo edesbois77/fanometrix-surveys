@@ -12,6 +12,7 @@ export type SessionPayload = {
   organisationName: string | null;
   allowedCampaignIds: string[];
   allowedPublisherIds: string[];
+  forcePasswordChange: boolean;
   iat: number;
   exp: number;
 };

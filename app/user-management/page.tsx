@@ -13,21 +13,49 @@ type User = {
   allowed_campaign_ids: string[];
   allowed_publisher_ids: string[];
   is_active: boolean;
+  force_password_change: boolean;
   created_at: string;
+  updated_at: string;
 };
 
 type Option = { value: string; label: string };
 type CampaignOption = Option & { created_at: string };
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const ROLES = ["admin", "brand", "agency", "publisher"] as const;
-
-const ORG_TYPES = ["Admin", "Agency", "Brand", "Publisher"] as const;
+const ROLES      = ["admin", "brand", "agency", "publisher"] as const;
+const ORG_TYPES  = ["Admin", "Agency", "Brand", "Publisher"] as const;
 
 const KNOWN_PUBLISHERS = [
-  "FotMob", "LiveScore", "SofaScore", "Flashscore",
-  "Forza Football", "OneFootball", "WhoScored", "Sofascore",
+  "FotMob", "Flashscore", "Forza Football", "LiveScore",
+  "OneFootball", "SofaScore", "WhoScored",
 ];
+
+// ─── Password generator (uses Web Crypto) ─────────────────────────────────────
+function generatePassword(): string {
+  const upper  = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+  const lower  = "abcdefghjkmnpqrstuvwxyz";
+  const digits = "23456789";
+  const syms   = "!@#$%&*";
+  const all    = upper + lower + digits + syms;
+
+  const rand = new Uint8Array(32);
+  crypto.getRandomValues(rand);
+
+  const chars: string[] = [
+    upper[rand[0]  % upper.length],
+    lower[rand[1]  % lower.length],
+    digits[rand[2] % digits.length],
+    syms[rand[3]   % syms.length],
+    ...Array.from({ length: 8 }, (_, i) => all[rand[4 + i] % all.length]),
+  ];
+
+  // Fisher-Yates shuffle
+  for (let i = chars.length - 1; i > 0; i--) {
+    const j = rand[12 + i] % (i + 1);
+    [chars[i], chars[j]] = [chars[j], chars[i]];
+  }
+  return chars.join("");
+}
 
 // ─── Searchable multi-select ──────────────────────────────────────────────────
 function MultiSelect({
@@ -44,19 +72,16 @@ function MultiSelect({
   helperText?: string;
 }) {
   const [search, setSearch] = useState("");
-  const [open, setOpen]     = useState(false);
+  const [open,   setOpen]   = useState(false);
   const inputRef            = useRef<HTMLInputElement>(null);
   const dropRef             = useRef<HTMLDivElement>(null);
 
-  // Close when clicking outside
   useEffect(() => {
     function handle(e: MouseEvent) {
       if (
-        dropRef.current && !dropRef.current.contains(e.target as Node) &&
+        dropRef.current  && !dropRef.current.contains(e.target as Node) &&
         inputRef.current && !inputRef.current.contains(e.target as Node)
-      ) {
-        setOpen(false);
-      }
+      ) setOpen(false);
     }
     document.addEventListener("mousedown", handle);
     return () => document.removeEventListener("mousedown", handle);
@@ -77,13 +102,10 @@ function MultiSelect({
     onChange(selected.filter(v => v !== value));
   }
 
-  function labelFor(v: string) {
-    return options.find(o => o.value === v)?.label ?? v;
-  }
+  const labelFor = (v: string) => options.find(o => o.value === v)?.label ?? v;
 
   return (
     <div>
-      {/* Selected chips */}
       {selected.length > 0 && (
         <div className="flex flex-wrap gap-1.5 mb-2">
           {selected.map(v => (
@@ -94,8 +116,6 @@ function MultiSelect({
           ))}
         </div>
       )}
-
-      {/* Input + dropdown */}
       <div className="relative">
         <input
           ref={inputRef}
@@ -107,18 +127,16 @@ function MultiSelect({
           className={INPUT}
           autoComplete="off"
         />
-
         {open && (
-          <div ref={dropRef} className="absolute z-20 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+          <div ref={dropRef} className="absolute z-20 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-44 overflow-y-auto">
             {remaining.length === 0 ? (
               <p className="px-3 py-2.5 text-xs text-gray-400">
-                {search ? "No matches found" : selected.length === options.length ? "All selected" : "No options"}
+                {search ? "No matches found" : "All selected"}
               </p>
             ) : (
               remaining.map(o => (
                 <button
-                  key={o.value}
-                  type="button"
+                  key={o.value} type="button"
                   onMouseDown={e => { e.preventDefault(); add(o.value); }}
                   className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
                 >
@@ -129,8 +147,76 @@ function MultiSelect({
           </div>
         )}
       </div>
-
       {helperText && <p className="text-xs text-gray-400 mt-1.5 leading-relaxed">{helperText}</p>}
+    </div>
+  );
+}
+
+// ─── Credentials modal (shown once after account create / password reset) ─────
+function CredentialsModal({
+  username,
+  password,
+  onClose,
+}: {
+  username: string;
+  password: string;
+  onClose: () => void;
+}) {
+  const [copied, setCopied] = useState(false);
+
+  async function copyCredentials() {
+    const text = `Username: ${username}\nTemporary Password: ${password}`;
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    } catch {
+      // Fallback: select the text manually
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm">
+      <div className="bg-white rounded-2xl shadow-2xl p-7 max-w-sm w-full mx-4">
+        <div className="text-center mb-5">
+          <div className="text-2xl mb-2">🔐</div>
+          <h2 className="text-lg font-bold text-gray-900">Account Ready</h2>
+          <p className="text-sm text-gray-500 mt-1">Share these credentials securely.</p>
+        </div>
+
+        <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 space-y-3 mb-4">
+          <div>
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-0.5">Username</p>
+            <p className="font-mono text-sm text-gray-900">{username}</p>
+          </div>
+          <div>
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-0.5">Temporary Password</p>
+            <p className="font-mono text-sm text-gray-900 tracking-widest">{password}</p>
+          </div>
+        </div>
+
+        <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5 mb-5">
+          <p className="text-xs text-amber-800 font-medium">
+            ⚠️ Copy these credentials now. The password cannot be viewed again.
+          </p>
+        </div>
+
+        <div className="flex gap-3">
+          <button
+            onClick={copyCredentials}
+            className="flex-1 text-sm font-semibold py-2.5 rounded-lg transition-colors"
+            style={{ background: "#0B1929", color: "#D7B87A" }}
+          >
+            {copied ? "✓ Copied" : "Copy Credentials"}
+          </button>
+          <button
+            onClick={onClose}
+            className="flex-1 border border-gray-200 text-gray-600 hover:bg-gray-50 text-sm font-medium py-2.5 rounded-lg transition-colors"
+          >
+            Close
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -138,7 +224,9 @@ function MultiSelect({
 // ─── Form state ───────────────────────────────────────────────────────────────
 type FormState = {
   username:              string;
-  password:              string;
+  new_password:          string;
+  confirm_password:      string;
+  force_password_change: boolean;
   role:                  User["role"];
   organisation_name:     string;
   organisation_type:     string;
@@ -149,7 +237,9 @@ type FormState = {
 
 const EMPTY_FORM: FormState = {
   username:              "",
-  password:              "",
+  new_password:          "",
+  confirm_password:      "",
+  force_password_change: true,
   role:                  "brand",
   organisation_name:     "",
   organisation_type:     "",
@@ -160,27 +250,24 @@ const EMPTY_FORM: FormState = {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function UserManagementPage() {
-  const [users,         setUsers]         = useState<User[]>([]);
-  const [loading,       setLoading]       = useState(true);
-  const [showModal,     setShowModal]     = useState(false);
-  const [editUser,      setEditUser]      = useState<User | null>(null);
-  const [form,          setForm]          = useState<FormState>({ ...EMPTY_FORM });
-  const [saving,        setSaving]        = useState(false);
-  const [toast,         setToast]         = useState<{ msg: string; ok: boolean } | null>(null);
-
-  // Options for the multi-selects
-  const [campaignOptions,  setCampaignOptions]  = useState<CampaignOption[]>([]);
-  const [publisherOptions, setPublisherOptions] = useState<Option[]>([]);
-  const [campaignSort,     setCampaignSort]     = useState<"recent" | "alpha">("recent");
+  const [users,           setUsers]           = useState<User[]>([]);
+  const [loading,         setLoading]         = useState(true);
+  const [showModal,       setShowModal]       = useState(false);
+  const [editUser,        setEditUser]        = useState<User | null>(null);
+  const [form,            setForm]            = useState<FormState>({ ...EMPTY_FORM });
+  const [formError,       setFormError]       = useState("");
+  const [saving,          setSaving]          = useState(false);
+  const [toast,           setToast]           = useState<{ msg: string; ok: boolean } | null>(null);
+  const [credentials,     setCredentials]     = useState<{ username: string; password: string } | null>(null);
+  const [campaignOptions, setCampaignOptions] = useState<CampaignOption[]>([]);
+  const [publisherOptions,setPublisherOptions]= useState<Option[]>([]);
+  const [campaignSort,    setCampaignSort]    = useState<"recent" | "alpha">("recent");
 
   // ── Load users ──────────────────────────────────────────────────────────────
   const loadUsers = useCallback(async () => {
     setLoading(true);
     const res = await fetch("/api/users");
-    if (res.ok) {
-      const json = await res.json();
-      setUsers(json.data ?? []);
-    }
+    if (res.ok) setUsers((await res.json()).data ?? []);
     setLoading(false);
   }, []);
 
@@ -192,11 +279,8 @@ export default function UserManagementPage() {
       .then(r => r.json())
       .then(json => {
         const data: Array<{
-          campaign_id: string;
-          campaign_name: string;
-          brand_name: string;
-          publishers: string[];
-          created_at: string;
+          campaign_id: string; campaign_name: string;
+          brand_name: string; publishers: string[]; created_at: string;
         }> = json.data ?? [];
 
         setCampaignOptions(
@@ -207,33 +291,22 @@ export default function UserManagementPage() {
           }))
         );
 
-        // Merge publishers from campaigns + known static list, deduplicate
         const seen = new Set<string>(KNOWN_PUBLISHERS);
-        for (const c of data) {
-          for (const p of c.publishers ?? []) {
-            if (p.trim()) seen.add(p.trim());
-          }
-        }
-        setPublisherOptions(
-          [...seen].sort().map(p => ({ value: p, label: p }))
-        );
+        for (const c of data) for (const p of c.publishers ?? []) if (p.trim()) seen.add(p.trim());
+        setPublisherOptions([...seen].sort().map(p => ({ value: p, label: p })));
       })
       .catch(() => {
-        // Fallback to static publisher list if campaigns fetch fails
-        setPublisherOptions(
-          KNOWN_PUBLISHERS.map(p => ({ value: p, label: p }))
-        );
+        setPublisherOptions(KNOWN_PUBLISHERS.map(p => ({ value: p, label: p })));
       });
   }, []);
 
-  // Sorted campaign options
   const sortedCampaignOptions: Option[] = campaignSort === "alpha"
     ? [...campaignOptions].sort((a, b) => a.label.localeCompare(b.label))
-    : [...campaignOptions].sort(
-        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    : [...campaignOptions].sort((a, b) =>
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       );
 
-  // ── Modal helpers ────────────────────────────────────────────────────────────
+  // ── Helpers ─────────────────────────────────────────────────────────────────
   function showToast(msg: string, ok = true) {
     setToast({ msg, ok });
     setTimeout(() => setToast(null), 4000);
@@ -242,6 +315,7 @@ export default function UserManagementPage() {
   function openCreate() {
     setEditUser(null);
     setForm({ ...EMPTY_FORM });
+    setFormError("");
     setShowModal(true);
   }
 
@@ -249,7 +323,9 @@ export default function UserManagementPage() {
     setEditUser(u);
     setForm({
       username:              u.username,
-      password:              "",
+      new_password:          "",
+      confirm_password:      "",
+      force_password_change: u.force_password_change,
       role:                  u.role,
       organisation_name:     u.organisation_name,
       organisation_type:     u.organisation_type,
@@ -257,58 +333,83 @@ export default function UserManagementPage() {
       allowed_publisher_ids: u.allowed_publisher_ids ?? [],
       is_active:             u.is_active,
     });
+    setFormError("");
     setShowModal(true);
+  }
+
+  function handleGeneratePassword() {
+    const pwd = generatePassword();
+    setForm(f => ({ ...f, new_password: pwd, confirm_password: pwd }));
   }
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
+    setFormError("");
+
+    // Validate username
+    const cleanUsername = form.username.toLowerCase().trim();
+    if (!cleanUsername) { setFormError("Username is required."); return; }
+    if (!/^[a-z0-9_-]+$/.test(cleanUsername)) {
+      setFormError("Username may only contain letters, numbers, underscores and hyphens.");
+      return;
+    }
+
+    // Validate password
+    const hasPassword = form.new_password.length > 0;
+    if (!editUser && !hasPassword) { setFormError("Password is required."); return; }
+    if (hasPassword) {
+      if (form.new_password.length < 8) { setFormError("Password must be at least 8 characters."); return; }
+      if (form.new_password !== form.confirm_password) { setFormError("Passwords do not match."); return; }
+    }
+
     setSaving(true);
 
-    const payload = {
-      username:              form.username.toLowerCase().trim(),
+    const payload: Record<string, unknown> = {
+      username:              cleanUsername,
       role:                  form.role,
       organisation_name:     form.organisation_name,
       organisation_type:     form.organisation_type,
       allowed_campaign_ids:  form.allowed_campaign_ids,
       allowed_publisher_ids: form.allowed_publisher_ids,
       is_active:             form.is_active,
-      ...(form.password ? { password: form.password } : {}),
+      force_password_change: form.force_password_change,
     };
+    if (hasPassword) payload.password = form.new_password;
 
     const url    = editUser ? `/api/users/${editUser.id}` : "/api/users";
     const method = editUser ? "PUT" : "POST";
 
     const res  = await fetch(url, {
-      method,
-      headers: { "Content-Type": "application/json" },
-      body:    JSON.stringify(payload),
+      method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
     });
     const json = await res.json();
-
     setSaving(false);
 
     if (!res.ok) {
-      showToast(json.error ?? "Failed to save user", false);
-    } else {
-      showToast(editUser ? "User updated." : "User created.");
-      setShowModal(false);
-      loadUsers();
+      setFormError(json.error ?? "Failed to save. Please try again.");
+      return;
     }
+
+    // Show credentials modal if a password was set
+    if (hasPassword) {
+      setCredentials({ username: cleanUsername, password: form.new_password });
+    } else {
+      showToast(editUser ? "Account updated." : "Account created.");
+    }
+
+    setShowModal(false);
+    loadUsers();
   }
 
   async function toggleActive(u: User) {
     const res  = await fetch(`/api/users/${u.id}`, {
-      method:  "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body:    JSON.stringify({ is_active: !u.is_active }),
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ is_active: !u.is_active }),
     });
     const json = await res.json();
-    if (!res.ok) {
-      showToast(json.error ?? "Failed to update", false);
-    } else {
-      showToast(u.is_active ? "Account disabled." : "Account enabled.");
-      loadUsers();
-    }
+    if (!res.ok) { showToast(json.error ?? "Failed to update", false); return; }
+    showToast(u.is_active ? "Account disabled." : "Account enabled.");
+    loadUsers();
   }
 
   const ROLE_COLOURS: Record<User["role"], string> = {
@@ -321,20 +422,17 @@ export default function UserManagementPage() {
   // ── Render ───────────────────────────────────────────────────────────────────
   return (
     <AdminShell>
-      <div className="p-6 max-w-5xl mx-auto">
+      <div className="p-6 max-w-6xl mx-auto">
 
-        {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">User Management</h1>
-            <p className="text-sm text-gray-400 mt-0.5">Create and manage platform accounts.</p>
+            <p className="text-sm text-gray-400 mt-0.5">Organisation accounts and platform access.</p>
           </div>
-          <button
-            onClick={openCreate}
+          <button onClick={openCreate}
             className="text-sm font-semibold px-4 py-2 rounded-lg transition-colors"
-            style={{ background: "#0B1929", color: "#D7B87A" }}
-          >
-            + New User
+            style={{ background: "#0B1929", color: "#D7B87A" }}>
+            + New Account
           </button>
         </div>
 
@@ -343,7 +441,7 @@ export default function UserManagementPage() {
           {loading ? (
             <div className="p-8 text-center text-gray-400 text-sm">Loading…</div>
           ) : users.length === 0 ? (
-            <div className="p-8 text-center text-gray-400 text-sm">No users yet.</div>
+            <div className="p-8 text-center text-gray-400 text-sm">No accounts yet.</div>
           ) : (
             <table className="w-full text-sm">
               <thead>
@@ -351,15 +449,23 @@ export default function UserManagementPage() {
                   <th className="text-left px-5 py-3 font-semibold">Username</th>
                   <th className="text-left px-5 py-3 font-semibold">Role</th>
                   <th className="text-left px-5 py-3 font-semibold">Organisation</th>
+                  <th className="text-left px-5 py-3 font-semibold">Type</th>
                   <th className="text-left px-5 py-3 font-semibold">Status</th>
-                  <th className="text-left px-5 py-3 font-semibold">Created</th>
+                  <th className="text-left px-5 py-3 font-semibold">Last Updated</th>
                   <th className="px-5 py-3" />
                 </tr>
               </thead>
               <tbody>
-                {users.map((u) => (
+                {users.map(u => (
                   <tr key={u.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
-                    <td className="px-5 py-3 font-mono text-xs text-gray-700">{u.username}</td>
+                    <td className="px-5 py-3 font-mono text-xs text-gray-700">
+                      {u.username}
+                      {u.force_password_change && (
+                        <span className="ml-2 text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-sans">
+                          pwd reset
+                        </span>
+                      )}
+                    </td>
                     <td className="px-5 py-3">
                       <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${ROLE_COLOURS[u.role]}`}>
                         {u.role}
@@ -368,28 +474,29 @@ export default function UserManagementPage() {
                     <td className="px-5 py-3 text-gray-600">
                       {u.organisation_name || <span className="text-gray-300">—</span>}
                     </td>
+                    <td className="px-5 py-3 text-gray-500 text-xs">
+                      {u.organisation_type || <span className="text-gray-300">—</span>}
+                    </td>
                     <td className="px-5 py-3">
                       <span className={`text-xs font-semibold ${u.is_active ? "text-green-600" : "text-gray-400"}`}>
                         {u.is_active ? "Active" : "Disabled"}
                       </span>
                     </td>
                     <td className="px-5 py-3 text-gray-400 text-xs">
-                      {new Date(u.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+                      {u.updated_at
+                        ? new Date(u.updated_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })
+                        : new Date(u.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
                     </td>
                     <td className="px-5 py-3">
                       <div className="flex items-center gap-3 justify-end">
-                        <button
-                          onClick={() => openEdit(u)}
-                          className="text-xs text-gray-500 hover:text-gray-800 transition-colors"
-                        >
+                        <button onClick={() => openEdit(u)}
+                          className="text-xs text-gray-500 hover:text-gray-800 transition-colors">
                           Edit
                         </button>
-                        <button
-                          onClick={() => toggleActive(u)}
+                        <button onClick={() => toggleActive(u)}
                           className={`text-xs font-medium transition-colors ${
                             u.is_active ? "text-red-400 hover:text-red-600" : "text-green-500 hover:text-green-700"
-                          }`}
-                        >
+                          }`}>
                           {u.is_active ? "Disable" : "Enable"}
                         </button>
                       </div>
@@ -402,50 +509,103 @@ export default function UserManagementPage() {
         </div>
       </div>
 
-      {/* ── Modal ── */}
+      {/* ── Create / Edit modal ── */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl p-7 max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl p-7 max-w-lg w-full mx-4 max-h-[92vh] overflow-y-auto">
             <h2 className="text-lg font-bold text-gray-900 mb-5">
-              {editUser ? `Edit ${editUser.username}` : "New User"}
+              {editUser ? `Edit ${editUser.username}` : "New Account"}
             </h2>
 
             <form onSubmit={handleSave} className="space-y-4">
 
-              {/* Username — create only */}
-              {!editUser && (
-                <Field label="Username">
-                  <input
-                    type="text"
-                    value={form.username}
-                    onChange={e => setForm(f => ({ ...f, username: e.target.value }))}
-                    required
-                    placeholder="e.g. carlsberg_client"
-                    className={INPUT}
-                  />
-                </Field>
-              )}
+              {/* Username — always editable */}
+              <Field label="Username">
+                <input
+                  type="text"
+                  value={form.username}
+                  onChange={e => setForm(f => ({ ...f, username: e.target.value.toLowerCase() }))}
+                  required
+                  placeholder="e.g. fotmob_admin"
+                  className={INPUT}
+                  spellCheck={false}
+                  autoCapitalize="none"
+                />
+                <p className="text-xs text-gray-400 mt-1">
+                  Lowercase letters, numbers, underscores and hyphens only.
+                </p>
+              </Field>
 
               {/* Password */}
-              <Field label={editUser ? "New Password (leave blank to keep current)" : "Password"}>
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+                    {editUser ? "Set New Password" : "Password"}
+                  </label>
+                  <input
+                    type="password"
+                    value={form.new_password}
+                    onChange={e => setForm(f => ({ ...f, new_password: e.target.value }))}
+                    required={!editUser}
+                    placeholder="••••••••"
+                    className={INPUT}
+                    autoComplete="new-password"
+                  />
+                </div>
+
+                {(form.new_password.length > 0 || !editUser) && (
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+                      Confirm Password
+                    </label>
+                    <input
+                      type="password"
+                      value={form.confirm_password}
+                      onChange={e => setForm(f => ({ ...f, confirm_password: e.target.value }))}
+                      required={!editUser || form.new_password.length > 0}
+                      placeholder="••••••••"
+                      className={INPUT}
+                      autoComplete="new-password"
+                    />
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  onClick={handleGeneratePassword}
+                  className="w-full border border-dashed border-gray-300 text-gray-600 hover:border-[#D7B87A] hover:text-[#0B1929] text-sm py-2 rounded-lg transition-colors"
+                >
+                  ⚡ Generate Temporary Password
+                </button>
+
+                <p className="text-xs text-gray-400">
+                  Passwords cannot be viewed. You can only set or generate a new password.
+                </p>
+              </div>
+
+              {/* Force password change */}
+              <label className="flex items-start gap-3 cursor-pointer">
                 <input
-                  type="password"
-                  value={form.password}
-                  onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
-                  required={!editUser}
-                  placeholder="••••••••"
-                  className={INPUT}
+                  type="checkbox"
+                  checked={form.force_password_change}
+                  onChange={e => setForm(f => ({ ...f, force_password_change: e.target.checked }))}
+                  className="w-4 h-4 mt-0.5 accent-[#0B1929] flex-shrink-0"
                 />
-              </Field>
+                <div>
+                  <span className="text-sm text-gray-700 font-medium">Force password change on first login</span>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    The user will be prompted to set a permanent password before accessing the platform.
+                  </p>
+                </div>
+              </label>
+
+              <hr className="border-gray-100" />
 
               {/* Role */}
               <Field label="Role">
-                <select
-                  value={form.role}
+                <select value={form.role}
                   onChange={e => setForm(f => ({ ...f, role: e.target.value as User["role"] }))}
-                  className={INPUT}
-                  required
-                >
+                  className={INPUT} required>
                   {ROLES.map(r => (
                     <option key={r} value={r}>{r.charAt(0).toUpperCase() + r.slice(1)}</option>
                   ))}
@@ -454,28 +614,25 @@ export default function UserManagementPage() {
 
               {/* Organisation Name */}
               <Field label="Organisation Name">
-                <input
-                  type="text"
-                  value={form.organisation_name}
+                <input type="text" value={form.organisation_name}
                   onChange={e => setForm(f => ({ ...f, organisation_name: e.target.value }))}
-                  placeholder="e.g. Carlsberg"
-                  className={INPUT}
-                />
+                  placeholder="e.g. Carlsberg" className={INPUT} />
               </Field>
 
-              {/* Organisation Type — dropdown */}
+              {/* Organisation Type */}
               <Field label="Organisation Type">
-                <select
-                  value={form.organisation_type}
+                <select value={form.organisation_type}
                   onChange={e => setForm(f => ({ ...f, organisation_type: e.target.value }))}
-                  className={INPUT}
-                >
+                  className={INPUT}>
                   <option value="">Select type…</option>
-                  {ORG_TYPES.map(t => (
-                    <option key={t} value={t}>{t}</option>
-                  ))}
+                  {ORG_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
+                <p className="text-xs text-gray-400 mt-1">
+                  The type of organisation this account belongs to.
+                </p>
               </Field>
+
+              <hr className="border-gray-100" />
 
               {/* Campaign Access */}
               <div>
@@ -484,18 +641,12 @@ export default function UserManagementPage() {
                     Campaign Access
                   </label>
                   <div className="flex rounded-md border border-gray-200 overflow-hidden text-xs">
-                    <button
-                      type="button"
-                      onClick={() => setCampaignSort("recent")}
-                      className={`px-2.5 py-1 transition-colors ${campaignSort === "recent" ? "bg-[#0B1929] text-white" : "text-gray-500 hover:bg-gray-50"}`}
-                    >
+                    <button type="button" onClick={() => setCampaignSort("recent")}
+                      className={`px-2.5 py-1 transition-colors ${campaignSort === "recent" ? "bg-[#0B1929] text-white" : "text-gray-500 hover:bg-gray-50"}`}>
                       Recent
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => setCampaignSort("alpha")}
-                      className={`px-2.5 py-1 border-l border-gray-200 transition-colors ${campaignSort === "alpha" ? "bg-[#0B1929] text-white" : "text-gray-500 hover:bg-gray-50"}`}
-                    >
+                    <button type="button" onClick={() => setCampaignSort("alpha")}
+                      className={`px-2.5 py-1 border-l border-gray-200 transition-colors ${campaignSort === "alpha" ? "bg-[#0B1929] text-white" : "text-gray-500 hover:bg-gray-50"}`}>
                       A–Z
                     </button>
                   </div>
@@ -520,33 +671,31 @@ export default function UserManagementPage() {
                 />
               </Field>
 
-              {/* Active toggle */}
-              <label className="flex items-center gap-3 cursor-pointer pt-1">
-                <input
-                  type="checkbox"
-                  checked={form.is_active}
+              <hr className="border-gray-100" />
+
+              {/* Account active */}
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input type="checkbox" checked={form.is_active}
                   onChange={e => setForm(f => ({ ...f, is_active: e.target.checked }))}
-                  className="w-4 h-4 accent-[#0B1929]"
-                />
+                  className="w-4 h-4 accent-[#0B1929]" />
                 <span className="text-sm text-gray-700">Account active</span>
               </label>
 
-              {/* Actions */}
-              <div className="flex gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowModal(false)}
-                  className="flex-1 border border-gray-200 text-gray-600 hover:bg-gray-50 text-sm font-medium py-2.5 rounded-lg transition-colors"
-                >
+              {formError && (
+                <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-2.5">
+                  <p className="text-red-600 text-sm">{formError}</p>
+                </div>
+              )}
+
+              <div className="flex gap-3 pt-1">
+                <button type="button" onClick={() => setShowModal(false)}
+                  className="flex-1 border border-gray-200 text-gray-600 hover:bg-gray-50 text-sm font-medium py-2.5 rounded-lg transition-colors">
                   Cancel
                 </button>
-                <button
-                  type="submit"
-                  disabled={saving}
+                <button type="submit" disabled={saving}
                   className="flex-1 text-sm font-semibold py-2.5 rounded-lg transition-opacity disabled:opacity-50"
-                  style={{ background: "#0B1929", color: "#D7B87A" }}
-                >
-                  {saving ? "Saving…" : editUser ? "Save Changes" : "Create User"}
+                  style={{ background: "#0B1929", color: "#D7B87A" }}>
+                  {saving ? "Saving…" : editUser ? "Save Changes" : "Create Account"}
                 </button>
               </div>
             </form>
@@ -554,7 +703,19 @@ export default function UserManagementPage() {
         </div>
       )}
 
-      {/* Toast */}
+      {/* ── Credentials modal (shown once) ── */}
+      {credentials && (
+        <CredentialsModal
+          username={credentials.username}
+          password={credentials.password}
+          onClose={() => {
+            setCredentials(null);
+            showToast("Account ready. Share credentials securely.");
+          }}
+        />
+      )}
+
+      {/* ── Toast ── */}
       {toast && (
         <div className={`fixed bottom-6 right-6 z-50 px-5 py-3 rounded-xl shadow-lg text-sm font-medium ${
           toast.ok ? "bg-green-600 text-white" : "bg-red-600 text-white"
