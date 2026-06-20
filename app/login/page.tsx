@@ -1,13 +1,10 @@
 "use client";
 
 import { useState, Suspense } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import { useSession } from "@/app/components/SessionProvider";
+import { useSearchParams } from "next/navigation";
 
 function LoginForm() {
-  const router = useRouter();
   const searchParams = useSearchParams();
-  const { refresh } = useSession();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError]       = useState("");
@@ -26,12 +23,12 @@ function LoginForm() {
       });
 
       if (res.ok) {
-        // Populate the session context before navigating so the nav renders
-        // with the correct role immediately — without this, AdminShell sees
-        // the stale user:null from before login and shows only Home.
-        await refresh();
+        // Full-page navigation so the root layout remounts and SessionProvider
+        // fetches a fresh session with the role already in the cookie.
+        // router.push() keeps the old React tree alive and can serve the nav
+        // with stale user:null before the context re-hydrates.
         const next = searchParams.get("next") || "/home";
-        router.push(next);
+        window.location.href = next;
       } else {
         const json = await res.json().catch(() => ({}));
         setError(json.error || "Invalid username or password");
