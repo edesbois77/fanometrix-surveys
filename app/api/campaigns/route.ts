@@ -50,10 +50,11 @@ export async function GET(req: NextRequest) {
   }
 
   // ── Normal view — exclude soft-deleted, enforce role-based access ───────────
+  // Note: deleted_at filter is applied in JS below so this route works even
+  // before migration 015 is run (the column may not exist yet in the DB).
   let query = supabase
     .from("campaigns")
     .select("*, surveys(name)")
-    .is("deleted_at", null)
     .order("created_at", { ascending: false });
 
   if (session.role === "brand" || session.role === "agency") {
@@ -122,7 +123,11 @@ export async function GET(req: NextRequest) {
     })
   );
 
-  return NextResponse.json({ data: enriched });
+  // Filter out soft-deleted campaigns in JS (backward-compat: if the
+  // deleted_at column doesn't exist yet, the field is undefined = falsy = kept)
+  const visible = enriched.filter(c => !(c as Record<string, unknown>).deleted_at);
+
+  return NextResponse.json({ data: visible });
 }
 
 export async function POST(req: NextRequest) {
