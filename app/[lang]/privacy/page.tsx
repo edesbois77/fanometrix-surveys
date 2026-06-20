@@ -16,6 +16,43 @@ import hi from "@/locales/privacy/hi.json";
 const LOCALES = { en, de, fr, es, it, pt, sv, zh, hi } as const;
 type Lang = keyof typeof LOCALES;
 
+// ─── Fallback helper ──────────────────────────────────────────────────────────
+// Merges a locale with the English master so any missing or empty field
+// automatically shows the English text rather than breaking the page.
+// This is the safety net that prevents content drift from surfacing as gaps.
+type Locale = typeof en;
+
+function withEnglishFallback(locale: Locale): Locale {
+  // Per-field string fallback
+  const str = <K extends keyof Locale>(key: K): Locale[K] =>
+    (locale[key] && String(locale[key]).trim()) ? locale[key] : en[key];
+
+  // Per-section fallback — use English section if locale section is missing/empty
+  const sections = en.sections.map((enSection, i) => {
+    const loc = locale.sections?.[i];
+    if (!loc) return enSection;
+    return {
+      heading: (loc.heading?.trim())                   ? loc.heading : enSection.heading,
+      body:    (loc.body?.length)                      ? loc.body    : enSection.body,
+      ...("table" in enSection ? { table: ("table" in loc && loc.table?.length) ? loc.table : (enSection as typeof loc).table } : {}),
+      ...("list"  in enSection ? { list:  ("list"  in loc && loc.list?.length)  ? loc.list  : (enSection as typeof loc).list  } : {}),
+    } as typeof enSection;
+  });
+
+  return {
+    ...locale,
+    title:          str("title"),
+    subtitle:       str("subtitle"),
+    updated:        str("updated"),
+    contactHeading: str("contactHeading"),
+    contactBody:    str("contactBody"),
+    contactEmail:   str("contactEmail"),
+    discrepancy:    str("discrepancy"),
+    languagesLabel: str("languagesLabel"),
+    sections,
+  };
+}
+
 // Language switcher pills shown at the top of every page
 const LANG_LINKS: { lang: Lang; label: string }[] = [
   { lang: "en", label: "EN" },
@@ -48,7 +85,9 @@ export default async function PrivacyPage(
 
   if (!(lang in LOCALES)) notFound();
 
-  const c = LOCALES[lang as Lang] ?? LOCALES.en;
+  // Apply per-field English fallback so partial or outdated translations
+  // never leave gaps — users see English text rather than empty sections.
+  const c = withEnglishFallback(LOCALES[lang as Lang] ?? LOCALES.en);
 
   return (
     <main className="min-h-screen bg-gray-50 py-12 px-6">
