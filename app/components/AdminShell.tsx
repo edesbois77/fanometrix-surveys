@@ -56,7 +56,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
     <div className="flex min-h-screen">
 
       {/* ── Sidebar ──────────────────────────────────────────────────── */}
-      <aside className="w-52 flex-shrink-0 flex flex-col" style={{ backgroundColor: "#0B1929" }}>
+      <aside className="w-52 flex-shrink-0 flex flex-col h-screen sticky top-0" style={{ backgroundColor: "#0B1929" }}>
 
         {/* Logo area */}
         <div className="px-5 py-5" style={{ borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
@@ -76,7 +76,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 px-3 py-4 space-y-0.5">
+        <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-0.5">
           {/* Home link — always shown */}
           {!loading && (
             <NavLink href="/home" label="Home" icon="⌂" activePath={path} />
