@@ -27,6 +27,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(async () => {
+    setLoading(true);
     try {
       const res  = await fetch("/api/auth/me");
       const json = await res.json();

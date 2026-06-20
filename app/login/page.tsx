@@ -2,10 +2,12 @@
 
 import { useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useSession } from "@/app/components/SessionProvider";
 
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { refresh } = useSession();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError]       = useState("");
@@ -24,6 +26,10 @@ function LoginForm() {
       });
 
       if (res.ok) {
+        // Populate the session context before navigating so the nav renders
+        // with the correct role immediately — without this, AdminShell sees
+        // the stale user:null from before login and shows only Home.
+        await refresh();
         const next = searchParams.get("next") || "/home";
         router.push(next);
       } else {
