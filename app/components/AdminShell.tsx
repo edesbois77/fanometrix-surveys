@@ -7,44 +7,17 @@ import { useSession } from "./SessionProvider";
 import { useState, useEffect } from "react";
 import type { UserRole } from "@/lib/auth";
 
+// ── Nav items derived from shared config ──────────────────────────────────────
+// Importing here keeps AdminShell in sync with the homepage automatically.
+import {
+  getMainNavItems,
+  getDeveloperNavItems,
+  getFooterNavItems,
+} from "@/lib/nav-config";
+
 type NavItem = { href: string; label: string; icon: string; external?: boolean };
 
-// ── Day-to-day admin nav ──────────────────────────────────────────────────────
-const NAV_BY_ROLE: Record<UserRole, NavItem[]> = {
-  admin: [
-    { href: "/dashboard",           label: "Dashboard",       icon: "▦"   },
-    { href: "/survey-templates",    label: "Surveys",         icon: "◫"   },
-    { href: "/campaigns",           label: "Campaigns",       icon: "◎"   },
-    { href: "/campaign-groups",     label: "Campaign Groups", icon: "⬡"   },
-    { href: "/campaign-deployment", label: "Deployment",      icon: "</>" },
-    { href: "/user-management",     label: "User Management", icon: "◉"   },
-    { href: "/embed-test",          label: "Embed Test",      icon: "⬡"   },
-  ],
-  brand: [
-    { href: "/dashboard",        label: "Dashboard",        icon: "▦" },
-    { href: "/campaign-reports", label: "Campaign Reports", icon: "↗" },
-    { href: "/exports",          label: "Exports",          icon: "⬇" },
-    { href: "/insights",         label: "Insights",         icon: "◈" },
-  ],
-  agency: [
-    { href: "/dashboard",             label: "Dashboard",             icon: "▦" },
-    { href: "/campaign-reports",      label: "Campaign Reports",      icon: "↗" },
-    { href: "/publisher-performance", label: "Publisher Performance", icon: "◉" },
-    { href: "/exports",               label: "Exports",               icon: "⬇" },
-  ],
-  publisher: [
-    { href: "/dashboard",             label: "Dashboard",             icon: "▦" },
-    { href: "/publisher-performance", label: "Publisher Performance", icon: "◉" },
-  ],
-};
-
-// ── Developer tools (admin only, collapsible) ─────────────────────────────────
-const DEVELOPER_NAV: NavItem[] = [
-  { href: "/reporting",        label: "Reporting",        icon: "↗" },
-  { href: "/looker-templates", label: "Looker Templates", icon: "◈" },
-  { href: "/demo-data",        label: "Demo Data",        icon: "⚗" },
-];
-const DEVELOPER_HREFS = DEVELOPER_NAV.map(i => i.href);
+const DEVELOPER_HREFS = getDeveloperNavItems().map(i => i.href);
 
 const SKELETON_NAV = Array.from({ length: 4 }, (_, i) => i);
 
@@ -55,7 +28,8 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [devOpen,    setDevOpen]    = useState(false);
 
-  const nav = user ? (NAV_BY_ROLE[user.role as UserRole] ?? []) : [];
+  const nav     = user ? getMainNavItems(user.role as UserRole) : [];
+  const footerLinks = user ? getFooterNavItems(user.role as UserRole) : [];
   const isAdmin = user?.role === "admin";
 
   // Auto-close sidebar on navigation
@@ -189,7 +163,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                 </button>
                 {devOpen && (
                   <div className="space-y-0.5 mt-1">
-                    {DEVELOPER_NAV.map(item => (
+                    {getDeveloperNavItems().map(item => (
                       <NavLink key={item.href} {...item} activePath={path} />
                     ))}
                   </div>
@@ -206,12 +180,10 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
               borderTop: "1px solid rgba(255,255,255,0.08)",
               paddingBottom: "max(1rem, env(safe-area-inset-bottom, 1rem))",
             }}>
+            {/* Privacy always shown; footer nav items from shared config */}
             {[
-              { href: "/privacy",               label: "ⓘ Privacy Policy",   external: true },
-              ...(isAdmin ? [
-                { href: "/publisher-hub",         label: "☰ Publisher Hub",    external: true },
-                { href: "/fanometrix-guide",      label: "◫ Fanometrix Guide", external: true },
-              ] : []),
+              { href: "/privacy", label: "ⓘ Privacy Policy", external: true },
+              ...footerLinks.map(i => ({ href: i.href, label: `${i.icon} ${i.label}`, external: true })),
             ].map(({ href, label, external }) =>
               external ? (
                 <a key={href} href={href} target="_blank" rel="noopener noreferrer"

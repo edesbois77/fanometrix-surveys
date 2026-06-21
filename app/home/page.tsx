@@ -1,144 +1,255 @@
 "use client";
 
+import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { AdminShell } from "@/app/components/AdminShell";
 import { useSession } from "@/app/components/SessionProvider";
+import { getHomeSections, type NavItemConfig } from "@/lib/nav-config";
 import type { UserRole } from "@/lib/auth";
 
-type Card = {
-  href: string;
-  icon: string;
-  title: string;
-  description: string;
-  cta: string;
+// ─── KPI data (admin only) ────────────────────────────────────────────────────
+type Kpis = {
+  activeCampaigns: number;
+  totalResponses:  number;
+  activeSurveys:   number;
+  liveGroups:      number;
 };
 
-const ROLE_CARDS: Record<UserRole, Card[]> = {
-  admin: [
-    { href: "/dashboard",           icon: "▦",  title: "Dashboard",           description: "Live fan response data, KPI cards, trend charts and audience breakdowns.", cta: "Open Dashboard" },
-    { href: "/survey-templates",    icon: "◫",  title: "Survey Templates",    description: "Create and manage question sets for fan surveys across campaigns.", cta: "Manage Surveys" },
-    { href: "/campaigns",           icon: "◎",  title: "Campaigns",           description: "Set up and configure campaigns, assign surveys and manage publishers.", cta: "View Campaigns" },
-    { href: "/campaign-deployment", icon: "</>",title: "Campaign Deployment",  description: "Generate embed codes and ad-server tags to deploy surveys in creative units.", cta: "Deploy Campaign" },
-    { href: "/reporting",           icon: "↗",  title: "Reporting",           description: "Reporting API settings and data integration configuration.", cta: "Open Reporting" },
-    { href: "/looker-templates",    icon: "◈",  title: "Looker Templates",    description: "Pre-built Looker Studio report templates for client-ready dashboards.", cta: "View Templates" },
-    { href: "/demo-data",           icon: "⚗",  title: "Demo Data",           description: "Generate and manage realistic demo fan responses for testing and presentations.", cta: "Manage Demo Data" },
-    { href: "/user-management",     icon: "◉",  title: "User Management",     description: "Create and manage platform user accounts, roles and data access permissions.", cta: "Manage Users" },
-    { href: "/publisher-hub",        icon: "☰",  title: "Publisher Hub",        description: "Integration documentation, privacy information and technical resources for publishers.", cta: "View Publisher Hub" },
-    { href: "/embed-test",           icon: "⬡",  title: "Embed Test",           description: "Verify that a campaign embed is loading and accepting responses correctly.", cta: "Open Embed Test" },
-  ],
-  brand: [
-    { href: "/dashboard",        icon: "▦", title: "Dashboard",        description: "Your campaign performance — fan response data filtered to your brand.", cta: "Open Dashboard" },
-    { href: "/campaign-reports", icon: "↗", title: "Campaign Reports",  description: "Detailed reports for your active and completed fan survey campaigns.", cta: "View Reports" },
-    { href: "/exports",          icon: "⬇", title: "Exports",           description: "Download fan data and campaign results as CSV for your own analysis.", cta: "Export Data" },
-    { href: "/insights",         icon: "◈", title: "Insights",          description: "AI-assisted insights and audience summaries from your campaign results.", cta: "View Insights" },
-  ],
-  agency: [
-    { href: "/dashboard",            icon: "▦", title: "Dashboard",            description: "Cross-campaign performance for your managed brand portfolio.", cta: "Open Dashboard" },
-    { href: "/campaign-reports",     icon: "↗", title: "Campaign Reports",     description: "Detailed reports for all campaigns assigned to your agency.", cta: "View Reports" },
-    { href: "/publisher-performance",icon: "◉", title: "Publisher Performance","description": "Publisher-level reach and engagement data across your campaigns.", cta: "View Performance" },
-    { href: "/exports",              icon: "⬇", title: "Exports",              description: "Download fan data and campaign results as CSV for client reporting.", cta: "Export Data" },
-  ],
-  publisher: [
-    { href: "/dashboard",             icon: "▦", title: "Dashboard",             description: "Fan response data from surveys delivered across your properties.", cta: "Open Dashboard" },
-    { href: "/publisher-performance", icon: "◉", title: "Publisher Performance", description: "Audience reach, response rates and engagement metrics for your platforms.", cta: "View Performance" },
-  ],
-};
+function useAdminKpis(isAdmin: boolean) {
+  const [kpis,    setKpis]    = useState<Kpis | null>(null);
+  const [loading, setLoading] = useState(false);
 
+  const fetchKpis = useCallback(async () => {
+    if (!isAdmin) return;
+    setLoading(true);
+    try {
+      const [camRes, surRes, grpRes] = await Promise.all([
+        fetch("/api/campaigns"),
+        fetch("/api/surveys"),
+        fetch("/api/campaign-groups"),
+      ]);
+      const campaigns: Record<string, unknown>[] = (await camRes.json()).data ?? [];
+      const surveys:   Record<string, unknown>[] = (await surRes.json()).data ?? [];
+      const groups:    Record<string, unknown>[] = (await grpRes.json()).data ?? [];
+
+      setKpis({
+        activeCampaigns: campaigns.filter(c => {
+          const s = (c.effective_status ?? c.status) as string;
+          return s === "live" || s === "scheduled";
+        }).length,
+        totalResponses: campaigns.reduce((sum, c) => sum + ((c.response_count as number) ?? 0), 0),
+        activeSurveys:  surveys.filter(s => s.status === "ready").length,
+        liveGroups:     groups.filter(g => g.status === "live").length,
+      });
+    } catch {
+      setKpis({ activeCampaigns: 0, totalResponses: 0, activeSurveys: 0, liveGroups: 0 });
+    } finally {
+      setLoading(false);
+    }
+  }, [isAdmin]);
+
+  useEffect(() => { fetchKpis(); }, [fetchKpis]);
+  return { kpis, loading };
+}
+
+// ─── KPI card ─────────────────────────────────────────────────────────────────
+function KpiCard({
+  value, label, href, linkLabel,
+}: {
+  value: number | string;
+  label: string;
+  href:  string;
+  linkLabel: string;
+}) {
+  return (
+    <Link
+      href={href}
+      className="group bg-white border border-gray-100 rounded-xl p-4 shadow-sm flex flex-col
+                 transition-all duration-200 hover:bg-[#0B1929] hover:border-[#0B1929]
+                 hover:-translate-y-0.5 hover:shadow-md
+                 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D7B87A] focus-visible:ring-offset-2"
+    >
+      <p className="text-2xl font-bold text-[#0B1929] group-hover:text-white transition-colors duration-200">
+        {value}
+      </p>
+      <p className="text-xs text-gray-400 group-hover:text-white/60 mt-0.5 flex-1 transition-colors duration-200">
+        {label}
+      </p>
+      <p className="text-xs font-semibold text-[#D7B87A] mt-3">{linkLabel} →</p>
+    </Link>
+  );
+}
+
+// ─── Section heading ──────────────────────────────────────────────────────────
+function SectionHeading({ label }: { label: string }) {
+  return (
+    <div className="flex items-center gap-3 mb-3">
+      <p className="text-xs font-semibold uppercase tracking-widest text-gray-400">{label}</p>
+      <div className="flex-1 h-px bg-gray-100" />
+    </div>
+  );
+}
+
+// ─── Nav card ─────────────────────────────────────────────────────────────────
+function NavCard({ item }: { item: NavItemConfig }) {
+  const linkProps = item.external
+    ? { target: "_blank" as const, rel: "noopener noreferrer" }
+    : {};
+
+  return (
+    <Link
+      href={item.href}
+      {...linkProps}
+      className={[
+        "group flex flex-col p-5 rounded-xl border cursor-pointer",
+        "bg-white border-gray-100 shadow-sm",
+        "transition-all duration-200",
+        "hover:bg-[#0B1929] hover:border-[#0B1929] hover:-translate-y-1 hover:shadow-lg",
+        "active:scale-[0.98] active:shadow-sm",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D7B87A] focus-visible:ring-offset-2",
+      ].join(" ")}
+    >
+      <div className="w-9 h-9 rounded-lg flex items-center justify-center text-lg mb-3 flex-shrink-0
+        bg-[#F0F4F8] text-[#0B1929]
+        group-hover:bg-white/10 group-hover:text-white
+        transition-colors duration-200">
+        {item.icon}
+      </div>
+      <h2 className="font-semibold text-sm mb-1.5
+        text-[#0B1929] group-hover:text-white
+        transition-colors duration-200">
+        {item.label}
+        {item.external && (
+          <span className="ml-1 text-[10px] opacity-40">↗</span>
+        )}
+      </h2>
+      <p className="text-xs flex-1 leading-relaxed mb-3
+        text-gray-400 group-hover:text-white/70
+        transition-colors duration-200">
+        {item.description}
+      </p>
+      <span className="text-xs font-semibold text-[#D7B87A]">
+        {item.cta} →
+      </span>
+    </Link>
+  );
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
 export default function HomePage() {
   const { user, loading } = useSession();
+  const role    = (user?.role ?? "brand") as UserRole;
+  const isAdmin = role === "admin";
 
-  const role = (user?.role ?? "brand") as UserRole;
-  const cards = ROLE_CARDS[role] ?? ROLE_CARDS.brand;
+  const { kpis, loading: kpisLoading } = useAdminKpis(isAdmin);
+
+  const sections = getHomeSections(role);
 
   return (
     <AdminShell>
-      <div className="p-6 max-w-5xl mx-auto">
+      <div className="p-4 md:p-6 max-w-5xl mx-auto">
 
-        {/* Welcome header */}
-        <div className="mb-8">
+        {/* ── Welcome header ── */}
+        <div className="mb-6">
           {loading ? (
             <div className="h-8 w-48 bg-gray-100 rounded-lg animate-pulse mb-2" />
           ) : (
-            <h1 className="text-2xl font-bold mb-1" style={{ color: "#0B1929" }}>
+            <h1 className="text-2xl font-bold mb-0.5" style={{ color: "#0B1929" }}>
               Welcome back{user ? `, ${user.organisationName || user.username}` : ""}.
             </h1>
           )}
           {user && (
-            <p className="text-sm text-gray-400 mt-0.5">
+            <p className="text-sm text-gray-400">
               {user.username} · <span className="capitalize">{user.role}</span>
             </p>
           )}
         </div>
 
-        {/* Card grid */}
+        {/* ── Admin: KPI summary ── */}
+        {isAdmin && (
+          <div className="mb-8">
+            {/* KPI card row */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+              {kpisLoading || !kpis ? (
+                Array.from({ length: 4 }, (_, i) => (
+                  <div key={i} className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm animate-pulse">
+                    <div className="h-7 w-12 bg-gray-100 rounded mb-2" />
+                    <div className="h-3 w-24 bg-gray-100 rounded" />
+                  </div>
+                ))
+              ) : (
+                <>
+                  <KpiCard
+                    value={kpis.activeCampaigns}
+                    label="Active Campaigns"
+                    href="/campaigns"
+                    linkLabel="View Campaigns"
+                  />
+                  <KpiCard
+                    value={kpis.totalResponses.toLocaleString()}
+                    label="Total Responses"
+                    href="/dashboard"
+                    linkLabel="Open Dashboard"
+                  />
+                  <KpiCard
+                    value={kpis.activeSurveys}
+                    label="Ready Surveys"
+                    href="/survey-templates"
+                    linkLabel="Manage Surveys"
+                  />
+                  <KpiCard
+                    value={kpis.liveGroups}
+                    label="Live Campaign Groups"
+                    href="/campaign-groups"
+                    linkLabel="View Groups"
+                  />
+                </>
+              )}
+            </div>
+
+            {/* Dashboard CTA */}
+            <div className="flex items-center justify-between bg-white border border-gray-100 rounded-xl px-5 py-3.5 shadow-sm">
+              <p className="text-sm text-gray-500">View live response data, trend charts and audience breakdowns.</p>
+              <Link
+                href="/dashboard"
+                className="flex-shrink-0 ml-4 text-sm font-semibold px-4 py-2 rounded-lg transition-colors"
+                style={{ background: "#D7B87A", color: "#0B1929" }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#C9A766"; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "#D7B87A"; }}
+              >
+                Open Dashboard →
+              </Link>
+            </div>
+          </div>
+        )}
+
+        {/* ── Navigation card sections ── */}
         {loading ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {[1, 2, 3].map(i => (
-              <div key={i} className="bg-white rounded-xl border border-gray-100 p-6 animate-pulse">
-                <div className="h-8 w-8 bg-gray-100 rounded mb-4" />
-                <div className="h-5 w-32 bg-gray-100 rounded mb-2" />
+              <div key={i} className="bg-white rounded-xl border border-gray-100 p-5 animate-pulse">
+                <div className="h-9 w-9 bg-gray-100 rounded-lg mb-3" />
+                <div className="h-4 w-28 bg-gray-100 rounded mb-2" />
                 <div className="h-3 w-full bg-gray-100 rounded mb-1" />
                 <div className="h-3 w-3/4 bg-gray-100 rounded" />
               </div>
             ))}
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {cards.map(({ href, icon, title, description, cta }) => (
-              /*
-                Entire card is the link — no nested <a> elements.
-                group cascades hover state to all children.
-                focus-visible ring makes keyboard navigation clear.
-                active:scale gives tactile feedback on touch devices.
-              */
-              <Link
-                key={href}
-                href={href}
-                className={[
-                  // Layout
-                  "group flex flex-col p-6 rounded-xl border cursor-pointer",
-                  // Default appearance
-                  "bg-white border-gray-100 shadow-sm",
-                  // Smooth transition on all animated properties
-                  "transition-all duration-200",
-                  // Hover: navy fill, lift, deeper shadow
-                  "hover:bg-[#0B1929] hover:border-[#0B1929] hover:-translate-y-1 hover:shadow-lg",
-                  // Touch feedback
-                  "active:scale-[0.98] active:shadow-sm",
-                  // Keyboard focus ring (only visible ring, not mouse)
-                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D7B87A] focus-visible:ring-offset-2",
-                ].join(" ")}
-              >
-                {/* Icon */}
-                <div className="w-10 h-10 rounded-lg flex items-center justify-center text-xl mb-4 flex-shrink-0
-                  bg-[#F0F4F8] text-[#0B1929]
-                  group-hover:bg-white/10 group-hover:text-white
-                  transition-colors duration-200">
-                  {icon}
+          <div className="space-y-8">
+            {sections.map(({ label, items }) => (
+              <div key={label || "cards"}>
+                {label && <SectionHeading label={label} />}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {items.map(item => (
+                    <NavCard key={item.href} item={item} />
+                  ))}
                 </div>
-
-                {/* Title */}
-                <h2 className="font-semibold text-base mb-2
-                  text-[#0B1929] group-hover:text-white
-                  transition-colors duration-200">
-                  {title}
-                </h2>
-
-                {/* Description */}
-                <p className="text-sm flex-1 leading-relaxed mb-5
-                  text-gray-400 group-hover:text-white/70
-                  transition-colors duration-200">
-                  {description}
-                </p>
-
-                {/* CTA — visual only; parent Link handles navigation */}
-                <span className="inline-flex items-center gap-1 text-sm font-semibold text-[#D7B87A]">
-                  {cta} <span className="text-xs">→</span>
-                </span>
-              </Link>
+              </div>
             ))}
           </div>
         )}
+
       </div>
     </AdminShell>
   );
