@@ -3,973 +3,869 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Fanometrix Pulse — Platform Guide</title>
+  <title>Fanometrix Platform Guide</title>
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --navy: #0B1929;
+      --gold:  #D7B87A;
+      --gray:  #6B7280;
+      --light: #F9FAFB;
+      --border: #E5E7EB;
+    }
 
     body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
-      font-size: 13px;
-      line-height: 1.65;
-      color: #1a2332;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       background: #fff;
+      color: #374151;
+      line-height: 1.6;
     }
 
-    /* ── Cover page ── */
-    .cover {
-      background: #0B1929;
-      color: #fff;
-      min-height: 100vh;
+    /* ── Nav ── */
+    nav {
+      background: var(--navy);
+      padding: 0 24px;
+      height: 56px;
       display: flex;
-      flex-direction: column;
-      justify-content: center;
-      padding: 80px 60px;
-      page-break-after: always;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 100;
     }
-    .cover-eyebrow {
-      color: #D7B87A;
+    nav img { height: 18px; object-fit: contain; }
+    nav a {
+      color: rgba(255,255,255,0.55);
+      font-size: 13px;
+      text-decoration: none;
+      transition: color .15s;
+    }
+    nav a:hover { color: var(--gold); }
+
+    /* ── Hero ── */
+    .hero {
+      background: var(--navy);
+      padding: 56px 24px 72px;
+      text-align: center;
+    }
+    .hero-eyebrow {
       font-size: 11px;
       font-weight: 700;
-      letter-spacing: 0.15em;
+      letter-spacing: .12em;
       text-transform: uppercase;
+      color: var(--gold);
+      margin-bottom: 16px;
+    }
+    .hero h1 {
+      font-size: clamp(30px, 5vw, 48px);
+      font-weight: 800;
+      color: #fff;
+      line-height: 1.1;
+      letter-spacing: -.02em;
       margin-bottom: 20px;
     }
-    .cover h1 {
-      font-size: 42px;
-      font-weight: 800;
-      line-height: 1.1;
-      margin-bottom: 16px;
-      letter-spacing: -0.5px;
-    }
-    .cover h1 span { color: #D7B87A; }
-    .cover-subtitle {
-      font-size: 16px;
-      color: rgba(255,255,255,0.65);
-      max-width: 480px;
-      line-height: 1.6;
-      margin-bottom: 60px;
-    }
-    .cover-divider {
-      width: 48px;
-      height: 3px;
-      background: #D7B87A;
-      margin-bottom: 40px;
-    }
-    .cover-meta {
-      font-size: 11px;
-      color: rgba(255,255,255,0.4);
-    }
-
-    /* ── Page layout ── */
-    .page {
-      max-width: 720px;
-      margin: 0 auto;
-      padding: 60px 48px;
-    }
-
-    /* ── Chapter headers ── */
-    .chapter-header {
-      border-top: 3px solid #0B1929;
-      padding-top: 12px;
-      margin-bottom: 32px;
-      page-break-before: always;
-    }
-    .chapter-header:first-child { page-break-before: avoid; }
-    .chapter-number {
-      font-size: 10px;
-      font-weight: 700;
-      color: #D7B87A;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-      margin-bottom: 4px;
-    }
-    .chapter-header h2 {
-      font-size: 26px;
-      font-weight: 800;
-      color: #0B1929;
-      letter-spacing: -0.3px;
-    }
-
-    /* ── Section headings ── */
-    h3 {
-      font-size: 14px;
-      font-weight: 700;
-      color: #0B1929;
-      margin: 28px 0 10px;
-      padding-bottom: 4px;
-      border-bottom: 1px solid #e5e7eb;
-    }
-    h4 {
-      font-size: 12px;
-      font-weight: 700;
-      color: #374151;
-      margin: 18px 0 6px;
-    }
-
-    /* ── Body text ── */
-    p { margin-bottom: 10px; color: #374151; }
-    ul, ol { margin: 8px 0 12px 20px; color: #374151; }
-    li { margin-bottom: 4px; }
-    li strong { color: #0B1929; }
-
-    /* ── Callout boxes ── */
-    .callout {
-      border-left: 3px solid #D7B87A;
-      background: #fffbf0;
-      padding: 12px 16px;
-      margin: 16px 0;
-      border-radius: 0 6px 6px 0;
-    }
-    .callout.blue {
-      border-left-color: #3b82f6;
-      background: #eff6ff;
-    }
-    .callout.green {
-      border-left-color: #10b981;
-      background: #f0fdf4;
-    }
-    .callout.red {
-      border-left-color: #ef4444;
-      background: #fef2f2;
-    }
-    .callout-title {
-      font-size: 11px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      color: #0B1929;
-      margin-bottom: 4px;
-    }
-    .callout p { margin: 0; font-size: 12px; }
-
-    /* ── Steps ── */
-    .steps { counter-reset: step; margin: 12px 0 16px; }
-    .step {
-      display: flex;
-      gap: 14px;
-      margin-bottom: 12px;
-      align-items: flex-start;
-    }
-    .step-num {
-      counter-increment: step;
-      width: 24px;
-      height: 24px;
-      min-width: 24px;
-      background: #0B1929;
-      color: #D7B87A;
-      font-size: 11px;
-      font-weight: 800;
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      margin-top: 1px;
-    }
-    .step-body { flex: 1; color: #374151; font-size: 12.5px; }
-    .step-body strong { color: #0B1929; }
-
-    /* ── Code / embed snippets ── */
-    code {
-      font-family: "SF Mono", "Fira Code", Consolas, monospace;
-      font-size: 11px;
-      background: #f3f4f6;
-      border: 1px solid #e5e7eb;
-      padding: 1px 5px;
-      border-radius: 3px;
-      color: #1f2937;
-    }
-    .code-block {
-      background: #0B1929;
-      color: #D7B87A;
-      font-family: "SF Mono", "Fira Code", Consolas, monospace;
-      font-size: 11px;
-      padding: 14px 16px;
-      border-radius: 6px;
-      margin: 12px 0;
-      white-space: pre-wrap;
-      word-break: break-all;
+    .hero h1 span { color: var(--gold); }
+    .hero p {
+      font-size: clamp(14px, 2vw, 17px);
+      color: rgba(255,255,255,.65);
       line-height: 1.7;
+      max-width: 620px;
+      margin: 0 auto 36px;
     }
-
-    /* ── Status badges ── */
-    .badge {
-      display: inline-block;
-      font-size: 10px;
-      font-weight: 700;
-      padding: 2px 8px;
-      border-radius: 20px;
-      margin: 0 2px;
+    .chip-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: center;
     }
-    .badge-draft    { background: #f3f4f6; color: #6b7280; }
-    .badge-ready    { background: #d1fae5; color: #065f46; }
-    .badge-live     { background: #d1fae5; color: #065f46; }
-    .badge-paused   { background: #ffedd5; color: #92400e; }
-    .badge-closed   { background: #f3f4f6; color: #4b5563; }
-    .badge-archived { background: #fef3c7; color: #92400e; }
-    .badge-deleted  { background: #fee2e2; color: #991b1b; }
-
-    /* ── Lifecycle diagram ── */
-    .lifecycle {
+    .chip {
       display: flex;
       align-items: center;
-      gap: 6px;
-      flex-wrap: wrap;
-      margin: 14px 0;
-    }
-    .lifecycle-node {
-      background: #0B1929;
-      color: #D7B87A;
-      font-size: 10px;
-      font-weight: 700;
-      padding: 5px 12px;
-      border-radius: 20px;
+      gap: 7px;
+      background: rgba(255,255,255,.07);
+      border: 1px solid rgba(255,255,255,.14);
+      border-radius: 40px;
+      padding: 8px 16px;
       white-space: nowrap;
     }
-    .lifecycle-arrow { color: #9ca3af; font-size: 14px; }
+    .chip span:first-child { font-size: 14px; }
+    .chip span:last-child  { color: #fff; font-size: 12px; font-weight: 500; }
 
-    /* ── Table ── */
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin: 14px 0;
-      font-size: 12px;
+    /* ── Sections ── */
+    section {
+      padding: 64px 24px;
     }
-    th {
-      background: #0B1929;
-      color: #D7B87A;
-      font-size: 10px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      padding: 8px 12px;
-      text-align: left;
-    }
-    td {
-      padding: 8px 12px;
-      border-bottom: 1px solid #f3f4f6;
-      color: #374151;
-      vertical-align: top;
-    }
-    tr:last-child td { border-bottom: none; }
-    tr:nth-child(even) td { background: #f9fafb; }
+    section.gray { background: var(--light); }
+    .inner { max-width: 860px; margin: 0 auto; }
+    .inner.wide { max-width: 1100px; }
 
-    /* ── Divider ── */
-    .divider {
-      border: none;
-      border-top: 1px solid #e5e7eb;
-      margin: 28px 0;
-    }
-
-    /* ── Quick reference card ── */
-    .ref-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 12px;
-      margin: 16px 0;
-    }
-    .ref-card {
-      border: 1px solid #e5e7eb;
-      border-radius: 8px;
-      padding: 14px 16px;
-    }
-    .ref-card-title {
+    .section-label {
       font-size: 11px;
       font-weight: 700;
-      color: #0B1929;
+      letter-spacing: .12em;
       text-transform: uppercase;
-      letter-spacing: 0.08em;
-      margin-bottom: 8px;
+      color: var(--gold);
+      margin-bottom: 10px;
     }
-    .ref-card ul { margin-left: 14px; }
-    .ref-card li { font-size: 12px; margin-bottom: 3px; }
+    h2 {
+      font-size: clamp(22px, 3.5vw, 32px);
+      font-weight: 700;
+      color: var(--navy);
+      line-height: 1.2;
+      margin-bottom: 14px;
+    }
+    .subtitle {
+      font-size: 16px;
+      color: var(--gray);
+      line-height: 1.7;
+      max-width: 580px;
+      margin: 0 auto 48px;
+    }
+    .center { text-align: center; }
 
-    /* ── Print ── */
-    @media print {
-      body { font-size: 12px; }
-      .cover { min-height: 100vh; }
-      .chapter-header { page-break-before: always; }
-      .chapter-header:first-child { page-break-before: avoid; }
-      .no-break { page-break-inside: avoid; }
+    /* ── Cards ── */
+    .card-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 18px;
+    }
+    .card {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 26px 24px;
+      box-shadow: 0 1px 3px rgba(0,0,0,.06);
+    }
+    .card-icon { font-size: 26px; margin-bottom: 14px; }
+    .card h3 { font-size: 15px; font-weight: 700; color: var(--navy); margin-bottom: 8px; }
+    .card p  { font-size: 14px; color: var(--gray); line-height: 1.65; }
+
+    /* ── Accordions ── */
+    .accordion { display: flex; flex-direction: column; gap: 2px; }
+    details {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    summary {
+      padding: 18px 22px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 15px;
+      color: var(--navy);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      list-style: none;
+      user-select: none;
+      gap: 12px;
+    }
+    summary::-webkit-details-marker { display: none; }
+    summary .toggle {
+      color: var(--gold);
+      font-size: 18px;
+      font-weight: 300;
+      flex-shrink: 0;
+      transition: transform .2s;
+    }
+    details[open] summary .toggle { transform: rotate(45deg); }
+    .detail-body {
+      padding: 0 22px 22px;
+      border-top: 1px solid #F3F4F6;
+    }
+    .detail-body > * { margin-top: 16px; }
+
+    /* ── Tables ── */
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    thead tr { background: #F8F9FA; }
+    th { text-align: left; padding: 10px 14px; font-weight: 600; color: var(--navy); border-bottom: 1px solid var(--border); }
+    td { padding: 10px 14px; border-bottom: 1px solid #F3F4F6; color: #374151; }
+    tr:last-child td { border-bottom: none; }
+    .mono { font-family: ui-monospace, SFMono-Regular, monospace; font-size: 12px; }
+
+    /* ── Code block ── */
+    pre {
+      background: #0d1117;
+      color: #7ee787;
+      font-size: 12px;
+      border-radius: 10px;
+      padding: 16px 18px;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      line-height: 1.6;
+      font-family: ui-monospace, SFMono-Regular, monospace;
+    }
+
+    /* ── Info box ── */
+    .info-box {
+      background: var(--navy);
+      border-radius: 14px;
+      padding: 22px 24px;
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      margin-top: 24px;
+    }
+    .info-box p { font-size: 14px; color: rgba(255,255,255,.8); line-height: 1.65; }
+    .info-box strong { color: var(--gold); }
+
+    /* ── Steps ── */
+    .steps { display: flex; flex-direction: column; gap: 12px; }
+    .step { display: flex; gap: 14px; align-items: flex-start; }
+    .step-num {
+      width: 26px; height: 26px; min-width: 26px;
+      background: var(--navy); color: var(--gold);
+      font-size: 11px; font-weight: 800;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      margin-top: 1px;
+    }
+    .step-body { font-size: 14px; line-height: 1.65; }
+    .step-body strong { color: var(--navy); }
+
+    /* ── Pill badges ── */
+    .pill {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 700;
+    }
+    .pill-green { background: #D1FAE5; color: #065F46; }
+    .pill-red   { background: #FEE2E2; color: #991B1B; }
+
+    /* ── Contact cards ── */
+    .contact-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 16px;
+    }
+    .contact-card {
+      background: rgba(255,255,255,.06);
+      border: 1px solid rgba(255,255,255,.12);
+      border-radius: 16px;
+      padding: 24px;
+      text-decoration: none;
+      display: block;
+      transition: background .2s;
+    }
+    .contact-card:hover { background: rgba(255,255,255,.10); }
+    .contact-card .icon   { font-size: 26px; margin-bottom: 12px; }
+    .contact-card h3      { font-size: 15px; font-weight: 700; color: #fff; margin-bottom: 6px; }
+    .contact-card .email  { font-size: 12px; color: var(--gold); margin-bottom: 8px; word-break: break-all; }
+    .contact-card p       { font-size: 13px; color: rgba(255,255,255,.55); line-height: 1.55; }
+
+    /* ── Footer ── */
+    footer {
+      background: #060F19;
+      padding: 28px 24px;
+    }
+    .footer-inner {
+      max-width: 1100px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    footer img   { height: 14px; object-fit: contain; opacity: .5; }
+    .footer-meta { color: rgba(255,255,255,.25); font-size: 12px; }
+    .footer-links { display: flex; gap: 20px; }
+    .footer-links a { color: rgba(255,255,255,.4); font-size: 12px; text-decoration: none; }
+    .footer-links a:hover { color: var(--gold); }
+
+    /* ── Dividers in gray list ── */
+    .check-list { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+    .check-list li {
+      display: flex; align-items: flex-start; gap: 10px;
+      font-size: 14px; color: #374151;
+    }
+    .check-list li::before { content: "✓"; color: var(--gold); font-weight: 700; flex-shrink: 0; margin-top: 1px; }
+
+    code {
+      background: #F3F4F6;
+      padding: 1px 5px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-family: ui-monospace, monospace;
+    }
+
+    @media (max-width: 640px) {
+      section { padding: 48px 16px; }
+      .hero   { padding: 40px 16px 56px; }
+      summary { font-size: 14px; padding: 16px 16px; }
+      .detail-body { padding: 0 16px 18px; }
+      th, td  { padding: 8px 10px; }
     }
   </style>
 </head>
 <body>
 
-<!-- ══════════════════════════════════════════════════════
-     COVER
-═══════════════════════════════════════════════════════════ -->
-<div class="cover">
-  <div class="cover-eyebrow">Platform Guide</div>
+<!-- ── Navigation ── -->
+<nav>
+  <img src="/Fanometrix_Logo.png" alt="Fanometrix" />
+  <a href="/home">← Back to platform</a>
+</nav>
+
+<!-- ── Hero ── -->
+<div class="hero">
+  <p class="hero-eyebrow">Platform Guide</p>
   <h1>Fanometrix <span>Pulse</span></h1>
-  <p class="cover-subtitle">
-    A complete guide to creating surveys, running campaigns, building campaign groups and serving fan intelligence through publisher embeds.
-  </p>
-  <div class="cover-divider"></div>
-  <p class="cover-meta">For internal use · Admin reference · fanometrix.com</p>
-</div>
-
-<!-- ══════════════════════════════════════════════════════
-     TABLE OF CONTENTS
-═══════════════════════════════════════════════════════════ -->
-<div class="page">
-  <div class="chapter-header" style="page-break-before: avoid;">
-    <div class="chapter-number">Contents</div>
-    <h2>What's in this guide</h2>
-  </div>
-
-  <table>
-    <tr><th>#</th><th>Section</th></tr>
-    <tr><td>1</td><td>How the platform works — the big picture</td></tr>
-    <tr><td>2</td><td>Surveys — creating your questionnaires</td></tr>
-    <tr><td>3</td><td>Campaigns — running a survey for one publisher</td></tr>
-    <tr><td>4</td><td>Campaign Groups — serving multiple campaigns through one embed</td></tr>
-    <tr><td>5</td><td>Embed codes — what to send to a publisher</td></tr>
-    <tr><td>6</td><td>User Management — creating accounts for clients</td></tr>
-    <tr><td>7</td><td>Reporting — where the data goes</td></tr>
-    <tr><td>8</td><td>Quick reference — statuses, rules and tips</td></tr>
-  </table>
-
-  <div class="callout">
-    <div class="callout-title">How to use this guide</div>
-    <p>Read sections 1–5 in order the first time through. After that, use sections 6–8 as a reference. Each section includes step-by-step instructions for the most common tasks.</p>
+  <p>A complete guide to creating surveys, running campaigns, building campaign groups and serving fan intelligence through publisher embeds.</p>
+  <div class="chip-row">
+    <div class="chip"><span>◫</span><span>Surveys</span></div>
+    <div class="chip"><span>◎</span><span>Campaigns</span></div>
+    <div class="chip"><span>⬡</span><span>Campaign Groups</span></div>
+    <div class="chip"><span></></span><span>Deployment</span></div>
+    <div class="chip"><span>◉</span><span>User Management</span></div>
   </div>
 </div>
 
-<!-- ══════════════════════════════════════════════════════
-     SECTION 1 — BIG PICTURE
-═══════════════════════════════════════════════════════════ -->
-<div class="page">
-  <div class="chapter-header">
-    <div class="chapter-number">Section 1</div>
-    <h2>How the platform works</h2>
+<!-- ── 1. How It Works ── -->
+<section>
+  <div class="inner wide">
+    <div class="center" style="margin-bottom:48px">
+      <p class="section-label">Overview</p>
+      <h2>How the platform works</h2>
+      <p class="subtitle">Fanometrix Pulse has three core building blocks. Understanding how they relate makes everything else straightforward.</p>
+    </div>
+    <div class="card-grid">
+      <div class="card">
+        <div class="card-icon">◫</div>
+        <h3>Survey</h3>
+        <p>The questionnaire — up to 4 questions with multiple-choice answers. A survey is a reusable template, not tied to any specific campaign or publisher. The same survey can run in dozens of campaigns simultaneously.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">◎</div>
+        <h3>Campaign</h3>
+        <p>One survey running for one publisher, with specific dates, a response target, and a live/paused/closed status. The campaign controls whether responses are collected. Each campaign gets its own embed code.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">⬡</div>
+        <h3>Campaign Group</h3>
+        <p>A bundle of campaigns served through a single embed code. When the embed loads, Fanometrix picks an eligible campaign and serves it. The publisher only ever needs one URL.</p>
+      </div>
+    </div>
+    <div class="info-box" style="margin-top:32px">
+      <span style="font-size:22px;flex-shrink:0">💡</span>
+      <p><strong>Key principle:</strong> Surveys are templates. Campaigns are delivery vehicles. Campaign Groups are playlists. Publishers get one URL and you control everything else from the admin.</p>
+    </div>
   </div>
+</section>
 
-  <p>Fanometrix Pulse has three core building blocks. Understanding how they relate to each other makes everything else straightforward.</p>
-
-  <h3>The three building blocks</h3>
-
-  <div class="ref-grid">
-    <div class="ref-card">
-      <div class="ref-card-title">◫ Survey</div>
-      <p style="font-size:12px; color:#374151;">The questionnaire. A set of up to 3 questions with multiple-choice answers. A survey is a reusable template — it is not tied to any specific campaign or publisher. The same survey can be used in dozens of campaigns simultaneously.</p>
-    </div>
-    <div class="ref-card">
-      <div class="ref-card-title">◎ Campaign</div>
-      <p style="font-size:12px; color:#374151;">One survey running for one publisher, with specific dates, a response target, and a live/paused/closed status. The campaign controls whether responses are being collected right now. Each campaign gets its own embed code.</p>
-    </div>
-    <div class="ref-card">
-      <div class="ref-card-title">⬡ Campaign Group</div>
-      <p style="font-size:12px; color:#374151;">A bundle of campaigns served through a single embed code. When the embed loads, Fanometrix automatically picks an eligible campaign from the group and serves it. The publisher only needs one URL.</p>
-    </div>
-    <div class="ref-card">
-      <div class="ref-card-title">📊 Response</div>
-      <p style="font-size:12px; color:#374151;">An individual fan's answers. Every response is linked to the exact campaign that served it — not just the group or the survey. This means reporting is always accurate even when groups are rotating between campaigns.</p>
-    </div>
-  </div>
-
-  <h3>A simple example</h3>
-
-  <p>Suppose Carlsberg want to run three different surveys on FotMob in June 2026:</p>
-
-  <ol>
-    <li>You create <strong>three Surveys</strong> — one for each research topic.</li>
-    <li>You create <strong>three Campaigns</strong> — one per survey, all pointing at FotMob, all with a June date range.</li>
-    <li>You create one <strong>Campaign Group</strong> called "Carlsberg FotMob June" and add all three campaigns to it.</li>
-    <li>You send FotMob <strong>one embed URL</strong>: <code>/embed?group=carlsberg_fotmob_june</code></li>
-    <li>Each time a fan loads a page, one of the three surveys is shown. Responses link back to the specific campaign served.</li>
-    <li>If you want to stop one survey mid-month, you simply <strong>pause that campaign</strong> in the admin. The other two keep running. FotMob doesn't need to change anything.</li>
-  </ol>
-
-  <div class="callout green">
-    <div class="callout-title">Key principle</div>
-    <p>Surveys are templates. Campaigns are delivery vehicles. Campaign Groups are playlists. Publishers get one URL and you control everything else from the admin.</p>
-  </div>
-
-  <h3>The admin navigation</h3>
-
-  <table>
-    <tr><th>Page</th><th>What it does</th></tr>
-    <tr><td><strong>Survey Templates</strong></td><td>Create and manage your bank of reusable surveys</td></tr>
-    <tr><td><strong>Campaigns</strong></td><td>Create campaigns, control live/paused/closed status, view response counts</td></tr>
-    <tr><td><strong>Campaign Groups</strong></td><td>Bundle campaigns into one embed URL, control rotation</td></tr>
-    <tr><td><strong>Deployment</strong></td><td>Generate the iframe embed code to send to publishers</td></tr>
-    <tr><td><strong>Reporting</strong></td><td>View and analyse response data</td></tr>
-    <tr><td><strong>User Management</strong></td><td>Create accounts for brands, agencies and publishers</td></tr>
-  </table>
-</div>
-
-<!-- ══════════════════════════════════════════════════════
-     SECTION 2 — SURVEYS
-═══════════════════════════════════════════════════════════ -->
-<div class="page">
-  <div class="chapter-header">
-    <div class="chapter-number">Section 2</div>
+<!-- ── 2. Surveys ── -->
+<section class="gray">
+  <div class="inner">
+    <p class="section-label">Section 2</p>
     <h2>Surveys</h2>
+    <p style="font-size:15px;color:var(--gray);line-height:1.7;margin-bottom:32px">A survey is a questionnaire — up to 4 questions, each with 2–4 multiple-choice answers. Surveys are reusable templates, independent of campaigns.</p>
+
+    <div class="accordion">
+
+      <details>
+        <summary>Survey statuses <span class="toggle">+</span></summary>
+        <div class="detail-body">
+          <table>
+            <thead><tr><th>Status</th><th>Meaning</th></tr></thead>
+            <tbody>
+              <tr><td><strong>Draft</strong></td><td>Still being written. Cannot be attached to a campaign yet.</td></tr>
+              <tr><td><strong>Ready</strong></td><td>Complete and approved. Can be attached to any campaign.</td></tr>
+              <tr><td><strong>Archived</strong></td><td>Hidden from the default view but still searchable and reusable.</td></tr>
+              <tr><td><strong>Deleted</strong></td><td>Soft deleted. Not visible by default. Can still be restored by an admin.</td></tr>
+            </tbody>
+          </table>
+          <div class="info-box">
+            <span>ℹ️</span>
+            <p>A survey is <strong>never Live</strong>. Campaigns control whether responses are collected. The same survey can be used in a Live campaign, a Paused campaign, and a Closed campaign simultaneously.</p>
+          </div>
+        </div>
+      </details>
+
+      <details>
+        <summary>Creating a survey <span class="toggle">+</span></summary>
+        <div class="detail-body">
+          <div class="steps">
+            <div class="step"><div class="step-num">1</div><div class="step-body">Go to <strong>Surveys</strong> in the left navigation and click <strong>+ Create Survey</strong>.</div></div>
+            <div class="step"><div class="step-num">2</div><div class="step-body">Give the survey a <strong>name</strong> and an optional description. Set status to <strong>Draft</strong>.</div></div>
+            <div class="step"><div class="step-num">3</div><div class="step-body">Add up to <strong>4 questions</strong>, each with 2–4 answer options.</div></div>
+            <div class="step"><div class="step-num">4</div><div class="step-body">Customise the <strong>Thank You screen</strong> shown to fans after completing the survey.</div></div>
+            <div class="step"><div class="step-num">5</div><div class="step-body">Click <strong>Preview</strong> to see how it looks in the 300×250 MPU. No responses are recorded in preview mode.</div></div>
+            <div class="step"><div class="step-num">6</div><div class="step-body">When approved, change status to <strong>Ready</strong>. It can now be attached to campaigns.</div></div>
+          </div>
+        </div>
+      </details>
+
+      <details>
+        <summary>Deletion rules <span class="toggle">+</span></summary>
+        <div class="detail-body">
+          <p style="font-size:14px;line-height:1.7">A survey can only be deleted if it has <strong>zero responses</strong> and is <strong>not linked to any campaigns</strong>. If either condition is not met, the Delete button is disabled. Archive instead — archived surveys remain searchable and can be restored.</p>
+        </div>
+      </details>
+
+      <details>
+        <summary>MPU content limits <span class="toggle">+</span></summary>
+        <div class="detail-body">
+          <table>
+            <thead><tr><th>Field</th><th>Limit</th><th>Reason</th></tr></thead>
+            <tbody>
+              <tr><td>Questions per survey</td><td>4 max</td><td>MPU body height constraint</td></tr>
+              <tr><td>Answers per question</td><td>4 max</td><td>Fits within 250px height</td></tr>
+              <tr><td>Question text</td><td>70 characters</td><td>Two wrapped lines at 11.5px</td></tr>
+              <tr><td>Answer option</td><td>32 characters</td><td>Single line at 10.5px</td></tr>
+              <tr><td>Thank-you title</td><td>40 characters</td><td>Single bold line</td></tr>
+              <tr><td>Thank-you message</td><td>90 characters</td><td>~3 lines at 10.5px</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </details>
+
+    </div>
   </div>
+</section>
 
-  <p>A survey is a questionnaire — up to 3 questions, each with 2–6 multiple-choice answers. Surveys are reusable templates that sit independently of campaigns. You build them once and attach them to as many campaigns as you like.</p>
-
-  <h3>Survey statuses</h3>
-
-  <div class="lifecycle">
-    <div class="lifecycle-node">Draft</div>
-    <div class="lifecycle-arrow">→</div>
-    <div class="lifecycle-node">Ready</div>
-    <div class="lifecycle-arrow">→</div>
-    <div class="lifecycle-node">Archived</div>
-    <div class="lifecycle-arrow">→</div>
-    <div class="lifecycle-node">Deleted</div>
-  </div>
-
-  <table>
-    <tr><th>Status</th><th>Meaning</th></tr>
-    <tr><td><span class="badge badge-draft">Draft</span></td><td>Still being written. Cannot be attached to a campaign yet.</td></tr>
-    <tr><td><span class="badge badge-ready">Ready</span></td><td>Complete and approved. Can be attached to any campaign.</td></tr>
-    <tr><td><span class="badge badge-archived">Archived</span></td><td>Hidden from the default view but still searchable and reusable. Can be restored.</td></tr>
-    <tr><td><span class="badge badge-deleted">Deleted</span></td><td>Soft deleted. Not visible by default. Can still be restored or duplicated by an admin.</td></tr>
-  </table>
-
-  <div class="callout">
-    <div class="callout-title">Important</div>
-    <p>A survey is <strong>never Live</strong>. Campaigns control whether responses are being collected — not the survey. The same survey can be used in one campaign that is Live, one that is Paused, and one that is Closed, all at the same time.</p>
-  </div>
-
-  <h3>Creating a survey</h3>
-
-  <div class="steps">
-    <div class="step">
-      <div class="step-num">1</div>
-      <div class="step-body">Go to <strong>Survey Templates</strong> in the left navigation and click <strong>+ Create Survey</strong>.</div>
-    </div>
-    <div class="step">
-      <div class="step-num">2</div>
-      <div class="step-body">Give the survey a <strong>name</strong> (e.g. "Carlsberg England Fans — Brand Awareness") and an optional description.</div>
-    </div>
-    <div class="step">
-      <div class="step-num">3</div>
-      <div class="step-body">Set the <strong>status to Draft</strong> while you're writing questions.</div>
-    </div>
-    <div class="step">
-      <div class="step-num">4</div>
-      <div class="step-body">Add up to <strong>3 questions</strong>. Click <strong>+ Add question</strong> for each one, then add 2–6 answer options per question.</div>
-    </div>
-    <div class="step">
-      <div class="step-num">5</div>
-      <div class="step-body">Customise the <strong>Thank You screen</strong> — the message fans see after completing the survey.</div>
-    </div>
-    <div class="step">
-      <div class="step-num">6</div>
-      <div class="step-body">Click <strong>Preview</strong> to see how the survey looks in the 300×250 MPU format. No responses are recorded in preview mode.</div>
-    </div>
-    <div class="step">
-      <div class="step-num">7</div>
-      <div class="step-body">When the survey is approved, change the status to <strong>Ready</strong> and save. It can now be attached to campaigns.</div>
-    </div>
-  </div>
-
-  <h3>What you can see on each survey card</h3>
-
-  <ul>
-    <li>Number of questions</li>
-    <li>Created date and last updated date</li>
-    <li><strong>Used by: N campaigns</strong> — click this to see exactly which campaigns are using it</li>
-    <li><strong>Serving in: N live campaigns</strong> — how many campaigns using this survey are currently live</li>
-    <li><strong>Last used</strong> — when the most recent non-draft campaign using this survey started</li>
-    <li><strong>Last response</strong> — how long ago the most recent fan response came in (e.g. "3 hours ago")</li>
-  </ul>
-
-  <h3>Survey Usage modal</h3>
-  <p>Click <strong>Used by: N campaigns</strong> on any survey card to open a detailed table showing every campaign linked to that survey, including the publisher, status, date range and response count. This is useful when deciding whether it is safe to archive or edit a survey.</p>
-
-  <h3>Deletion rules</h3>
-  <div class="callout red">
-    <div class="callout-title">You can only delete a survey if</div>
-    <p>It has <strong>zero responses</strong> AND is <strong>not linked to any campaigns</strong>. If either condition is not met, the Delete button is disabled and you will see an explanation. Archive instead — archived surveys remain searchable and can be restored at any time.</p>
-  </div>
-
-  <h3>Duplicating a survey</h3>
-  <p>Click <strong>Duplicate</strong> on any survey card to create an identical copy. The copy is named "Original Survey Name (Copy)", starts as Draft, and has zero counts. This is useful for creating seasonal variations of an existing survey without starting from scratch.</p>
-</div>
-
-<!-- ══════════════════════════════════════════════════════
-     SECTION 3 — CAMPAIGNS
-═══════════════════════════════════════════════════════════ -->
-<div class="page">
-  <div class="chapter-header">
-    <div class="chapter-number">Section 3</div>
+<!-- ── 3. Campaigns ── -->
+<section>
+  <div class="inner">
+    <p class="section-label">Section 3</p>
     <h2>Campaigns</h2>
-  </div>
+    <p style="font-size:15px;color:var(--gray);line-height:1.7;margin-bottom:32px">A campaign connects a survey to a publisher. It controls when responses are collected, how many are targeted, and whether the embed is currently live.</p>
 
-  <p>A campaign connects a survey to a publisher. It controls when responses are collected, how many are targeted, and whether the embed is currently live.</p>
+    <div class="accordion">
 
-  <h3>Campaign lifecycle</h3>
+      <details>
+        <summary>Campaign lifecycle <span class="toggle">+</span></summary>
+        <div class="detail-body">
+          <table>
+            <thead><tr><th>Status</th><th>Meaning</th><th>Responses?</th></tr></thead>
+            <tbody>
+              <tr><td><strong>Draft</strong></td><td>Being set up, not yet deployed</td><td><span class="pill pill-red">No</span></td></tr>
+              <tr><td><strong>Scheduled</strong></td><td>Ready but start date hasn't arrived</td><td><span class="pill pill-red">No</span></td></tr>
+              <tr><td><strong>Live</strong></td><td>Actively collecting responses</td><td><span class="pill pill-green">Yes</span></td></tr>
+              <tr><td><strong>Paused</strong></td><td>Temporarily stopped, can be resumed</td><td><span class="pill pill-red">No</span></td></tr>
+              <tr><td><strong>Closed</strong></td><td>Permanently finished</td><td><span class="pill pill-red">No</span></td></tr>
+              <tr><td><strong>Archived</strong></td><td>Hidden from the default view</td><td><span class="pill pill-red">No</span></td></tr>
+            </tbody>
+          </table>
+          <div class="info-box" style="margin-top:16px">
+            <span>⚡</span>
+            <p>Fanometrix <strong>automatically</strong> moves a campaign from Scheduled → Live when the start date arrives, and from Live → Closed when the end date passes or the target response count is reached.</p>
+          </div>
+        </div>
+      </details>
 
-  <div class="lifecycle">
-    <div class="lifecycle-node">Draft</div>
-    <div class="lifecycle-arrow">→</div>
-    <div class="lifecycle-node">Scheduled</div>
-    <div class="lifecycle-arrow">→</div>
-    <div class="lifecycle-node">Live</div>
-    <div class="lifecycle-arrow">→</div>
-    <div class="lifecycle-node">Paused</div>
-    <div class="lifecycle-arrow">→</div>
-    <div class="lifecycle-node">Closed</div>
-    <div class="lifecycle-arrow">→</div>
-    <div class="lifecycle-node">Archived</div>
-  </div>
+      <details>
+        <summary>Creating a campaign <span class="toggle">+</span></summary>
+        <div class="detail-body">
+          <div class="steps">
+            <div class="step"><div class="step-num">1</div><div class="step-body">Go to <strong>Campaigns</strong> and click <strong>+ Create Campaign</strong>.</div></div>
+            <div class="step"><div class="step-num">2</div><div class="step-body">Enter <strong>Brand Name</strong> and <strong>Campaign Name</strong>. Click <strong>Auto</strong> to generate the Campaign ID.</div></div>
+            <div class="step"><div class="step-num">3</div><div class="step-body">Set <strong>Start Date</strong> and <strong>End Date</strong>. The campaign goes live and closes automatically on these dates.</div></div>
+            <div class="step"><div class="step-num">4</div><div class="step-body">Optionally set a <strong>Target Responses</strong> number — the campaign closes automatically when this is hit.</div></div>
+            <div class="step"><div class="step-num">5</div><div class="step-body">Select the <strong>Survey</strong> and <strong>Publisher</strong>. Add the placement name.</div></div>
+            <div class="step"><div class="step-num">6</div><div class="step-body">Save as <strong>Draft</strong>. When ready to deploy, click <strong>Go Live Now</strong> or <strong>Publish</strong>.</div></div>
+          </div>
+        </div>
+      </details>
 
-  <table>
-    <tr><th>Status</th><th>Meaning</th><th>Responses accepted?</th></tr>
-    <tr><td><span class="badge badge-draft">Draft</span></td><td>Being set up. Not yet deployed.</td><td>No</td></tr>
-    <tr><td><span class="badge badge-live">Scheduled</span></td><td>Ready but the start date hasn't arrived yet.</td><td>No</td></tr>
-    <tr><td><span class="badge badge-live">Live</span></td><td>Actively collecting responses.</td><td>Yes</td></tr>
-    <tr><td><span class="badge badge-paused">Paused</span></td><td>Temporarily stopped. Can be resumed.</td><td>No</td></tr>
-    <tr><td><span class="badge badge-closed">Closed</span></td><td>Permanently finished. Cannot be resumed.</td><td>No</td></tr>
-    <tr><td><span class="badge badge-archived">Archived</span></td><td>Hidden from the default view. Historical record.</td><td>No</td></tr>
-  </table>
+      <details>
+        <summary>Campaign card actions <span class="toggle">+</span></summary>
+        <div class="detail-body">
+          <table>
+            <thead><tr><th>Button</th><th>When available</th><th>What it does</th></tr></thead>
+            <tbody>
+              <tr><td>Publish</td><td>Draft</td><td>Sets to Scheduled (waiting for start date)</td></tr>
+              <tr><td>Go Live Now</td><td>Draft or Scheduled</td><td>Makes the campaign immediately Live</td></tr>
+              <tr><td>Pause</td><td>Live or Scheduled</td><td>Temporarily stops collecting responses</td></tr>
+              <tr><td>Resume</td><td>Paused</td><td>Resumes collecting responses</td></tr>
+              <tr><td>Close</td><td>Live or Paused</td><td>Permanently ends the campaign</td></tr>
+              <tr><td>Archive</td><td>Closed</td><td>Moves to the Archived tab</td></tr>
+              <tr><td>Duplicate</td><td>Always</td><td>Creates a Draft copy with dates cleared</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </details>
 
-  <div class="callout blue">
-    <div class="callout-title">Automatic transitions</div>
-    <p>Fanometrix automatically moves a campaign from Scheduled → Live when the start date arrives, and from Live → Closed when the end date passes or the target response count is reached. You don't need to do anything manually for these transitions.</p>
-  </div>
+      <details>
+        <summary>Deletion rules <span class="toggle">+</span></summary>
+        <div class="detail-body">
+          <p style="font-size:14px;line-height:1.7">Campaigns can only be deleted if their status is <strong>Draft</strong> or <strong>Scheduled</strong> AND they have <strong>zero responses</strong>. Campaigns with responses can never be hard-deleted — archive them instead. This protects reporting integrity.</p>
+        </div>
+      </details>
 
-  <h3>Creating a campaign</h3>
-
-  <div class="steps">
-    <div class="step">
-      <div class="step-num">1</div>
-      <div class="step-body">Go to <strong>Campaigns</strong> and click <strong>+ Create Campaign</strong>.</div>
-    </div>
-    <div class="step">
-      <div class="step-num">2</div>
-      <div class="step-body">Enter the <strong>Brand Name</strong> (e.g. "Carlsberg") and <strong>Campaign Name</strong> (e.g. "UCL 2026 Fan Survey").</div>
-    </div>
-    <div class="step">
-      <div class="step-num">3</div>
-      <div class="step-body">Set the <strong>Campaign ID</strong> — this is the slug used in embed URLs (e.g. <code>carlsberg_ucl_2026</code>). Click <strong>Auto</strong> to generate it from the brand and campaign names. Lowercase and underscores only.</div>
-    </div>
-    <div class="step">
-      <div class="step-num">4</div>
-      <div class="step-body">Set the <strong>Start Date</strong> and <strong>End Date</strong>. If you set both, the campaign goes live automatically on the start date and closes automatically on the end date.</div>
-    </div>
-    <div class="step">
-      <div class="step-num">5</div>
-      <div class="step-body">Optionally set a <strong>Target Responses</strong> number. When this is hit, the campaign closes automatically.</div>
-    </div>
-    <div class="step">
-      <div class="step-num">6</div>
-      <div class="step-body">Select the <strong>Survey</strong> to attach. Only surveys with status <em>Ready</em> appear in the dropdown. Draft surveys show as "(Draft)" and can still be selected.</div>
-    </div>
-    <div class="step">
-      <div class="step-num">7</div>
-      <div class="step-body">Add one or more <strong>Publishers</strong> by typing the publisher name and clicking Add.</div>
-    </div>
-    <div class="step">
-      <div class="step-num">8</div>
-      <div class="step-body">Leave the status as <strong>Draft</strong> for now. Click <strong>Save Campaign</strong>.</div>
-    </div>
-    <div class="step">
-      <div class="step-num">9</div>
-      <div class="step-body">When you're ready to deploy, use the action buttons on the campaign card to <strong>Publish</strong> (sets it to Scheduled) or <strong>Go Live Now</strong> (makes it immediately Live).</div>
     </div>
   </div>
+</section>
 
-  <h3>Campaign card actions</h3>
-  <table>
-    <tr><th>Button</th><th>When available</th><th>What it does</th></tr>
-    <tr><td>Publish</td><td>Draft</td><td>Sets status to Scheduled (waiting for start date)</td></tr>
-    <tr><td>Go Live Now</td><td>Draft or Scheduled</td><td>Makes the campaign immediately Live</td></tr>
-    <tr><td>Pause</td><td>Live or Scheduled</td><td>Temporarily stops collecting responses</td></tr>
-    <tr><td>Resume</td><td>Paused</td><td>Resumes collecting responses</td></tr>
-    <tr><td>Close</td><td>Live or Paused</td><td>Permanently ends the campaign</td></tr>
-    <tr><td>Archive</td><td>Closed</td><td>Moves to the Archived tab</td></tr>
-    <tr><td>Restore</td><td>Archived</td><td>Brings back to Closed</td></tr>
-    <tr><td>Duplicate</td><td>Always</td><td>Creates a Draft copy with dates cleared and responses reset to zero</td></tr>
-    <tr><td>Delete</td><td>Draft or Scheduled with 0 responses</td><td>Soft deletes the campaign (restorable)</td></tr>
-  </table>
-
-  <h3>Deletion rules</h3>
-  <div class="callout red">
-    <div class="callout-title">Campaigns cannot be deleted if they have responses</div>
-    <p>Even one response permanently prevents deletion, to protect reporting integrity. Archive the campaign instead. If you need to delete a campaign that has collected some responses, contact your system administrator.</p>
-  </div>
-
-  <h3>Tabs on the Campaigns page</h3>
-  <ul>
-    <li><strong>Active</strong> — Draft, Scheduled, Live and Paused campaigns (currently operational)</li>
-    <li><strong>Closed</strong> — campaigns that have finished collecting responses</li>
-    <li><strong>Archived</strong> — campaigns moved out of the main view for tidiness</li>
-    <li><strong>Deleted</strong> — soft-deleted campaigns, visible to admins only; can be restored</li>
-  </ul>
-</div>
-
-<!-- ══════════════════════════════════════════════════════
-     SECTION 4 — CAMPAIGN GROUPS
-═══════════════════════════════════════════════════════════ -->
-<div class="page">
-  <div class="chapter-header">
-    <div class="chapter-number">Section 4</div>
+<!-- ── 4. Campaign Groups ── -->
+<section class="gray">
+  <div class="inner">
+    <p class="section-label">Section 4</p>
     <h2>Campaign Groups</h2>
+    <p style="font-size:15px;color:var(--gray);line-height:1.7;margin-bottom:32px">A Campaign Group bundles multiple campaigns together under one embed code. When the embed loads, Fanometrix picks an eligible campaign and serves it. Responses link to the specific campaign served.</p>
+
+    <div class="accordion">
+
+      <details>
+        <summary>When to use a Campaign Group <span class="toggle">+</span></summary>
+        <div class="detail-body">
+          <ul class="check-list">
+            <li>You want to run multiple surveys on the same publisher placement at the same time</li>
+            <li>You want to rotate between surveys without the publisher updating their embed code</li>
+            <li>You want a single fallback if one campaign pauses or closes mid-flight</li>
+          </ul>
+          <div class="info-box" style="margin-top:16px">
+            <span>🏗️</span>
+            <p>The publisher gets <strong>one URL</strong> and trafficks it once. You control which surveys run, add new campaigns, pause individual ones, or close the whole group — without asking the publisher to change anything.</p>
+          </div>
+        </div>
+      </details>
+
+      <details>
+        <summary>Rotation types <span class="toggle">+</span></summary>
+        <div class="detail-body">
+          <table>
+            <thead><tr><th>Type</th><th>How it works</th><th>Best for</th></tr></thead>
+            <tbody>
+              <tr><td><strong>Equal</strong></td><td>Each eligible campaign has the same chance on every load</td><td>Most situations — default</td></tr>
+              <tr><td><strong>Weighted</strong></td><td>Campaigns with higher weight values are served more often</td><td>When one survey should run more frequently</td></tr>
+              <tr><td><strong>Priority</strong></td><td>The eligible campaign with the lowest priority number always serves first</td><td>One primary survey with backups</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </details>
+
+      <details>
+        <summary>Eligibility rules <span class="toggle">+</span></summary>
+        <div class="detail-body">
+          <p style="font-size:14px;margin-bottom:12px">Every time the embed loads, Fanometrix checks each campaign in the group:</p>
+          <ul class="check-list">
+            <li>Group must be Live and within its date range</li>
+            <li>Campaign must have status Live</li>
+            <li>Campaign must be within its own start and end dates</li>
+            <li>Campaign must not have reached its target response count</li>
+            <li>Campaign's survey must exist and not be deleted or invalid</li>
+          </ul>
+          <p style="font-size:14px;margin-top:12px;color:var(--gray)">If no campaigns are eligible, the embed renders blank — the publisher sees an empty ad slot, not an error.</p>
+        </div>
+      </details>
+
+      <details>
+        <summary>The embed code <span class="toggle">+</span></summary>
+        <div class="detail-body">
+          <pre>/embed?group=carlsberg_research_wave1_fotmob&publisher=fotmob&placement=homepage-mpu&country=%%COUNTRY%%</pre>
+          <p style="font-size:13px;color:var(--gray);margin-top:12px">Copy this directly from the group card in Campaign Groups. The publisher trafficks it once; you control everything else from the admin.</p>
+        </div>
+      </details>
+
+    </div>
   </div>
+</section>
 
-  <p>A Campaign Group bundles multiple campaigns together under one embed code. When the embed loads, Fanometrix automatically picks an eligible campaign from the group and serves it to the fan. Each response is still linked to the specific campaign that was served, so reporting remains accurate.</p>
+<!-- ── 5. Embed Codes ── -->
+<section>
+  <div class="inner">
+    <p class="section-label">Section 5</p>
+    <h2>Embed Codes</h2>
+    <p style="font-size:15px;color:var(--gray);line-height:1.7;margin-bottom:32px">The embed is a standard 300×250 iframe that publishers drop into their ad serving system. Once trafficked, you control everything from the Fanometrix admin.</p>
 
-  <h3>When to use a Campaign Group</h3>
-  <ul>
-    <li>You want to run multiple surveys on the same publisher placement at the same time</li>
-    <li>You want to rotate between surveys without the publisher updating their embed code</li>
-    <li>You want a single fallback if one campaign pauses or closes mid-flight</li>
-  </ul>
+    <div class="accordion">
 
-  <div class="callout blue">
-    <div class="callout-title">Publisher perspective</div>
-    <p>The publisher gets one URL and trafficks it once. You can then change which surveys run, add new campaigns, pause individual ones, or close the whole group — all without asking the publisher to do anything.</p>
-  </div>
+      <details>
+        <summary>Two types of embed <span class="toggle">+</span></summary>
+        <div class="detail-body">
+          <table>
+            <thead><tr><th>Type</th><th>URL format</th><th>When to use</th></tr></thead>
+            <tbody>
+              <tr><td><strong>Single campaign</strong></td><td class="mono">/embed?campaign=slug</td><td>One campaign, one placement</td></tr>
+              <tr><td><strong>Campaign Group</strong></td><td class="mono">/embed?group=slug</td><td>Multiple campaigns rotating through one placement</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </details>
 
-  <h3>Creating a Campaign Group</h3>
+      <details>
+        <summary>URL parameters <span class="toggle">+</span></summary>
+        <div class="detail-body">
+          <table>
+            <thead><tr><th>Parameter</th><th>Required?</th><th>Example</th></tr></thead>
+            <tbody>
+              <tr><td class="mono">campaign=</td><td>Yes (single)</td><td class="mono">carlsberg_ucl_2026</td></tr>
+              <tr><td class="mono">group=</td><td>Yes (group)</td><td class="mono">carlsberg_wave1</td></tr>
+              <tr><td class="mono">publisher=</td><td>Recommended</td><td class="mono">fotmob</td></tr>
+              <tr><td class="mono">placement=</td><td>Recommended</td><td class="mono">homepage-mpu</td></tr>
+              <tr><td class="mono">country=</td><td>Recommended</td><td class="mono">%%COUNTRY%%</td></tr>
+              <tr><td class="mono">club=</td><td>Optional</td><td class="mono">Arsenal</td></tr>
+              <tr><td class="mono">competition=</td><td>Optional</td><td class="mono">Premier+League</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </details>
 
-  <div class="steps">
-    <div class="step">
-      <div class="step-num">1</div>
-      <div class="step-body">Go to <strong>Campaign Groups</strong> in the left navigation and click <strong>+ Create Group</strong>.</div>
-    </div>
-    <div class="step">
-      <div class="step-num">2</div>
-      <div class="step-body">Enter a <strong>Group Name</strong> (e.g. "Carlsberg Research Wave 1") and click <strong>Auto</strong> to generate the slug, or type your own.</div>
-    </div>
-    <div class="step">
-      <div class="step-num">3</div>
-      <div class="step-body">Enter the <strong>Publisher</strong> for this group (e.g. FotMob). This is for your reference and appears on the group card.</div>
-    </div>
-    <div class="step">
-      <div class="step-num">4</div>
-      <div class="step-body">Optionally set <strong>Start Date</strong> and <strong>End Date</strong> for the group itself. The group will only serve campaigns within this window.</div>
-    </div>
-    <div class="step">
-      <div class="step-num">5</div>
-      <div class="step-body">Choose the <strong>Rotation Type</strong> (see table below).</div>
-    </div>
-    <div class="step">
-      <div class="step-num">6</div>
-      <div class="step-body">Search for and add the <strong>Campaigns</strong> you want in this group. Any campaign can be added, but only live campaigns within their date range and below their response target will actually be served at embed time.</div>
-    </div>
-    <div class="step">
-      <div class="step-num">7</div>
-      <div class="step-body">Save the group with status <strong>Draft</strong>. When ready to go live, click <strong>Go Live</strong> on the group card.</div>
-    </div>
-  </div>
+      <details>
+        <summary>Country macros by ad server <span class="toggle">+</span></summary>
+        <div class="detail-body">
+          <table>
+            <thead><tr><th>Ad server</th><th>Country macro</th></tr></thead>
+            <tbody>
+              <tr><td>Google Ad Manager / DV360</td><td class="mono">%%COUNTRY%%</td></tr>
+              <tr><td>Xandr (AppNexus)</td><td class="mono">${GEO_COUNTRY}</td></tr>
+              <tr><td>Freewheel</td><td class="mono">[country]</td></tr>
+              <tr><td>The Trade Desk</td><td class="mono">##COUNTRY##</td></tr>
+              <tr><td>Direct / hardcoded test</td><td class="mono">GB</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </details>
 
-  <h3>Rotation types</h3>
-  <table>
-    <tr><th>Type</th><th>How it works</th><th>Best for</th></tr>
-    <tr><td><strong>Equal</strong></td><td>Each eligible campaign has the same chance of being selected on every load.</td><td>Most situations. Default choice.</td></tr>
-    <tr><td><strong>Weighted</strong></td><td>Campaigns with higher weight values are served more often. Set weights when editing individual group members.</td><td>When you want one survey to run more frequently than others.</td></tr>
-    <tr><td><strong>Priority</strong></td><td>The eligible campaign with the lowest priority number is always served first. Others act as fallbacks if the top-priority campaign is not eligible.</td><td>When one survey must always serve if possible, with others as backups.</td></tr>
-  </table>
-
-  <h3>Eligibility — what gets served at embed time</h3>
-  <p>Every time the embed loads, Fanometrix checks each campaign in the group against these rules:</p>
-  <ul>
-    <li>The <strong>group</strong> must be Live and within its date range</li>
-    <li>The <strong>campaign</strong> must have status Live</li>
-    <li>The campaign must be within its own <strong>start and end dates</strong></li>
-    <li>The campaign must not have reached its <strong>target response count</strong></li>
-    <li>The campaign's <strong>survey</strong> must exist and not be deleted</li>
-  </ul>
-  <p>Any campaign that fails these checks is skipped on that load. If no campaigns are eligible, the embed renders blank (the publisher sees an empty ad slot, not an error).</p>
-
-  <h3>Controlling the group mid-flight</h3>
-  <ul>
-    <li><strong>To stop one survey temporarily:</strong> go to Campaigns and Pause that individual campaign. The group keeps running with the remaining eligible campaigns.</li>
-    <li><strong>To stop everything:</strong> set the group status to Paused or Closed. All campaigns in the group stop serving immediately.</li>
-    <li><strong>To swap in a new survey:</strong> create a new campaign, add it to the group. It starts serving as soon as it goes Live.</li>
-    <li><strong>To remove a campaign from the group:</strong> edit the group and remove it from the campaign list.</li>
-  </ul>
-
-  <h3>The embed code for a group</h3>
-  <div class="code-block">/embed?group=carlsberg_research_wave1_fotmob&publisher=fotmob&placement=homepage-mpu&country=%%COUNTRY%%</div>
-  <p>You can copy this directly from the group card with the <strong>Copy</strong> button. See Section 5 for a full explanation of each parameter.</p>
-</div>
-
-<!-- ══════════════════════════════════════════════════════
-     SECTION 5 — EMBED CODES
-═══════════════════════════════════════════════════════════ -->
-<div class="page">
-  <div class="chapter-header">
-    <div class="chapter-number">Section 5</div>
-    <h2>Embed codes</h2>
-  </div>
-
-  <p>The embed is a standard 300×250 iframe that publishers drop into their ad serving system. Once it's trafficked, you control everything from the Fanometrix admin.</p>
-
-  <h3>Two types of embed</h3>
-
-  <table>
-    <tr><th>Type</th><th>URL format</th><th>When to use</th></tr>
-    <tr>
-      <td><strong>Single campaign</strong></td>
-      <td><code>/embed?campaign=campaign_slug</code></td>
-      <td>When you want exactly one campaign to serve from this placement</td>
-    </tr>
-    <tr>
-      <td><strong>Campaign Group</strong></td>
-      <td><code>/embed?group=group_slug</code></td>
-      <td>When you want multiple campaigns to rotate through this placement</td>
-    </tr>
-  </table>
-
-  <h3>URL parameters explained</h3>
-
-  <table>
-    <tr><th>Parameter</th><th>Required?</th><th>What it does</th></tr>
-    <tr><td><code>campaign=</code></td><td>Yes (single)</td><td>The campaign slug. Found on the campaign card in admin.</td></tr>
-    <tr><td><code>group=</code></td><td>Yes (group)</td><td>The group slug. Found on the group card in admin.</td></tr>
-    <tr><td><code>publisher=</code></td><td>Recommended</td><td>The publisher name. Appears in reporting. E.g. <code>fotmob</code></td></tr>
-    <tr><td><code>placement=</code></td><td>Recommended</td><td>Where on the publisher's site the embed appears. E.g. <code>homepage-mpu</code>, <code>match-centre-mpu</code></td></tr>
-    <tr><td><code>country=</code></td><td>Recommended</td><td>The viewer's country. Use your ad server's macro so it fills in automatically. E.g. <code>%%COUNTRY%%</code> for Google Ad Manager.</td></tr>
-    <tr><td><code>survey=</code></td><td>Optional</td><td>A specific survey UUID. Only used for single-campaign embeds when you need to override the survey.</td></tr>
-    <tr><td><code>club=</code></td><td>Optional</td><td>The club or team context. Appears in reporting.</td></tr>
-    <tr><td><code>competition=</code></td><td>Optional</td><td>The competition context (e.g. ucl, premier-league). Appears in reporting.</td></tr>
-  </table>
-
-  <h3>Country macros by ad server</h3>
-  <table>
-    <tr><th>Ad server</th><th>Country macro</th></tr>
-    <tr><td>Google Ad Manager / DV360</td><td><code>%%COUNTRY%%</code></td></tr>
-    <tr><td>Xandr (AppNexus)</td><td><code>${GEO_COUNTRY}</code></td></tr>
-    <tr><td>Freewheel</td><td><code>[country]</code></td></tr>
-    <tr><td>The Trade Desk</td><td><code>##COUNTRY##</code></td></tr>
-    <tr><td>Direct / hardcoded test</td><td><code>GB</code></td></tr>
-  </table>
-
-  <h3>Full example — single campaign</h3>
-  <div class="code-block">https://fanometrix-surveys.vercel.app/embed?campaign=carlsberg_ucl_2026&publisher=fotmob&placement=match-centre-mpu&country=%%COUNTRY%%</div>
-
-  <h3>Full example — campaign group</h3>
-  <div class="code-block">https://fanometrix-surveys.vercel.app/embed?group=carlsberg_fotmob_june&publisher=fotmob&placement=homepage-mpu&country=%%COUNTRY%%</div>
-
-  <h3>The iframe tag to send the publisher</h3>
-  <div class="code-block">&lt;iframe
-  src="https://fanometrix-surveys.vercel.app/embed?group=carlsberg_fotmob_june&amp;publisher=fotmob&amp;placement=homepage-mpu&amp;country=%%COUNTRY%%"
-  width="300"
-  height="250"
-  frameborder="0"
+      <details>
+        <summary>Example iframe tag <span class="toggle">+</span></summary>
+        <div class="detail-body">
+<pre>&lt;iframe
+  src="https://fanometrix-surveys.vercel.app/embed?campaign=YOUR_CAMPAIGN_ID
+    &amp;publisher=YOUR_PUBLISHER
+    &amp;placement=YOUR_PLACEMENT
+    &amp;country=%%COUNTRY%%"
+  width="300" height="250" frameborder="0"
   scrolling="no"
-  style="border:none; display:block;"
-&gt;&lt;/iframe&gt;</div>
+  style="border:0;overflow:hidden;display:block;"
+  title="Fanometrix Fan Survey"
+&gt;&lt;/iframe&gt;</pre>
+          <p style="font-size:13px;color:var(--gray);margin-top:12px">Generate this automatically from the <strong>Deployment</strong> page in the admin. Select your campaign and ad server — the tag is built for you.</p>
+        </div>
+      </details>
 
-  <p>You can copy a fully formatted version of this from the <strong>Campaign Deployment</strong> page in the admin. Select your campaign or group, publisher, placement, and ad server — the code is generated automatically.</p>
+      <details>
+        <summary>New account → End-to-end checklist <span class="toggle">+</span></summary>
+        <div class="detail-body">
+          <div class="steps">
+            <div class="step"><div class="step-num">1</div><div class="step-body">Create a <strong>Survey</strong> and set status to <strong>Ready</strong></div></div>
+            <div class="step"><div class="step-num">2</div><div class="step-body">Create a <strong>Campaign</strong> and attach the survey</div></div>
+            <div class="step"><div class="step-num">3</div><div class="step-body">Set start and end dates, and an optional response target</div></div>
+            <div class="step"><div class="step-num">4</div><div class="step-body">Use the <strong>Deployment</strong> page to generate the embed code</div></div>
+            <div class="step"><div class="step-num">5</div><div class="step-body">Test the embed URL in a browser before sending to the publisher</div></div>
+            <div class="step"><div class="step-num">6</div><div class="step-body">Send the iframe code to the publisher</div></div>
+            <div class="step"><div class="step-num">7</div><div class="step-body">Click <strong>Go Live Now</strong> on the campaign card</div></div>
+            <div class="step"><div class="step-num">8</div><div class="step-body">Monitor responses on the <strong>Dashboard</strong></div></div>
+          </div>
+        </div>
+      </details>
 
-  <div class="callout">
-    <div class="callout-title">Testing before going live</div>
-    <p>Always test the embed in a browser before sending to the publisher. Open the URL directly (without the country macro) to confirm the survey loads correctly. The <strong>Embed Test</strong> page in the admin also lets you preview the embed with a preview badge so you can confirm the layout without recording any responses.</p>
+    </div>
   </div>
+</section>
 
-  <h3>Common placement names</h3>
-  <ul>
-    <li><code>homepage-mpu</code> — Homepage MPU</li>
-    <li><code>match-centre-mpu</code> — Match Centre MPU</li>
-    <li><code>lineups-mpu</code> — Lineups page MPU</li>
-    <li><code>article-inline</code> — Article inline</li>
-    <li><code>article-footer</code> — Article footer</li>
-    <li><code>team-page-mpu</code> — Team page MPU</li>
-    <li><code>league-page-mpu</code> — League page MPU</li>
-  </ul>
-</div>
-
-<!-- ══════════════════════════════════════════════════════
-     SECTION 6 — USER MANAGEMENT
-═══════════════════════════════════════════════════════════ -->
-<div class="page">
-  <div class="chapter-header">
-    <div class="chapter-number">Section 6</div>
+<!-- ── 6. User Management ── -->
+<section class="gray">
+  <div class="inner">
+    <p class="section-label">Section 6</p>
     <h2>User Management</h2>
-  </div>
+    <p style="font-size:15px;color:var(--gray);line-height:1.7;margin-bottom:32px">Fanometrix accounts are organisation-based. Each account represents a company — a brand, agency or publisher — not an individual. No personal data (names, emails) is stored.</p>
 
-  <p>Fanometrix accounts are organisation-based. Each account represents a company — a brand, agency, or publisher — rather than an individual. No personal data (names, emails) is stored.</p>
+    <div class="accordion">
 
-  <h3>Account roles</h3>
+      <details>
+        <summary>Account roles <span class="toggle">+</span></summary>
+        <div class="detail-body">
+          <table>
+            <thead><tr><th>Role</th><th>What they can see</th></tr></thead>
+            <tbody>
+              <tr><td><strong>Admin</strong></td><td>Everything — full platform access including user management</td></tr>
+              <tr><td><strong>Brand</strong></td><td>Dashboard, Campaign Reports, Exports, Insights — for their allowed campaigns only</td></tr>
+              <tr><td><strong>Agency</strong></td><td>Dashboard, Campaign Reports, Publisher Performance, Exports — for their allowed campaigns and publishers</td></tr>
+              <tr><td><strong>Publisher</strong></td><td>Dashboard, Publisher Performance — filtered to their own publisher data</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </details>
 
-  <table>
-    <tr><th>Role</th><th>What they can see</th></tr>
-    <tr><td><strong>Admin</strong></td><td>Everything. Full platform access including user management, all campaigns and all surveys.</td></tr>
-    <tr><td><strong>Brand</strong></td><td>Dashboard, Campaign Reports, Exports, and Insights — but only for the campaigns they are allowed to access.</td></tr>
-    <tr><td><strong>Agency</strong></td><td>Dashboard, Campaign Reports, Publisher Performance, and Exports — but only for their allowed campaigns and publishers.</td></tr>
-    <tr><td><strong>Publisher</strong></td><td>Dashboard and Publisher Performance — filtered to their own publisher data only.</td></tr>
-  </table>
+      <details>
+        <summary>Creating an account <span class="toggle">+</span></summary>
+        <div class="detail-body">
+          <div class="steps">
+            <div class="step"><div class="step-num">1</div><div class="step-body">Go to <strong>User Management</strong> and click <strong>+ New Account</strong></div></div>
+            <div class="step"><div class="step-num">2</div><div class="step-body">Set a <strong>Username</strong> — letters, numbers, underscores and hyphens. Login is not case-sensitive.</div></div>
+            <div class="step"><div class="step-num">3</div><div class="step-body">Click <strong>⚡ Generate Temporary Password</strong>. Copy the credentials — the password is shown only once.</div></div>
+            <div class="step"><div class="step-num">4</div><div class="step-body">Leave <strong>Force password change on first login</strong> ticked — the user sets their own permanent password.</div></div>
+            <div class="step"><div class="step-num">5</div><div class="step-body">Select <strong>Access Rights</strong> and enter the <strong>Organisation Name</strong>.</div></div>
+            <div class="step"><div class="step-num">6</div><div class="step-body">Set <strong>Campaign Access</strong> and <strong>Publisher Access</strong> to restrict the account, or leave blank for full access.</div></div>
+          </div>
+        </div>
+      </details>
 
-  <h3>Creating an account</h3>
+      <details>
+        <summary>Password policy <span class="toggle">+</span></summary>
+        <div class="detail-body">
+          <ul class="check-list">
+            <li>Passwords are stored as hashed values only — never visible to admins</li>
+            <li>Use Generate Temporary Password to create a strong random password</li>
+            <li>Share credentials via Teams, Slack, email or WhatsApp</li>
+            <li>The user sets their own permanent password on first login</li>
+            <li>Reset a password at any time via Edit → Generate Temporary Password</li>
+          </ul>
+        </div>
+      </details>
 
-  <div class="steps">
-    <div class="step">
-      <div class="step-num">1</div>
-      <div class="step-body">Go to <strong>User Management</strong> and click <strong>+ New Account</strong>.</div>
-    </div>
-    <div class="step">
-      <div class="step-num">2</div>
-      <div class="step-body">Set a <strong>Username</strong> — lowercase letters, numbers, underscores and hyphens only. E.g. <code>carlsberg_client</code></div>
-    </div>
-    <div class="step">
-      <div class="step-num">3</div>
-      <div class="step-body">Set a <strong>Password</strong> or click <strong>⚡ Generate Temporary Password</strong> to create a strong random password automatically.</div>
-    </div>
-    <div class="step">
-      <div class="step-num">4</div>
-      <div class="step-body">Leave <strong>Force password change on first login</strong> ticked. This means the user will be prompted to set their own password the first time they log in — you never need to know their permanent password.</div>
-    </div>
-    <div class="step">
-      <div class="step-num">5</div>
-      <div class="step-body">Select the <strong>Role</strong> and enter the <strong>Organisation Name</strong>.</div>
-    </div>
-    <div class="step">
-      <div class="step-num">6</div>
-      <div class="step-body">Set <strong>Campaign Access</strong> if you want to restrict this account to specific campaigns. Leave blank to give access to all campaigns. Search by campaign name to find and select the right ones.</div>
-    </div>
-    <div class="step">
-      <div class="step-num">7</div>
-      <div class="step-body">Set <strong>Publisher Access</strong> if you want to restrict this account to data from specific publishers only. Leave blank for all publishers.</div>
-    </div>
-    <div class="step">
-      <div class="step-num">8</div>
-      <div class="step-body">Click <strong>Create Account</strong>. A credentials panel appears showing the username and temporary password. Copy these now — the password cannot be viewed again.</div>
     </div>
   </div>
+</section>
 
-  <h3>Sharing credentials</h3>
-  <p>After creating an account, a <strong>Account Ready</strong> panel appears with the username and temporary password. Click <strong>Copy Credentials</strong> to copy both to your clipboard, then share with the client via Teams, Slack, email, or WhatsApp. The password is only shown once.</p>
-
-  <h3>First login experience</h3>
-  <p>When the client logs in for the first time, they are immediately taken to a <strong>Create New Password</strong> screen before they can access any data. Once they set their own password, they proceed to the platform. You will never know their permanent password.</p>
-
-  <h3>Resetting a password</h3>
-  <p>Go to User Management, click <strong>Edit</strong> on the account, generate or type a new temporary password, tick <strong>Force password change on first login</strong>, and save. Share the new temporary password with the user. They will be prompted to set a new permanent password on their next login.</p>
-
-  <h3>Disabling an account</h3>
-  <p>Click <strong>Disable</strong> on the account row. The account is immediately blocked from logging in. Click <strong>Enable</strong> to restore access. No data is deleted.</p>
-</div>
-
-<!-- ══════════════════════════════════════════════════════
-     SECTION 7 — REPORTING
-═══════════════════════════════════════════════════════════ -->
-<div class="page">
-  <div class="chapter-header">
-    <div class="chapter-number">Section 7</div>
+<!-- ── 7. Reporting ── -->
+<section>
+  <div class="inner">
+    <p class="section-label">Section 7</p>
     <h2>Reporting</h2>
+    <p style="font-size:15px;color:var(--gray);line-height:1.7;margin-bottom:32px">Every response is stored and linked to the exact campaign that served it. Filter and segment by campaign, publisher, placement, country, device and more.</p>
+
+    <div class="accordion">
+
+      <details>
+        <summary>What is captured per response <span class="toggle">+</span></summary>
+        <div class="detail-body">
+          <table>
+            <thead><tr><th>Field</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td>Campaign</td><td>Which campaign served this response</td></tr>
+              <tr><td>Survey</td><td>Which survey was shown</td></tr>
+              <tr><td>Publisher</td><td>Which publisher's site this came from</td></tr>
+              <tr><td>Placement</td><td>Which placement on the publisher's site</td></tr>
+              <tr><td>Country</td><td>The viewer's country (from ad server macro)</td></tr>
+              <tr><td>Device</td><td>Desktop, mobile or tablet</td></tr>
+              <tr><td>Browser</td><td>Chrome, Safari, Firefox etc.</td></tr>
+              <tr><td>Response time</td><td>How long the fan took to complete the survey</td></tr>
+              <tr><td>Q1, Q2, Q3, Q4</td><td>The answer chosen for each question</td></tr>
+              <tr><td>Timestamp</td><td>When the response was submitted</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </details>
+
+      <details>
+        <summary>Demo data <span class="toggle">+</span></summary>
+        <div class="detail-body">
+          <p style="font-size:14px;line-height:1.7">The <strong>Demo Data</strong> page lets you generate sample responses for any campaign. These are flagged as demo data and excluded from all reporting and response counts. Useful for testing that an embed is set up correctly. Demo responses can be deleted at any time without affecting real data.</p>
+        </div>
+      </details>
+
+      <details>
+        <summary>Looker Studio integration <span class="toggle">+</span></summary>
+        <div class="detail-body">
+          <p style="font-size:14px;line-height:1.7;margin-bottom:12px">The platform exposes a reporting view (<code>vw_campaign_responses</code>) that connects directly to Google Looker Studio via the PostgreSQL connector. See the <strong>Reporting</strong> page in the admin for connection details and API endpoint documentation.</p>
+          <div class="info-box">
+            <span>📊</span>
+            <p>Responses, campaigns and surveys that have real data can never be hard-deleted, protecting your reporting and audit trail.</p>
+          </div>
+        </div>
+      </details>
+
+    </div>
   </div>
+</section>
 
-  <p>Every response collected through a Fanometrix embed is stored in the database and linked to the specific campaign that served it. This means you can filter and segment responses by campaign, publisher, placement, country, device, and more.</p>
+<!-- ── 8. Quick Reference ── -->
+<section class="gray">
+  <div class="inner">
+    <div class="center" style="margin-bottom:40px">
+      <p class="section-label">Section 8</p>
+      <h2>Quick Reference</h2>
+    </div>
 
-  <h3>What is captured on every response</h3>
-  <table>
-    <tr><th>Field</th><th>Description</th></tr>
-    <tr><td>Campaign</td><td>Which campaign served this response</td></tr>
-    <tr><td>Survey</td><td>Which survey was shown</td></tr>
-    <tr><td>Publisher</td><td>Which publisher's site this came from</td></tr>
-    <tr><td>Placement</td><td>Which placement on the publisher's site</td></tr>
-    <tr><td>Country</td><td>The viewer's country (from ad server macro)</td></tr>
-    <tr><td>Device</td><td>Desktop, mobile or tablet</td></tr>
-    <tr><td>Browser</td><td>Chrome, Safari, Firefox etc.</td></tr>
-    <tr><td>Response time</td><td>How long the fan took to complete the survey</td></tr>
-    <tr><td>Q1, Q2, Q3</td><td>The answer chosen for each question</td></tr>
-    <tr><td>Timestamp</td><td>When the response was submitted</td></tr>
-  </table>
+    <div class="accordion">
 
-  <h3>Demo data</h3>
-  <p>The <strong>Demo Data</strong> page lets you generate sample responses for any campaign. These are flagged as demo data and are excluded from all reporting and response counts. They are useful for testing that an embed is set up correctly before real fans respond.</p>
-  <p>Demo responses can be deleted at any time from the Demo Data page without affecting any real data.</p>
+      <details open>
+        <summary>Key rules at a glance <span class="toggle">+</span></summary>
+        <div class="detail-body">
+          <table>
+            <thead><tr><th>Rule</th><th>Reason</th></tr></thead>
+            <tbody>
+              <tr><td>A survey has no "Live" status</td><td>Campaigns control serving, not surveys</td></tr>
+              <tr><td>Surveys with responses cannot be hard-deleted</td><td>Protects reporting integrity</td></tr>
+              <tr><td>Campaigns with responses cannot be deleted</td><td>Protects reporting integrity</td></tr>
+              <tr><td>Only draft/scheduled campaigns with 0 responses can be deleted</td><td>Prevents accidental data loss</td></tr>
+              <tr><td>Archived surveys can be edited</td><td>Content can be updated; use Restore to make active</td></tr>
+              <tr><td>Group embed serves only Live campaigns</td><td>Paused/closed campaigns are skipped automatically</td></tr>
+              <tr><td>Passwords are write-only</td><td>Admin can set or reset but never view passwords</td></tr>
+              <tr><td>One campaign = one publisher</td><td>Use Campaign Groups to run across multiple publishers</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </details>
 
-  <h3>Looker Studio</h3>
-  <p>For advanced reporting, the platform exposes a reporting view (<code>vw_campaign_responses</code>) that connects directly to Looker Studio via the PostgreSQL connector. Contact your administrator for the Looker Studio connection details.</p>
+      <details>
+        <summary>Common questions <span class="toggle">+</span></summary>
+        <div class="detail-body">
+          <div style="display:flex;flex-direction:column;gap:12px">
+            <div style="padding:14px 16px;background:#fff;border-radius:10px;border:1px solid var(--border)">
+              <p style="font-weight:600;font-size:13px;color:var(--navy);margin-bottom:6px">Can I use the same survey in two campaigns at once?</p>
+              <p style="font-size:13px;color:var(--gray);line-height:1.6">Yes. A survey is a template. You can attach it to as many campaigns as you like, all running simultaneously. Responses are separated by campaign in reporting.</p>
+            </div>
+            <div style="padding:14px 16px;background:#fff;border-radius:10px;border:1px solid var(--border)">
+              <p style="font-weight:600;font-size:13px;color:var(--navy);margin-bottom:6px">What happens if all campaigns in a group are paused?</p>
+              <p style="font-size:13px;color:var(--gray);line-height:1.6">The embed renders blank — publishers see an empty ad slot. As soon as any campaign becomes eligible again, the embed starts serving automatically.</p>
+            </div>
+            <div style="padding:14px 16px;background:#fff;border-radius:10px;border:1px solid var(--border)">
+              <p style="font-weight:600;font-size:13px;color:var(--navy);margin-bottom:6px">Can I change the survey attached to a live campaign?</p>
+              <p style="font-size:13px;color:var(--gray);line-height:1.6">Yes, by editing the campaign. It's usually safer to close the old campaign and create a new one to avoid mixing question sets in reporting.</p>
+            </div>
+            <div style="padding:14px 16px;background:#fff;border-radius:10px;border:1px solid var(--border)">
+              <p style="font-weight:600;font-size:13px;color:var(--navy);margin-bottom:6px">How do I give a client access to their campaign data only?</p>
+              <p style="font-size:13px;color:var(--gray);line-height:1.6">When creating their account, use Campaign Access to select only the campaigns they should see. Their dashboard and reports are filtered automatically.</p>
+            </div>
+          </div>
+        </div>
+      </details>
 
-  <div class="callout">
-    <div class="callout-title">Data integrity</div>
-    <p>Campaigns and surveys that have collected real responses can never be hard-deleted. They can be archived or soft-deleted, but the underlying response data is always preserved. This protects your reporting and audit trail.</p>
+    </div>
   </div>
-</div>
+</section>
 
-<!-- ══════════════════════════════════════════════════════
-     SECTION 8 — QUICK REFERENCE
-═══════════════════════════════════════════════════════════ -->
-<div class="page">
-  <div class="chapter-header">
-    <div class="chapter-number">Section 8</div>
-    <h2>Quick reference</h2>
+<!-- ── Contact ── -->
+<section style="background:var(--navy);padding:64px 24px">
+  <div class="inner wide">
+    <div class="center" style="margin-bottom:48px">
+      <p class="section-label">Support</p>
+      <h2 style="color:#fff">Need help?</h2>
+      <p style="font-size:16px;color:rgba(255,255,255,.65);line-height:1.7;max-width:500px;margin:0 auto">The Fanometrix team is available to help with integration, platform questions and commercial enquiries.</p>
+    </div>
+    <div class="contact-grid">
+      <a class="contact-card" href="mailto:publishers@fanometrix.com">
+        <div class="icon">🔧</div>
+        <h3>Integration Support</h3>
+        <p class="email">publishers@fanometrix.com</p>
+        <p>Tag implementation, ad server setup and QA</p>
+      </a>
+      <a class="contact-card" href="mailto:privacy@fanometrix.com">
+        <div class="icon">🔒</div>
+        <h3>Privacy Questions</h3>
+        <p class="email">privacy@fanometrix.com</p>
+        <p>GDPR, compliance documentation and privacy queries</p>
+      </a>
+      <a class="contact-card" href="mailto:partnerships@fanometrix.com">
+        <div class="icon">🤝</div>
+        <h3>Commercial Partnerships</h3>
+        <p class="email">partnerships@fanometrix.com</p>
+        <p>Revenue share, insight reports and benchmarking</p>
+      </a>
+    </div>
   </div>
+</section>
 
-  <h3>End-to-end checklist — new campaign</h3>
-  <div class="steps">
-    <div class="step"><div class="step-num">1</div><div class="step-body">Create a Survey with status <strong>Ready</strong></div></div>
-    <div class="step"><div class="step-num">2</div><div class="step-body">Create a Campaign and attach the survey</div></div>
-    <div class="step"><div class="step-num">3</div><div class="step-body">Set the campaign start and end dates</div></div>
-    <div class="step"><div class="step-num">4</div><div class="step-body">Optionally set a target response count</div></div>
-    <div class="step"><div class="step-num">5</div><div class="step-body">Use the <strong>Deployment</strong> page to generate the embed code</div></div>
-    <div class="step"><div class="step-num">6</div><div class="step-body">Test the embed URL in a browser</div></div>
-    <div class="step"><div class="step-num">7</div><div class="step-body">Send the iframe code to the publisher</div></div>
-    <div class="step"><div class="step-num">8</div><div class="step-body">Click <strong>Go Live Now</strong> on the campaign card (or let it go live automatically on the start date)</div></div>
-    <div class="step"><div class="step-num">9</div><div class="step-body">Monitor responses on the Dashboard</div></div>
+<!-- ── Footer ── -->
+<footer>
+  <div class="footer-inner">
+    <div style="display:flex;align-items:center;gap:12px">
+      <img src="/Fanometrix_Logo.png" alt="Fanometrix" />
+      <span class="footer-meta">Platform Guide · June 2026</span>
+    </div>
+    <nav class="footer-links">
+      <a href="/privacy">Privacy Policy</a>
+      <a href="/home">Back to platform</a>
+      <a href="mailto:publishers@fanometrix.com">Contact</a>
+    </nav>
   </div>
-
-  <hr class="divider" />
-
-  <h3>End-to-end checklist — new campaign group</h3>
-  <div class="steps">
-    <div class="step"><div class="step-num">1</div><div class="step-body">Create all the Surveys and Campaigns you want in the group</div></div>
-    <div class="step"><div class="step-num">2</div><div class="step-body">Make all campaigns <strong>Live</strong> (or set their start dates)</div></div>
-    <div class="step"><div class="step-num">3</div><div class="step-body">Create a Campaign Group and add all the campaigns</div></div>
-    <div class="step"><div class="step-num">4</div><div class="step-body">Set the group status to <strong>Live</strong></div></div>
-    <div class="step"><div class="step-num">5</div><div class="step-body">Copy the embed code from the group card</div></div>
-    <div class="step"><div class="step-num">6</div><div class="step-body">Send the single embed URL to the publisher — they only ever need this one</div></div>
-  </div>
-
-  <hr class="divider" />
-
-  <h3>Rules at a glance</h3>
-  <table>
-    <tr><th>Rule</th><th>Reason</th></tr>
-    <tr><td>A survey has no "Live" status</td><td>Campaigns control serving, not surveys</td></tr>
-    <tr><td>Surveys with responses cannot be hard-deleted</td><td>Protects reporting integrity</td></tr>
-    <tr><td>Campaigns with responses cannot be deleted</td><td>Protects reporting integrity</td></tr>
-    <tr><td>Only draft/scheduled campaigns with 0 responses can be deleted</td><td>Prevents accidental data loss</td></tr>
-    <tr><td>Archived surveys can be edited</td><td>Content can be updated; use Restore to make it active again</td></tr>
-    <tr><td>Archived campaigns cannot be edited</td><td>Use Restore (back to Closed) first, then edit</td></tr>
-    <tr><td>Group embed serves only Live campaigns</td><td>Paused/closed campaigns are skipped automatically</td></tr>
-    <tr><td>Passwords are write-only</td><td>Admin can set or reset but never view passwords</td></tr>
-  </table>
-
-  <hr class="divider" />
-
-  <h3>Common questions</h3>
-
-  <h4>Can I use the same survey in two campaigns at once?</h4>
-  <p>Yes. A survey is just a template. You can attach it to as many campaigns as you like, and all of them can be Live simultaneously. The responses will be separated by campaign in reporting.</p>
-
-  <h4>What happens if all campaigns in a group are paused?</h4>
-  <p>The embed renders blank — publishers see an empty ad slot. No error is shown. As soon as any campaign becomes eligible again (e.g. you resume one), the embed starts serving again automatically.</p>
-
-  <h4>Can a publisher serving a group embed see which campaign was served?</h4>
-  <p>No. Publishers see only the iframe. The campaign selection happens on the server. The campaign ID is returned to the embed player and used for response submission, but it is not visible to the publisher.</p>
-
-  <h4>Can I change the survey attached to a live campaign?</h4>
-  <p>Yes, by editing the campaign. However, this will change the questions shown to fans from that point forward. If you have collected responses under the old survey, consider whether changing mid-campaign will affect reporting consistency. It's usually safer to close the old campaign and create a new one.</p>
-
-  <h4>What does "Archive after N days" mean on a campaign?</h4>
-  <p>After a campaign closes, Fanometrix will automatically move it to Archived status after the number of days you specify (default 90). This keeps the Closed tab tidy without you having to manually archive old campaigns.</p>
-
-  <h4>How do I give a client access to their campaign data only?</h4>
-  <p>When creating their account, use the Campaign Access selector to choose only the campaigns they should see. Their dashboard and reports will be filtered to those campaigns automatically.</p>
-
-  <hr class="divider" />
-
-  <div class="callout green">
-    <div class="callout-title">Need help?</div>
-    <p>If anything in this guide is unclear or you encounter an unexpected issue, contact your Fanometrix administrator. For platform bugs or feature requests, these can be logged via the development team.</p>
-  </div>
-
-  <p style="margin-top: 40px; font-size: 11px; color: #9ca3af; text-align: center;">
-    Fanometrix Pulse · Platform Guide · Internal use only · fanometrix.com
-  </p>
-
-</div>
+</footer>
 
 </body>
 </html>
