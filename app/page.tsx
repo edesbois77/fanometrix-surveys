@@ -120,17 +120,23 @@ export default function PublicHomePage() {
             </div>
           </div>
 
-          {/* ── Scroll prompt — sits at the foot of the hero viewport ── */}
-          <div className="relative pb-8 flex flex-col items-center gap-1.5">
-            <p className="text-[11px] font-semibold tracking-[0.2em] uppercase"
-              style={{ color: "#D7B87A" }}>
-              Scroll down
+          {/* ── Scroll prompt — TFC-style pulsing gold line ── */}
+          <div className="relative pb-8 flex flex-col items-center gap-3" aria-hidden>
+            {/* Pulsing vertical line — animation defined in globals.css */}
+            <div
+              className="scroll-indicator-line"
+              style={{ width: 1, height: 56, background: "#D7B87A" }}
+            />
+            <p style={{
+              fontSize: 10,
+              letterSpacing: "0.3em",
+              color: "#D7B87A",
+              fontWeight: 600,
+              textTransform: "uppercase",
+              opacity: 0.75,
+            }}>
+              Scroll
             </p>
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"
-              stroke="#D7B87A" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"
-              aria-hidden>
-              <path d="M8 3v10M3 9l5 5 5-5" />
-            </svg>
           </div>
 
         </section>

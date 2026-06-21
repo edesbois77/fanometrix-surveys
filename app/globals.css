@@ -1,5 +1,15 @@
 @import "tailwindcss";
 
+/* ── Scroll indicator animation (public homepage) ─────────────────────────── */
+/* Revert: delete this block to remove the animation                           */
+@keyframes scroll-line-pulse {
+  0%, 100% { opacity: 0.2; }
+  50%       { opacity: 1;   }
+}
+.scroll-indicator-line {
+  animation: scroll-line-pulse 2.4s ease-in-out infinite;
+}
+
 :root {
   --background: #ffffff;
   --foreground: #171717;
