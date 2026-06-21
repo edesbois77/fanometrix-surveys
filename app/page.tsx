@@ -53,7 +53,7 @@ export default function PublicHomePage() {
                      transition-opacity duration-150 hover:opacity-80"
           style={{ background: "#0B1929", color: "#D7B87A" }}
         >
-          Enter Platform
+          Log in
         </Link>
       </header>
 
@@ -114,7 +114,7 @@ export default function PublicHomePage() {
                   letterSpacing: "0.01em",
                 }}
               >
-                Enter Platform
+                Log in
               </Link>
               <Link
                 href="/login"
