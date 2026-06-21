@@ -213,13 +213,14 @@ export default function PublicHomePage() {
             ))}
           </div>
 
-          {/* F logo — centred below the cards */}
-          <div className="scroll-fade-up flex justify-center mt-10" style={{ transitionDelay: "0.4s" }}>
+          {/* F logo — centred between cards and footer */}
+          <div className="scroll-fade-up flex justify-center"
+            style={{ marginTop: "clamp(40px,6vw,64px)", marginBottom: "clamp(8px,2vw,16px)", transitionDelay: "0.4s" }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src="/FLogo.png"
               alt="Fanometrix"
-              style={{ width: 36, height: 36, objectFit: "contain", opacity: 0.25 }}
+              style={{ width: 24, height: 24, objectFit: "contain", opacity: 1 }}
             />
           </div>
         </section>
