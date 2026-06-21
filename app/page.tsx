@@ -65,7 +65,7 @@ export default function PublicHomePage() {
                 src="/Fanometrix_Logo.png"
                 alt="Fanometrix"
                 style={{
-                  height: 28,
+                  height: 52,
                   objectFit: "contain",
                   filter:
                     "brightness(0) saturate(100%) invert(11%) sepia(33%) saturate(1200%) hue-rotate(192deg) brightness(95%)",
@@ -76,14 +76,6 @@ export default function PublicHomePage() {
                 Football Fan Insights
               </p>
             </div>
-
-            {/* Headline */}
-            <h1
-              className="font-extrabold leading-[1.08] tracking-[-0.025em] mb-6"
-              style={{ fontSize: "clamp(38px, 7vw, 62px)", color: "#0B1929" }}
-            >
-              Football Fan Intelligence
-            </h1>
 
             {/* Body */}
             <p
