@@ -64,9 +64,9 @@ export default function PublicHomePage() {
             }}
           />
 
-          {/* ── Vertically centred hero content ── */}
+          {/* ── Vertically centred hero content — fills full 100svh ── */}
           <div className="flex-1 flex flex-col items-center justify-center relative">
-            <div className="max-w-[700px] mx-auto w-full py-16">
+            <div className="max-w-[700px] mx-auto w-full">
 
               {/* Brand lockup */}
               <div className="flex flex-col items-center mb-10 gap-2">
@@ -120,8 +120,8 @@ export default function PublicHomePage() {
             </div>
           </div>
 
-          {/* ── Scroll prompt — matches TFC hero scroll exactly ── */}
-          <div className="relative pb-8 flex flex-col items-center gap-2" aria-hidden>
+          {/* ── Scroll prompt — absolute so it doesn't shift vertical centre ── */}
+          <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2" aria-hidden>
             {/* Gradient line: gold → transparent, pulsing scaleY + opacity */}
             <div className="scroll-indicator-line" />
             <p style={{ fontSize: 10, letterSpacing: "0.35em", color: "#D7B87A", fontWeight: 600, textTransform: "uppercase" }}>
