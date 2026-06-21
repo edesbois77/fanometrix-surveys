@@ -7,7 +7,7 @@ import { useSession } from "./SessionProvider";
 import { useState, useEffect } from "react";
 import type { UserRole } from "@/lib/auth";
 
-type NavItem = { href: string; label: string; icon: string };
+type NavItem = { href: string; label: string; icon: string; external?: boolean };
 
 // ── Day-to-day admin nav ──────────────────────────────────────────────────────
 const NAV_BY_ROLE: Record<UserRole, NavItem[]> = {
@@ -19,6 +19,8 @@ const NAV_BY_ROLE: Record<UserRole, NavItem[]> = {
     { href: "/campaign-deployment", label: "Deployment",      icon: "</>" },
     { href: "/user-management",     label: "User Management", icon: "◉"   },
     { href: "/embed-test",          label: "Embed Test",      icon: "⬡"   },
+    { href: "/publisher-hub",       label: "Publisher Hub",   icon: "☰"   },
+    { href: "/fanometrix-guide.html", label: "Fanometrix Guide", icon: "◫", external: true },
   ],
   brand: [
     { href: "/dashboard",        label: "Dashboard",        icon: "▦" },
@@ -214,8 +216,8 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
 
           {!loading && user && (
             <div className="mt-3 pt-3" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-              <p className="px-3 text-xs mb-1.5 font-mono truncate" style={{ color: "#B0B7C3" }}>
-                {user.username}
+              <p className="px-3 text-xs mb-1.5 truncate" style={{ color: "#B0B7C3" }}>
+                {user.organisationName || user.username}
               </p>
               <button
                 onClick={handleLogout}
@@ -275,33 +277,52 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   );
 }
 
-function NavLink({ href, label, icon, activePath }: NavItem & { activePath: string }) {
-  const active = activePath === href || activePath.startsWith(href + "/");
-  return (
-    <Link
-      href={href}
-      className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors"
-      style={{
-        color:           active ? "#D7B87A" : "#B0B7C3",
-        backgroundColor: active ? "rgba(215,184,122,0.12)" : "transparent",
-        borderLeft:      active ? "3px solid #D7B87A" : "3px solid transparent",
-        paddingLeft:     "9px",
-      }}
-      onMouseEnter={e => {
-        if (!active) {
-          (e.currentTarget as HTMLElement).style.backgroundColor = "rgba(255,255,255,0.05)";
-          (e.currentTarget as HTMLElement).style.color = "#FFFFFF";
-        }
-      }}
-      onMouseLeave={e => {
-        if (!active) {
-          (e.currentTarget as HTMLElement).style.backgroundColor = "transparent";
-          (e.currentTarget as HTMLElement).style.color = "#B0B7C3";
-        }
-      }}
-    >
+function NavLink({ href, label, icon, activePath, external }: NavItem & { activePath: string }) {
+  const active = !external && (activePath === href || activePath.startsWith(href + "/"));
+
+  const sharedStyle: React.CSSProperties = {
+    color:           active ? "#D7B87A" : "#B0B7C3",
+    backgroundColor: active ? "rgba(215,184,122,0.12)" : "transparent",
+    borderLeft:      active ? "3px solid #D7B87A" : "3px solid transparent",
+    paddingLeft:     "9px",
+  };
+
+  const sharedProps = {
+    className: "flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors",
+    style: sharedStyle,
+    onMouseEnter: (e: React.MouseEvent<HTMLElement>) => {
+      if (!active) {
+        (e.currentTarget as HTMLElement).style.backgroundColor = "rgba(255,255,255,0.05)";
+        (e.currentTarget as HTMLElement).style.color = "#FFFFFF";
+      }
+    },
+    onMouseLeave: (e: React.MouseEvent<HTMLElement>) => {
+      if (!active) {
+        (e.currentTarget as HTMLElement).style.backgroundColor = "transparent";
+        (e.currentTarget as HTMLElement).style.color = "#B0B7C3";
+      }
+    },
+  };
+
+  const content = (
+    <>
       <span className="text-xs w-4 text-center flex-shrink-0">{icon}</span>
-      <span className="truncate">{label}</span>
+      <span className="truncate flex-1">{label}</span>
+      {external && <span className="text-[10px] opacity-40 flex-shrink-0 ml-auto">↗</span>}
+    </>
+  );
+
+  if (external) {
+    return (
+      <a href={href} target="_blank" rel="noopener noreferrer" {...sharedProps}>
+        {content}
+      </a>
+    );
+  }
+
+  return (
+    <Link href={href} {...sharedProps}>
+      {content}
     </Link>
   );
 }
