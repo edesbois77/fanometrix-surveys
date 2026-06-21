@@ -138,124 +138,117 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           </button>
         </div>
 
-        {/* Navigation */}
-        <nav className="flex-1 overflow-y-auto px-3 py-4">
-          {/* Home — always shown */}
-          {!loading && (
-            <div className="space-y-0.5 mb-1">
-              <NavLink href="/home" label="Home" icon="⌂" activePath={path} />
-            </div>
-          )}
+        {/*
+          Single scrollable column — nav items + footer.
+          On desktop: footer sits at the bottom naturally (mt-auto).
+          On mobile: the whole column scrolls so Sign out is always reachable.
+        */}
+        <div className="flex-1 overflow-y-auto flex flex-col min-h-0">
 
-          {/* Main nav items */}
-          {loading
-            ? (
-              <div className="space-y-0.5">
-                {SKELETON_NAV.map(i => (
-                  <div key={i} className="h-9 rounded-lg mx-0.5 my-0.5 animate-pulse"
-                    style={{ backgroundColor: "rgba(255,255,255,0.05)" }} />
-                ))}
+          {/* Navigation */}
+          <nav className="px-3 py-4">
+            {!loading && (
+              <div className="space-y-0.5 mb-1">
+                <NavLink href="/home" label="Home" icon="⌂" activePath={path} />
               </div>
-            )
-            : (
-              <div className="space-y-0.5">
-                {nav.map(item => (
-                  <NavLink key={item.href} {...item} activePath={path} />
-                ))}
-              </div>
-            )
-          }
+            )}
 
-          {/* Developer section — admin only, collapsible */}
-          {!loading && isAdmin && (
-            <div className="mt-4 pt-3" style={{ borderTop: "1px solid rgba(255,255,255,0.07)" }}>
-              <button
-                onClick={() => setDevOpen(o => !o)}
-                className="w-full flex items-center justify-between px-3 py-1.5 rounded-lg
-                           text-xs font-semibold uppercase tracking-widest transition-colors
-                           hover:bg-white/5 select-none"
-                style={{ color: "rgba(176,183,195,0.6)", letterSpacing: "0.1em" }}
-              >
-                <span>Developer</span>
-                <span className="text-[10px] transition-transform duration-150"
-                  style={{ transform: devOpen ? "rotate(180deg)" : "rotate(0deg)" }}>
-                  ▾
-                </span>
-              </button>
-              {devOpen && (
-                <div className="space-y-0.5 mt-1">
-                  {DEVELOPER_NAV.map(item => (
+            {loading
+              ? (
+                <div className="space-y-0.5">
+                  {SKELETON_NAV.map(i => (
+                    <div key={i} className="h-9 rounded-lg mx-0.5 my-0.5 animate-pulse"
+                      style={{ backgroundColor: "rgba(255,255,255,0.05)" }} />
+                  ))}
+                </div>
+              )
+              : (
+                <div className="space-y-0.5">
+                  {nav.map(item => (
                     <NavLink key={item.href} {...item} activePath={path} />
                   ))}
                 </div>
-              )}
-            </div>
-          )}
-        </nav>
+              )
+            }
 
-        {/* Footer: privacy + user + logout */}
-        <div className="px-3 py-4 space-y-0.5 flex-shrink-0"
-          style={{ borderTop: "1px solid rgba(255,255,255,0.08)" }}>
-          {/* Footer links — same size/style for all */}
-          {[
-            { href: "/privacy",               label: "ⓘ Privacy Policy",   external: false },
-            ...(isAdmin ? [
-              { href: "/publisher-hub",         label: "☰ Publisher Hub",    external: false },
-              { href: "/fanometrix-guide.html", label: "◫ Fanometrix Guide", external: true  },
-            ] : []),
-          ].map(({ href, label, external }) =>
-            external ? (
-              <a
-                key={href}
-                href={href}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center justify-between px-3 py-2 rounded-lg text-xs transition-colors"
-                style={{ color: "#B0B7C3" }}
-                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = "#FFFFFF"; (e.currentTarget as HTMLElement).style.backgroundColor = "rgba(255,255,255,0.05)"; }}
-                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = "#B0B7C3"; (e.currentTarget as HTMLElement).style.backgroundColor = "transparent"; }}
-              >
-                {label}
-                <span className="text-[10px] opacity-40">↗</span>
-              </a>
-            ) : (
-              <Link
-                key={href}
-                href={href}
-                className="flex items-center px-3 py-2 rounded-lg text-xs transition-colors"
-                style={{ color: "#B0B7C3" }}
-                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = "#FFFFFF"; (e.currentTarget as HTMLElement).style.backgroundColor = "rgba(255,255,255,0.05)"; }}
-                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = "#B0B7C3"; (e.currentTarget as HTMLElement).style.backgroundColor = "transparent"; }}
-              >
-                {label}
-              </Link>
-            )
-          )}
+            {/* Developer section — admin only, collapsible */}
+            {!loading && isAdmin && (
+              <div className="mt-4 pt-3" style={{ borderTop: "1px solid rgba(255,255,255,0.07)" }}>
+                <button
+                  onClick={() => setDevOpen(o => !o)}
+                  className="w-full flex items-center justify-between px-3 py-1.5 rounded-lg
+                             text-xs font-semibold uppercase tracking-widest transition-colors
+                             hover:bg-white/5 select-none"
+                  style={{ color: "rgba(176,183,195,0.6)", letterSpacing: "0.1em" }}
+                >
+                  <span>Developer</span>
+                  <span className="text-[10px] transition-transform duration-150"
+                    style={{ transform: devOpen ? "rotate(180deg)" : "rotate(0deg)" }}>
+                    ▾
+                  </span>
+                </button>
+                {devOpen && (
+                  <div className="space-y-0.5 mt-1">
+                    {DEVELOPER_NAV.map(item => (
+                      <NavLink key={item.href} {...item} activePath={path} />
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </nav>
 
-          {!loading && user && (
-            <div className="mt-3 pt-3" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-              <p className="px-3 text-xs mb-1.5 truncate" style={{ color: "#B0B7C3" }}>
-                {user.organisationName || user.username}
-              </p>
-              <button
-                onClick={handleLogout}
-                className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium
-                           transition-colors text-left"
-                style={{ color: "#B0B7C3" }}
-                onMouseEnter={e => {
-                  (e.currentTarget as HTMLElement).style.color = "#FFFFFF";
-                  (e.currentTarget as HTMLElement).style.backgroundColor = "rgba(255,255,255,0.05)";
-                }}
-                onMouseLeave={e => {
-                  (e.currentTarget as HTMLElement).style.color = "#B0B7C3";
-                  (e.currentTarget as HTMLElement).style.backgroundColor = "transparent";
-                }}
-              >
-                <span className="text-xs w-4 text-center">→</span>
-                Sign out
-              </button>
-            </div>
-          )}
+          {/* Footer — mt-auto pushes it to bottom on desktop; scrolls into view on mobile */}
+          <div className="mt-auto px-3 py-4 space-y-0.5"
+            style={{ borderTop: "1px solid rgba(255,255,255,0.08)" }}>
+            {[
+              { href: "/privacy",               label: "ⓘ Privacy Policy",   external: false },
+              ...(isAdmin ? [
+                { href: "/publisher-hub",         label: "☰ Publisher Hub",    external: false },
+                { href: "/fanometrix-guide.html", label: "◫ Fanometrix Guide", external: true  },
+              ] : []),
+            ].map(({ href, label, external }) =>
+              external ? (
+                <a key={href} href={href} target="_blank" rel="noopener noreferrer"
+                  className="flex items-center justify-between px-3 py-2 rounded-lg text-xs transition-colors"
+                  style={{ color: "#B0B7C3" }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = "#FFFFFF"; (e.currentTarget as HTMLElement).style.backgroundColor = "rgba(255,255,255,0.05)"; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = "#B0B7C3"; (e.currentTarget as HTMLElement).style.backgroundColor = "transparent"; }}
+                >
+                  {label}<span className="text-[10px] opacity-40">↗</span>
+                </a>
+              ) : (
+                <Link key={href} href={href}
+                  className="flex items-center px-3 py-2 rounded-lg text-xs transition-colors"
+                  style={{ color: "#B0B7C3" }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = "#FFFFFF"; (e.currentTarget as HTMLElement).style.backgroundColor = "rgba(255,255,255,0.05)"; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = "#B0B7C3"; (e.currentTarget as HTMLElement).style.backgroundColor = "transparent"; }}
+                >
+                  {label}
+                </Link>
+              )
+            )}
+
+            {!loading && user && (
+              <div className="mt-3 pt-3" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                <p className="px-3 text-xs mb-1.5 truncate" style={{ color: "#B0B7C3" }}>
+                  {user.organisationName || user.username}
+                </p>
+                <button
+                  onClick={handleLogout}
+                  className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium
+                             transition-colors text-left"
+                  style={{ color: "#B0B7C3" }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = "#FFFFFF"; (e.currentTarget as HTMLElement).style.backgroundColor = "rgba(255,255,255,0.05)"; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = "#B0B7C3"; (e.currentTarget as HTMLElement).style.backgroundColor = "transparent"; }}
+                >
+                  <span className="text-xs w-4 text-center">→</span>
+                  Sign out
+                </button>
+              </div>
+            )}
+          </div>
+
         </div>
       </aside>
 
