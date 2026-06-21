@@ -83,30 +83,57 @@ export default function HomePage() {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {cards.map(({ href, icon, title, description, cta }) => (
-              <div
+              /*
+                Entire card is the link — no nested <a> elements.
+                group cascades hover state to all children.
+                focus-visible ring makes keyboard navigation clear.
+                active:scale gives tactile feedback on touch devices.
+              */
+              <Link
                 key={href}
-                className="bg-white rounded-xl border border-gray-100 p-6 shadow-sm hover:shadow-md transition-shadow flex flex-col"
+                href={href}
+                className={[
+                  // Layout
+                  "group flex flex-col p-6 rounded-xl border cursor-pointer",
+                  // Default appearance
+                  "bg-white border-gray-100 shadow-sm",
+                  // Smooth transition on all animated properties
+                  "transition-all duration-200",
+                  // Hover: navy fill, lift, deeper shadow
+                  "hover:bg-[#0B1929] hover:border-[#0B1929] hover:-translate-y-1 hover:shadow-lg",
+                  // Touch feedback
+                  "active:scale-[0.98] active:shadow-sm",
+                  // Keyboard focus ring (only visible ring, not mouse)
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D7B87A] focus-visible:ring-offset-2",
+                ].join(" ")}
               >
-                <div
-                  className="w-10 h-10 rounded-lg flex items-center justify-center text-xl mb-4"
-                  style={{ background: "#F0F4F8", color: "#0B1929" }}
-                >
+                {/* Icon */}
+                <div className="w-10 h-10 rounded-lg flex items-center justify-center text-xl mb-4 flex-shrink-0
+                  bg-[#F0F4F8] text-[#0B1929]
+                  group-hover:bg-white/10 group-hover:text-white
+                  transition-colors duration-200">
                   {icon}
                 </div>
-                <h2 className="font-semibold text-base mb-2" style={{ color: "#0B1929" }}>
+
+                {/* Title */}
+                <h2 className="font-semibold text-base mb-2
+                  text-[#0B1929] group-hover:text-white
+                  transition-colors duration-200">
                   {title}
                 </h2>
-                <p className="text-sm text-gray-400 flex-1 leading-relaxed mb-5">
+
+                {/* Description */}
+                <p className="text-sm flex-1 leading-relaxed mb-5
+                  text-gray-400 group-hover:text-white/70
+                  transition-colors duration-200">
                   {description}
                 </p>
-                <Link
-                  href={href}
-                  className="inline-flex items-center gap-1 text-sm font-semibold transition-colors"
-                  style={{ color: "#D7B87A" }}
-                >
+
+                {/* CTA — visual only; parent Link handles navigation */}
+                <span className="inline-flex items-center gap-1 text-sm font-semibold text-[#D7B87A]">
                   {cta} <span className="text-xs">→</span>
-                </Link>
-              </div>
+                </span>
+              </Link>
             ))}
           </div>
         )}
