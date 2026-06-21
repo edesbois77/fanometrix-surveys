@@ -2,14 +2,36 @@
 
 import { useMemo, useRef, useState } from "react";
 import {
-  LineChart, Line, BarChart, Bar, Cell,
+  AreaChart, Area, BarChart, Bar, Cell,
   XAxis, YAxis, CartesianGrid,
   Tooltip as RTooltip, ResponsiveContainer,
 } from "recharts";
 import type { SurveyResponse } from "@/lib/types";
 import type { DashFilters } from "./DashboardFilters";
 
+// ─── Fanometrix chart palette ─────────────────────────────────────────────────
+// Premium, muted tones that work on white cards and remain distinguishable
+// for colour-blind users. Navy (#0B1929) and Gold (#D7B87A) stay dominant.
+const GOLD    = "#D7B87A"; // Q1 · By Placement · Trend line
+const TEAL    = "#4FA3A5"; // Q2 · By Club
+const SLATE   = "#6B7A99"; // Q3 · By Competition
+const INDIGO  = "#5B6CFA"; // Q4 · By Publisher
+const EMERALD = "#4FAF7B"; // By Country
+const PURPLE  = "#7A63D1"; // By Fan Segment
+
+// Cycling palette for any future chart that doesn't have a named colour
+export const CHART_PALETTE = [GOLD, TEAL, SLATE, INDIGO, EMERALD, PURPLE];
+
+// Helper — convert 6-digit hex to rgba string
+function rgba(hex: string, alpha: number): string {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
 // ─── Responses Over Time ─────────────────────────────────────────────────────
+// Line: Gold  |  Area fill: 15% Gold  |  Dots: Navy with Gold border
 
 function ResponsesOverTime({ responses }: { responses: SurveyResponse[] }) {
   const data = useMemo(() => {
@@ -27,41 +49,52 @@ function ResponsesOverTime({ responses }: { responses: SurveyResponse[] }) {
     <div className="bg-white border border-gray-100 rounded-xl shadow-sm p-5 mb-4">
       <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-4">Responses Over Time</h3>
       <ResponsiveContainer width="100%" height={140}>
-        <LineChart data={data} margin={{ left: -10, right: 8, top: 4, bottom: 0 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#e0e7ff" />
+        <AreaChart data={data} margin={{ left: -10, right: 8, top: 4, bottom: 0 }}>
+          <defs>
+            <linearGradient id="goldAreaFill" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%"  stopColor={GOLD} stopOpacity={0.15} />
+              <stop offset="95%" stopColor={GOLD} stopOpacity={0}    />
+            </linearGradient>
+          </defs>
+          <CartesianGrid strokeDasharray="3 3" stroke="#e8eaf0" />
           <XAxis dataKey="date" tick={{ fontSize: 9 }} interval="preserveStartEnd" />
           <YAxis tick={{ fontSize: 9 }} allowDecimals={false} />
           <RTooltip contentStyle={{ fontSize: 11 }} />
-          <Line type="monotone" dataKey="count" stroke="#D7B87A" strokeWidth={2}
-            dot={data.length < 20 ? { fill: "#D7B87A", stroke: "#D7B87A", r: 3 } : false}
-            activeDot={{ r: 4, fill: "#D7B87A", stroke: "#D7B87A" }} />
-        </LineChart>
+          <Area
+            type="monotone"
+            dataKey="count"
+            stroke={GOLD}
+            strokeWidth={2}
+            fill="url(#goldAreaFill)"
+            dot={data.length < 20
+              ? { fill: "#0B1929", stroke: GOLD, strokeWidth: 1.5, r: 3 }
+              : false
+            }
+            activeDot={{ r: 4, fill: GOLD, stroke: "#0B1929", strokeWidth: 2 }}
+          />
+        </AreaChart>
       </ResponsiveContainer>
     </div>
   );
 }
 
 // ─── Q answer chart ───────────────────────────────────────────────────────────
-/*
-  Mobile-specific changes:
-  - overflow-x-hidden on the card prevents any child from expanding the card width
-  - Each answer row uses a non-wrapping flex layout: label truncates, count stays right
-  - Progress bar is full-width inside the card (not inside the label row)
-  - max-h on the answer list with internal overflow-y-auto for many options
-*/
+// color prop determines the progress bar and active-row tint for each question.
+
 function QChart({
-  label, responses, field, activeValue, onFilter,
+  label, responses, field, color, activeValue, onFilter,
 }: {
   label: string;
   responses: SurveyResponse[];
-  field: "q1" | "q2" | "q3";
+  field: "q1" | "q2" | "q3" | "q4";
+  color: string;
   activeValue: string;
   onFilter: (value: string) => void;
 }) {
   const counts = useMemo(() => {
     const m: Record<string, number> = {};
     for (const r of responses) {
-      const v = (r[field] as string) ?? "Not answered";
+      const v = (r[field as keyof SurveyResponse] as string) ?? "Not answered";
       m[v] = (m[v] ?? 0) + 1;
     }
     return Object.entries(m).sort((a, b) => b[1] - a[1]);
@@ -70,13 +103,17 @@ function QChart({
   const total = responses.length;
   if (!total) return null;
 
+  const activeBg = rgba(color, 0.08);
+
   return (
     <div className="bg-white border border-gray-100 rounded-xl shadow-sm p-4 flex flex-col h-full overflow-x-hidden">
+      {/* Colour accent bar at top — visual section identity */}
+      <div className="h-0.5 rounded-full mb-3 flex-shrink-0" style={{ background: color }} />
       <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3 flex-shrink-0">
         {label}
       </h3>
 
-      {/* Answer list — internal scroll on mobile if > 5 options */}
+      {/* Answer list */}
       <div className="flex-1 space-y-2 overflow-y-auto max-h-[280px] md:max-h-none">
         {counts.map(([opt, count]) => {
           const pct    = Math.round((count / total) * 100);
@@ -85,15 +122,11 @@ function QChart({
             <button
               key={opt}
               onClick={() => onFilter(opt)}
-              className={`w-full text-left rounded px-1 py-1 transition-colors block ${
-                active ? "bg-[rgba(215,184,122,0.08)]" : "hover:bg-gray-50"
-              }`}
+              className="w-full text-left rounded px-1 py-1 transition-colors block"
+              style={{ background: active ? activeBg : undefined }}
+              onMouseEnter={e => { if (!active) (e.currentTarget as HTMLElement).style.background = "#f9fafb"; }}
+              onMouseLeave={e => { if (!active) (e.currentTarget as HTMLElement).style.background = "transparent"; }}
             >
-              {/*
-                Single-line label + count row.
-                label: truncates if too long (min-w-0 + truncate allow this in flex)
-                count: never wraps, always visible on the right
-              */}
               <div className="flex items-center gap-2 text-xs w-full overflow-hidden">
                 <span
                   className={`flex-1 min-w-0 truncate ${
@@ -107,11 +140,14 @@ function QChart({
                   {count} ({pct}%)
                 </span>
               </div>
-              {/* Full-width progress bar — always below the label row */}
               <div className="h-1 md:h-1.5 bg-gray-100 rounded-full overflow-hidden mt-1">
                 <div
                   className="h-full rounded-full transition-all"
-                  style={{ width: `${pct}%`, background: "#D7B87A" }}
+                  style={{
+                    width: `${pct}%`,
+                    background: color,
+                    opacity: active ? 1 : 0.75,
+                  }}
                 />
               </div>
             </button>
@@ -121,7 +157,8 @@ function QChart({
 
       {activeValue && (
         <p
-          className="text-xs mt-2 text-center cursor-pointer text-[#D7B87A] hover:text-[#C9A766] flex-shrink-0"
+          className="text-xs mt-2 text-center cursor-pointer flex-shrink-0 hover:opacity-75 transition-opacity"
+          style={{ color }}
           onClick={() => onFilter("")}
         >
           ✕ Clear filter
@@ -132,13 +169,15 @@ function QChart({
 }
 
 // ─── Dimension bar chart ──────────────────────────────────────────────────────
+// color prop is the bar fill for each breakdown dimension.
 
 function DimChart({
-  label, responses, field, activeValue, onFilter,
+  label, responses, field, color, activeValue, onFilter,
 }: {
   label: string;
   responses: SurveyResponse[];
   field: keyof SurveyResponse;
+  color: string;
   activeValue: string;
   onFilter: (value: string) => void;
 }) {
@@ -164,6 +203,7 @@ function DimChart({
 
   return (
     <div className="bg-white border border-gray-100 rounded-xl shadow-sm p-4 md:p-5 flex flex-col h-full overflow-x-hidden">
+      <div className="h-0.5 rounded-full mb-3 flex-shrink-0" style={{ background: color }} />
       <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3 flex-shrink-0">
         {label}
       </h3>
@@ -189,8 +229,8 @@ function DimChart({
               {data.map((d) => (
                 <Cell
                   key={d.fullName}
-                  fill="#D7B87A"
-                  opacity={activeValue && d.fullName !== activeValue ? 0.35 : 1}
+                  fill={color}
+                  fillOpacity={activeValue && d.fullName !== activeValue ? 0.25 : 0.85}
                   onClick={() => onFilter(activeValue === d.fullName ? "" : d.fullName)}
                 />
               ))}
@@ -200,7 +240,8 @@ function DimChart({
       </div>
       {activeValue && (
         <p
-          className="text-xs mt-2 text-center cursor-pointer text-[#D7B87A] hover:text-[#C9A766] flex-shrink-0"
+          className="text-xs mt-2 text-center cursor-pointer flex-shrink-0 hover:opacity-75 transition-opacity"
+          style={{ color }}
           onClick={() => onFilter("")}
         >
           ✕ Clear filter
@@ -210,26 +251,10 @@ function DimChart({
   );
 }
 
-// ─── Horizontal scroll row with section header + pagination dots ──────────────
-/*
-  Mobile:
-  - Section title ("Question Results") + "Swipe cards →" hint immediately above
-    the row it controls — no ambiguity about which section is scrollable
-  - snap-x scroll with scroll-position tracking
-  - Pagination dots update as the user scrolls (active dot = pill, others = circles)
-  - Right-edge gradient fades when not at the last card
-  - Card wrappers have fixed mobile width (min = max = minCardW) so card content
-    cannot expand the card
+// ─── Horizontal scroll row ────────────────────────────────────────────────────
 
-  Desktop (md+):
-  - Standard CSS grid, everything above hidden, unchanged behaviour
-*/
 function HScrollRow({
-  children,
-  cols = 3,
-  minCardW = 300,
-  title,
-  className = "",
+  children, cols = 3, minCardW = 300, title, className = "",
 }: {
   children: React.ReactNode;
   cols?: 2 | 3;
@@ -245,7 +270,6 @@ function HScrollRow({
   function handleScroll() {
     const el = scrollRef.current;
     if (!el) return;
-    // card + gap-3 (12px)
     const step = minCardW + 12;
     const idx  = Math.min(Math.round(el.scrollLeft / step), items.length - 1);
     setActiveIdx(idx);
@@ -253,38 +277,24 @@ function HScrollRow({
 
   return (
     <div className={className}>
-      {/* ── Mobile-only section header ── */}
       <div className="md:hidden mb-2">
-        {title && (
-          <p className="text-sm font-semibold text-gray-800 mb-0.5">{title}</p>
-        )}
-        {hasMultiple && (
-          <p className="text-xs text-gray-400">Swipe cards →</p>
-        )}
+        {title && <p className="text-sm font-semibold text-gray-800 mb-0.5">{title}</p>}
+        {hasMultiple && <p className="text-xs text-gray-400">Swipe cards →</p>}
       </div>
 
-      {/* ── Scroll container ── */}
       <div className="relative">
         <div
           ref={scrollRef}
           onScroll={handleScroll}
           className="overflow-x-auto snap-x snap-mandatory pb-2 md:pb-0"
         >
-          <div
-            className={`flex items-stretch gap-3 md:gap-4 ${
-              cols === 3 ? "md:grid md:grid-cols-3" : "md:grid md:grid-cols-2"
-            }`}
-          >
+          <div className={`flex items-stretch gap-3 md:gap-4 ${
+            cols === 3 ? "md:grid md:grid-cols-3" : "md:grid md:grid-cols-2"
+          }`}>
             {items.map((child, i) => (
               <div
                 key={i}
                 className="flex-shrink-0 snap-start md:min-w-0 flex flex-col"
-                /*
-                  Both min and max set on mobile so the card wrapper is a fixed-width
-                  box. If card content is wider, overflow-x-hidden on the card clips it.
-                  On desktop (md:min-w-0) the grid cell handles sizing — the inline
-                  maxWidth is overridden by the grid item's sizing algorithm.
-                */
                 style={{ minWidth: minCardW, width: minCardW }}
               >
                 {child}
@@ -292,14 +302,11 @@ function HScrollRow({
             ))}
           </div>
         </div>
-
-        {/* Right-edge gradient — only when there are more cards to the right */}
         {hasMultiple && activeIdx < items.length - 1 && (
           <div className="md:hidden pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-gray-50/95 to-transparent" />
         )}
       </div>
 
-      {/* ── Pagination dots ── */}
       {hasMultiple && (
         <div className="md:hidden flex items-center justify-center gap-2 mt-2">
           {items.map((_, i) => (
@@ -314,8 +321,8 @@ function HScrollRow({
               }}
               className={`rounded-full transition-all duration-200 ${
                 i === activeIdx
-                  ? "w-5 h-1.5 bg-[#0B1929]"    // active: pill
-                  : "w-1.5 h-1.5 bg-gray-300 hover:bg-gray-400"  // inactive: circle
+                  ? "w-5 h-1.5 bg-[#0B1929]"
+                  : "w-1.5 h-1.5 bg-gray-300 hover:bg-gray-400"
               }`}
             />
           ))}
@@ -325,32 +332,35 @@ function HScrollRow({
   );
 }
 
-// ─── Main ChartGrid ───────────────────────────────────────────────────────────
+// ─── Data definitions with semantic colours ───────────────────────────────────
 
 const Q_LABELS = [
-  { field: "q1" as const, label: "Q1 · Live Event Attendance" },
-  { field: "q2" as const, label: "Q2 · Fan Experience Rating" },
-  { field: "q3" as const, label: "Q3 · Likelihood to Recommend" },
+  { field: "q1" as const, label: "Q1 · Live Event Attendance",   color: GOLD   },
+  { field: "q2" as const, label: "Q2 · Fan Experience Rating",   color: TEAL   },
+  { field: "q3" as const, label: "Q3 · Likelihood to Recommend", color: SLATE  },
 ];
 
 const DIM_ROWS: {
   field: keyof SurveyResponse;
   label: string;
   filterKey: keyof DashFilters;
+  color: string;
 }[][] = [
   [
-    { field: "country",     label: "By Country",     filterKey: "country"     },
-    { field: "publisher",   label: "By Publisher",   filterKey: "publisher"   },
-    { field: "placement",   label: "By Placement",   filterKey: "placement"   },
+    { field: "country",   label: "By Country",   filterKey: "country",   color: EMERALD },
+    { field: "publisher", label: "By Publisher", filterKey: "publisher", color: INDIGO  },
+    { field: "placement", label: "By Placement", filterKey: "placement", color: GOLD    },
   ],
   [
-    { field: "club",        label: "By Club",        filterKey: "club"        },
-    { field: "competition", label: "By Competition", filterKey: "competition" },
-    { field: "fan_segment", label: "By Fan Segment", filterKey: "fan_segment" },
+    { field: "club",        label: "By Club",        filterKey: "club",        color: TEAL   },
+    { field: "competition", label: "By Competition", filterKey: "competition", color: SLATE  },
+    { field: "fan_segment", label: "By Fan Segment", filterKey: "fan_segment", color: PURPLE },
   ],
 ];
 
 const DIM_TITLES = ["Geographic & Publisher", "Club, Competition & Audience"];
+
+// ─── Main ChartGrid ───────────────────────────────────────────────────────────
 
 export function ChartGrid({
   responses,
@@ -365,15 +375,14 @@ export function ChartGrid({
 
   return (
     <div className="space-y-4">
-      {/* Responses over time — full width, no horizontal scroll */}
       <ResponsesOverTime responses={responses} />
 
-      {/* Q result cards — 320px on mobile, snap scroll */}
       <HScrollRow title="Question Results" cols={3} minCardW={320}>
-        {Q_LABELS.map(({ field, label }) => (
+        {Q_LABELS.map(({ field, label, color }) => (
           <QChart
             key={field}
             label={label}
+            color={color}
             responses={responses}
             field={field}
             activeValue={filters[field]}
@@ -382,13 +391,13 @@ export function ChartGrid({
         ))}
       </HScrollRow>
 
-      {/* Dimension breakdown rows — 300px on mobile */}
       {DIM_ROWS.map((row, ri) => (
         <HScrollRow key={ri} title={DIM_TITLES[ri]} cols={3} minCardW={300}>
-          {row.map(({ field, label, filterKey }) => (
+          {row.map(({ field, label, filterKey, color }) => (
             <DimChart
               key={field as string}
               label={label}
+              color={color}
               responses={responses}
               field={field}
               activeValue={filters[filterKey]}
