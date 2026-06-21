@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
+import Papa from "papaparse";
 import { AdminShell } from "@/app/components/AdminShell";
 import { validateSurvey, SURVEY_LIMITS } from "@/lib/survey-validation";
 
@@ -614,28 +615,68 @@ export default function SurveysPage() {
     load();
   }
 
+  // ── CSV export ────────────────────────────────────────────────────────────
+  function exportCSV() {
+    const d = (s: string | null | undefined) => s ? new Date(s).toISOString().slice(0, 10) : "";
+    const rows = displayed.map(s => ({
+      "Name":             s.name,
+      "Description":      s.description ?? "",
+      "Status":           effectiveSurveyStatus(s),
+      "Questions":        s.questions.length,
+      "Created By":       s.created_by ?? "",
+      "Created":          d(s.created_at),
+      "Updated":          d(s.updated_at),
+      "Campaigns":        s.campaign_count,
+      "Live Campaigns":   s.live_campaign_count,
+      "Responses":        s.response_count,
+      "Last Used":        d(s.last_used_at),
+      "Last Response":    d(s.last_response_at),
+      "Archived Date":    d(s.archived_at),
+      "Deleted Date":     d(s.deleted_at),
+    }));
+    const csv  = Papa.unparse(rows);
+    const link = document.createElement("a");
+    link.href     = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+    link.download = `fanometrix-surveys-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+  }
+
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <AdminShell>
       <div className="p-4 md:p-6 max-w-5xl mx-auto">
 
         {/* ── Page header ── */}
-        <div className="flex items-center justify-between mb-6">
-          <div>
+        <div className="flex items-start justify-between mb-6 gap-4">
+          <div className="min-w-0 flex-1">
             <h1 className="text-2xl font-bold text-gray-900">Surveys</h1>
             <p className="text-sm text-gray-400 mt-0.5">
               {activeSurveys.length} active · {archivedSurveys.length} archived · {deletedSurveys.length} deleted
             </p>
+            <p className="text-sm text-gray-500 mt-2 leading-relaxed max-w-2xl">
+              Survey Templates are reusable questionnaires. They contain the questions, answer options and
+              thank-you screen shown inside the 300×250 MPU. A survey does not go live on its own.
+              It must be attached to a campaign.
+            </p>
           </div>
-          <button
-            onClick={openCreate}
-            className="text-sm font-semibold px-4 py-2 rounded-lg transition-colors"
-            style={{ background: GOLD, color: "#0B1929" }}
-            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#C9A766"; }}
-            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = GOLD; }}
-          >
-            + Create Survey
-          </button>
+          <div className="flex gap-2 flex-shrink-0">
+            <button
+              onClick={exportCSV}
+              disabled={displayed.length === 0}
+              className="text-sm border border-gray-200 text-gray-700 hover:bg-gray-50 px-3 py-2 rounded-lg font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Export CSV
+            </button>
+            <button
+              onClick={openCreate}
+              className="text-sm font-semibold px-4 py-2 rounded-lg transition-colors"
+              style={{ background: GOLD, color: "#0B1929" }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#C9A766"; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = GOLD; }}
+            >
+              + Create Survey
+            </button>
+          </div>
         </div>
 
         {/* ── Search + Filters ── */}

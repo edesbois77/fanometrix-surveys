@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import Link from "next/link";
+import Papa from "papaparse";
 import { AdminShell } from "@/app/components/AdminShell";
 import { isSurveyValidForReady } from "@/lib/survey-validation";
 import {
@@ -380,6 +381,39 @@ export default function CampaignsPage() {
     load();
   }
 
+  // ── CSV export ────────────────────────────────────────────────────────────
+  function exportCSV() {
+    const d = (s: string | null | undefined) => s ? new Date(s).toISOString().slice(0, 10) : "";
+    const rows = displayed.map(c => {
+      const pct = c.target_responses
+        ? Math.round((c.response_count / c.target_responses) * 100)
+        : "";
+      return {
+        "Campaign Name":    c.campaign_name,
+        "Slug":             c.campaign_id,
+        "Brand":            c.brand_name,
+        "Publishers":       (c.publishers ?? []).join("; "),
+        "Survey":           c.surveys?.name ?? "",
+        "Status (Stored)":  c.status,
+        "Status (Effective)": c.effective_status ?? c.status,
+        "Status Reason":    c.status_reason ?? "",
+        "Start Date":       d(c.start_date),
+        "End Date":         d(c.end_date),
+        "Target Responses": c.target_responses ?? "",
+        "Responses":        c.response_count,
+        "Progress %":       pct,
+        "Created":          d(c.created_at),
+        "Deleted Date":     d(c.deleted_at),
+        "Deleted By":       c.deleted_by ?? "",
+      };
+    });
+    const csv  = Papa.unparse(rows);
+    const link = document.createElement("a");
+    link.href     = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+    link.download = `fanometrix-campaigns-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+  }
+
   // ── Render ─────────────────────────────────────────────────────────────────
   const totalActive = activeCampaigns.length + closedCampaigns.length + archivedCampaigns.length;
 
@@ -388,18 +422,32 @@ export default function CampaignsPage() {
       <div className="p-4 md:p-6 max-w-5xl mx-auto">
 
         {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <div>
+        <div className="flex items-start justify-between mb-6 gap-4">
+          <div className="min-w-0 flex-1">
             <h1 className="text-2xl font-bold text-gray-900">Campaigns</h1>
             <p className="text-sm text-gray-400 mt-0.5">
               {totalActive} campaign{totalActive !== 1 ? "s" : ""} · {activeCampaigns.filter(c => c.effective_status === "live").length} live
             </p>
+            <p className="text-sm text-gray-500 mt-2 leading-relaxed max-w-2xl">
+              Campaigns control where, when and how a survey runs. Each campaign connects one survey to a
+              publisher, placement, date range and response target. Campaign status determines whether
+              responses are accepted.
+            </p>
           </div>
-          <button onClick={openCreate}
-            className="text-sm font-semibold px-4 py-2 rounded-lg"
-            style={{ background: "#D7B87A", color: "#0B1929" }}>
-            + Create Campaign
-          </button>
+          <div className="flex gap-2 flex-shrink-0">
+            <button
+              onClick={exportCSV}
+              disabled={displayed.length === 0}
+              className="text-sm border border-gray-200 text-gray-700 hover:bg-gray-50 px-3 py-2 rounded-lg font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Export CSV
+            </button>
+            <button onClick={openCreate}
+              className="text-sm font-semibold px-4 py-2 rounded-lg"
+              style={{ background: "#D7B87A", color: "#0B1929" }}>
+              + Create Campaign
+            </button>
+          </div>
         </div>
 
         {/* Search + Filters */}
