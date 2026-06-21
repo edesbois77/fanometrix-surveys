@@ -341,10 +341,10 @@ export default function UserManagementPage() {
     e.preventDefault();
     setFormError("");
 
-    // Validate username
-    const cleanUsername = form.username.toLowerCase().trim();
+    // Validate username — stored as typed, matched case-insensitively at login
+    const cleanUsername = form.username.trim();
     if (!cleanUsername) { setFormError("Username is required."); return; }
-    if (!/^[a-z0-9_-]+$/.test(cleanUsername)) {
+    if (!/^[a-zA-Z0-9_-]+$/.test(cleanUsername)) {
       setFormError("Username may only contain letters, numbers, underscores and hyphens.");
       return;
     }
@@ -514,15 +514,15 @@ export default function UserManagementPage() {
                 <input
                   type="text"
                   value={form.username}
-                  onChange={e => setForm(f => ({ ...f, username: e.target.value.toLowerCase() }))}
+                  onChange={e => setForm(f => ({ ...f, username: e.target.value }))}
                   required
-                  placeholder="e.g. fotmob_admin"
+                  placeholder="e.g. FotMob_Admin"
                   className={INPUT}
                   spellCheck={false}
                   autoCapitalize="none"
                 />
                 <p className="text-xs text-gray-400 mt-1">
-                  Lowercase letters, numbers, underscores and hyphens only.
+                  Letters, numbers, underscores and hyphens only. Login is not case-sensitive.
                 </p>
               </Field>
 

@@ -28,10 +28,10 @@ export async function PUT(
 
   // Username — editable, must be unique and valid format
   if (body.username && typeof body.username === "string") {
-    const cleanUsername = body.username.toLowerCase().trim();
-    if (!/^[a-z0-9_-]+$/.test(cleanUsername)) {
+    const cleanUsername = (body.username as string).trim();
+    if (!/^[a-zA-Z0-9_-]+$/.test(cleanUsername)) {
       return NextResponse.json(
-        { error: "Username may only contain lowercase letters, numbers, underscores and hyphens" },
+        { error: "Username may only contain letters, numbers, underscores and hyphens" },
         { status: 400 }
       );
     }

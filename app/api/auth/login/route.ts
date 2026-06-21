@@ -23,10 +23,12 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // ilike gives case-insensitive exact match so "Carlsberg_Client" and
+  // "carlsberg_client" both resolve to the same account.
   const { data: user, error } = await supabaseAdmin
     .from("users")
     .select("*")
-    .eq("username", username.toLowerCase().trim())
+    .ilike("username", username.trim())
     .eq("is_active", true)
     .single();
 
