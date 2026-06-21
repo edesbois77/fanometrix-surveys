@@ -60,11 +60,11 @@ export default function HomePage() {
             <div className="h-8 w-48 bg-gray-100 rounded-lg animate-pulse mb-2" />
           ) : (
             <h1 className="text-2xl font-bold mb-1" style={{ color: "#0B1929" }}>
-              Welcome back{user?.username ? `, ${user.username}` : ""}.
+              Welcome back{user ? `, ${user.organisationName || user.username}` : ""}.
             </h1>
           )}
           {user?.organisationName && (
-            <p className="text-sm text-gray-400">{user.organisationName}</p>
+            <p className="text-sm text-gray-400">{user.username}</p>
           )}
         </div>
 
