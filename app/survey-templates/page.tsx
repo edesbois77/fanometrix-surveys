@@ -647,41 +647,47 @@ export default function SurveysPage() {
       <div className="p-4 md:p-6 max-w-5xl mx-auto">
 
         {/* ── Page header ── */}
-        <div className="flex items-start justify-between mb-6 gap-4">
-          <div className="min-w-0 flex-1">
-            <h1 className="text-2xl font-bold text-gray-900">Surveys</h1>
-            <p className="text-sm text-gray-400 mt-0.5">
-              {activeSurveys.length} active · {archivedSurveys.length} archived · {deletedSurveys.length} deleted
-            </p>
-            <p className="text-sm text-gray-500 mt-2 leading-relaxed max-w-2xl">
-              Survey Templates are reusable questionnaires. They contain the questions, answer options and
-              thank-you screen shown inside the 300×250 MPU. A survey does not go live on its own.
-              It must be attached to a campaign.
-            </p>
+        <div className="mb-5">
+          {/* Title + counts + buttons — stacks on mobile, row on sm+ */}
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-3">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">Surveys</h1>
+              <p className="text-sm text-gray-400 mt-0.5">
+                {activeSurveys.length} Active · {archivedSurveys.length} Archived · {deletedSurveys.length} Deleted
+              </p>
+            </div>
+            <div className="flex gap-2 sm:flex-shrink-0">
+              <button
+                onClick={exportCSV}
+                disabled={displayed.length === 0}
+                className="text-sm border border-gray-200 text-gray-700 hover:bg-gray-50 px-3 py-2 rounded-lg font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Export CSV
+              </button>
+              <button
+                onClick={openCreate}
+                className="text-sm font-semibold px-4 py-2 rounded-lg transition-colors"
+                style={{ background: GOLD, color: "#0B1929" }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#C9A766"; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = GOLD; }}
+              >
+                + Create Survey
+              </button>
+            </div>
           </div>
-          <div className="flex gap-2 flex-shrink-0">
-            <button
-              onClick={exportCSV}
-              disabled={displayed.length === 0}
-              className="text-sm border border-gray-200 text-gray-700 hover:bg-gray-50 px-3 py-2 rounded-lg font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              Export CSV
-            </button>
-            <button
-              onClick={openCreate}
-              className="text-sm font-semibold px-4 py-2 rounded-lg transition-colors"
-              style={{ background: GOLD, color: "#0B1929" }}
-              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#C9A766"; }}
-              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = GOLD; }}
-            >
-              + Create Survey
-            </button>
+          {/* Info card — compact, full-width, replaces the inline paragraph */}
+          <div className="bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 flex gap-2.5 items-start">
+            <span className="text-gray-400 flex-shrink-0 text-sm mt-0.5">ℹ</span>
+            <p className="text-sm text-gray-500 leading-relaxed">
+              Reusable questionnaires containing questions and a thank-you screen shown inside the
+              300×250 MPU. Surveys must be attached to a campaign before going live.
+            </p>
           </div>
         </div>
 
         {/* ── Search + Filters ── */}
-        <div className="flex gap-3 mb-5 flex-wrap">
-          <div className="flex-1 min-w-[200px] relative">
+        <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3 mb-5">
+          <div className="sm:flex-1 sm:min-w-[200px] relative">
             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm pointer-events-none">🔍</span>
             <input
               type="search"

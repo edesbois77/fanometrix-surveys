@@ -422,37 +422,41 @@ export default function CampaignsPage() {
       <div className="p-4 md:p-6 max-w-5xl mx-auto">
 
         {/* Header */}
-        <div className="flex items-start justify-between mb-6 gap-4">
-          <div className="min-w-0 flex-1">
-            <h1 className="text-2xl font-bold text-gray-900">Campaigns</h1>
-            <p className="text-sm text-gray-400 mt-0.5">
-              {totalActive} campaign{totalActive !== 1 ? "s" : ""} · {activeCampaigns.filter(c => c.effective_status === "live").length} live
-            </p>
-            <p className="text-sm text-gray-500 mt-2 leading-relaxed max-w-2xl">
-              Campaigns control where, when and how a survey runs. Each campaign connects one survey to a
-              publisher, placement, date range and response target. Campaign status determines whether
-              responses are accepted.
-            </p>
+        <div className="mb-5">
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-3">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">Campaigns</h1>
+              <p className="text-sm text-gray-400 mt-0.5">
+                {totalActive} campaign{totalActive !== 1 ? "s" : ""} · {activeCampaigns.filter(c => c.effective_status === "live").length} live
+              </p>
+            </div>
+            <div className="flex gap-2 sm:flex-shrink-0">
+              <button
+                onClick={exportCSV}
+                disabled={displayed.length === 0}
+                className="text-sm border border-gray-200 text-gray-700 hover:bg-gray-50 px-3 py-2 rounded-lg font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Export CSV
+              </button>
+              <button onClick={openCreate}
+                className="text-sm font-semibold px-4 py-2 rounded-lg"
+                style={{ background: "#D7B87A", color: "#0B1929" }}>
+                + Create Campaign
+              </button>
+            </div>
           </div>
-          <div className="flex gap-2 flex-shrink-0">
-            <button
-              onClick={exportCSV}
-              disabled={displayed.length === 0}
-              className="text-sm border border-gray-200 text-gray-700 hover:bg-gray-50 px-3 py-2 rounded-lg font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              Export CSV
-            </button>
-            <button onClick={openCreate}
-              className="text-sm font-semibold px-4 py-2 rounded-lg"
-              style={{ background: "#D7B87A", color: "#0B1929" }}>
-              + Create Campaign
-            </button>
+          <div className="bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 flex gap-2.5 items-start">
+            <span className="text-gray-400 flex-shrink-0 text-sm mt-0.5">ℹ</span>
+            <p className="text-sm text-gray-500 leading-relaxed">
+              Each campaign connects a survey to a publisher, placement and date range.
+              Campaign status determines whether responses are accepted.
+            </p>
           </div>
         </div>
 
         {/* Search + Filters */}
-        <div className="flex gap-3 mb-5 flex-wrap">
-          <div className="flex-1 min-w-[200px] relative">
+        <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3 mb-5">
+          <div className="sm:flex-1 sm:min-w-[200px] relative">
             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm pointer-events-none">🔍</span>
             <input
               type="search"
