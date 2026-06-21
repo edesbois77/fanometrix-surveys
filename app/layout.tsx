@@ -8,11 +8,6 @@ const geist = Geist({ subsets: ["latin"], variable: "--font-geist" });
 export const metadata: Metadata = {
   title: "Fanometrix",
   description: "Fan Insight Platform",
-  icons: [
-    { rel: "icon",             url: "/FLogo.png", type: "image/png" },
-    { rel: "shortcut icon",    url: "/FLogo.png", type: "image/png" },
-    { rel: "apple-touch-icon", url: "/FLogo.png" },
-  ],
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
