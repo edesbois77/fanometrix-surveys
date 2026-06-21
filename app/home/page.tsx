@@ -7,6 +7,10 @@ import { useSession } from "@/app/components/SessionProvider";
 import { getHomeSections, type NavItemConfig } from "@/lib/nav-config";
 import type { UserRole } from "@/lib/auth";
 
+// ─── Feature flag ─────────────────────────────────────────────────────────────
+// Set to false to instantly revert all card branding to plain white cards.
+const ENABLE_CARD_BRANDING = true;
+
 // ─── KPI data (admin only) ────────────────────────────────────────────────────
 type Kpis = {
   activeCampaigns: number;
@@ -91,7 +95,16 @@ function SectionHeading({ label }: { label: string }) {
 }
 
 // ─── Nav card ─────────────────────────────────────────────────────────────────
-function NavCard({ item, large }: { item: NavItemConfig; large?: boolean }) {
+function NavCard({
+  item, large, branded, devPattern,
+}: {
+  item: NavItemConfig;
+  large?: boolean;
+  /** Option A — ghost F watermark, bottom-right */
+  branded?: boolean;
+  /** Option B — subtle gold grid pattern (developer cards) */
+  devPattern?: boolean;
+}) {
   const linkProps = item.external
     ? { target: "_blank" as const, rel: "noopener noreferrer" }
     : {};
@@ -101,7 +114,7 @@ function NavCard({ item, large }: { item: NavItemConfig; large?: boolean }) {
       href={item.href}
       {...linkProps}
       className={[
-        "group flex flex-col rounded-xl border cursor-pointer",
+        "group relative flex flex-col rounded-xl border cursor-pointer overflow-hidden",
         large ? "p-6" : "p-5",
         "bg-white border-gray-100 shadow-sm",
         "transition-all duration-200",
@@ -110,6 +123,45 @@ function NavCard({ item, large }: { item: NavItemConfig; large?: boolean }) {
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D7B87A] focus-visible:ring-offset-2",
       ].join(" ")}
     >
+      {/* ── Option A: Ghost F watermark ── */}
+      {ENABLE_CARD_BRANDING && branded && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src="/FLogo.png"
+          alt=""
+          aria-hidden
+          style={{
+            position: "absolute",
+            bottom: -24,
+            right: -24,
+            width: 148,
+            height: 148,
+            opacity: 0.028,
+            filter: "blur(0.5px)",
+            pointerEvents: "none",
+            userSelect: "none",
+          }}
+        />
+      )}
+
+      {/* ── Option B: Subtle gold grid pattern (developer cards) ── */}
+      {ENABLE_CARD_BRANDING && devPattern && (
+        <div
+          aria-hidden
+          style={{
+            position: "absolute",
+            inset: 0,
+            borderRadius: "inherit",
+            backgroundImage: [
+              "linear-gradient(rgba(215,184,122,0.025) 1px, transparent 1px)",
+              "linear-gradient(90deg, rgba(215,184,122,0.025) 1px, transparent 1px)",
+            ].join(","),
+            backgroundSize: "32px 32px",
+            pointerEvents: "none",
+          }}
+        />
+      )}
+
       <div className={[
         "rounded-lg flex items-center justify-center flex-shrink-0",
         large ? "w-12 h-12 text-2xl mb-4" : "w-9 h-9 text-lg mb-3",
@@ -215,12 +267,39 @@ export default function HomePage() {
               )}
             </div>
 
-            {/* Dashboard CTA */}
-            <div className="flex items-center justify-between bg-white border border-gray-100 rounded-xl px-5 py-3.5 shadow-sm">
-              <p className="text-sm text-gray-500">View live response data, trend charts and audience breakdowns.</p>
+            {/* Dashboard CTA — navy + large F watermark when branded, clean white when not */}
+            <div className={[
+              "relative flex items-center justify-between rounded-xl px-5 py-3.5 shadow-sm overflow-hidden",
+              ENABLE_CARD_BRANDING
+                ? "bg-[#0B1929] border border-[#0B1929]"
+                : "bg-white border border-gray-100",
+            ].join(" ")}>
+              {ENABLE_CARD_BRANDING && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src="/FLogo.png"
+                  alt=""
+                  aria-hidden
+                  style={{
+                    position: "absolute",
+                    right: -30,
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                    width: 130,
+                    height: 130,
+                    opacity: 0.06,
+                    filter: "blur(1px)",
+                    pointerEvents: "none",
+                    userSelect: "none",
+                  }}
+                />
+              )}
+              <p className={`text-sm relative z-10 ${ENABLE_CARD_BRANDING ? "text-white/60" : "text-gray-500"}`}>
+                View live response data, trend charts and audience breakdowns.
+              </p>
               <Link
                 href="/dashboard"
-                className="flex-shrink-0 ml-4 text-sm font-semibold px-4 py-2 rounded-lg transition-colors"
+                className="flex-shrink-0 ml-4 text-sm font-semibold px-4 py-2 rounded-lg transition-colors relative z-10"
                 style={{ background: "#D7B87A", color: "#0B1929" }}
                 onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#C9A766"; }}
                 onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "#D7B87A"; }}
@@ -247,6 +326,7 @@ export default function HomePage() {
           <div className="space-y-8">
             {sections.map(({ label, items }) => {
               const isPlatform = label === "Platform Management";
+              const isDev      = label === "Development";
 
               // Platform: 2×2 large cards. Administration: compact 4-across.
               // Everything else: standard 3-column grid.
@@ -263,7 +343,13 @@ export default function HomePage() {
                   {label && <SectionHeading label={label} />}
                   <div className={`grid gap-4 ${cols}`}>
                     {items.map(item => (
-                      <NavCard key={item.href} item={item} large={isPlatform} />
+                      <NavCard
+                        key={item.href}
+                        item={item}
+                        large={isPlatform}
+                        branded={!isDev}     /* Option A: F watermark on all non-dev cards */
+                        devPattern={isDev}   /* Option B: grid pattern on developer cards   */
+                      />
                     ))}
                   </div>
                 </div>
