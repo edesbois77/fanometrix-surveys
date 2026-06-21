@@ -12,7 +12,7 @@ type NavItem = { href: string; label: string; icon: string };
 const NAV_BY_ROLE: Record<UserRole, NavItem[]> = {
   admin: [
     { href: "/dashboard",           label: "Dashboard",        icon: "▦"   },
-    { href: "/survey-templates",    label: "Survey Templates", icon: "◫"   },
+    { href: "/survey-templates",    label: "Surveys",          icon: "◫"   },
     { href: "/campaigns",           label: "Campaigns",        icon: "◎"   },
     { href: "/campaign-groups",     label: "Campaign Groups",  icon: "⬡"   },
     { href: "/campaign-deployment", label: "Deployment",       icon: "</>" },
