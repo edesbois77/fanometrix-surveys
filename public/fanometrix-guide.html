@@ -25,17 +25,21 @@
     /* ── Nav ── */
     nav {
       background: var(--navy);
-      padding: 0 20px;
-      height: 52px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
       position: sticky;
       top: 0;
       z-index: 100;
+    }
+    .nav-inner {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 0 24px;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
       gap: 12px;
     }
-    nav img { height: 16px; object-fit: contain; flex-shrink: 0; }
+    nav img { height: 18px; object-fit: contain; flex-shrink: 0; }
     nav a {
       color: rgba(255,255,255,0.6);
       font-size: 13px;
@@ -308,14 +312,15 @@
 
 <!-- ── Navigation ── -->
 <nav>
-  <img src="/Fanometrix_Logo.png" alt="Fanometrix" />
-  <a href="/home">← Back to platform</a>
+  <div class="nav-inner">
+    <img src="/Fanometrix_Logo.png" alt="Fanometrix" />
+    <a href="/home">← Back to platform</a>
+  </div>
 </nav>
 
 <!-- ── Hero ── -->
 <div class="hero">
-  <p class="hero-eyebrow">Platform Guide</p>
-  <h1>Fanometrix <span>Pulse</span></h1>
+  <h1>Fanometrix <span>Guide</span></h1>
   <p>A complete guide to creating surveys, running campaigns, building campaign groups and serving fan intelligence through publisher embeds.</p>
   <div class="chip-row">
     <div class="chip"><span>◫</span><span>Surveys</span></div>
