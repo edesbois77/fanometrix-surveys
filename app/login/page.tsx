@@ -101,9 +101,18 @@ export default function LoginPage() {
       <div className="w-full max-w-sm">
 
         {/* Logo */}
-        <div className="flex flex-col items-center mb-10 gap-3">
+        <div className="flex flex-col items-center mb-10 gap-2">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/FLogo.png" alt="Fanometrix" className="w-14 h-14 object-contain" />
+          <img
+            src="/Fanometrix_Logo.png"
+            alt="Fanometrix"
+            style={{
+              height: 32,
+              objectFit: "contain",
+              filter:
+                "brightness(0) saturate(100%) invert(11%) sepia(33%) saturate(1200%) hue-rotate(192deg) brightness(95%)",
+            }}
+          />
           <p className="text-sm text-gray-400">Fan Insight Platform</p>
         </div>
 
