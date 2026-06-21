@@ -91,7 +91,7 @@ function SectionHeading({ label }: { label: string }) {
 }
 
 // ─── Nav card ─────────────────────────────────────────────────────────────────
-function NavCard({ item }: { item: NavItemConfig }) {
+function NavCard({ item, large }: { item: NavItemConfig; large?: boolean }) {
   const linkProps = item.external
     ? { target: "_blank" as const, rel: "noopener noreferrer" }
     : {};
@@ -101,7 +101,8 @@ function NavCard({ item }: { item: NavItemConfig }) {
       href={item.href}
       {...linkProps}
       className={[
-        "group flex flex-col p-5 rounded-xl border cursor-pointer",
+        "group flex flex-col rounded-xl border cursor-pointer",
+        large ? "p-6" : "p-5",
         "bg-white border-gray-100 shadow-sm",
         "transition-all duration-200",
         "hover:bg-[#0B1929] hover:border-[#0B1929] hover:-translate-y-1 hover:shadow-lg",
@@ -109,26 +110,35 @@ function NavCard({ item }: { item: NavItemConfig }) {
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D7B87A] focus-visible:ring-offset-2",
       ].join(" ")}
     >
-      <div className="w-9 h-9 rounded-lg flex items-center justify-center text-lg mb-3 flex-shrink-0
-        bg-[#F0F4F8] text-[#0B1929]
-        group-hover:bg-white/10 group-hover:text-white
-        transition-colors duration-200">
+      <div className={[
+        "rounded-lg flex items-center justify-center flex-shrink-0",
+        large ? "w-12 h-12 text-2xl mb-4" : "w-9 h-9 text-lg mb-3",
+        "bg-[#F0F4F8] text-[#0B1929]",
+        "group-hover:bg-white/10 group-hover:text-white",
+        "transition-colors duration-200",
+      ].join(" ")}>
         {item.icon}
       </div>
-      <h2 className="font-semibold text-sm mb-1.5
-        text-[#0B1929] group-hover:text-white
-        transition-colors duration-200">
+      <h2 className={[
+        "font-semibold mb-2",
+        large ? "text-base" : "text-sm mb-1.5",
+        "text-[#0B1929] group-hover:text-white",
+        "transition-colors duration-200",
+      ].join(" ")}>
         {item.label}
         {item.external && (
           <span className="ml-1 text-[10px] opacity-40">↗</span>
         )}
       </h2>
-      <p className="text-xs flex-1 leading-relaxed mb-3
-        text-gray-400 group-hover:text-white/70
-        transition-colors duration-200">
+      <p className={[
+        "flex-1 leading-relaxed mb-4",
+        large ? "text-sm" : "text-xs mb-3",
+        "text-gray-400 group-hover:text-white/70",
+        "transition-colors duration-200",
+      ].join(" ")}>
         {item.description}
       </p>
-      <span className="text-xs font-semibold text-[#D7B87A]">
+      <span className={`font-semibold text-[#D7B87A] ${large ? "text-sm" : "text-xs"}`}>
         {item.cta} →
       </span>
     </Link>
@@ -236,17 +246,24 @@ export default function HomePage() {
         ) : (
           <div className="space-y-8">
             {sections.map(({ label, items }) => {
-              // Pick the column count that keeps all items on the same row
-              const cols =
-                items.length === 4 ? "grid-cols-2 sm:grid-cols-4" :
-                items.length === 2 ? "grid-cols-1 sm:grid-cols-2" :
-                                     "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3";
+              const isPlatform = label === "Platform Management";
+
+              // Platform: 2×2 large cards. Administration: compact 4-across.
+              // Everything else: standard 3-column grid.
+              const cols = isPlatform
+                ? "grid-cols-2"
+                : items.length === 4
+                  ? "grid-cols-2 sm:grid-cols-4"
+                  : items.length === 2
+                    ? "grid-cols-1 sm:grid-cols-2"
+                    : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3";
+
               return (
                 <div key={label || "cards"}>
                   {label && <SectionHeading label={label} />}
                   <div className={`grid gap-4 ${cols}`}>
                     {items.map(item => (
-                      <NavCard key={item.href} item={item} />
+                      <NavCard key={item.href} item={item} large={isPlatform} />
                     ))}
                   </div>
                 </div>
