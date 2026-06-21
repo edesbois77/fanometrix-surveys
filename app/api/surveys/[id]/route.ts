@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { requireSession } from "@/lib/auth";
+import { validateSurvey } from "@/lib/survey-validation";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -58,7 +59,24 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       // Regular content edit — status may only be set to draft or ready this way.
       // Lifecycle transitions (archive, restore, delete) require an explicit _action.
       const { status, ...contentRest } = rest as Record<string, unknown>;
-      const safeStatus = status === "draft" || status === "ready" ? status : undefined;
+      let safeStatus = status === "draft" || status === "ready" ? status : undefined;
+
+      // Server-side MPU validation guard: if the payload requests "ready" status,
+      // validate the full survey. If it fails, silently downgrade to draft so
+      // invalid surveys can never be marked Ready, even via direct API calls.
+      if (safeStatus === "ready") {
+        const { data: existing } = await supabaseAdmin
+          .from("surveys")
+          .select("name, questions, thank_you_title, thank_you_body")
+          .eq("id", id)
+          .single();
+        const merged = { ...(existing ?? {}), ...contentRest };
+        const errors = validateSurvey(merged as Parameters<typeof validateSurvey>[0]);
+        if (errors.length > 0) {
+          safeStatus = "draft"; // auto-downgrade — client should have caught this first
+        }
+      }
+
       patch = { ...contentRest, ...(safeStatus ? { status: safeStatus } : {}), updated_at: now };
     }
   }

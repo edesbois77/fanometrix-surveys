@@ -3,6 +3,7 @@
 // can render the correct questions without exposing response data.
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { validateSurvey } from "@/lib/survey-validation";
 
 export async function GET(req: NextRequest) {
   const id = req.nextUrl.searchParams.get("id");
@@ -19,6 +20,15 @@ export async function GET(req: NextRequest) {
 
   if (error || !data) {
     return NextResponse.json({ error: "Survey not found" }, { status: 404 });
+  }
+
+  // Validate before serving — a survey that fails MPU limits must not reach a live embed
+  const validationErrors = validateSurvey(data as Parameters<typeof validateSurvey>[0]);
+  if (validationErrors.length > 0) {
+    return NextResponse.json(
+      { error: "Survey failed MPU validation", reason: validationErrors[0] },
+      { status: 404 }
+    );
   }
 
   return NextResponse.json({

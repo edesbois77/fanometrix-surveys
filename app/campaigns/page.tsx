@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import Link from "next/link";
 import { AdminShell } from "@/app/components/AdminShell";
+import { isSurveyValidForReady } from "@/lib/survey-validation";
 import {
   availableActions,
   ACTION_LABELS,
@@ -12,7 +13,15 @@ import {
 } from "@/lib/campaign-status";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-type Survey = { id: string; name: string; status: string };
+type Survey = {
+  id: string;
+  name: string;
+  status: string;
+  // Needed to run MPU validation before showing in campaign dropdown
+  questions?:       Array<{ text: string; options: string[] }>;
+  thank_you_title?: string;
+  thank_you_body?:  string;
+};
 
 type Campaign = {
   id: string;
@@ -696,8 +705,18 @@ export default function CampaignsPage() {
                     className={INP}>
                     <option value="">None selected</option>
                     {surveys
-                      .filter(s => s.status === "draft" || s.status === "ready")
-                      .map(s => <option key={s.id} value={s.id}>{s.name}{s.status === "draft" ? " (Draft)" : ""}</option>)}
+                      .filter(s => {
+                        // Draft surveys: always show (for setup workflow)
+                        if (s.status === "draft") return true;
+                        // Ready surveys: only show if they pass MPU validation
+                        if (s.status === "ready") return isSurveyValidForReady(s);
+                        return false;
+                      })
+                      .map(s => (
+                        <option key={s.id} value={s.id}>
+                          {s.name}{s.status === "draft" ? " (Draft)" : ""}
+                        </option>
+                      ))}
                   </select>
                 </Field>
                 <Field label="Status">

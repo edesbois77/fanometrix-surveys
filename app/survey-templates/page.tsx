@@ -2,20 +2,14 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { AdminShell } from "@/app/components/AdminShell";
+import { validateSurvey, SURVEY_LIMITS } from "@/lib/survey-validation";
 
 // ─── MPU colours ─────────────────────────────────────────────────────────────
 const NAVY = "#071B2F";
 const GOLD = "#D7B87A";
 
-// ─── MPU content limits ───────────────────────────────────────────────────────
-// Enforced to guarantee every survey fits cleanly inside the 300×250 creative,
-// including on mobile screens and in translated versions where text runs longer.
-const MAX_QUESTIONS  = 4;
-const MAX_OPTIONS    = 4;
-const MAX_Q_CHARS    = 70;
-const MAX_OPT_CHARS  = 32;
-const MAX_TY_TITLE   = 40;
-const MAX_TY_BODY    = 90;
+// ─── MPU content limits (from shared lib/survey-validation.ts) ───────────────
+const { MAX_QUESTIONS, MAX_OPTIONS, MAX_Q_CHARS, MAX_OPT_CHARS, MAX_TY_TITLE, MAX_TY_BODY } = SURVEY_LIMITS;
 
 // Live character counter — turns amber near limit, red when over
 function CharCount({ len, max }: { len: number; max: number }) {
@@ -115,11 +109,23 @@ function formatDatetime(isoStr: string): string {
 }
 
 const STATUS_COLOURS: Record<string, string> = {
-  draft:     "bg-gray-100 text-gray-600",
-  ready:     "bg-green-100 text-green-700",
-  archived:  "bg-amber-100 text-amber-700",
-  deleted:   "bg-red-100 text-red-600",
+  draft:       "bg-gray-100 text-gray-600",
+  ready:       "bg-green-100 text-green-700",
+  "needs-fix": "bg-orange-100 text-orange-700",
+  archived:    "bg-amber-100 text-amber-700",
+  deleted:     "bg-red-100 text-red-600",
 };
+
+// A survey stored as "ready" but failing MPU validation shows as "Needs Fix".
+function effectiveSurveyStatus(s: Survey): string {
+  if (s.status === "ready" && validateSurvey(s).length > 0) return "needs-fix";
+  return s.status;
+}
+
+function statusLabel(eff: string): string {
+  if (eff === "needs-fix") return "Needs Fix";
+  return eff.charAt(0).toUpperCase() + eff.slice(1);
+}
 
 const CAMPAIGN_STATUS_COLOURS: Record<string, string> = {
   draft:     "bg-gray-100 text-gray-600",
@@ -380,6 +386,12 @@ export default function SurveysPage() {
   const [fields,               setFields]               = useState<EditFields>(BLANK_FIELDS);
   const [saving,               setSaving]               = useState(false);
   const [formError,            setFormError]            = useState("");
+  const [toast,                setToast]                = useState<{ msg: string; ok: boolean } | null>(null);
+
+  function showToast(msg: string, ok = true) {
+    setToast({ msg, ok });
+    setTimeout(() => setToast(null), 4000);
+  }
 
   // ── Load ──────────────────────────────────────────────────────────────────
   const load = useCallback(async () => {
@@ -476,39 +488,64 @@ export default function SurveysPage() {
       if (!q.text.trim()) { setFormError("All questions need text."); return; }
       if (q.options.filter(o => o.trim()).length < 2) { setFormError("Each question needs at least 2 options."); return; }
     }
-    // Character limit validation
-    if (fields.thank_you_title.length > MAX_TY_TITLE) {
-      setFormError(`Thank-you title must be ${MAX_TY_TITLE} characters or fewer.`); return;
-    }
-    if (fields.thank_you_body.length > MAX_TY_BODY) {
-      setFormError(`Thank-you message must be ${MAX_TY_BODY} characters or fewer.`); return;
-    }
-    for (let i = 0; i < qs.length; i++) {
-      if (qs[i].text.length > MAX_Q_CHARS) {
-        setFormError(`Q${i + 1}: question text must be ${MAX_Q_CHARS} characters or fewer.`); return;
+
+    // Run full MPU validation using the shared validator
+    const cleanedQs = qs.map(q => ({ ...q, options: q.options.filter(o => o.trim()) }));
+    const validationErrors = validateSurvey({
+      name:            fields.name,
+      questions:       cleanedQs,
+      thank_you_title: fields.thank_you_title,
+      thank_you_body:  fields.thank_you_body,
+    });
+
+    const wantsReady = fields.status === "ready";
+    const wasReady   = editingOriginalStatus === "ready";
+
+    if (validationErrors.length > 0) {
+      if (wantsReady && !wasReady) {
+        // User is trying to set status to Ready — block until fixed
+        setFormError(
+          `This survey cannot be marked Ready until all MPU validation errors are fixed.\n${validationErrors[0]}`
+        );
+        return;
       }
-      const badOpt = qs[i].options.findIndex(o => o.trim().length > MAX_OPT_CHARS);
-      if (badOpt !== -1) {
-        setFormError(`Q${i + 1}, option ${badOpt + 1}: answer must be ${MAX_OPT_CHARS} characters or fewer.`); return;
-      }
+      // If the survey WAS ready (editing an existing one) but is now invalid →
+      // auto-downgrade to Draft and continue saving with a warning toast.
+      // If it was draft/other and isn't trying to be Ready → just save as-is.
     }
 
     setFormError(""); setSaving(true);
 
+    // Determine effective save status
+    let saveStatus: "draft" | "ready" | "archived" = fields.status as "draft" | "ready";
+    const autoDowngraded = wasReady && validationErrors.length > 0;
+    if (editingOriginalStatus === "archived") {
+      saveStatus = "archived";                         // preserve archived
+    } else if (autoDowngraded || (wantsReady && validationErrors.length > 0)) {
+      saveStatus = "draft";                            // auto-downgrade
+    }
+
     const payload = {
       ...fields,
-      questions: qs.map(q => ({ ...q, options: q.options.filter(o => o.trim()) })),
-      // Archived surveys: preserve their status — content edits don't un-archive
-      ...(editingOriginalStatus === "archived" ? { status: "archived" } : {}),
+      status:    saveStatus,
+      questions: cleanedQs,
     };
 
-    if (editingId) {
-      await fetch(`/api/surveys/${editingId}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-    } else {
-      await fetch("/api/surveys", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-    }
+    const res = await fetch(
+      editingId ? `/api/surveys/${editingId}` : "/api/surveys",
+      { method: editingId ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) }
+    );
+
     setSaving(false);
     setDrawerOpen(false);
+
+    if (autoDowngraded) {
+      // Show an orange warning toast so the admin notices the status change
+      setToast({ msg: "Survey has validation issues and was moved back to Draft.", ok: false });
+      setTimeout(() => setToast(null), 6000);
+    } else if (res.ok) {
+      showToast(editingId ? "Survey updated." : "Survey created.");
+    }
     load();
   }
 
@@ -708,10 +745,16 @@ export default function SurveysPage() {
                         <p className="text-xs text-gray-400 mt-0.5">Created by {s.created_by}</p>
                       )}
                     </div>
-                    {/* Lifecycle badge — top-right, subtle */}
-                    <span className={`text-xs font-medium px-2.5 py-1 rounded-full flex-shrink-0 capitalize whitespace-nowrap ${STATUS_COLOURS[s.status]}`}>
-                      {s.status}
-                    </span>
+                    {/* Lifecycle badge — top-right, subtle. Shows "Needs Fix" if stored
+                        as Ready but failing MPU validation. */}
+                    {(() => {
+                      const eff = effectiveSurveyStatus(s);
+                      return (
+                        <span className={`text-xs font-medium px-2.5 py-1 rounded-full flex-shrink-0 whitespace-nowrap ${STATUS_COLOURS[eff] ?? STATUS_COLOURS.draft}`}>
+                          {statusLabel(eff)}
+                        </span>
+                      );
+                    })()}
                   </div>
 
                   {/* Row 1: structure + dates */}
@@ -1111,6 +1154,15 @@ export default function SurveysPage() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Toast notification */}
+      {toast && (
+        <div className={`fixed bottom-6 right-6 z-50 px-5 py-3 rounded-xl shadow-lg text-sm font-medium ${
+          toast.ok ? "bg-green-600 text-white" : "bg-orange-500 text-white"
+        }`}>
+          {toast.ok ? "✓" : "⚠"} {toast.msg}
         </div>
       )}
     </AdminShell>

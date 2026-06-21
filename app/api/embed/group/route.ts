@@ -4,6 +4,7 @@
 // so reporting stays linked to the specific campaign, not the group.
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { validateSurvey } from "@/lib/survey-validation";
 
 export async function GET(req: NextRequest) {
   const slug = req.nextUrl.searchParams.get("slug");
@@ -65,6 +66,8 @@ export async function GET(req: NextRequest) {
     if (c.target_responses !== null && rc >= c.target_responses) return false;     // target hit
     const survey = (c.surveys as { questions?: unknown[]; thank_you_title?: string; thank_you_body?: string } | null);
     if (!survey || !(survey.questions as unknown[])?.length) return false;         // no survey
+    // Survey must pass MPU validation — invalid surveys are never served
+    if (validateSurvey(survey as Parameters<typeof validateSurvey>[0]).length > 0) return false;
     return true;
   });
 
