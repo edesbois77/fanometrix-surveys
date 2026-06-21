@@ -12,7 +12,6 @@
  */
 import type { Metadata } from "next";
 import Link from "next/link";
-import Image from "next/image";
 import { SURVEY_LIMITS } from "@/lib/survey-validation";
 import { STATUS_META, ACTION_LABELS } from "@/lib/campaign-status";
 import styles from "./guide.module.css";
@@ -145,7 +144,8 @@ export default function FanometrixGuidePage() {
             so this works for both: logged in → /home, logged out → login form.
           */}
           <Link href="/login" style={{ display: "flex", alignItems: "center", flexShrink: 0 }}>
-            <Image src="/Fanometrix_Logo.png" alt="Fanometrix" width={110} height={18} style={{ objectFit: "contain", objectPosition: "left" }} />
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/Fanometrix_Logo.png" alt="Fanometrix" style={{ height: 18, objectFit: "contain", display: "block" }} />
           </Link>
           <Link href="/home" style={{ color: "rgba(255,255,255,.6)", fontSize: 13, textDecoration: "none" }}>
             ← Back to platform
@@ -589,7 +589,8 @@ export default function FanometrixGuidePage() {
         <div style={{ maxWidth: 1100, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <Link href="/login">
-              <Image src="/Fanometrix_Logo.png" alt="Fanometrix" width={80} height={14} style={{ objectFit: "contain", opacity: 0.5 }} />
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/Fanometrix_Logo.png" alt="Fanometrix" style={{ height: 14, objectFit: "contain", opacity: 0.5 }} />
             </Link>
             <span style={{ color: "rgba(255,255,255,.25)", fontSize: 12 }}>Platform Guide · June 2026</span>
           </div>
