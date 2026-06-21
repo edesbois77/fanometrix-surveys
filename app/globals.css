@@ -1,13 +1,17 @@
 @import "tailwindcss";
 
 /* ── Scroll indicator animation (public homepage) ─────────────────────────── */
-/* Revert: delete this block to remove the animation                           */
+/* Matches The Football Collective scroll indicator exactly.                    */
+/* Revert: delete this block to remove the animation.                          */
 @keyframes scroll-line-pulse {
-  0%, 100% { opacity: 0.2; }
-  50%       { opacity: 1;   }
+  0%, 100% { opacity: 0.4; transform: scaleY(1);   }
+  50%      { opacity: 0.8; transform: scaleY(1.1); }
 }
 .scroll-indicator-line {
-  animation: scroll-line-pulse 2.4s ease-in-out infinite;
+  width: 1px;
+  height: 48px;
+  background: linear-gradient(to bottom, #D7B87A, transparent);
+  animation: scroll-line-pulse 2s ease-in-out infinite;
 }
 
 :root {

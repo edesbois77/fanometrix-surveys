@@ -120,21 +120,11 @@ export default function PublicHomePage() {
             </div>
           </div>
 
-          {/* ── Scroll prompt — TFC-style pulsing gold line ── */}
-          <div className="relative pb-8 flex flex-col items-center gap-3" aria-hidden>
-            {/* Pulsing vertical line — animation defined in globals.css */}
-            <div
-              className="scroll-indicator-line"
-              style={{ width: 1, height: 56, background: "#D7B87A" }}
-            />
-            <p style={{
-              fontSize: 10,
-              letterSpacing: "0.3em",
-              color: "#D7B87A",
-              fontWeight: 600,
-              textTransform: "uppercase",
-              opacity: 0.75,
-            }}>
+          {/* ── Scroll prompt — matches TFC hero scroll exactly ── */}
+          <div className="relative pb-8 flex flex-col items-center gap-2" aria-hidden>
+            {/* Gradient line: gold → transparent, pulsing scaleY + opacity */}
+            <div className="scroll-indicator-line" />
+            <p style={{ fontSize: 10, letterSpacing: "0.35em", color: "#D7B87A", fontWeight: 600, textTransform: "uppercase" }}>
               Scroll
             </p>
           </div>
