@@ -237,16 +237,23 @@ export default function HomePage() {
           </div>
         ) : (
           <div className="space-y-8">
-            {sections.map(({ label, items }) => (
-              <div key={label || "cards"}>
-                {label && <SectionHeading label={label} />}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {items.map(item => (
-                    <NavCard key={item.href} item={item} />
-                  ))}
+            {sections.map(({ label, items }) => {
+              // Pick the column count that keeps all items on the same row
+              const cols =
+                items.length === 4 ? "grid-cols-2 sm:grid-cols-4" :
+                items.length === 2 ? "grid-cols-1 sm:grid-cols-2" :
+                                     "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3";
+              return (
+                <div key={label || "cards"}>
+                  {label && <SectionHeading label={label} />}
+                  <div className={`grid gap-4 ${cols}`}>
+                    {items.map(item => (
+                      <NavCard key={item.href} item={item} />
+                    ))}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
 
