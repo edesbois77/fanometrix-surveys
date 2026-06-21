@@ -647,8 +647,10 @@ export default function PublisherHubPage() {
       <footer style={{ background: "#060F19", padding: "28px 24px" }}>
         <div style={{ maxWidth: 1100, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/Fanometrix_Logo.png" alt="Fanometrix" style={{ height: 14, objectFit: "contain", opacity: 0.6 }} />
+            <Link href="/" style={{ display: "flex", alignItems: "center" }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/Fanometrix_Logo.png" alt="Fanometrix" style={{ height: 14, objectFit: "contain", opacity: 0.6 }} />
+            </Link>
             <span style={{ color: "rgba(255,255,255,0.25)", fontSize: 12 }}>Publisher Hub v1.0 · June 2026</span>
           </div>
           <nav style={{ display: "flex", gap: 20 }}>

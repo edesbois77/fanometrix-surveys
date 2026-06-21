@@ -277,12 +277,14 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
               <rect y="15"   width="20" height="2.5" rx="1.25"/>
             </svg>
           </button>
-          <Image
-            src="/Fanometrix_Logo.png"
-            alt="Fanometrix"
-            width={110} height={24}
-            style={{ objectFit: "contain", objectPosition: "left" }}
-          />
+          <Link href="/home">
+            <Image
+              src="/Fanometrix_Logo.png"
+              alt="Fanometrix"
+              width={110} height={24}
+              style={{ objectFit: "contain", objectPosition: "left" }}
+            />
+          </Link>
         </header>
 
         <main className="flex-1 overflow-auto bg-gray-50">

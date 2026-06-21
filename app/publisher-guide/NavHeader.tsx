@@ -2,12 +2,16 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useSession } from "@/app/components/SessionProvider";
 
 const N = "#0B1929";
 const G = "#D7B87A";
 
 export function NavHeader() {
   const [scrolled, setScrolled] = useState(false);
+  const { user } = useSession();
+  // Logged-in users go to their role-aware home; visitors stay on the marketing site
+  const logoHref = user ? "/home" : "/";
 
   useEffect(() => {
     function onScroll() { setScrolled(window.scrollY > 60); }
@@ -27,8 +31,8 @@ export function NavHeader() {
     >
       <div className="max-w-[1100px] mx-auto px-5 flex items-center justify-between gap-4" style={{ height: 56 }}>
 
-        {/* Logo */}
-        <Link href="/" className="flex-shrink-0">
+        {/* Logo — goes to /home for logged-in users, / for public visitors */}
+        <Link href={logoHref} className="flex-shrink-0">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/Fanometrix_Logo.png" alt="Fanometrix" style={{ height: 16, objectFit: "contain", display: "block" }} />
         </Link>
