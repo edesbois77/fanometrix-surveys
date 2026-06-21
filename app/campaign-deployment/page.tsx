@@ -141,14 +141,18 @@ export default function EmbedGeneratorPage() {
 
   return (
     <AdminShell>
-      <div className="p-6 max-w-5xl mx-auto">
+      <div className="p-4 md:p-6 max-w-5xl mx-auto">
         <h1 className="text-2xl font-bold text-gray-900 mb-1">Deployment</h1>
         <p className="text-sm text-gray-400 mb-6">Configure your embed and copy the tag to your ad server.</p>
 
-        <div className="grid grid-cols-5 gap-6">
+        {/*
+          Mobile:  flex-col — sections stack vertically, full width
+          Desktop: 5-column grid — 2 cols config / 3 cols output
+        */}
+        <div className="flex flex-col gap-4 lg:grid lg:grid-cols-5 lg:gap-6">
 
           {/* ── Left config panel ── */}
-          <div className="col-span-2 space-y-4">
+          <div className="lg:col-span-2 space-y-4">
 
             {/* Campaign */}
             <div className="bg-white border border-gray-100 rounded-xl p-5 shadow-sm space-y-4">
@@ -317,59 +321,70 @@ export default function EmbedGeneratorPage() {
           </div>
 
           {/* ── Right output panel ── */}
-          <div className="col-span-3 space-y-4">
+          <div className="lg:col-span-3 space-y-4">
 
             {/* Preview */}
-            <div className="bg-white border border-gray-100 rounded-xl p-5 shadow-sm">
+            <div className="bg-white border border-gray-100 rounded-xl p-4 md:p-5 shadow-sm">
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
                 Preview <span className="text-gray-400 font-normal normal-case">(country = GB)</span>
               </p>
-              <div className="flex justify-center bg-gray-100 rounded-lg p-4">
-                {campaignIdValue ? (
-                  <iframe
-                    key={previewParams}
-                    src={`${BASE}/embed?${previewParams}`}
-                    width={300}
-                    height={250}
-                    className="rounded overflow-hidden shadow"
-                    style={{ border: 0 }}
-                    title="Preview"
-                  />
-                ) : (
-                  <div className="w-[300px] h-[250px] bg-gray-100 rounded flex items-center justify-center text-center px-6 border border-[#E0E1DD]">
-                    <p className="text-gray-400 text-xs">Select a campaign to preview the creative</p>
-                  </div>
-                )}
+              {/*
+                overflow-x-auto allows the 300px iframe to scroll on screens
+                narrower than 300px + card padding (e.g. iPhone SE at 375px is fine;
+                extreme narrow viewports gracefully scroll rather than clipping).
+              */}
+              <div className="overflow-x-auto">
+                <div className="flex justify-center bg-gray-100 rounded-lg p-3 md:p-4 min-w-[300px]">
+                  {campaignIdValue ? (
+                    <iframe
+                      key={previewParams}
+                      src={`${BASE}/embed?${previewParams}`}
+                      width={300}
+                      height={250}
+                      className="rounded overflow-hidden shadow flex-shrink-0"
+                      style={{ border: 0 }}
+                      title="Preview"
+                    />
+                  ) : (
+                    <div className="w-[300px] h-[250px] bg-gray-100 rounded flex items-center justify-center text-center px-6 border border-[#E0E1DD] flex-shrink-0">
+                      <p className="text-gray-400 text-xs">Select a campaign to preview the creative</p>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 
             {/* Iframe tag */}
-            <div className="bg-white border border-gray-100 rounded-xl p-5 shadow-sm">
-              <div className="flex items-center justify-between mb-3">
+            <div className="bg-white border border-gray-100 rounded-xl p-4 md:p-5 shadow-sm">
+              <div className="flex items-center justify-between gap-3 mb-3">
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Iframe tag</p>
-                <button onClick={() => copy(iframeCode, "iframe")} className={btn(copied === "iframe")}>
+                <button onClick={() => copy(iframeCode, "iframe")}
+                  className={`${btn(copied === "iframe")} flex-shrink-0`}>
                   {copied === "iframe" ? "Copied!" : "Copy"}
                 </button>
               </div>
-              <pre className="bg-gray-900 text-green-400 text-xs rounded-lg p-3 overflow-x-auto whitespace-pre-wrap leading-relaxed">{iframeCode}</pre>
+              {/* overflow-x-auto on pre only — page never scrolls horizontally */}
+              <pre className="bg-gray-900 text-green-400 text-xs rounded-lg p-3 overflow-x-auto whitespace-pre leading-relaxed max-w-full">{iframeCode}</pre>
             </div>
 
             {/* Script tag */}
-            <div className="bg-white border border-gray-100 rounded-xl p-5 shadow-sm">
-              <div className="flex items-center justify-between mb-3">
+            <div className="bg-white border border-gray-100 rounded-xl p-4 md:p-5 shadow-sm">
+              <div className="flex items-center justify-between gap-3 mb-3">
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Script tag</p>
-                <button onClick={() => copy(scriptCode, "script")} className={btn(copied === "script")}>
+                <button onClick={() => copy(scriptCode, "script")}
+                  className={`${btn(copied === "script")} flex-shrink-0`}>
                   {copied === "script" ? "Copied!" : "Copy"}
                 </button>
               </div>
-              <pre className="bg-gray-900 text-green-400 text-xs rounded-lg p-3 overflow-x-auto whitespace-pre-wrap leading-relaxed">{scriptCode}</pre>
+              <pre className="bg-gray-900 text-green-400 text-xs rounded-lg p-3 overflow-x-auto whitespace-pre leading-relaxed max-w-full">{scriptCode}</pre>
             </div>
 
             {/* Integration instructions */}
-            <div className="bg-white border border-gray-100 rounded-xl p-5 shadow-sm">
-              <div className="flex items-center justify-between mb-3">
+            <div className="bg-white border border-gray-100 rounded-xl p-4 md:p-5 shadow-sm">
+              <div className="flex items-center justify-between gap-3 mb-3">
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Integration Instructions</p>
-                <button onClick={() => copy(INSTRUCTIONS, "instructions")} className={btn(copied === "instructions")}>
+                <button onClick={() => copy(INSTRUCTIONS, "instructions")}
+                  className={`${btn(copied === "instructions")} flex-shrink-0`}>
                   {copied === "instructions" ? "Copied!" : "Copy Instructions"}
                 </button>
               </div>
