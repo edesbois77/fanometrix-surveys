@@ -25,21 +25,23 @@
     /* ── Nav ── */
     nav {
       background: var(--navy);
-      padding: 0 24px;
-      height: 56px;
+      padding: 0 20px;
+      height: 52px;
       display: flex;
       align-items: center;
       justify-content: space-between;
       position: sticky;
       top: 0;
       z-index: 100;
+      gap: 12px;
     }
-    nav img { height: 18px; object-fit: contain; }
+    nav img { height: 16px; object-fit: contain; flex-shrink: 0; }
     nav a {
-      color: rgba(255,255,255,0.55);
+      color: rgba(255,255,255,0.6);
       font-size: 13px;
       text-decoration: none;
       transition: color .15s;
+      white-space: nowrap;
     }
     nav a:hover { color: var(--gold); }
 

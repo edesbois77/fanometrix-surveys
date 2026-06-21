@@ -306,7 +306,7 @@ export default function PublisherHubPage() {
       <NavHeader />
 
       {/* ── 1. HERO ──────────────────────────────────────────────────────────── */}
-      <div style={{ background: N, padding: "48px 24px 64px" }}>
+      <div style={{ background: N, padding: "clamp(32px, 5vw, 48px) 20px clamp(48px, 7vw, 64px)" }}>
         <div style={{ maxWidth: 820, margin: "0 auto", textAlign: "center" }}>
           <h1 style={{ fontSize: "clamp(32px, 6vw, 56px)", fontWeight: 800, color: "#fff", lineHeight: 1.1, letterSpacing: "-0.02em", marginBottom: 24 }}>
             Fanometrix<br />
@@ -319,8 +319,8 @@ export default function PublisherHubPage() {
             collection and minimal implementation effort.
           </p>
 
-          {/* Feature chips — single row, no wrap */}
-          <div style={{ display: "flex", flexWrap: "nowrap", gap: 10, justifyContent: "center" }}>
+          {/* Feature chips — wrap on mobile */}
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 10, justifyContent: "center" }}>
             {FEATURES.map(({ icon, label }) => (
               <div key={label}
                 style={{ display: "flex", alignItems: "center", gap: 7, background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.14)", borderRadius: 40, padding: "9px 16px", whiteSpace: "nowrap" }}>
