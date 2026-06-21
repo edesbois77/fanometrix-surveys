@@ -68,8 +68,9 @@ export default function PublicHomePage() {
           <div className="flex-1 flex flex-col items-center justify-center relative">
             <div className="max-w-[700px] mx-auto w-full">
 
-              {/* Brand lockup */}
-              <div className="flex flex-col items-center mb-10 gap-2">
+              {/* Brand lockup — staggered fade-up on load */}
+              <div className="hero-fade-up flex flex-col items-center mb-10 gap-2"
+                style={{ animationDelay: "0.05s" }}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src="/Fanometrix_Logo.png"
@@ -89,8 +90,8 @@ export default function PublicHomePage() {
 
               {/* Body */}
               <p
-                className="leading-[1.75] mx-auto mb-11"
-                style={{ fontSize: "clamp(15px, 2vw, 18px)", color: "#6B7280", maxWidth: 660 }}
+                className="hero-fade-up leading-[1.75] mx-auto mb-11"
+                style={{ animationDelay: "0.22s", fontSize: "clamp(15px, 2vw, 18px)", color: "#6B7280", maxWidth: 660 }}
               >
                 Fanometrix combines anonymous fan surveys, campaign analytics and
                 first-party publisher context to help brands, rights holders and
@@ -98,7 +99,8 @@ export default function PublicHomePage() {
               </p>
 
               {/* CTAs */}
-              <div className="flex flex-wrap gap-3.5 justify-center">
+              <div className="hero-fade-up flex flex-wrap gap-3.5 justify-center"
+                style={{ animationDelay: "0.38s" }}>
                 <Link
                   href="/login"
                   className="text-sm font-bold px-8 py-3.5 rounded-xl border-2
@@ -141,22 +143,22 @@ export default function PublicHomePage() {
           <div className="text-center max-w-[960px] mx-auto mb-10">
 
             {/* Eyebrow label */}
-            <p className="mb-4 font-semibold uppercase tracking-[0.18em]"
+            <p className="scroll-fade-up mb-4 font-semibold uppercase tracking-[0.18em]"
               style={{ fontSize: 12, color: "#D7B87A" }}>
               About Fanometrix
             </p>
 
             {/* Section heading */}
             <h2
-              className="font-bold leading-tight tracking-tight mb-5 mx-auto"
-              style={{ fontSize: "clamp(26px, 3vw, 40px)", color: "#0B1929", letterSpacing: "-0.02em", maxWidth: 720 }}
+              className="scroll-fade-up font-bold leading-tight tracking-tight mb-5 mx-auto"
+              style={{ fontSize: "clamp(26px, 3vw, 40px)", color: "#0B1929", letterSpacing: "-0.02em", maxWidth: 720, transitionDelay: "0.1s" }}
             >
               Giving football fans a voice.
             </h2>
 
             {/* Supporting copy — wider, more compact */}
-            <div className="space-y-3 mx-auto"
-              style={{ fontSize: 14, color: "#6B7280", lineHeight: 1.65, maxWidth: 880 }}>
+            <div className="scroll-fade-up space-y-3 mx-auto"
+              style={{ fontSize: 14, color: "#6B7280", lineHeight: 1.65, maxWidth: 880, transitionDelay: "0.2s" }}>
               <p>
                 Football supporters invest their time, passion and money into the game, yet they are
                 rarely asked what they truly think and feel.
@@ -174,13 +176,14 @@ export default function PublicHomePage() {
           </div>
           <div className="max-w-[1100px] mx-auto grid gap-5"
             style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
-            {PILLARS.map(({ label, body }) => (
+            {PILLARS.map(({ label, body }, i) => (
               <div
                 key={label}
-                className="group relative bg-white rounded-2xl overflow-hidden
+                className="scroll-fade-up group relative bg-white rounded-2xl overflow-hidden
                            border border-gray-200 p-7
                            transition-all duration-200
                            hover:border-[#D7B87A] hover:-translate-y-1 hover:shadow-lg"
+                style={{ transitionDelay: `${i * 0.1}s` }}
               >
                 {/* Ghost F watermark */}
                 {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -210,6 +213,23 @@ export default function PublicHomePage() {
             ))}
           </div>
         </section>
+
+        {/* Scroll-triggered fade-up observer — activates .scroll-fade-up elements */}
+        <script dangerouslySetInnerHTML={{ __html: `
+          (function() {
+            var obs = new IntersectionObserver(function(entries) {
+              entries.forEach(function(e) {
+                if (e.isIntersecting) {
+                  e.target.classList.add('visible');
+                  obs.unobserve(e.target);
+                }
+              });
+            }, { threshold: 0.12, rootMargin: '0px 0px -40px 0px' });
+            document.querySelectorAll('.scroll-fade-up').forEach(function(el) {
+              obs.observe(el);
+            });
+          })();
+        ` }} />
       </main>
 
       {/* ── Footer ── */}

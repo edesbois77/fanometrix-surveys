@@ -1,5 +1,32 @@
 @import "tailwindcss";
 
+/* ── Page entrance animations (public homepage) ───────────────────────────── */
+/* Hero elements: animate on load. About section: animate on scroll.           */
+/* Revert: remove these blocks and the corresponding class names in page.tsx.  */
+
+@keyframes fade-up-in {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0);    }
+}
+
+/* Applied to hero elements — fires once on page load */
+.hero-fade-up {
+  opacity: 0;
+  animation: fade-up-in 0.75s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+/* Applied to About-section elements — starts hidden, JS adds .visible */
+.scroll-fade-up {
+  opacity: 0;
+  transform: translateY(16px);
+  transition: opacity 0.7s cubic-bezier(0.22, 1, 0.36, 1),
+              transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.scroll-fade-up.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
 /* ── Scroll indicator animation (public homepage) ─────────────────────────── */
 /* Matches The Football Collective scroll indicator exactly.                    */
 /* Revert: delete this block to remove the animation.                          */
