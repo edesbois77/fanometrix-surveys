@@ -713,7 +713,7 @@ function EmbedSurvey() {
                       display: "flex",
                       alignItems: "center",
                       gap: 8,
-                      padding: "5px 10px",
+                      padding: "7px 10px",
                       borderRadius: 8,
                       background: isSel ? "rgba(215,184,122,0.10)" : "#FAFAFA",
                       boxShadow: isSel
@@ -727,8 +727,8 @@ function EmbedSurvey() {
                   >
                     <div
                       style={{
-                        width: 12,
-                        height: 12,
+                        width: 13,
+                        height: 13,
                         borderRadius: "50%",
                         border: `2px solid ${isSel ? GOLD : "#9CA3AF"}`,
                         background: isSel ? GOLD : "transparent",

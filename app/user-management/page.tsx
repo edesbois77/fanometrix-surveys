@@ -416,7 +416,7 @@ export default function UserManagementPage() {
   // ── Render ───────────────────────────────────────────────────────────────────
   return (
     <AdminShell>
-      <div className="p-6 max-w-6xl mx-auto">
+      <div className="p-4 md:p-6 max-w-6xl mx-auto">
 
         <div className="flex items-center justify-between mb-6">
           <div>
@@ -431,7 +431,7 @@ export default function UserManagementPage() {
         </div>
 
         {/* Table */}
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden overflow-x-auto">
           {loading ? (
             <div className="p-8 text-center text-gray-400 text-sm">Loading…</div>
           ) : users.length === 0 ? (

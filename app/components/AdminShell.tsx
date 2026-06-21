@@ -4,22 +4,23 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { useSession } from "./SessionProvider";
+import { useState, useEffect } from "react";
 import type { UserRole } from "@/lib/auth";
 
 type NavItem = { href: string; label: string; icon: string };
 
 const NAV_BY_ROLE: Record<UserRole, NavItem[]> = {
   admin: [
-    { href: "/dashboard",           label: "Dashboard",           icon: "▦"   },
-    { href: "/survey-templates",    label: "Survey Templates",    icon: "◫"   },
-    { href: "/campaigns",           label: "Campaigns",           icon: "◎"   },
-    { href: "/campaign-groups",     label: "Campaign Groups",     icon: "⬡"   },
-    { href: "/campaign-deployment", label: "Deployment",          icon: "</>" },
-    { href: "/reporting",           label: "Reporting",           icon: "↗"   },
-    { href: "/looker-templates",    label: "Looker Templates",    icon: "◈"   },
-    { href: "/demo-data",           label: "Demo Data",           icon: "⚗"   },
-    { href: "/user-management",     label: "User Management",     icon: "◉"   },
-    { href: "/embed-test",          label: "Embed Test",          icon: "⬡"   },
+    { href: "/dashboard",           label: "Dashboard",        icon: "▦"   },
+    { href: "/survey-templates",    label: "Survey Templates", icon: "◫"   },
+    { href: "/campaigns",           label: "Campaigns",        icon: "◎"   },
+    { href: "/campaign-groups",     label: "Campaign Groups",  icon: "⬡"   },
+    { href: "/campaign-deployment", label: "Deployment",       icon: "</>" },
+    { href: "/reporting",           label: "Reporting",        icon: "↗"   },
+    { href: "/looker-templates",    label: "Looker Templates", icon: "◈"   },
+    { href: "/demo-data",           label: "Demo Data",        icon: "⚗"   },
+    { href: "/user-management",     label: "User Management",  icon: "◉"   },
+    { href: "/embed-test",          label: "Embed Test",       icon: "⬡"   },
   ],
   brand: [
     { href: "/dashboard",        label: "Dashboard",        icon: "▦" },
@@ -45,8 +46,19 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   const path   = usePathname();
   const router = useRouter();
   const { user, loading } = useSession();
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   const nav = user ? (NAV_BY_ROLE[user.role as UserRole] ?? []) : [];
+
+  // Auto-close sidebar on navigation
+  useEffect(() => { setMobileOpen(false); }, [path]);
+
+  // Prevent body scroll when sidebar is open on mobile
+  useEffect(() => {
+    if (mobileOpen) document.body.style.overflow = "hidden";
+    else document.body.style.overflow = "";
+    return () => { document.body.style.overflow = ""; };
+  }, [mobileOpen]);
 
   async function handleLogout() {
     await fetch("/api/auth/logout", { method: "POST" });
@@ -56,40 +68,71 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-screen">
 
-      {/* ── Sidebar ──────────────────────────────────────────────────── */}
-      <aside className="w-52 flex-shrink-0 flex flex-col h-screen sticky top-0" style={{ backgroundColor: "#0B1929" }}>
+      {/* ── Mobile backdrop ── */}
+      {mobileOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/50 lg:hidden"
+          onClick={() => setMobileOpen(false)}
+          aria-hidden
+        />
+      )}
 
+      {/* ── Sidebar ──────────────────────────────────────────────────── */}
+      {/*
+        Mobile:  fixed, slides in from left, z-50 above backdrop
+        Desktop: sticky, always visible, standard layout flow
+      */}
+      <aside
+        className={[
+          "fixed inset-y-0 left-0 z-50 flex flex-col h-screen w-64",
+          "transition-transform duration-200 ease-in-out",
+          mobileOpen ? "translate-x-0" : "-translate-x-full",
+          "lg:relative lg:z-auto lg:w-52 lg:flex-shrink-0 lg:sticky lg:top-0",
+          "lg:translate-x-0",
+        ].join(" ")}
+        style={{ backgroundColor: "#0B1929" }}
+      >
         {/* Logo area */}
-        <div className="px-5 py-5" style={{ borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
-          <Link href="/home">
-            <Image
-              src="/Fanometrix_Logo.png"
-              alt="Fanometrix"
-              width={140}
-              height={32}
-              className="mb-2"
-              style={{ objectFit: "contain", objectPosition: "left" }}
-            />
-          </Link>
-          <p className="text-xs tracking-wide" style={{ color: "#B0B7C3", letterSpacing: "0.04em" }}>
-            Fan Insight Platform
-          </p>
+        <div className="px-5 py-5 flex items-start justify-between flex-shrink-0"
+          style={{ borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+          <div className="min-w-0 flex-1">
+            <Link href="/home">
+              <Image
+                src="/Fanometrix_Logo.png"
+                alt="Fanometrix"
+                width={140} height={32}
+                className="mb-2"
+                style={{ objectFit: "contain", objectPosition: "left" }}
+              />
+            </Link>
+            <p className="text-xs tracking-wide" style={{ color: "#B0B7C3", letterSpacing: "0.04em" }}>
+              Fan Insight Platform
+            </p>
+          </div>
+          {/* Close button — mobile only */}
+          <button
+            className="lg:hidden flex-shrink-0 ml-2 p-2 text-white/50 hover:text-white rounded-lg
+                       hover:bg-white/10 transition-colors"
+            onClick={() => setMobileOpen(false)}
+            aria-label="Close navigation"
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor"
+              strokeWidth="2" strokeLinecap="round">
+              <path d="M2 2l12 12M14 2L2 14"/>
+            </svg>
+          </button>
         </div>
 
         {/* Navigation */}
         <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-0.5">
-          {/* Home link — always shown */}
           {!loading && (
             <NavLink href="/home" label="Home" icon="⌂" activePath={path} />
           )}
 
           {loading
             ? SKELETON_NAV.map(i => (
-                <div
-                  key={i}
-                  className="h-9 rounded-lg mx-0.5 my-0.5 animate-pulse"
-                  style={{ backgroundColor: "rgba(255,255,255,0.05)" }}
-                />
+                <div key={i} className="h-9 rounded-lg mx-0.5 my-0.5 animate-pulse"
+                  style={{ backgroundColor: "rgba(255,255,255,0.05)" }} />
               ))
             : nav.map(item => (
                 <NavLink key={item.href} {...item} activePath={path} />
@@ -97,24 +140,25 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           }
         </nav>
 
-        {/* Footer: links + user / logout */}
-        <div className="px-3 py-4 space-y-0.5" style={{ borderTop: "1px solid rgba(255,255,255,0.08)" }}>
-          {[
-            { href: "/privacy", label: "ⓘ Privacy Policy" },
-          ].map(({ href, label }) => (
-            <Link
-              key={href}
-              href={href}
-              className="flex items-center gap-3 px-3 py-2 rounded-lg text-xs transition-colors"
-              style={{ color: "#B0B7C3" }}
-              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = "#FFFFFF"; (e.currentTarget as HTMLElement).style.backgroundColor = "rgba(255,255,255,0.05)"; }}
-              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = "#B0B7C3"; (e.currentTarget as HTMLElement).style.backgroundColor = "transparent"; }}
-            >
-              {label}
-            </Link>
-          ))}
+        {/* Footer: privacy + user + logout */}
+        <div className="px-3 py-4 space-y-0.5 flex-shrink-0"
+          style={{ borderTop: "1px solid rgba(255,255,255,0.08)" }}>
+          <Link
+            href="/privacy"
+            className="flex items-center gap-3 px-3 py-2 rounded-lg text-xs transition-colors"
+            style={{ color: "#B0B7C3" }}
+            onMouseEnter={e => {
+              (e.currentTarget as HTMLElement).style.color = "#FFFFFF";
+              (e.currentTarget as HTMLElement).style.backgroundColor = "rgba(255,255,255,0.05)";
+            }}
+            onMouseLeave={e => {
+              (e.currentTarget as HTMLElement).style.color = "#B0B7C3";
+              (e.currentTarget as HTMLElement).style.backgroundColor = "transparent";
+            }}
+          >
+            ⓘ Privacy Policy
+          </Link>
 
-          {/* User / logout area */}
           {!loading && user && (
             <div className="mt-3 pt-3" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
               <p className="px-3 text-xs mb-1.5 font-mono truncate" style={{ color: "#B0B7C3" }}>
@@ -122,10 +166,17 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
               </p>
               <button
                 onClick={handleLogout}
-                className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium transition-colors text-left"
+                className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium
+                           transition-colors text-left"
                 style={{ color: "#B0B7C3" }}
-                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = "#FFFFFF"; (e.currentTarget as HTMLElement).style.backgroundColor = "rgba(255,255,255,0.05)"; }}
-                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = "#B0B7C3"; (e.currentTarget as HTMLElement).style.backgroundColor = "transparent"; }}
+                onMouseEnter={e => {
+                  (e.currentTarget as HTMLElement).style.color = "#FFFFFF";
+                  (e.currentTarget as HTMLElement).style.backgroundColor = "rgba(255,255,255,0.05)";
+                }}
+                onMouseLeave={e => {
+                  (e.currentTarget as HTMLElement).style.color = "#B0B7C3";
+                  (e.currentTarget as HTMLElement).style.backgroundColor = "transparent";
+                }}
               >
                 <span className="text-xs w-4 text-center">→</span>
                 Sign out
@@ -136,16 +187,42 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
       </aside>
 
       {/* ── Main workspace ───────────────────────────────────────────── */}
-      <main className="flex-1 overflow-auto bg-gray-50">
-        {children}
-      </main>
+      <div className="flex-1 flex flex-col min-w-0">
+
+        {/* Mobile top bar — hamburger + logo */}
+        <header
+          className="lg:hidden flex items-center gap-3 px-4 py-3 sticky top-0 z-30 flex-shrink-0"
+          style={{ backgroundColor: "#0B1929", borderBottom: "1px solid rgba(255,255,255,0.08)" }}
+        >
+          <button
+            onClick={() => setMobileOpen(true)}
+            className="p-2 text-white/70 hover:text-white rounded-lg hover:bg-white/10 transition-colors"
+            aria-label="Open navigation"
+          >
+            {/* Hamburger icon */}
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+              <rect y="2.5"  width="20" height="2.5" rx="1.25"/>
+              <rect y="8.75" width="20" height="2.5" rx="1.25"/>
+              <rect y="15"   width="20" height="2.5" rx="1.25"/>
+            </svg>
+          </button>
+          <Image
+            src="/Fanometrix_Logo.png"
+            alt="Fanometrix"
+            width={110} height={24}
+            style={{ objectFit: "contain", objectPosition: "left" }}
+          />
+        </header>
+
+        <main className="flex-1 overflow-auto bg-gray-50">
+          {children}
+        </main>
+      </div>
     </div>
   );
 }
 
-function NavLink({
-  href, label, icon, activePath,
-}: NavItem & { activePath: string }) {
+function NavLink({ href, label, icon, activePath }: NavItem & { activePath: string }) {
   const active = activePath === href || activePath.startsWith(href + "/");
   return (
     <Link
@@ -170,8 +247,8 @@ function NavLink({
         }
       }}
     >
-      <span className="text-xs w-4 text-center">{icon}</span>
-      {label}
+      <span className="text-xs w-4 text-center flex-shrink-0">{icon}</span>
+      <span className="truncate">{label}</span>
     </Link>
   );
 }
