@@ -87,38 +87,40 @@ export default function ReportingPage() {
 
   return (
     <AdminShell>
-      <div className="p-6 max-w-4xl mx-auto">
+      <div className="p-4 md:p-6 max-w-4xl mx-auto">
         <h1 className="text-2xl font-bold text-gray-900 mb-1">Reporting</h1>
         <p className="text-sm text-gray-400 mb-6">
           Connect Fanometrix data to Google Looker Studio or any BI tool.
         </p>
 
-        {/* Status cards */}
-        <div className="grid grid-cols-3 gap-4 mb-6">
-          <div className="bg-white border border-gray-100 rounded-xl p-5 shadow-sm">
-            <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">Total Rows</p>
-            <p className="text-3xl font-bold mt-1 text-[#0B1929]">
-              {loading ? "—" : (stats?.total_rows ?? 0).toLocaleString()}
-            </p>
-            <p className="text-xs text-gray-400 mt-0.5">in vw_campaign_responses</p>
-          </div>
-          <div className="bg-white border border-gray-100 rounded-xl p-5 shadow-sm">
-            <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">Last Response</p>
-            <p className="text-sm font-semibold text-gray-800 mt-1">
-              {loading ? "—" : stats?.last_response_at
-                ? new Date(stats.last_response_at).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })
-                : "No responses yet"}
-            </p>
-            <p className="text-xs text-gray-400 mt-0.5">most recent submission</p>
-          </div>
-          <div className={`border rounded-xl p-5 shadow-sm ${stats?.api_key_configured ? "bg-green-50 border-green-100" : "bg-amber-50 border-amber-100"}`}>
-            <p className="text-xs font-medium uppercase tracking-wide text-gray-400">API Key</p>
-            <p className={`text-sm font-semibold mt-1 ${stats?.api_key_configured ? "text-green-700" : "text-amber-700"}`}>
-              {loading ? "—" : stats?.api_key_configured ? "Configured ✓" : "Not set"}
-            </p>
-            <p className="text-xs text-gray-400 mt-0.5">
-              {stats?.api_key_configured ? "REPORTING_API_KEY is active" : "Set REPORTING_API_KEY in Vercel"}
-            </p>
+        {/* Status cards — horizontal scroll on mobile, 3-column grid on md+ */}
+        <div className="overflow-x-auto mb-6">
+          <div className="flex gap-4 md:grid md:grid-cols-3 w-max md:w-auto">
+            <div className="flex-shrink-0 min-w-[200px] md:min-w-0 bg-white border border-gray-100 rounded-xl p-5 shadow-sm">
+              <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">Total Rows</p>
+              <p className="text-3xl font-bold mt-1 text-[#0B1929]">
+                {loading ? "—" : (stats?.total_rows ?? 0).toLocaleString()}
+              </p>
+              <p className="text-xs text-gray-400 mt-0.5">in vw_campaign_responses</p>
+            </div>
+            <div className="flex-shrink-0 min-w-[200px] md:min-w-0 bg-white border border-gray-100 rounded-xl p-5 shadow-sm">
+              <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">Last Response</p>
+              <p className="text-sm font-semibold text-gray-800 mt-1">
+                {loading ? "—" : stats?.last_response_at
+                  ? new Date(stats.last_response_at).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })
+                  : "No responses yet"}
+              </p>
+              <p className="text-xs text-gray-400 mt-0.5">most recent submission</p>
+            </div>
+            <div className={`flex-shrink-0 min-w-[200px] md:min-w-0 border rounded-xl p-5 shadow-sm ${stats?.api_key_configured ? "bg-green-50 border-green-100" : "bg-amber-50 border-amber-100"}`}>
+              <p className="text-xs font-medium uppercase tracking-wide text-gray-400">API Key</p>
+              <p className={`text-sm font-semibold mt-1 ${stats?.api_key_configured ? "text-green-700" : "text-amber-700"}`}>
+                {loading ? "—" : stats?.api_key_configured ? "Configured ✓" : "Not set"}
+              </p>
+              <p className="text-xs text-gray-400 mt-0.5">
+                {stats?.api_key_configured ? "REPORTING_API_KEY is active" : "Set REPORTING_API_KEY in Vercel"}
+              </p>
+            </div>
           </div>
         </div>
 

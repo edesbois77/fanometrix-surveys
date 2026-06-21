@@ -17,23 +17,32 @@ export function KpiCards({ responses }: { responses: SurveyResponse[] }) {
   const campaigns  = new Set(responses.map(r => r.campaign_id).filter(Boolean)).size;
 
   const cards = [
-    { label: "Total Responses",      value: total.toLocaleString(),              sub: "all time"              },
-    { label: "Completion Rate",      value: `${completion}%`,                    sub: "all 3 questions"       },
-    { label: "Avg Response Time",    value: avgTime > 0 ? `${avgTime}s` : "—",  sub: "seconds per survey"    },
-    { label: "Countries",            value: countries || "—",                     sub: "represented"           },
-    { label: "Publishers",           value: publishers || "—",                    sub: "media partners"        },
-    { label: "Campaigns",            value: campaigns  || "—",                    sub: "active"                },
+    { label: "Total Responses",   value: total.toLocaleString(),             sub: "all time"           },
+    { label: "Completion Rate",   value: `${completion}%`,                   sub: "all 3 questions"    },
+    { label: "Avg Response Time", value: avgTime > 0 ? `${avgTime}s` : "—", sub: "seconds per survey" },
+    { label: "Countries",         value: countries  || "—",                   sub: "represented"        },
+    { label: "Publishers",        value: publishers || "—",                   sub: "media partners"     },
+    { label: "Campaigns",         value: campaigns  || "—",                   sub: "active"             },
   ];
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-6">
-      {cards.map(({ label, value, sub }) => (
-        <div key={label} className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm">
-          <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">{label}</p>
-          <p className="text-2xl font-bold mt-1" style={{ color: "#0B1929" }}>{value}</p>
-          <p className="text-xs text-gray-400 mt-0.5">{sub}</p>
-        </div>
-      ))}
+    /*
+      Mobile:  horizontal scroll row — cards at min 200px, swipe left/right
+      Desktop: standard 3-column grid
+    */
+    <div className="overflow-x-auto mb-6">
+      <div className="flex gap-3 md:grid md:grid-cols-3 w-max md:w-auto">
+        {cards.map(({ label, value, sub }) => (
+          <div
+            key={label}
+            className="flex-shrink-0 min-w-[200px] md:min-w-0 bg-white border border-gray-100 rounded-xl p-4 shadow-sm"
+          >
+            <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">{label}</p>
+            <p className="text-2xl font-bold mt-1" style={{ color: "#0B1929" }}>{value}</p>
+            <p className="text-xs text-gray-400 mt-0.5">{sub}</p>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

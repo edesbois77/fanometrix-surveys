@@ -87,8 +87,8 @@ export function DashboardFilters({
   return (
     <div className="bg-white border border-gray-100 rounded-xl shadow-sm mb-4 overflow-hidden">
 
-      {/* Date range tabs */}
-      <div className="flex items-center justify-between px-4 pt-4 pb-3 border-b border-gray-50">
+      {/* Date range tabs — wrap on mobile so response count doesn't squish the presets */}
+      <div className="flex flex-wrap items-center gap-y-2 justify-between px-4 pt-4 pb-3 border-b border-gray-50">
         <div className="flex gap-1 flex-wrap">
           {DATE_PRESETS.map(({ key, label }) => {
             const disabled = key === "campaign" && !campaignHasDates;
@@ -134,8 +134,8 @@ export function DashboardFilters({
         </div>
       )}
 
-      {/* Dimension dropdowns */}
-      <div className="px-4 py-3 grid grid-cols-3 gap-2">
+      {/* Dimension dropdowns — 2 columns on mobile, 3 on sm+ */}
+      <div className="px-4 py-3 grid grid-cols-2 sm:grid-cols-3 gap-2">
         {DIM_FIELDS.map(({ key, label }) => (
           <div key={key}>
             <select

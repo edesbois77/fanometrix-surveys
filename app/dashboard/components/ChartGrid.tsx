@@ -10,7 +10,6 @@ import type { SurveyResponse } from "@/lib/types";
 import type { DashFilters } from "./DashboardFilters";
 
 const COLORS = ["#6366f1", "#8b5cf6", "#06b6d4", "#f59e0b", "#10b981", "#f43f5e", "#84cc16", "#ec4899"];
-const ACTIVE  = "#312e81";
 
 // ─── Responses Over Time ─────────────────────────────────────────────────────
 
@@ -44,7 +43,7 @@ function ResponsesOverTime({ responses }: { responses: SurveyResponse[] }) {
   );
 }
 
-// ─── Clickable simple bar (Q answers) ────────────────────────────────────────
+// ─── Q answer chart ───────────────────────────────────────────────────────────
 
 function QChart({
   label, responses, field, activeValue, onFilter,
@@ -72,17 +71,24 @@ function QChart({
       <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">{label}</h3>
       <div className="space-y-2">
         {counts.map(([opt, count]) => {
-          const pct = Math.round((count / total) * 100);
+          const pct    = Math.round((count / total) * 100);
           const active = activeValue === opt;
           return (
             <button
               key={opt}
               onClick={() => onFilter(opt)}
-              className={`w-full text-left space-y-1 group rounded-lg px-1 py-0.5 transition-colors ${active ? "bg-[rgba(215,184,122,0.08)]" : "hover:bg-gray-50"}`}
+              className={`w-full text-left space-y-1 group rounded-lg px-1 py-0.5 transition-colors ${
+                active ? "bg-[rgba(215,184,122,0.08)]" : "hover:bg-gray-50"
+              }`}
             >
-              <div className="flex justify-between text-xs">
-                <span className={active ? "font-semibold text-[#0B1929]" : "text-gray-700"}>{opt}</span>
-                <span className="text-gray-400">{count} ({pct}%)</span>
+              {/* Label row — wraps on narrow cards; count/pct stays together */}
+              <div className="flex flex-wrap items-baseline justify-between gap-x-2 text-xs">
+                <span className={`break-words ${active ? "font-semibold text-[#0B1929]" : "text-gray-700"}`}>
+                  {opt}
+                </span>
+                <span className="text-gray-400 whitespace-nowrap flex-shrink-0">
+                  {count} ({pct}%)
+                </span>
               </div>
               <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
                 <div
@@ -104,7 +110,7 @@ function QChart({
   );
 }
 
-// ─── Clickable dimension chart ────────────────────────────────────────────────
+// ─── Dimension bar chart ──────────────────────────────────────────────────────
 
 function DimChart({
   label, responses, field, activeValue, onFilter, colorOffset = 0,
@@ -144,21 +150,13 @@ function DimChart({
           layout="vertical"
           data={data}
           margin={{ left: 0, right: 32, top: 0, bottom: 0 }}
-          // bar clicks handled via Cell onClick below
         >
           <XAxis type="number" tick={{ fontSize: 9 }} axisLine={false} tickLine={false} />
           <YAxis type="category" dataKey="name" tick={{ fontSize: 9 }} width={90} axisLine={false} tickLine={false} />
-          <RTooltip
-            contentStyle={{ fontSize: 11 }}
-            formatter={(v) => [v, "Responses"]}
-          />
-          <Bar
-            dataKey="value"
-            radius={[0, 4, 4, 0]}
-            cursor="pointer"
-            label={{ position: "right", fontSize: 9, fill: "#9ca3af" }}
-          >
-            {data.map((d, i) => (
+          <RTooltip contentStyle={{ fontSize: 11 }} formatter={(v) => [v, "Responses"]} />
+          <Bar dataKey="value" radius={[0, 4, 4, 0]} cursor="pointer"
+            label={{ position: "right", fontSize: 9, fill: "#9ca3af" }}>
+            {data.map((d) => (
               <Cell
                 key={d.fullName}
                 fill="#D7B87A"
@@ -175,6 +173,46 @@ function DimChart({
           ✕ Clear filter
         </p>
       )}
+    </div>
+  );
+}
+
+// ─── Layout helpers ───────────────────────────────────────────────────────────
+/*
+  HScroll: wraps a card row in a horizontal-scroll container on mobile.
+  On md+ the inner div switches to a standard grid.
+  minCardW controls how wide each card is on mobile (prevents squishing).
+*/
+function HScrollRow({
+  children,
+  cols = 3,
+  minCardW = 260,
+  className = "",
+}: {
+  children: React.ReactNode;
+  cols?: 2 | 3;
+  minCardW?: number;
+  className?: string;
+}) {
+  return (
+    <div className={`overflow-x-auto ${className}`}>
+      <div
+        className={`flex gap-4 w-max ${
+          cols === 3
+            ? "md:grid md:grid-cols-3"
+            : "md:grid md:grid-cols-2"
+        } md:w-auto`}
+      >
+        {/* Each child needs min-w applied — we clone with a wrapper */}
+        {Array.isArray(children)
+          ? children.map((child, i) => (
+              <div key={i} className="flex-shrink-0 md:min-w-0" style={{ minWidth: minCardW }}>
+                {child}
+              </div>
+            ))
+          : <div className="flex-shrink-0 md:min-w-0" style={{ minWidth: minCardW }}>{children}</div>
+        }
+      </div>
     </div>
   );
 }
@@ -213,11 +251,11 @@ export function ChartGrid({
 
   return (
     <div className="space-y-4">
-      {/* Responses over time */}
+      {/* Responses over time — full width, no scroll needed */}
       <ResponsesOverTime responses={responses} />
 
-      {/* Q1 / Q2 / Q3 */}
-      <div className="grid grid-cols-3 gap-4">
+      {/* Q1 / Q2 / Q3 — swipeable on mobile */}
+      <HScrollRow cols={3} minCardW={260}>
         {Q_LABELS.map(({ field, label }) => (
           <QChart
             key={field}
@@ -228,11 +266,11 @@ export function ChartGrid({
             onFilter={(v) => onFilter(field, v)}
           />
         ))}
-      </div>
+      </HScrollRow>
 
-      {/* Dimension charts */}
+      {/* Dimension charts — swipeable on mobile */}
       {DIM_ROWS.map((row, ri) => (
-        <div key={ri} className="grid grid-cols-3 gap-4">
+        <HScrollRow key={ri} cols={3} minCardW={260}>
           {row.map(({ field, label, filterKey }, ci) => (
             <DimChart
               key={field as string}
@@ -244,7 +282,7 @@ export function ChartGrid({
               colorOffset={ri * 3 + ci}
             />
           ))}
-        </div>
+        </HScrollRow>
       ))}
     </div>
   );
