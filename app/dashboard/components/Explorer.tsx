@@ -10,9 +10,15 @@ import {
 } from "recharts";
 import type { SurveyResponse } from "@/lib/types";
 
-// ─── Constants ──────────────────────────────────────────────────────────────
-
-const COLORS = ["#6366f1", "#8b5cf6", "#06b6d4", "#f59e0b", "#10b981", "#f43f5e", "#84cc16", "#ec4899"];
+// ─── Fanometrix chart palette (matches ChartGrid.tsx) ───────────────────────
+const CHART_PALETTE = [
+  "#D7B87A", // Gold
+  "#4FA3A5", // Teal
+  "#6B7A99", // Slate Blue
+  "#5B6CFA", // Indigo
+  "#4FAF7B", // Emerald
+  "#7A63D1", // Purple
+];
 
 const GROUP_OPTIONS = [
   { label: "Campaign",    field: "campaign_id"  },
@@ -152,7 +158,7 @@ function DonutChart({ title, data }: { title: string; data: { name: string; valu
       <div className="flex justify-center">
         <PieChart width={170} height={140}>
           <Pie data={data} cx={85} cy={65} innerRadius={35} outerRadius={58} dataKey="value" paddingAngle={2}>
-            {data.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+            {data.map((_, i) => <Cell key={i} fill={CHART_PALETTE[i % CHART_PALETTE.length]} />)}
           </Pie>
           <RTooltip formatter={(v) => [`${v} (${Math.round(Number(v) / total * 100)}%)`, ""]} contentStyle={{ fontSize: 11 }} />
         </PieChart>
@@ -160,7 +166,7 @@ function DonutChart({ title, data }: { title: string; data: { name: string; valu
       <div className="space-y-1 mt-1">
         {data.slice(0, 4).map((d, i) => (
           <div key={d.name} className="flex items-center gap-2 text-xs text-gray-600 px-1">
-            <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: COLORS[i % COLORS.length] }} />
+            <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: CHART_PALETTE[i % CHART_PALETTE.length] }} />
             <span className="truncate">{d.name}</span>
             <span className="ml-auto text-gray-400 flex-shrink-0">{Math.round(d.value / total * 100)}%</span>
           </div>
@@ -222,7 +228,9 @@ function DetailPanel({ row, groupLabel, onClose }: { row: GroupedRow; groupLabel
                 <XAxis dataKey="date" tick={{ fontSize: 9 }} interval="preserveStartEnd" />
                 <YAxis tick={{ fontSize: 9 }} allowDecimals={false} />
                 <RTooltip contentStyle={{ fontSize: 11 }} />
-                <Line type="monotone" dataKey="count" stroke="#D7B87A" strokeWidth={2} dot={false} activeDot={{ r: 4, fill: "#D7B87A", stroke: "#D7B87A" }} />
+                <Line type="monotone" dataKey="count" stroke="#D7B87A" strokeWidth={2}
+                  dot={false}
+                  activeDot={{ r: 4, fill: "#0B1929", stroke: "#D7B87A", strokeWidth: 2 }} />
               </LineChart>
             </ResponsiveContainer>
           ) : (
@@ -239,7 +247,9 @@ function DetailPanel({ row, groupLabel, onClose }: { row: GroupedRow; groupLabel
                 <YAxis type="category" dataKey="name" tick={{ fontSize: 9 }} width={80} />
                 <RTooltip contentStyle={{ fontSize: 11 }} />
                 <Bar dataKey="value" radius={[0, 3, 3, 0]}>
-                  {ctyData.map((_, i) => <Cell key={i} fill="#D7B87A" />)}
+                  {ctyData.map((_, i) => (
+                    <Cell key={i} fill={CHART_PALETTE[i % CHART_PALETTE.length]} fillOpacity={0.85} />
+                  ))}
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
@@ -446,7 +456,9 @@ export function ResponseExplorer({ responses }: { responses: SurveyResponse[] })
               <RTooltip contentStyle={{ fontSize: 11 }} />
               <Bar dataKey="value" radius={[0, 4, 4, 0]}
                 label={{ position: "right", fontSize: 10, fill: "#6b7280" }}>
-                {barData.map((_, i) => <Cell key={i} fill="#D7B87A" />)}
+                {barData.map((_, i) => (
+                  <Cell key={i} fill={CHART_PALETTE[i % CHART_PALETTE.length]} fillOpacity={0.85} />
+                ))}
               </Bar>
             </BarChart>
           </ResponsiveContainer>
