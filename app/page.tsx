@@ -13,19 +13,19 @@ export const metadata: Metadata = {
 const PILLARS = [
   {
     label: "Real-Time",
-    body:  "Give football fans a voice and understand what supporters around the world think and feel, in real time.",
+    body:  "Understand what football fans around the world think and feel, as it happens.",
   },
   {
     label: "Insights",
-    body:  "Use fan responses to understand what supporters value most and what they expect from brands and football experiences.",
+    body:  "Discover what supporters value most and what they expect from brands and experiences.",
   },
   {
-    label: "Reporting",
-    body:  "Transform fan data into strategic reports and actionable recommendations that bring meaning to the insights.",
+    label: "Intelligence",
+    body:  "Turn fan opinions into strategic reports and actionable recommendations for organisations.",
   },
   {
     label: "Privacy Safe",
-    body:  "Anonymous surveys with no personal data collection.",
+    body:  "Collect anonymous fan feedback with no personal data or identifiable information stored.",
   },
 ];
 
@@ -213,9 +213,9 @@ export default function PublicHomePage() {
             ))}
           </div>
 
-          {/* F logo — centred between cards and footer */}
+          {/* F logo — equal margin above and below so it sits midway between cards and footer */}
           <div className="scroll-fade-up flex justify-center"
-            style={{ marginTop: "clamp(40px,6vw,64px)", marginBottom: "clamp(8px,2vw,16px)", transitionDelay: "0.4s" }}>
+            style={{ marginTop: "clamp(48px,7vw,80px)", transitionDelay: "0.4s" }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src="/FLogo.png"
