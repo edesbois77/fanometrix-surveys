@@ -27,22 +27,39 @@ export function KpiCards({ responses }: { responses: SurveyResponse[] }) {
 
   return (
     /*
-      Mobile:  horizontal scroll row — cards at min 200px, swipe left/right
-      Desktop: standard 3-column grid
+      Mobile:  horizontal snap scroll, 220px min per card, swipe hint + gradient.
+      Desktop: unchanged 3-column grid.
     */
-    <div className="overflow-x-auto mb-6">
-      <div className="flex gap-3 md:grid md:grid-cols-3 w-max md:w-auto">
-        {cards.map(({ label, value, sub }) => (
-          <div
-            key={label}
-            className="flex-shrink-0 min-w-[200px] md:min-w-0 bg-white border border-gray-100 rounded-xl p-4 shadow-sm"
-          >
-            <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">{label}</p>
-            <p className="text-2xl font-bold mt-1" style={{ color: "#0B1929" }}>{value}</p>
-            <p className="text-xs text-gray-400 mt-0.5">{sub}</p>
-          </div>
-        ))}
+    <div className="relative mb-6">
+      {/* Swipe hint — mobile only */}
+      <p className="md:hidden text-xs text-gray-400 mb-1.5 flex items-center justify-end gap-1 select-none">
+        Swipe to see more →
+      </p>
+
+      {/* Scroll container */}
+      <div className="overflow-x-auto snap-x snap-mandatory pb-2 md:pb-0">
+        <div className="flex gap-3 md:grid md:grid-cols-3 md:gap-3">
+          {cards.map(({ label, value, sub }) => (
+            <div
+              key={label}
+              className="flex-shrink-0 snap-start md:min-w-0"
+              style={{ minWidth: "220px" }}
+            >
+              <div className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm h-full">
+                <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">{label}</p>
+                <p className="text-2xl font-bold mt-1" style={{ color: "#0B1929" }}>{value}</p>
+                <p className="text-xs text-gray-400 mt-0.5">{sub}</p>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
+
+      {/* Right-edge gradient — mobile only */}
+      <div
+        className="md:hidden pointer-events-none absolute right-0 bottom-2 w-12 bg-gradient-to-l from-gray-50/90 to-transparent"
+        style={{ top: "1.5rem" }}
+      />
     </div>
   );
 }
