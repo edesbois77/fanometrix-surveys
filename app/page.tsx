@@ -42,32 +42,6 @@ export default function PublicHomePage() {
     <div className="min-h-screen bg-white flex flex-col"
       style={{ fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}>
 
-      {/* ── Header ── */}
-      <header className="sticky top-0 z-40 bg-white border-b border-gray-100
-                         flex items-center justify-between px-5 sm:px-10 h-[60px]">
-        <Link href="/" className="flex-shrink-0">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src="/Fanometrix_Logo.png"
-            alt="Fanometrix"
-            style={{
-              height: 18,
-              objectFit: "contain",
-              filter:
-                "brightness(0) saturate(100%) invert(11%) sepia(33%) saturate(1200%) hue-rotate(192deg) brightness(95%)",
-            }}
-          />
-        </Link>
-        <Link
-          href="/login"
-          className="flex-shrink-0 text-[13px] font-semibold px-5 py-2 rounded-lg
-                     transition-opacity duration-150 hover:opacity-80"
-          style={{ background: "#0B1929", color: "#D7B87A" }}
-        >
-          Log in
-        </Link>
-      </header>
-
       {/* ── Hero ── */}
       <main className="flex-1">
         <section className="relative text-center overflow-hidden
@@ -84,10 +58,23 @@ export default function PublicHomePage() {
 
           <div className="relative max-w-[700px] mx-auto">
 
-            {/* Logo mark */}
-            <div className="flex justify-center mb-9">
+            {/* Brand lockup: Fanometrix wordmark + Football Fan Insights */}
+            <div className="flex flex-col items-center mb-10 gap-2">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/FLogo.png" alt="Fanometrix" style={{ width: 72, height: 72, objectFit: "contain" }} />
+              <img
+                src="/Fanometrix_Logo.png"
+                alt="Fanometrix"
+                style={{
+                  height: 28,
+                  objectFit: "contain",
+                  filter:
+                    "brightness(0) saturate(100%) invert(11%) sepia(33%) saturate(1200%) hue-rotate(192deg) brightness(95%)",
+                }}
+              />
+              <p className="text-xs font-semibold tracking-[0.18em] uppercase"
+                style={{ color: "#D7B87A" }}>
+                Football Fan Insights
+              </p>
             </div>
 
             {/* Headline */}
