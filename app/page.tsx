@@ -44,8 +44,16 @@ export default function PublicHomePage() {
 
       {/* ── Hero ── */}
       <main className="flex-1">
-        <section className="relative text-center overflow-hidden
-                            py-[clamp(72px,10vw,120px)] px-6">
+        {/*
+          Hero — full first-viewport height.
+          100svh = small viewport height (accounts for mobile browser chrome).
+          Content centred vertically; scroll prompt pinned to the bottom.
+          Revert: restore py-[clamp(72px,10vw,120px)] and remove flex layout.
+        */}
+        <section
+          className="relative text-center overflow-hidden flex flex-col px-6"
+          style={{ minHeight: "100svh" }}
+        >
           {/* Subtle radial gold glow */}
           <div
             aria-hidden
@@ -56,70 +64,75 @@ export default function PublicHomePage() {
             }}
           />
 
-          <div className="relative max-w-[700px] mx-auto">
+          {/* ── Vertically centred hero content ── */}
+          <div className="flex-1 flex flex-col items-center justify-center relative">
+            <div className="max-w-[700px] mx-auto w-full py-16">
 
-            {/* Brand lockup: Fanometrix wordmark + Football Fan Insights */}
-            <div className="flex flex-col items-center mb-10 gap-2">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src="/Fanometrix_Logo.png"
-                alt="Fanometrix"
-                style={{
-                  height: 52,
-                  objectFit: "contain",
-                  filter:
-                    "brightness(0) saturate(100%) invert(11%) sepia(33%) saturate(1200%) hue-rotate(192deg) brightness(95%)",
-                }}
-              />
-              <p className="text-xs font-semibold tracking-[0.18em] uppercase"
-                style={{ color: "#D7B87A" }}>
-                Football Fan Insights
+              {/* Brand lockup */}
+              <div className="flex flex-col items-center mb-10 gap-2">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src="/Fanometrix_Logo.png"
+                  alt="Fanometrix"
+                  style={{
+                    height: 52,
+                    objectFit: "contain",
+                    filter:
+                      "brightness(0) saturate(100%) invert(11%) sepia(33%) saturate(1200%) hue-rotate(192deg) brightness(95%)",
+                  }}
+                />
+                <p className="text-xs font-semibold tracking-[0.18em] uppercase"
+                  style={{ color: "#D7B87A" }}>
+                  Football Fan Insights
+                </p>
+              </div>
+
+              {/* Body */}
+              <p
+                className="leading-[1.75] mx-auto mb-11"
+                style={{ fontSize: "clamp(15px, 2vw, 18px)", color: "#6B7280", maxWidth: 660 }}
+              >
+                Fanometrix combines anonymous fan surveys, campaign analytics and
+                first-party publisher context to help brands, rights holders and
+                media partners better understand football supporters.
               </p>
-            </div>
 
-            {/* Body */}
-            <p
-              className="leading-[1.75] mx-auto mb-11"
-              style={{
-                fontSize: "clamp(15px, 2vw, 18px)",
-                color: "#6B7280",
-                maxWidth: 660,
-              }}
-            >
-              Fanometrix combines anonymous fan surveys, campaign analytics and
-              first-party publisher context to help brands, rights holders and
-              media partners better understand football supporters.
-            </p>
+              {/* CTAs */}
+              <div className="flex flex-wrap gap-3.5 justify-center">
+                <Link
+                  href="/login"
+                  className="text-sm font-bold px-8 py-3.5 rounded-xl border-2
+                             transition-opacity duration-150 hover:opacity-85"
+                  style={{ background: "#0B1929", color: "#D7B87A", borderColor: "#0B1929", letterSpacing: "0.01em" }}
+                >
+                  Log in
+                </Link>
+                <Link
+                  href="/login"
+                  className="text-sm font-bold px-8 py-3.5 rounded-xl border-2
+                             bg-white hover:bg-[#FBF5E8] transition-colors duration-150"
+                  style={{ color: "#0B1929", borderColor: "#D7B87A", letterSpacing: "0.01em" }}
+                >
+                  Request Access
+                </Link>
+              </div>
 
-            {/* CTAs */}
-            <div className="flex flex-wrap gap-3.5 justify-center">
-              <Link
-                href="/login"
-                className="text-sm font-bold px-8 py-3.5 rounded-xl border-2
-                           transition-opacity duration-150 hover:opacity-85"
-                style={{
-                  background: "#0B1929",
-                  color: "#D7B87A",
-                  borderColor: "#0B1929",
-                  letterSpacing: "0.01em",
-                }}
-              >
-                Log in
-              </Link>
-              <Link
-                href="/login"
-                className="text-sm font-bold px-8 py-3.5 rounded-xl border-2
-                           bg-white hover:bg-[#FBF5E8] transition-colors duration-150"
-                style={{
-                  color: "#0B1929",
-                  borderColor: "#D7B87A",
-                  letterSpacing: "0.01em",
-                }}
-              >
-                Request Access
-              </Link>
             </div>
           </div>
+
+          {/* ── Scroll prompt — sits at the foot of the hero viewport ── */}
+          <div className="relative pb-8 flex flex-col items-center gap-1.5">
+            <p className="text-[11px] font-semibold tracking-[0.2em] uppercase"
+              style={{ color: "#D7B87A" }}>
+              Scroll down
+            </p>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"
+              stroke="#D7B87A" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"
+              aria-hidden>
+              <path d="M8 3v10M3 9l5 5 5-5" />
+            </svg>
+          </div>
+
         </section>
 
         {/* ── Why Fanometrix + Value pillars (unified section, Content v2) ── */}
@@ -128,31 +141,26 @@ export default function PublicHomePage() {
                             pt-[clamp(56px,7vw,80px)] pb-[clamp(48px,7vw,80px)]
                             px-5 sm:px-10">
 
-          {/* Compact intro above the cards */}
-          <div className="text-center max-w-[760px] mx-auto mb-12">
+          {/* Intro above the cards */}
+          <div className="text-center max-w-[960px] mx-auto mb-10">
 
             {/* Eyebrow label */}
             <p className="mb-4 font-semibold uppercase tracking-[0.18em]"
-              style={{ fontSize: 12, color: "#D7B87A", letterSpacing: "0.18em" }}>
-              Why Fanometrix
+              style={{ fontSize: 12, color: "#D7B87A" }}>
+              About Fanometrix
             </p>
 
-            {/* Section heading — h2, not hero size */}
+            {/* Section heading */}
             <h2
-              className="font-bold leading-tight tracking-tight mb-6 mx-auto"
-              style={{
-                fontSize: "clamp(28px, 3.5vw, 44px)",
-                color: "#0B1929",
-                letterSpacing: "-0.02em",
-                maxWidth: 700,
-              }}
+              className="font-bold leading-tight tracking-tight mb-5 mx-auto"
+              style={{ fontSize: "clamp(26px, 3vw, 40px)", color: "#0B1929", letterSpacing: "-0.02em", maxWidth: 720 }}
             >
               Turning fan voices into better football experiences.
             </h2>
 
-            {/* Supporting copy */}
-            <div className="space-y-4 mx-auto"
-              style={{ fontSize: "clamp(14px, 1.6vw, 16px)", color: "#6B7280", lineHeight: 1.75, maxWidth: 700 }}>
+            {/* Supporting copy — wider, more compact */}
+            <div className="space-y-3 mx-auto"
+              style={{ fontSize: "clamp(14px, 1.5vw, 16px)", color: "#6B7280", lineHeight: 1.65, maxWidth: 880 }}>
               <p>
                 Football supporters invest their time, passion and money into the game, yet they are
                 rarely asked what they truly think and feel.
