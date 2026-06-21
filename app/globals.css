@@ -20,8 +20,8 @@
 .scroll-fade-up {
   opacity: 0;
   transform: translateY(10px);
-  transition: opacity 2s ease-in-out,
-              transform 2s ease-in-out;
+  transition: opacity 1.2s ease-in-out,
+              transform 1.2s ease-in-out;
 }
 .scroll-fade-up.visible {
   opacity: 1;
