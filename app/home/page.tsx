@@ -63,8 +63,10 @@ export default function HomePage() {
               Welcome back{user ? `, ${user.organisationName || user.username}` : ""}.
             </h1>
           )}
-          {user?.organisationName && (
-            <p className="text-sm text-gray-400">{user.username}</p>
+          {user && (
+            <p className="text-sm text-gray-400 mt-0.5">
+              {user.username} · <span className="capitalize">{user.role}</span>
+            </p>
           )}
         </div>
 
