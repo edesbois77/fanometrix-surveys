@@ -9,18 +9,16 @@ import type { UserRole } from "@/lib/auth";
 
 type NavItem = { href: string; label: string; icon: string };
 
+// ── Day-to-day admin nav ──────────────────────────────────────────────────────
 const NAV_BY_ROLE: Record<UserRole, NavItem[]> = {
   admin: [
-    { href: "/dashboard",           label: "Dashboard",        icon: "▦"   },
-    { href: "/survey-templates",    label: "Surveys",          icon: "◫"   },
-    { href: "/campaigns",           label: "Campaigns",        icon: "◎"   },
-    { href: "/campaign-groups",     label: "Campaign Groups",  icon: "⬡"   },
-    { href: "/campaign-deployment", label: "Deployment",       icon: "</>" },
-    { href: "/reporting",           label: "Reporting",        icon: "↗"   },
-    { href: "/looker-templates",    label: "Looker Templates", icon: "◈"   },
-    { href: "/demo-data",           label: "Demo Data",        icon: "⚗"   },
-    { href: "/user-management",     label: "User Management",  icon: "◉"   },
-    { href: "/embed-test",          label: "Embed Test",       icon: "⬡"   },
+    { href: "/dashboard",           label: "Dashboard",       icon: "▦"   },
+    { href: "/survey-templates",    label: "Surveys",         icon: "◫"   },
+    { href: "/campaigns",           label: "Campaigns",       icon: "◎"   },
+    { href: "/campaign-groups",     label: "Campaign Groups", icon: "⬡"   },
+    { href: "/campaign-deployment", label: "Deployment",      icon: "</>" },
+    { href: "/user-management",     label: "User Management", icon: "◉"   },
+    { href: "/embed-test",          label: "Embed Test",      icon: "⬡"   },
   ],
   brand: [
     { href: "/dashboard",        label: "Dashboard",        icon: "▦" },
@@ -40,6 +38,14 @@ const NAV_BY_ROLE: Record<UserRole, NavItem[]> = {
   ],
 };
 
+// ── Developer tools (admin only, collapsible) ─────────────────────────────────
+const DEVELOPER_NAV: NavItem[] = [
+  { href: "/reporting",        label: "Reporting",        icon: "↗" },
+  { href: "/looker-templates", label: "Looker Templates", icon: "◈" },
+  { href: "/demo-data",        label: "Demo Data",        icon: "⚗" },
+];
+const DEVELOPER_HREFS = DEVELOPER_NAV.map(i => i.href);
+
 const SKELETON_NAV = Array.from({ length: 4 }, (_, i) => i);
 
 export function AdminShell({ children }: { children: React.ReactNode }) {
@@ -47,11 +53,20 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const { user, loading } = useSession();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [devOpen,    setDevOpen]    = useState(false);
 
   const nav = user ? (NAV_BY_ROLE[user.role as UserRole] ?? []) : [];
+  const isAdmin = user?.role === "admin";
 
   // Auto-close sidebar on navigation
   useEffect(() => { setMobileOpen(false); }, [path]);
+
+  // Auto-expand Developer section when navigating to a developer route
+  useEffect(() => {
+    if (DEVELOPER_HREFS.some(h => path === h || path.startsWith(h + "/"))) {
+      setDevOpen(true);
+    }
+  }, [path]);
 
   // Prevent body scroll when sidebar is open on mobile
   useEffect(() => {
@@ -124,20 +139,58 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-0.5">
+        <nav className="flex-1 overflow-y-auto px-3 py-4">
+          {/* Home — always shown */}
           {!loading && (
-            <NavLink href="/home" label="Home" icon="⌂" activePath={path} />
+            <div className="space-y-0.5 mb-1">
+              <NavLink href="/home" label="Home" icon="⌂" activePath={path} />
+            </div>
           )}
 
+          {/* Main nav items */}
           {loading
-            ? SKELETON_NAV.map(i => (
-                <div key={i} className="h-9 rounded-lg mx-0.5 my-0.5 animate-pulse"
-                  style={{ backgroundColor: "rgba(255,255,255,0.05)" }} />
-              ))
-            : nav.map(item => (
-                <NavLink key={item.href} {...item} activePath={path} />
-              ))
+            ? (
+              <div className="space-y-0.5">
+                {SKELETON_NAV.map(i => (
+                  <div key={i} className="h-9 rounded-lg mx-0.5 my-0.5 animate-pulse"
+                    style={{ backgroundColor: "rgba(255,255,255,0.05)" }} />
+                ))}
+              </div>
+            )
+            : (
+              <div className="space-y-0.5">
+                {nav.map(item => (
+                  <NavLink key={item.href} {...item} activePath={path} />
+                ))}
+              </div>
+            )
           }
+
+          {/* Developer section — admin only, collapsible */}
+          {!loading && isAdmin && (
+            <div className="mt-4 pt-3" style={{ borderTop: "1px solid rgba(255,255,255,0.07)" }}>
+              <button
+                onClick={() => setDevOpen(o => !o)}
+                className="w-full flex items-center justify-between px-3 py-1.5 rounded-lg
+                           text-xs font-semibold uppercase tracking-widest transition-colors
+                           hover:bg-white/5 select-none"
+                style={{ color: "rgba(176,183,195,0.6)", letterSpacing: "0.1em" }}
+              >
+                <span>Developer</span>
+                <span className="text-[10px] transition-transform duration-150"
+                  style={{ transform: devOpen ? "rotate(180deg)" : "rotate(0deg)" }}>
+                  ▾
+                </span>
+              </button>
+              {devOpen && (
+                <div className="space-y-0.5 mt-1">
+                  {DEVELOPER_NAV.map(item => (
+                    <NavLink key={item.href} {...item} activePath={path} />
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </nav>
 
         {/* Footer: privacy + user + logout */}
