@@ -19,8 +19,6 @@ const NAV_BY_ROLE: Record<UserRole, NavItem[]> = {
     { href: "/campaign-deployment", label: "Deployment",      icon: "</>" },
     { href: "/user-management",     label: "User Management", icon: "◉"   },
     { href: "/embed-test",          label: "Embed Test",      icon: "⬡"   },
-    { href: "/publisher-hub",       label: "Publisher Hub",   icon: "☰"   },
-    { href: "/fanometrix-guide.html", label: "Fanometrix Guide", icon: "◫", external: true },
   ],
   brand: [
     { href: "/dashboard",        label: "Dashboard",        icon: "▦" },
@@ -198,21 +196,41 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
         {/* Footer: privacy + user + logout */}
         <div className="px-3 py-4 space-y-0.5 flex-shrink-0"
           style={{ borderTop: "1px solid rgba(255,255,255,0.08)" }}>
-          <Link
-            href="/privacy"
-            className="flex items-center gap-3 px-3 py-2 rounded-lg text-xs transition-colors"
-            style={{ color: "#B0B7C3" }}
-            onMouseEnter={e => {
-              (e.currentTarget as HTMLElement).style.color = "#FFFFFF";
-              (e.currentTarget as HTMLElement).style.backgroundColor = "rgba(255,255,255,0.05)";
-            }}
-            onMouseLeave={e => {
-              (e.currentTarget as HTMLElement).style.color = "#B0B7C3";
-              (e.currentTarget as HTMLElement).style.backgroundColor = "transparent";
-            }}
-          >
-            ⓘ Privacy Policy
-          </Link>
+          {/* Footer links — same size/style for all */}
+          {[
+            { href: "/privacy",               label: "ⓘ Privacy Policy",   external: false },
+            ...(isAdmin ? [
+              { href: "/publisher-hub",         label: "☰ Publisher Hub",    external: false },
+              { href: "/fanometrix-guide.html", label: "◫ Fanometrix Guide", external: true  },
+            ] : []),
+          ].map(({ href, label, external }) =>
+            external ? (
+              <a
+                key={href}
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-between px-3 py-2 rounded-lg text-xs transition-colors"
+                style={{ color: "#B0B7C3" }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = "#FFFFFF"; (e.currentTarget as HTMLElement).style.backgroundColor = "rgba(255,255,255,0.05)"; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = "#B0B7C3"; (e.currentTarget as HTMLElement).style.backgroundColor = "transparent"; }}
+              >
+                {label}
+                <span className="text-[10px] opacity-40">↗</span>
+              </a>
+            ) : (
+              <Link
+                key={href}
+                href={href}
+                className="flex items-center px-3 py-2 rounded-lg text-xs transition-colors"
+                style={{ color: "#B0B7C3" }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = "#FFFFFF"; (e.currentTarget as HTMLElement).style.backgroundColor = "rgba(255,255,255,0.05)"; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = "#B0B7C3"; (e.currentTarget as HTMLElement).style.backgroundColor = "transparent"; }}
+              >
+                {label}
+              </Link>
+            )
+          )}
 
           {!loading && user && (
             <div className="mt-3 pt-3" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
