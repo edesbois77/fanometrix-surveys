@@ -162,15 +162,11 @@ export default function PublicHomePage() {
                   }}
                 />
 
-                {/* Gold dot accent */}
-                <div className="w-2 h-2 rounded-full mb-5 flex-shrink-0"
-                  style={{ background: "#D7B87A" }} />
-
-                <h3 className="text-[17px] font-bold mb-2.5 tracking-[-0.01em]"
+                <h3 className="text-[17px] font-bold mb-2.5 tracking-[-0.01em] text-center"
                   style={{ color: "#0B1929" }}>
                   {label}
                 </h3>
-                <p className="text-sm leading-relaxed" style={{ color: "#6B7280" }}>
+                <p className="text-sm leading-relaxed text-center" style={{ color: "#6B7280" }}>
                   {body}
                 </p>
               </div>
@@ -187,8 +183,7 @@ export default function PublicHomePage() {
         </span>
         <nav className="flex gap-5">
           {[
-            { label: "Privacy Policy", href: "/privacy"       },
-            { label: "Publisher Hub",  href: "/publisher-hub" },
+            { label: "Privacy Policy", href: "/privacy" },
           ].map(({ label, href }) => (
             <Link key={href} href={href}
               className="text-xs text-gray-400 hover:text-gray-700 transition-colors duration-150">
