@@ -1,0 +1,57 @@
+/* ── Accordion ── */
+.accordion { display: flex; flex-direction: column; gap: 2px; }
+
+.details {
+  background: #fff;
+  border: 1px solid #E5E7EB;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.summary {
+  padding: 18px 22px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 15px;
+  color: #0B1929;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  list-style: none;
+  user-select: none;
+  gap: 12px;
+}
+.summary::-webkit-details-marker { display: none; }
+
+.toggle {
+  color: #D7B87A;
+  font-size: 18px;
+  font-weight: 300;
+  flex-shrink: 0;
+  transition: transform 0.2s ease;
+}
+.details[open] .toggle { transform: rotate(45deg); }
+
+.detailBody {
+  padding: 0 22px 22px;
+  border-top: 1px solid #F3F4F6;
+}
+.detailBody > * { margin-top: 16px; }
+
+/* ── Nav ── */
+.navInner {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 0 24px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+/* ── Responsive ── */
+@media (max-width: 640px) {
+  .summary { font-size: 14px; padding: 16px; }
+  .detailBody { padding: 0 16px 18px; }
+}

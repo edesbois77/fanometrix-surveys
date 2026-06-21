@@ -210,7 +210,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
               { href: "/privacy",               label: "ⓘ Privacy Policy",   external: true },
               ...(isAdmin ? [
                 { href: "/publisher-hub",         label: "☰ Publisher Hub",    external: true },
-                { href: "/fanometrix-guide.html", label: "◫ Fanometrix Guide", external: true },
+                { href: "/fanometrix-guide",      label: "◫ Fanometrix Guide", external: true },
               ] : []),
             ].map(({ href, label, external }) =>
               external ? (

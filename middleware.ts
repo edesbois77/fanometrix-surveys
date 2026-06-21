@@ -8,6 +8,7 @@ const PUBLIC_PATHS = new Set([
   "/privacy",
   "/publisher-hub",
   "/publisher-guide",
+  "/fanometrix-guide",
   "/survey",
   "/embed",
   "/access-denied",
