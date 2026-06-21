@@ -155,9 +155,8 @@ export default function FanometrixGuidePage() {
 
       {/* ── Hero ── */}
       <div style={{ background: N, padding: "clamp(40px,5vw,64px) 24px clamp(56px,7vw,80px)", textAlign: "center" }}>
-        <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: ".12em", textTransform: "uppercase", color: G, marginBottom: 16 }}>Platform Guide</p>
         <h1 style={{ fontSize: "clamp(30px,5vw,48px)", fontWeight: 800, color: "#fff", lineHeight: 1.1, letterSpacing: "-.02em", marginBottom: 20 }}>
-          Fanometrix <span style={{ color: G }}>Pulse</span>
+          Fanometrix <span style={{ color: G }}>Guide</span>
         </h1>
         <p style={{ fontSize: "clamp(14px,2vw,17px)", color: "rgba(255,255,255,.65)", lineHeight: 1.7, maxWidth: 600, margin: "0 auto 36px" }}>
           A complete guide to creating surveys, running campaigns, building campaign groups and serving fan intelligence through publisher embeds.
