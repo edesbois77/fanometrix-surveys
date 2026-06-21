@@ -34,7 +34,7 @@ type Campaign = {
   end_date: string | null;
   survey_id: string | null;
   surveys?: { name: string } | null;
-  publishers: string[];
+  publisher: string | null;
   status: string;
   effective_status: CampaignStatus;
   status_reason: string | null;
@@ -139,7 +139,7 @@ function CampaignProgress({ c }: { c: Campaign }) {
 const BLANK: Partial<Campaign> = {
   campaign_id: "", brand_name: "", campaign_name: "",
   campaign_description: "", start_date: null, end_date: null,
-  survey_id: null, publishers: [], status: "draft",
+  survey_id: null, publisher: "", status: "draft",
   target_responses: null, archive_after_days: 90,
 };
 
@@ -163,7 +163,6 @@ export default function CampaignsPage() {
   // Edit drawer
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editing,    setEditing]    = useState<Partial<Campaign>>(BLANK);
-  const [pubInput,   setPubInput]   = useState("");
   const [saving,     setSaving]     = useState(false);
   const [actioning,  setActioning]  = useState<string | null>(null);
   const [error,      setError]      = useState("");
@@ -251,7 +250,7 @@ export default function CampaignsPage() {
         c.campaign_name.toLowerCase().includes(q) ||
         c.campaign_id.toLowerCase().includes(q) ||
         c.brand_name.toLowerCase().includes(q) ||
-        (c.publishers ?? []).some(p => p.toLowerCase().includes(q)) ||
+        (c.publisher ?? "").toLowerCase().includes(q) ||
         (c.surveys?.name ?? "").toLowerCase().includes(q) ||
         c.effective_status.includes(q)
       );
@@ -269,8 +268,8 @@ export default function CampaignsPage() {
 
   // ── Drawer helpers ─────────────────────────────────────────────────────────
   function openCreate() {
-    setEditing({ ...BLANK, publishers: [] });
-    setPubInput(""); setError("");
+    setEditing({ ...BLANK, publisher: "" });
+    setError("");
     setDrawerOpen(true);
   }
 
@@ -280,22 +279,12 @@ export default function CampaignsPage() {
             deleted_at: _da, deleted_by: _db, delete_reason: _dr,
             ...rest } = c;
     setEditing({ ...rest });
-    setPubInput(""); setError("");
+    setError("");
     setDrawerOpen(true);
   }
 
   function autoId() {
     setEditing(e => ({ ...e, campaign_id: generateCampaignId(e.brand_name ?? "", e.campaign_name ?? "") }));
-  }
-
-  function addPublisher() {
-    const val = pubInput.trim(); if (!val) return;
-    setEditing(e => ({ ...e, publishers: [...(e.publishers ?? []), val] }));
-    setPubInput("");
-  }
-
-  function removePublisher(idx: number) {
-    setEditing(e => ({ ...e, publishers: (e.publishers ?? []).filter((_, i) => i !== idx) }));
   }
 
   async function handleSave() {
@@ -365,7 +354,7 @@ export default function CampaignsPage() {
       start_date:        null,
       end_date:          null,
       survey_id:         c.survey_id,
-      publishers:        c.publishers,
+      publisher:         c.publisher ?? "",
       status:            "draft",
       target_responses:  c.target_responses,
       archive_after_days: c.archive_after_days,
@@ -392,7 +381,7 @@ export default function CampaignsPage() {
         "Campaign Name":    c.campaign_name,
         "Slug":             c.campaign_id,
         "Brand":            c.brand_name,
-        "Publishers":       (c.publishers ?? []).join("; "),
+        "Publisher":        c.publisher ?? "",
         "Survey":           c.surveys?.name ?? "",
         "Status (Stored)":  c.status,
         "Status (Effective)": c.effective_status ?? c.status,
@@ -614,9 +603,9 @@ export default function CampaignsPage() {
                               Survey: {c.surveys.name}
                             </span>
                           )}
-                          {(c.publishers ?? []).map(p => (
-                            <span key={p} className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">{p}</span>
-                          ))}
+                          {c.publisher && (
+                            <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">{c.publisher}</span>
+                          )}
                         </div>
 
                         {/* Dates */}
@@ -784,20 +773,13 @@ export default function CampaignsPage() {
                 </Field>
               </div>
 
-              <Field label="Publishers">
-                <div className="flex gap-2 mb-2">
-                  <input value={pubInput} onChange={e => setPubInput(e.target.value)}
-                    onKeyDown={e => e.key === "Enter" && addPublisher()}
-                    className={INP} placeholder="e.g. FotMob" />
-                  <button onClick={addPublisher} className="text-xs border border-gray-200 text-gray-600 hover:bg-gray-50 px-3 rounded-lg">Add</button>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {(editing.publishers ?? []).map((p, i) => (
-                    <span key={i} className="flex items-center gap-1 text-xs bg-gray-100 text-[#0B1929] px-2 py-1 rounded-full">
-                      {p}<button onClick={() => removePublisher(i)} className="text-gray-400 hover:text-red-400 ml-0.5">×</button>
-                    </span>
-                  ))}
-                </div>
+              <Field label="Publisher">
+                <input
+                  value={editing.publisher ?? ""}
+                  onChange={e => setEditing(x => ({ ...x, publisher: e.target.value }))}
+                  className={INP}
+                  placeholder="e.g. FotMob"
+                />
               </Field>
 
               {error && <p className="text-red-500 text-xs">{error}</p>}

@@ -10,7 +10,7 @@ type Campaign = {
   campaign_name: string;
   survey_id: string | null;
   surveys?: { name: string } | null;
-  publishers: string[];
+  publisher: string | null;
 };
 
 const BASE = "https://fanometrix-surveys.vercel.app";
@@ -69,10 +69,10 @@ export default function EmbedGeneratorPage() {
 
   const campaign = campaigns.find(c => c.id === selectedId) ?? null;
 
-  // When campaign changes, reset publisher and keep other fields editable
+  // When campaign changes, auto-fill publisher from the campaign record
   useEffect(() => {
-    setPublisher("");
-  }, [selectedId]);
+    setPublisher(campaigns.find(c => c.id === selectedId)?.publisher ?? "");
+  }, [selectedId, campaigns]);
 
   const placement = placementPreset === "Custom…" ? placementCustom : placementPreset;
   const countryMacro = GEO_MACROS[adServer] ?? "%%COUNTRY%%";
@@ -197,33 +197,15 @@ export default function EmbedGeneratorPage() {
             <div className="bg-white border border-gray-100 rounded-xl p-5 shadow-sm space-y-4">
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Placement</p>
 
-              {/* Publisher */}
+              {/* Publisher — pre-filled from campaign, editable for overrides */}
               <div>
                 <label className="text-xs text-gray-500 block mb-2">Publisher</label>
-                {campaign && campaign.publishers.length > 0 ? (
-                  <div className="flex flex-wrap gap-2">
-                    {campaign.publishers.map(p => (
-                      <button
-                        key={p}
-                        onClick={() => setPublisher(publisher === p ? "" : p)}
-                        className={`text-xs px-3 py-1.5 rounded-full border font-medium transition-colors ${
-                          publisher === p
-                            ? "text-[#0B1929] border-[#D7B87A]"
-                            : "border-gray-200 text-gray-600 hover:border-gray-400"
-                        }`}
-                      >
-                        {p}
-                      </button>
-                    ))}
-                  </div>
-                ) : (
-                  <input
-                    value={publisher}
-                    onChange={e => setPublisher(e.target.value)}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A]"
-                    placeholder="e.g. sky-sports"
-                  />
-                )}
+                <input
+                  value={publisher}
+                  onChange={e => setPublisher(e.target.value)}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A]"
+                  placeholder="e.g. FotMob"
+                />
               </div>
 
               {/* Placement dropdown */}

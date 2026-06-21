@@ -14,7 +14,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const [{ data: campaigns, error }, { data: stats }] = await Promise.all([
     supabaseAdmin
       .from("campaigns")
-      .select("id, campaign_id, brand_name, campaign_name, status, start_date, end_date, created_at, publishers")
+      .select("id, campaign_id, brand_name, campaign_name, status, start_date, end_date, created_at, publisher")
       .eq("survey_id", id)
       .order("created_at", { ascending: false }),
     supabaseAdmin

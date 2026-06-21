@@ -317,7 +317,7 @@ export default function UserManagementPage() {
       .then(json => {
         const data: Array<{
           campaign_id: string; campaign_name: string;
-          brand_name: string; publishers: string[]; created_at: string;
+          brand_name: string; publisher: string | null; created_at: string;
         }> = json.data ?? [];
 
         setCampaignOptions(
@@ -329,7 +329,7 @@ export default function UserManagementPage() {
         );
 
         const seen = new Set<string>(KNOWN_PUBLISHERS);
-        for (const c of data) for (const p of c.publishers ?? []) if (p.trim()) seen.add(p.trim());
+        for (const c of data) if (c.publisher?.trim()) seen.add(c.publisher.trim());
         setPublisherOptions([...seen].sort().map(p => ({ value: p, label: p })));
       })
       .catch(() => {

@@ -70,7 +70,7 @@ type ModalCampaign = {
   start_date: string | null;
   end_date: string | null;
   created_at: string;
-  publishers: string[];
+  publisher: string | null;
   response_count: number;
 };
 
@@ -319,7 +319,7 @@ function SurveyUsageModal({ survey, campaigns, loading, onClose }: {
                         <td className="py-3 pr-4 font-medium text-gray-900">{c.campaign_name}</td>
                         <td className="py-3 pr-4 text-gray-600">{c.brand_name}</td>
                         <td className="py-3 pr-4 text-gray-500">
-                          {(c.publishers ?? []).length > 0 ? c.publishers.join(", ") : "—"}
+                          {c.publisher || "—"}
                         </td>
                         <td className="py-3 pr-4">
                           <span className={`font-semibold px-2 py-0.5 rounded-full capitalize ${CAMPAIGN_STATUS_COLOURS[c.status] ?? "bg-gray-100 text-gray-600"}`}>
