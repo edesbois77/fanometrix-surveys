@@ -207,10 +207,10 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
               paddingBottom: "max(1rem, env(safe-area-inset-bottom, 1rem))",
             }}>
             {[
-              { href: "/privacy",               label: "ⓘ Privacy Policy",   external: false },
+              { href: "/privacy",               label: "ⓘ Privacy Policy",   external: true },
               ...(isAdmin ? [
-                { href: "/publisher-hub",         label: "☰ Publisher Hub",    external: false },
-                { href: "/fanometrix-guide.html", label: "◫ Fanometrix Guide", external: true  },
+                { href: "/publisher-hub",         label: "☰ Publisher Hub",    external: true },
+                { href: "/fanometrix-guide.html", label: "◫ Fanometrix Guide", external: true },
               ] : []),
             ].map(({ href, label, external }) =>
               external ? (
