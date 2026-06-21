@@ -159,9 +159,7 @@ export default function HomePage() {
             </h1>
           )}
           {user && (
-            <p className="text-sm text-gray-400">
-              {user.username} · <span className="capitalize">{user.role}</span>
-            </p>
+            <p className="text-sm text-gray-400 capitalize">{user.role}</p>
           )}
         </div>
 
