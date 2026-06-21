@@ -7,24 +7,35 @@ export const metadata: Metadata = {
     "Fanometrix combines anonymous fan surveys, campaign analytics and first-party publisher context to help brands, rights holders and media partners understand football supporters.",
 };
 
+// ─── Content v2 — updated June 2026 ──────────────────────────────────────────
+// To revert: git revert HEAD (or restore the v1 block below)
+
 const PILLARS = [
   {
     label: "Real-Time",
-    body:  "Collect fan responses and campaign performance as they happen.",
+    body:  "Give football fans a voice and understand what supporters around the world think and feel, in real time.",
   },
   {
     label: "Insights",
-    body:  "Understand what supporters think, value and expect from brands.",
+    body:  "Use fan responses to understand what supporters value most and what they expect from brands and football experiences.",
   },
   {
     label: "Reporting",
-    body:  "Turn responses into dashboards, exports and actionable findings.",
+    body:  "Transform fan data into strategic reports and actionable recommendations that bring meaning to the insights.",
   },
   {
     label: "Privacy Safe",
     body:  "Anonymous surveys with no personal data collection.",
   },
 ];
+
+// ─── v1 content (preserved for easy reversion) ────────────────────────────────
+// const PILLARS = [
+//   { label: "Real-Time",    body: "Collect fan responses and campaign performance as they happen."        },
+//   { label: "Insights",     body: "Understand what supporters think, value and expect from brands."       },
+//   { label: "Reporting",    body: "Turn responses into dashboards, exports and actionable findings."       },
+//   { label: "Privacy Safe", body: "Anonymous surveys with no personal data collection."                   },
+// ];
 
 export default function PublicHomePage() {
   return (
@@ -128,6 +139,43 @@ export default function PublicHomePage() {
               >
                 Request Access
               </Link>
+            </div>
+          </div>
+        </section>
+
+        {/* ── Mission / intro section (Content v2) ── */}
+        {/* To hide: wrap in {false && ( ... )} */}
+        <section className="border-t border-gray-100 bg-white text-center
+                            py-[clamp(56px,8vw,96px)] px-6">
+          <div style={{ maxWidth: 760, margin: "0 auto" }}>
+            <h2
+              className="font-bold leading-tight tracking-tight mb-8"
+              style={{
+                fontSize: "clamp(26px, 4vw, 38px)",
+                color: "#0B1929",
+                letterSpacing: "-0.02em",
+              }}
+            >
+              Turning fan voices into better football experiences.
+            </h2>
+            <div
+              className="space-y-5 mx-auto"
+              style={{ fontSize: "clamp(15px, 1.8vw, 17px)", color: "#6B7280", lineHeight: 1.8, maxWidth: 720 }}
+            >
+              <p>
+                Football supporters invest their time, passion and money into the game, yet they are
+                rarely asked what they truly think and feel.
+              </p>
+              <p>
+                We believe brands have an opportunity, and an obligation, to improve the fan
+                experience rather than interrupt it.
+              </p>
+              <p>
+                Fanometrix gives supporters a voice and helps brands, rights holders and media
+                partners better understand football fans around the world. By turning real fan
+                opinions into actionable insight, we help organisations create experiences that add
+                value to the game and the people who love it.
+              </p>
             </div>
           </div>
         </section>
