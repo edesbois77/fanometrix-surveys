@@ -1,5 +1,4 @@
 import Link from "next/link";
-import Image from "next/image";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -8,10 +7,6 @@ export const metadata: Metadata = {
     "Fanometrix combines anonymous fan surveys, campaign analytics and first-party publisher context to help brands, rights holders and media partners understand football supporters.",
 };
 
-const N = "#0B1929";
-const G = "#D7B87A";
-
-// ─── Value pillars ────────────────────────────────────────────────────────────
 const PILLARS = [
   {
     label: "Real-Time",
@@ -33,32 +28,13 @@ const PILLARS = [
 
 export default function PublicHomePage() {
   return (
-    <div
-      style={{
-        fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
-        background: "#fff",
-        minHeight: "100vh",
-        display: "flex",
-        flexDirection: "column",
-        color: "#374151",
-      }}
-    >
+    <div className="min-h-screen bg-white flex flex-col"
+      style={{ fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}>
 
-      {/* ── Header ──────────────────────────────────────────────────────────── */}
-      <header style={{
-        padding: "0 clamp(20px, 5vw, 48px)",
-        height: 60,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        borderBottom: "1px solid #F3F4F6",
-        position: "sticky",
-        top: 0,
-        background: "#fff",
-        zIndex: 40,
-      }}>
-        {/* Logo wordmark */}
-        <Link href="/" style={{ display: "flex", alignItems: "center", flexShrink: 0 }}>
+      {/* ── Header ── */}
+      <header className="sticky top-0 z-40 bg-white border-b border-gray-100
+                         flex items-center justify-between px-5 sm:px-10 h-[60px]">
+        <Link href="/" className="flex-shrink-0">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src="/Fanometrix_Logo.png"
@@ -66,138 +42,89 @@ export default function PublicHomePage() {
             style={{
               height: 18,
               objectFit: "contain",
-              /* Convert the light logo to dark navy for the white header */
               filter:
                 "brightness(0) saturate(100%) invert(11%) sepia(33%) saturate(1200%) hue-rotate(192deg) brightness(95%)",
             }}
           />
         </Link>
-
-        {/* Enter Platform CTA */}
         <Link
           href="/login"
-          style={{
-            background: N,
-            color: G,
-            fontSize: 13,
-            fontWeight: 600,
-            padding: "8px 20px",
-            borderRadius: 10,
-            textDecoration: "none",
-            flexShrink: 0,
-            transition: "opacity .15s",
-          }}
-          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.opacity = "0.85"; }}
-          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.opacity = "1"; }}
+          className="flex-shrink-0 text-[13px] font-semibold px-5 py-2 rounded-lg
+                     transition-opacity duration-150 hover:opacity-80"
+          style={{ background: "#0B1929", color: "#D7B87A" }}
         >
           Enter Platform
         </Link>
       </header>
 
-      {/* ── Hero ────────────────────────────────────────────────────────────── */}
-      <main style={{ flex: 1 }}>
-        <section style={{
-          position: "relative",
-          padding: "clamp(72px, 10vw, 120px) 24px clamp(80px, 10vw, 120px)",
-          textAlign: "center",
-          overflow: "hidden",
-        }}>
+      {/* ── Hero ── */}
+      <main className="flex-1">
+        <section className="relative text-center overflow-hidden
+                            py-[clamp(72px,10vw,120px)] px-6">
           {/* Subtle radial gold glow */}
           <div
             aria-hidden
+            className="pointer-events-none absolute inset-0"
             style={{
-              position: "absolute",
-              top: 0,
-              left: "50%",
-              transform: "translateX(-50%)",
-              width: "100%",
-              maxWidth: 900,
-              height: "100%",
               background:
                 "radial-gradient(ellipse 80% 55% at 50% 0%, rgba(215,184,122,0.07) 0%, transparent 70%)",
-              pointerEvents: "none",
             }}
           />
 
-          <div style={{ maxWidth: 700, margin: "0 auto", position: "relative" }}>
+          <div className="relative max-w-[700px] mx-auto">
 
-            {/* Hero logo mark */}
-            <div style={{ display: "flex", justifyContent: "center", marginBottom: 36 }}>
+            {/* Logo mark */}
+            <div className="flex justify-center mb-9">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src="/FLogo.png"
-                alt="Fanometrix"
-                style={{ width: 72, height: 72, objectFit: "contain" }}
-              />
+              <img src="/FLogo.png" alt="Fanometrix" style={{ width: 72, height: 72, objectFit: "contain" }} />
             </div>
 
             {/* Headline */}
-            <h1 style={{
-              fontSize: "clamp(38px, 7vw, 62px)",
-              fontWeight: 800,
-              color: N,
-              lineHeight: 1.08,
-              letterSpacing: "-0.025em",
-              margin: "0 0 24px",
-            }}>
+            <h1
+              className="font-extrabold leading-[1.08] tracking-[-0.025em] mb-6"
+              style={{ fontSize: "clamp(38px, 7vw, 62px)", color: "#0B1929" }}
+            >
               Football Fan Intelligence
             </h1>
 
-            {/* Body paragraph */}
-            <p style={{
-              fontSize: "clamp(15px, 2vw, 18px)",
-              color: "#6B7280",
-              lineHeight: 1.75,
-              maxWidth: 660,
-              margin: "0 auto 44px",
-            }}>
+            {/* Body */}
+            <p
+              className="leading-[1.75] mx-auto mb-11"
+              style={{
+                fontSize: "clamp(15px, 2vw, 18px)",
+                color: "#6B7280",
+                maxWidth: 660,
+              }}
+            >
               Fanometrix combines anonymous fan surveys, campaign analytics and
               first-party publisher context to help brands, rights holders and
               media partners better understand football supporters.
             </p>
 
-            {/* CTA buttons */}
-            <div style={{
-              display: "flex",
-              flexWrap: "wrap",
-              gap: 14,
-              justifyContent: "center",
-            }}>
+            {/* CTAs */}
+            <div className="flex flex-wrap gap-3.5 justify-center">
               <Link
                 href="/login"
+                className="text-sm font-bold px-8 py-3.5 rounded-xl border-2
+                           transition-opacity duration-150 hover:opacity-85"
                 style={{
-                  background: N,
-                  color: G,
-                  fontSize: 14,
-                  fontWeight: 700,
-                  padding: "14px 32px",
-                  borderRadius: 12,
-                  textDecoration: "none",
-                  border: `2px solid ${N}`,
-                  transition: "opacity .15s",
+                  background: "#0B1929",
+                  color: "#D7B87A",
+                  borderColor: "#0B1929",
                   letterSpacing: "0.01em",
                 }}
-                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.opacity = "0.85"; }}
-                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.opacity = "1"; }}
               >
                 Enter Platform
               </Link>
               <Link
                 href="/login"
+                className="text-sm font-bold px-8 py-3.5 rounded-xl border-2
+                           bg-white hover:bg-[#FBF5E8] transition-colors duration-150"
                 style={{
-                  background: "#fff",
-                  color: N,
-                  fontSize: 14,
-                  fontWeight: 700,
-                  padding: "14px 32px",
-                  borderRadius: 12,
-                  textDecoration: "none",
-                  border: `2px solid ${G}`,
-                  transition: "background .15s",
+                  color: "#0B1929",
+                  borderColor: "#D7B87A",
                   letterSpacing: "0.01em",
                 }}
-                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#FBF5E8"; }}
-                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "#fff"; }}
               >
                 Request Access
               </Link>
@@ -205,44 +132,18 @@ export default function PublicHomePage() {
           </div>
         </section>
 
-        {/* ── Four value pillars ─────────────────────────────────────────────── */}
-        <section style={{
-          padding: "clamp(48px, 7vw, 80px) clamp(20px, 5vw, 48px)",
-          borderTop: "1px solid #F3F4F6",
-          background: "#FAFAFA",
-        }}>
-          <div style={{
-            maxWidth: 1100,
-            margin: "0 auto",
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-            gap: 20,
-          }}>
+        {/* ── Value pillars ── */}
+        <section className="border-t border-gray-100 bg-gray-50
+                            py-[clamp(48px,7vw,80px)] px-5 sm:px-10">
+          <div className="max-w-[1100px] mx-auto grid gap-5"
+            style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
             {PILLARS.map(({ label, body }) => (
               <div
                 key={label}
-                style={{
-                  position: "relative",
-                  background: "#fff",
-                  border: "1px solid #E5E7EB",
-                  borderRadius: 16,
-                  padding: "28px 26px 30px",
-                  overflow: "hidden",
-                  transition: "border-color .2s, transform .2s, box-shadow .2s",
-                  cursor: "default",
-                }}
-                onMouseEnter={e => {
-                  const el = e.currentTarget as HTMLElement;
-                  el.style.borderColor = G;
-                  el.style.transform = "translateY(-3px)";
-                  el.style.boxShadow = "0 8px 24px rgba(11,25,41,0.08)";
-                }}
-                onMouseLeave={e => {
-                  const el = e.currentTarget as HTMLElement;
-                  el.style.borderColor = "#E5E7EB";
-                  el.style.transform = "translateY(0)";
-                  el.style.boxShadow = "none";
-                }}
+                className="group relative bg-white rounded-2xl overflow-hidden
+                           border border-gray-200 p-7
+                           transition-all duration-200
+                           hover:border-[#D7B87A] hover:-translate-y-1 hover:shadow-lg"
               >
                 {/* Ghost F watermark */}
                 {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -250,43 +151,26 @@ export default function PublicHomePage() {
                   src="/FLogo.png"
                   alt=""
                   aria-hidden
+                  className="pointer-events-none select-none absolute"
                   style={{
-                    position: "absolute",
                     bottom: -20,
                     right: -20,
                     width: 130,
                     height: 130,
                     opacity: 0.03,
                     filter: "blur(0.5px)",
-                    pointerEvents: "none",
-                    userSelect: "none",
                   }}
                 />
 
-                {/* Gold accent dot */}
-                <div style={{
-                  width: 8,
-                  height: 8,
-                  borderRadius: "50%",
-                  background: G,
-                  marginBottom: 18,
-                }} />
+                {/* Gold dot accent */}
+                <div className="w-2 h-2 rounded-full mb-5 flex-shrink-0"
+                  style={{ background: "#D7B87A" }} />
 
-                <h3 style={{
-                  fontSize: 17,
-                  fontWeight: 700,
-                  color: N,
-                  marginBottom: 10,
-                  letterSpacing: "-0.01em",
-                }}>
+                <h3 className="text-[17px] font-bold mb-2.5 tracking-[-0.01em]"
+                  style={{ color: "#0B1929" }}>
                   {label}
                 </h3>
-                <p style={{
-                  fontSize: 14,
-                  color: "#6B7280",
-                  lineHeight: 1.65,
-                  margin: 0,
-                }}>
+                <p className="text-sm leading-relaxed" style={{ color: "#6B7280" }}>
                   {body}
                 </p>
               </div>
@@ -295,31 +179,19 @@ export default function PublicHomePage() {
         </section>
       </main>
 
-      {/* ── Footer ──────────────────────────────────────────────────────────── */}
-      <footer style={{
-        borderTop: "1px solid #F3F4F6",
-        padding: "20px clamp(20px, 5vw, 48px)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        flexWrap: "wrap",
-        gap: 12,
-      }}>
-        <span style={{ fontSize: 12, color: "#9CA3AF" }}>
+      {/* ── Footer ── */}
+      <footer className="border-t border-gray-100 flex flex-wrap items-center
+                         justify-between gap-3 px-5 sm:px-10 py-5">
+        <span className="text-xs text-gray-400">
           © {new Date().getFullYear()} Fanometrix
         </span>
-        <nav style={{ display: "flex", gap: 20 }}>
+        <nav className="flex gap-5">
           {[
-            { label: "Privacy Policy",  href: "/privacy"       },
-            { label: "Publisher Hub",   href: "/publisher-hub" },
+            { label: "Privacy Policy", href: "/privacy"       },
+            { label: "Publisher Hub",  href: "/publisher-hub" },
           ].map(({ label, href }) => (
-            <Link
-              key={href}
-              href={href}
-              style={{ fontSize: 12, color: "#9CA3AF", textDecoration: "none", transition: "color .15s" }}
-              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = "#374151"; }}
-              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = "#9CA3AF"; }}
-            >
+            <Link key={href} href={href}
+              className="text-xs text-gray-400 hover:text-gray-700 transition-colors duration-150">
               {label}
             </Link>
           ))}
