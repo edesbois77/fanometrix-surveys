@@ -592,7 +592,7 @@ export default function UserManagementPage() {
               <hr className="border-gray-100" />
 
               {/* Role */}
-              <Field label="Role">
+              <Field label="Access Rights">
                 <select value={form.role}
                   onChange={e => setForm(f => ({ ...f, role: e.target.value as User["role"] }))}
                   className={INPUT} required>
