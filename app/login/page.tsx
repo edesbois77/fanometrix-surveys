@@ -101,14 +101,10 @@ export default function LoginPage() {
       <div className="w-full max-w-sm">
 
         {/* Logo */}
-        <div className="text-center mb-10">
-          <h1
-            className="text-2xl font-bold tracking-tight"
-            style={{ color: "#0B1929" }}
-          >
-            Fanometrix
-          </h1>
-          <p className="text-sm text-gray-400 mt-1">Fan Insight Platform</p>
+        <div className="flex flex-col items-center mb-10 gap-3">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/FLogo.png" alt="Fanometrix" className="w-14 h-14 object-contain" />
+          <p className="text-sm text-gray-400">Fan Insight Platform</p>
         </div>
 
         {/* Card */}
