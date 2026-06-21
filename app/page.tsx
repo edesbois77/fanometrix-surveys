@@ -161,12 +161,12 @@ export default function PublicHomePage() {
               className="font-bold leading-tight tracking-tight mb-5 mx-auto"
               style={{ fontSize: "clamp(26px, 3vw, 40px)", color: "#0B1929", letterSpacing: "-0.02em", maxWidth: 720 }}
             >
-              Turning fan voices into better football experiences.
+              Giving football fans a voice.
             </h2>
 
             {/* Supporting copy — wider, more compact */}
             <div className="space-y-3 mx-auto"
-              style={{ fontSize: "clamp(14px, 1.5vw, 16px)", color: "#6B7280", lineHeight: 1.65, maxWidth: 880 }}>
+              style={{ fontSize: 14, color: "#6B7280", lineHeight: 1.65, maxWidth: 880 }}>
               <p>
                 Football supporters invest their time, passion and money into the game, yet they are
                 rarely asked what they truly think and feel.
