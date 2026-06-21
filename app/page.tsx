@@ -212,6 +212,16 @@ export default function PublicHomePage() {
               </div>
             ))}
           </div>
+
+          {/* F logo — centred below the cards */}
+          <div className="scroll-fade-up flex justify-center mt-10" style={{ transitionDelay: "0.4s" }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/FLogo.png"
+              alt="Fanometrix"
+              style={{ width: 36, height: 36, objectFit: "contain", opacity: 0.25 }}
+            />
+          </div>
         </section>
 
         {/* Scroll-triggered fade-up observer — activates .scroll-fade-up elements */}
