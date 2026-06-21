@@ -7,6 +7,27 @@ import { AdminShell } from "@/app/components/AdminShell";
 const NAVY = "#071B2F";
 const GOLD = "#D7B87A";
 
+// ─── MPU content limits ───────────────────────────────────────────────────────
+// Enforced to guarantee every survey fits cleanly inside the 300×250 creative,
+// including on mobile screens and in translated versions where text runs longer.
+const MAX_QUESTIONS  = 4;
+const MAX_OPTIONS    = 4;
+const MAX_Q_CHARS    = 70;
+const MAX_OPT_CHARS  = 32;
+const MAX_TY_TITLE   = 40;
+const MAX_TY_BODY    = 90;
+
+// Live character counter — turns amber near limit, red when over
+function CharCount({ len, max }: { len: number; max: number }) {
+  const over = len > max;
+  const near = len > max * 0.85;
+  return (
+    <span className={`text-xs tabular-nums ${over ? "text-red-500 font-semibold" : near ? "text-amber-500" : "text-gray-400"}`}>
+      {len} / {max}
+    </span>
+  );
+}
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 type Question = { id: string; text: string; options: string[] };
 
@@ -455,6 +476,23 @@ export default function SurveysPage() {
       if (!q.text.trim()) { setFormError("All questions need text."); return; }
       if (q.options.filter(o => o.trim()).length < 2) { setFormError("Each question needs at least 2 options."); return; }
     }
+    // Character limit validation
+    if (fields.thank_you_title.length > MAX_TY_TITLE) {
+      setFormError(`Thank-you title must be ${MAX_TY_TITLE} characters or fewer.`); return;
+    }
+    if (fields.thank_you_body.length > MAX_TY_BODY) {
+      setFormError(`Thank-you message must be ${MAX_TY_BODY} characters or fewer.`); return;
+    }
+    for (let i = 0; i < qs.length; i++) {
+      if (qs[i].text.length > MAX_Q_CHARS) {
+        setFormError(`Q${i + 1}: question text must be ${MAX_Q_CHARS} characters or fewer.`); return;
+      }
+      const badOpt = qs[i].options.findIndex(o => o.trim().length > MAX_OPT_CHARS);
+      if (badOpt !== -1) {
+        setFormError(`Q${i + 1}, option ${badOpt + 1}: answer must be ${MAX_OPT_CHARS} characters or fewer.`); return;
+      }
+    }
+
     setFormError(""); setSaving(true);
 
     const payload = {
@@ -479,7 +517,7 @@ export default function SurveysPage() {
     setFields(f => ({ ...f, questions: f.questions.map((q, i) => i === idx ? { ...q, ...patch } : q) }));
   }
   function addQuestion() {
-    if (fields.questions.length >= 3) return;
+    if (fields.questions.length >= MAX_QUESTIONS) return;
     setFields(f => ({ ...f, questions: [...f.questions, BLANK_Q()] }));
   }
   function removeQuestion(idx: number) {
@@ -933,70 +971,127 @@ export default function SurveysPage() {
 
               {/* Questions */}
               <div>
-                <div className="flex items-center justify-between mb-2">
-                  <label className="text-xs font-semibold text-gray-600">Questions ({fields.questions.length}/3)</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs font-semibold text-gray-600">
+                    Questions ({fields.questions.length}/{MAX_QUESTIONS})
+                  </label>
                   <button
                     onClick={addQuestion}
-                    disabled={fields.questions.length >= 3}
+                    disabled={fields.questions.length >= MAX_QUESTIONS}
                     className="text-xs text-[#D7B87A] hover:text-[#C9A766] disabled:opacity-30"
                   >
                     + Add question
                   </button>
                 </div>
+                <p className="text-xs text-gray-400 mb-3">
+                  Maximum {MAX_QUESTIONS} questions · {MAX_OPTIONS} answers each.
+                  Shorter text performs best — longer translated text may not fit inside the 300×250 MPU.
+                </p>
 
                 <div className="space-y-4">
-                  {fields.questions.map((q, qi) => (
-                    <div key={q.id} className="border border-gray-200 rounded-xl p-4 space-y-3">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-bold text-[#0B1929] w-6">Q{qi + 1}</span>
-                        <input
-                          value={q.text}
-                          onChange={e => setQ(qi, { text: e.target.value })}
-                          className="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-[#D7B87A]"
-                          placeholder="Question text…"
-                        />
-                        {fields.questions.length > 1 && (
-                          <button onClick={() => removeQuestion(qi)} className="text-red-400 hover:text-red-600 text-xs">✕</button>
-                        )}
-                      </div>
-                      <div className="space-y-2 pl-8">
-                        {q.options.map((opt, oi) => (
-                          <div key={oi} className="flex items-center gap-2">
+                  {fields.questions.map((q, qi) => {
+                    const qOver = q.text.length > MAX_Q_CHARS;
+                    return (
+                      <div key={q.id} className={`border rounded-xl p-4 space-y-3 ${qOver ? "border-red-200" : "border-gray-200"}`}>
+                        <div className="flex items-start gap-2">
+                          <span className="text-xs font-bold text-[#0B1929] w-6 mt-1.5">Q{qi + 1}</span>
+                          <div className="flex-1 min-w-0">
                             <input
-                              value={opt}
-                              onChange={e => setOption(qi, oi, e.target.value)}
-                              className="flex-1 border border-gray-100 rounded-lg px-2 py-1 text-xs focus:outline-none focus:border-[#D7B87A]"
-                              placeholder={`Option ${oi + 1}`}
+                              value={q.text}
+                              maxLength={MAX_Q_CHARS + 10}
+                              onChange={e => setQ(qi, { text: e.target.value })}
+                              className={`w-full border rounded-lg px-3 py-1.5 text-sm focus:outline-none ${
+                                qOver
+                                  ? "border-red-300 focus:border-red-400"
+                                  : "border-gray-200 focus:border-[#D7B87A]"
+                              }`}
+                              placeholder="Question text…"
                             />
-                            {q.options.length > 2 && (
-                              <button onClick={() => removeOption(qi, oi)} className="text-gray-300 hover:text-red-400 text-xs">✕</button>
-                            )}
+                            <div className="flex justify-end mt-0.5">
+                              <CharCount len={q.text.length} max={MAX_Q_CHARS} />
+                            </div>
                           </div>
-                        ))}
-                        {q.options.length < 6 && (
-                          <button onClick={() => addOption(qi)} className="text-xs text-[#D7B87A] hover:text-[#C9A766]">+ Add option</button>
-                        )}
+                          {fields.questions.length > 1 && (
+                            <button onClick={() => removeQuestion(qi)} className="text-red-400 hover:text-red-600 text-xs mt-1.5 flex-shrink-0">✕</button>
+                          )}
+                        </div>
+                        <div className="space-y-2 pl-8">
+                          {q.options.map((opt, oi) => {
+                            const oOver = opt.length > MAX_OPT_CHARS;
+                            return (
+                              <div key={oi}>
+                                <div className="flex items-center gap-2">
+                                  <input
+                                    value={opt}
+                                    maxLength={MAX_OPT_CHARS + 5}
+                                    onChange={e => setOption(qi, oi, e.target.value)}
+                                    className={`flex-1 border rounded-lg px-2 py-1 text-xs focus:outline-none ${
+                                      oOver
+                                        ? "border-red-300 focus:border-red-400"
+                                        : "border-gray-100 focus:border-[#D7B87A]"
+                                    }`}
+                                    placeholder={`Option ${oi + 1}`}
+                                  />
+                                  {q.options.length > 2 && (
+                                    <button onClick={() => removeOption(qi, oi)} className="text-gray-300 hover:text-red-400 text-xs flex-shrink-0">✕</button>
+                                  )}
+                                </div>
+                                {opt.length > 0 && (
+                                  <div className="flex justify-end">
+                                    <CharCount len={opt.length} max={MAX_OPT_CHARS} />
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                          {q.options.length < MAX_OPTIONS && (
+                            <button onClick={() => addOption(qi)} className="text-xs text-[#D7B87A] hover:text-[#C9A766]">+ Add option</button>
+                          )}
+                          {q.options.length >= MAX_OPTIONS && (
+                            <p className="text-xs text-gray-400">Maximum {MAX_OPTIONS} answers per question.</p>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
 
               {/* Thank you screen */}
               <div className="border border-gray-100 rounded-xl p-4 space-y-3 bg-gray-50">
                 <p className="text-xs font-semibold text-gray-600">Thank You Screen</p>
-                <input
-                  value={fields.thank_you_title}
-                  onChange={e => setFields(f => ({ ...f, thank_you_title: e.target.value }))}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-[#D7B87A] bg-white"
-                  placeholder="Thank you title"
-                />
-                <input
-                  value={fields.thank_you_body}
-                  onChange={e => setFields(f => ({ ...f, thank_you_body: e.target.value }))}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-[#D7B87A] bg-white"
-                  placeholder="Thank you message"
-                />
+                <div>
+                  <input
+                    value={fields.thank_you_title}
+                    maxLength={MAX_TY_TITLE + 5}
+                    onChange={e => setFields(f => ({ ...f, thank_you_title: e.target.value }))}
+                    className={`w-full border rounded-lg px-3 py-1.5 text-sm focus:outline-none bg-white ${
+                      fields.thank_you_title.length > MAX_TY_TITLE
+                        ? "border-red-300 focus:border-red-400"
+                        : "border-gray-200 focus:border-[#D7B87A]"
+                    }`}
+                    placeholder="Thank you title"
+                  />
+                  <div className="flex justify-end mt-0.5">
+                    <CharCount len={fields.thank_you_title.length} max={MAX_TY_TITLE} />
+                  </div>
+                </div>
+                <div>
+                  <input
+                    value={fields.thank_you_body}
+                    maxLength={MAX_TY_BODY + 10}
+                    onChange={e => setFields(f => ({ ...f, thank_you_body: e.target.value }))}
+                    className={`w-full border rounded-lg px-3 py-1.5 text-sm focus:outline-none bg-white ${
+                      fields.thank_you_body.length > MAX_TY_BODY
+                        ? "border-red-300 focus:border-red-400"
+                        : "border-gray-200 focus:border-[#D7B87A]"
+                    }`}
+                    placeholder="Thank you message"
+                  />
+                  <div className="flex justify-end mt-0.5">
+                    <CharCount len={fields.thank_you_body.length} max={MAX_TY_BODY} />
+                  </div>
+                </div>
               </div>
 
               {formError && <p className="text-red-500 text-xs">{formError}</p>}
