@@ -9,9 +9,9 @@ export const metadata: Metadata = {
   title: "Fanometrix",
   description: "Fan Insight Platform",
   icons: [
-    { rel: "icon",             url: "/FLogo.webp", type: "image/webp" },
-    { rel: "shortcut icon",    url: "/FLogo.webp", type: "image/webp" },
-    { rel: "apple-touch-icon", url: "/FLogo.webp" },
+    { rel: "icon",             url: "/FLogo.png", type: "image/png" },
+    { rel: "shortcut icon",    url: "/FLogo.png", type: "image/png" },
+    { rel: "apple-touch-icon", url: "/FLogo.png" },
   ],
 };
 
