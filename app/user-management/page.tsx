@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { AdminShell } from "@/app/components/AdminShell";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -259,6 +259,47 @@ export default function UserManagementPage() {
   const [publisherOptions,setPublisherOptions]= useState<Option[]>([]);
   const [campaignSort,    setCampaignSort]    = useState<"recent" | "alpha">("recent");
 
+  // ── Table sort ───────────────────────────────────────────────────────────────
+  type SortCol = "username" | "role" | "organisation_name" | "is_active" | "updated_at";
+  type SortDir = "asc" | "desc";
+  const [sortCol, setSortCol] = useState<SortCol | null>(null);
+  const [sortDir, setSortDir] = useState<SortDir>("asc");
+
+  function handleSort(col: SortCol) {
+    if (sortCol === col) {
+      setSortDir(d => d === "asc" ? "desc" : "asc");
+    } else {
+      setSortCol(col);
+      setSortDir("asc");
+    }
+  }
+
+  const sortedUsers = useMemo(() => {
+    if (!sortCol) return users;
+    return [...users].sort((a, b) => {
+      let va: string | number;
+      let vb: string | number;
+      switch (sortCol) {
+        case "username":
+          va = a.username.toLowerCase(); vb = b.username.toLowerCase(); break;
+        case "role":
+          va = a.role; vb = b.role; break;
+        case "organisation_name":
+          va = (a.organisation_name || "").toLowerCase();
+          vb = (b.organisation_name || "").toLowerCase(); break;
+        case "is_active":
+          va = a.is_active ? 0 : 1; vb = b.is_active ? 0 : 1; break;
+        case "updated_at":
+          va = a.updated_at ?? a.created_at;
+          vb = b.updated_at ?? b.created_at; break;
+        default: return 0;
+      }
+      if (va < vb) return sortDir === "asc" ? -1 : 1;
+      if (va > vb) return sortDir === "asc" ?  1 : -1;
+      return 0;
+    });
+  }, [users, sortCol, sortDir]);
+
   // ── Load users ──────────────────────────────────────────────────────────────
   const loadUsers = useCallback(async () => {
     setLoading(true);
@@ -439,17 +480,38 @@ export default function UserManagementPage() {
           ) : (
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-gray-100 text-xs text-gray-400 uppercase tracking-wide">
-                  <th className="text-left px-5 py-3 font-semibold">Username</th>
-                  <th className="text-left px-5 py-3 font-semibold">Access Rights</th>
-                  <th className="text-left px-5 py-3 font-semibold">Organisation</th>
-                  <th className="text-left px-5 py-3 font-semibold">Status</th>
-                  <th className="text-left px-5 py-3 font-semibold">Last Updated</th>
+                <tr className="border-b border-gray-100">
+                  {(
+                    [
+                      { col: "username"          as SortCol, label: "Username"      },
+                      { col: "role"              as SortCol, label: "Access Rights" },
+                      { col: "organisation_name" as SortCol, label: "Organisation"  },
+                      { col: "is_active"         as SortCol, label: "Status"        },
+                      { col: "updated_at"        as SortCol, label: "Last Updated"  },
+                    ] as { col: SortCol; label: string }[]
+                  ).map(({ col, label }) => {
+                    const active = sortCol === col;
+                    return (
+                      <th key={col} className="text-left px-5 py-3">
+                        <button
+                          onClick={() => handleSort(col)}
+                          className={`flex items-center gap-1 text-xs font-semibold uppercase tracking-wide transition-colors select-none ${
+                            active ? "text-[#0B1929]" : "text-gray-400 hover:text-gray-600"
+                          }`}
+                        >
+                          {label}
+                          <span className="text-[10px] leading-none">
+                            {active ? (sortDir === "asc" ? "↑" : "↓") : "↕"}
+                          </span>
+                        </button>
+                      </th>
+                    );
+                  })}
                   <th className="px-5 py-3" />
                 </tr>
               </thead>
               <tbody>
-                {users.map(u => (
+                {sortedUsers.map(u => (
                   <tr key={u.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
                     <td className="px-5 py-3 font-mono text-xs text-gray-700">
                       {u.username}
