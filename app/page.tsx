@@ -122,8 +122,9 @@ export default function PublicHomePage() {
             </div>
           </div>
 
-          {/* ── Scroll prompt — absolute so it doesn't shift vertical centre ── */}
-          <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2" aria-hidden>
+          {/* ── Scroll prompt — fades in after hero content completes ── */}
+          <div className="hero-fade-up absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2"
+            style={{ animationDelay: "2.7s" }} aria-hidden>
             {/* Gradient line: gold → transparent, pulsing scaleY + opacity */}
             <div className="scroll-indicator-line" />
             <p style={{ fontSize: 10, letterSpacing: "0.35em", color: "#D7B87A", fontWeight: 600, textTransform: "uppercase" }}>
