@@ -313,7 +313,16 @@
 <!-- ── Navigation ── -->
 <nav>
   <div class="nav-inner">
-    <img src="/Fanometrix_Logo.png" alt="Fanometrix" />
+    <!--
+      Logo links to /login.
+      The middleware redirects logged-in users from /login → /home automatically,
+      so this correctly routes both cases:
+        Logged in  → /login → middleware → /home (role-aware)
+        Logged out → /login → login form
+    -->
+    <a href="/login" style="display:flex;align-items:center;flex-shrink:0">
+      <img src="/Fanometrix_Logo.png" alt="Fanometrix" />
+    </a>
     <a href="/home">← Back to platform</a>
   </div>
 </nav>

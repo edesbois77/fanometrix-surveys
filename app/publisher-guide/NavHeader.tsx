@@ -34,7 +34,7 @@ export function NavHeader() {
         {/* Logo — goes to /home for logged-in users, / for public visitors */}
         <Link href={logoHref} className="flex-shrink-0">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/Fanometrix_Logo.png" alt="Fanometrix" style={{ height: 16, objectFit: "contain", display: "block" }} />
+          <img src="/Fanometrix_Logo.png" alt="Fanometrix" style={{ height: 18, objectFit: "contain", display: "block" }} />
         </Link>
 
         {/* Desktop nav links — hidden on mobile */}
