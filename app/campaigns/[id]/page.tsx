@@ -19,7 +19,7 @@ type Campaign = {
   id: string; campaign_id: string; brand_name: string; campaign_name: string;
   campaign_description: string | null; start_date: string | null; end_date: string | null;
   survey_id: string | null; surveys?: { name: string } | null;
-  publishers: string[]; status: string; effective_status: string;
+  publisher: string | null; status: string; effective_status: string;
   response_count: number; target_responses: number | null;
   created_at: string;
 };
@@ -450,12 +450,10 @@ export default function CampaignDetailPage() {
                     {campaign.surveys.name}
                   </span>
                 )}
-                {campaign.publishers.length > 0 && (
-                  <span className="flex items-center gap-1 flex-wrap">
-                    <span className="text-gray-400">Publishers </span>
-                    {campaign.publishers.map(p => (
-                      <span key={p} className="bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">{p}</span>
-                    ))}
+                {campaign.publisher && (
+                  <span className="flex items-center gap-1">
+                    <span className="text-gray-400">Publisher </span>
+                    <span className="bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">{campaign.publisher}</span>
                   </span>
                 )}
               </div>
