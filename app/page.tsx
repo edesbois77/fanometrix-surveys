@@ -122,25 +122,37 @@ export default function PublicHomePage() {
           </div>
         </section>
 
-        {/* ── Mission / intro section (Content v2) ── */}
-        {/* To hide: wrap in {false && ( ... )} */}
-        <section className="border-t border-gray-100 bg-white text-center
-                            py-[clamp(56px,8vw,96px)] px-6">
-          <div style={{ maxWidth: 760, margin: "0 auto" }}>
+        {/* ── Why Fanometrix + Value pillars (unified section, Content v2) ── */}
+        {/* Revert: restore the two separate sections from git history         */}
+        <section className="border-t border-gray-100 bg-gray-50
+                            pt-[clamp(56px,7vw,80px)] pb-[clamp(48px,7vw,80px)]
+                            px-5 sm:px-10">
+
+          {/* Compact intro above the cards */}
+          <div className="text-center max-w-[760px] mx-auto mb-12">
+
+            {/* Eyebrow label */}
+            <p className="mb-4 font-semibold uppercase tracking-[0.18em]"
+              style={{ fontSize: 12, color: "#D7B87A", letterSpacing: "0.18em" }}>
+              Why Fanometrix
+            </p>
+
+            {/* Section heading — h2, not hero size */}
             <h2
-              className="font-bold leading-tight tracking-tight mb-8"
+              className="font-bold leading-tight tracking-tight mb-6 mx-auto"
               style={{
-                fontSize: "clamp(26px, 4vw, 38px)",
+                fontSize: "clamp(28px, 3.5vw, 44px)",
                 color: "#0B1929",
                 letterSpacing: "-0.02em",
+                maxWidth: 700,
               }}
             >
               Turning fan voices into better football experiences.
             </h2>
-            <div
-              className="space-y-5 mx-auto"
-              style={{ fontSize: "clamp(15px, 1.8vw, 17px)", color: "#6B7280", lineHeight: 1.8, maxWidth: 720 }}
-            >
+
+            {/* Supporting copy */}
+            <div className="space-y-4 mx-auto"
+              style={{ fontSize: "clamp(14px, 1.6vw, 16px)", color: "#6B7280", lineHeight: 1.75, maxWidth: 700 }}>
               <p>
                 Football supporters invest their time, passion and money into the game, yet they are
                 rarely asked what they truly think and feel.
@@ -151,17 +163,11 @@ export default function PublicHomePage() {
               </p>
               <p>
                 Fanometrix gives supporters a voice and helps brands, rights holders and media
-                partners better understand football fans around the world. By turning real fan
-                opinions into actionable insight, we help organisations create experiences that add
-                value to the game and the people who love it.
+                partners better understand football fans around the world, turning real fan opinions
+                into actionable insight that improves experiences for the people who love the game.
               </p>
             </div>
           </div>
-        </section>
-
-        {/* ── Value pillars ── */}
-        <section className="border-t border-gray-100 bg-gray-50
-                            py-[clamp(48px,7vw,80px)] px-5 sm:px-10">
           <div className="max-w-[1100px] mx-auto grid gap-5"
             style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
             {PILLARS.map(({ label, body }) => (
