@@ -5,22 +5,23 @@
 /* Revert: remove these blocks and the corresponding class names in page.tsx.  */
 
 @keyframes fade-up-in {
-  from { opacity: 0; transform: translateY(16px); }
+  from { opacity: 0; transform: translateY(10px); }
   to   { opacity: 1; transform: translateY(0);    }
 }
 
 /* Applied to hero elements — fires once on page load */
+/* ease-in-out distributes the animation evenly so the full duration feels slow */
 .hero-fade-up {
   opacity: 0;
-  animation: fade-up-in 1.8s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  animation: fade-up-in 2.2s ease-in-out forwards;
 }
 
 /* Applied to About-section elements — starts hidden, JS adds .visible */
 .scroll-fade-up {
   opacity: 0;
-  transform: translateY(16px);
-  transition: opacity 1.6s cubic-bezier(0.22, 1, 0.36, 1),
-              transform 1.6s cubic-bezier(0.22, 1, 0.36, 1);
+  transform: translateY(10px);
+  transition: opacity 2s ease-in-out,
+              transform 2s ease-in-out;
 }
 .scroll-fade-up.visible {
   opacity: 1;
