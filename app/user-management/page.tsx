@@ -441,7 +441,7 @@ export default function UserManagementPage() {
               <thead>
                 <tr className="border-b border-gray-100 text-xs text-gray-400 uppercase tracking-wide">
                   <th className="text-left px-5 py-3 font-semibold">Username</th>
-                  <th className="text-left px-5 py-3 font-semibold">Role</th>
+                  <th className="text-left px-5 py-3 font-semibold">Access Rights</th>
                   <th className="text-left px-5 py-3 font-semibold">Organisation</th>
                   <th className="text-left px-5 py-3 font-semibold">Status</th>
                   <th className="text-left px-5 py-3 font-semibold">Last Updated</th>
