@@ -198,9 +198,14 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             )}
           </nav>
 
-          {/* Footer — mt-auto pushes it to bottom on desktop; scrolls into view on mobile */}
-          <div className="mt-auto px-3 py-4 space-y-0.5"
-            style={{ borderTop: "1px solid rgba(255,255,255,0.08)" }}>
+          {/* Footer — mt-auto pushes it to bottom on desktop; scrolls into view on mobile.
+              padding-bottom uses env(safe-area-inset-bottom) so the last item clears
+              the Chrome/Safari browser navigation bar on mobile. */}
+          <div className="mt-auto px-3 pt-4 space-y-0.5"
+            style={{
+              borderTop: "1px solid rgba(255,255,255,0.08)",
+              paddingBottom: "max(1rem, env(safe-area-inset-bottom, 1rem))",
+            }}>
             {[
               { href: "/privacy",               label: "ⓘ Privacy Policy",   external: false },
               ...(isAdmin ? [
