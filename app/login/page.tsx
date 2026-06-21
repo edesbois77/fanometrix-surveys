@@ -107,7 +107,7 @@ export default function LoginPage() {
             src="/Fanometrix_Logo.png"
             alt="Fanometrix"
             style={{
-              height: 32,
+              height: 24,
               objectFit: "contain",
               filter:
                 "brightness(0) saturate(100%) invert(11%) sepia(33%) saturate(1200%) hue-rotate(192deg) brightness(95%)",
