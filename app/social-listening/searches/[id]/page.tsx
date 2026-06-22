@@ -1,0 +1,249 @@
+"use client";
+
+import { useState, useEffect, use } from "react";
+import Link from "next/link";
+import { AdminShell } from "@/app/components/AdminShell";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
+
+type Search = {
+  id: string; name: string; entity_type: string; research_goal: string;
+  description: string | null; status: string; markets: string[];
+  platforms: string[]; frequency: string;
+  social_keywords: { keyword: string; keyword_type: string }[];
+};
+type Stats = {
+  total: number; positive_pct: number; neutral_pct: number; negative_pct: number;
+  topTopics: { topic: string; count: number }[];
+  topPlatforms: { platform: string; count: number }[];
+  topMarkets: { market: string; count: number }[];
+};
+type Summary = { topic: string | null; sentiment: string | null; ai_summary: string | null };
+
+const SENT_COLOURS: Record<string, string> = { Positive: "#22C55E", Neutral: "#9CA3AF", Negative: "#EF4444" };
+const STATUS_COLOURS: Record<string, string> = {
+  Draft: "bg-gray-100 text-gray-600", Active: "bg-green-100 text-green-700",
+  Paused: "bg-amber-100 text-amber-700", Archived: "bg-red-100 text-red-500",
+};
+
+export default function SearchDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params);
+  const [search,    setSearch]    = useState<Search | null>(null);
+  const [stats,     setStats]     = useState<Stats | null>(null);
+  const [summaries, setSummaries] = useState<Summary[]>([]);
+  const [loading,   setLoading]   = useState(true);
+
+  useEffect(() => {
+    if (!id) return;
+    Promise.all([
+      fetch(`/api/social/searches`).then(r => r.json()),
+      fetch(`/api/social/stats?search_id=${id}`).then(r => r.json()),
+      fetch(`/api/social/reports?search_id=${id}`).then(r => r.json()),
+    ]).then(([sJson, statsJson, reportJson]) => {
+      const found = (sJson.data ?? []).find((s: Search) => s.id === id);
+      setSearch(found ?? null);
+      setStats(statsJson);
+      setSummaries(reportJson.recentSummaries ?? []);
+      setLoading(false);
+    }).catch(() => setLoading(false));
+  }, [id]);
+
+  if (loading) return (
+    <AdminShell>
+      <div className="p-6 max-w-5xl mx-auto">
+        <div className="h-8 w-64 bg-gray-100 rounded-lg animate-pulse mb-4" />
+        <div className="grid grid-cols-4 gap-3">{[0,1,2,3].map(i => (
+          <div key={i} className="bg-white border border-gray-100 rounded-xl p-4 h-20 animate-pulse" />
+        ))}</div>
+      </div>
+    </AdminShell>
+  );
+
+  if (!search) return (
+    <AdminShell>
+      <div className="p-6 max-w-5xl mx-auto">
+        <Link href="/social-listening/searches" className="text-sm text-gray-400 hover:text-gray-600">← Searches</Link>
+        <p className="mt-6 text-gray-400">Search not found.</p>
+      </div>
+    </AdminShell>
+  );
+
+  const total = stats?.total ?? 0;
+
+  return (
+    <AdminShell>
+      <div className="p-4 md:p-6 max-w-5xl mx-auto">
+
+        {/* Header */}
+        <div className="mb-6">
+          <Link href="/social-listening/searches" className="text-xs text-gray-400 hover:text-gray-600">← Searches</Link>
+          <div className="flex items-start gap-3 mt-2">
+            <div className="flex-1 min-w-0">
+              <h1 className="text-2xl font-bold text-gray-900">{search.name}</h1>
+              <div className="flex items-center gap-2 mt-1 flex-wrap">
+                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLOURS[search.status]}`}>{search.status}</span>
+                <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full">{search.entity_type}</span>
+                <span className="text-xs bg-purple-50 text-purple-700 px-2 py-0.5 rounded-full">{search.research_goal}</span>
+              </div>
+              {search.description && <p className="text-sm text-gray-500 mt-2 leading-relaxed">{search.description}</p>}
+            </div>
+            <Link href={`/social-listening/mentions`}
+              className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 flex-shrink-0">
+              View Mentions →
+            </Link>
+          </div>
+        </div>
+
+        {/* Meta grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+          <div className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Keywords</p>
+            <div className="flex flex-wrap gap-1.5">
+              {search.social_keywords.length ? search.social_keywords.map((k, i) => (
+                <span key={i} className="text-xs bg-gray-50 border border-gray-200 px-2 py-0.5 rounded-full text-gray-600">
+                  {k.keyword} <span className="text-gray-300">· {k.keyword_type}</span>
+                </span>
+              )) : <span className="text-xs text-gray-300">No keywords set</span>}
+            </div>
+          </div>
+          <div className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Markets</p>
+            <p className="text-sm text-gray-700">{search.markets.join(" · ") || "All markets"}</p>
+          </div>
+          <div className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Platforms · Frequency</p>
+            <p className="text-sm text-gray-700">{search.platforms.join(", ") || "All"}</p>
+            <p className="text-xs text-gray-400 mt-1">{search.frequency}</p>
+          </div>
+        </div>
+
+        {/* KPI */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+          {[
+            { label: "Total Mentions", value: total.toLocaleString(), color: total > 0 ? "#22C55E" : "#9CA3AF" },
+            { label: "Positive",  value: `${stats?.positive_pct ?? 0}%`, color: "#22C55E" },
+            { label: "Neutral",   value: `${stats?.neutral_pct  ?? 0}%`, color: "#9CA3AF" },
+            { label: "Negative",  value: `${stats?.negative_pct ?? 0}%`, color: "#EF4444" },
+          ].map(k => (
+            <div key={k.label} className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm relative overflow-hidden">
+              <div className="absolute top-0 left-0 right-0 h-0.5" style={{ background: k.color }} />
+              <p className="text-2xl font-bold mt-1" style={{ color: k.color }}>{k.value}</p>
+              <p className="text-xs text-gray-400 mt-0.5">{k.label}</p>
+            </div>
+          ))}
+        </div>
+
+        {total === 0 ? (
+          <div className="bg-[#0B1929] rounded-2xl p-8 text-center">
+            <p className="text-white/60 text-sm mb-4">No mentions collected yet for this search.</p>
+            <Link href="/social-listening/searches"
+              className="inline-block text-sm font-semibold px-5 py-2.5 rounded-xl"
+              style={{ background: "#D7B87A", color: "#0B1929" }}>
+              ← Back to Searches
+            </Link>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+
+            {/* Top Topics */}
+            {(stats?.topTopics ?? []).length > 0 && (
+              <div className="bg-white border border-gray-100 rounded-xl p-5 shadow-sm">
+                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-4">Top Topics</h3>
+                <ResponsiveContainer width="100%" height={180}>
+                  <BarChart data={stats?.topTopics?.slice(0,6)} layout="vertical" margin={{ left: 0, right: 16 }}>
+                    <XAxis type="number" tick={{ fontSize: 10 }} />
+                    <YAxis type="category" dataKey="topic" tick={{ fontSize: 10 }} width={130} />
+                    <Tooltip formatter={(v) => [Number(v), "mentions"]} />
+                    <Bar dataKey="count" fill="#D7B87A" radius={[0,4,4,0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+
+            {/* Top Markets */}
+            {(stats?.topMarkets ?? []).length > 0 && (
+              <div className="bg-white border border-gray-100 rounded-xl p-5 shadow-sm">
+                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-4">By Market</h3>
+                <ResponsiveContainer width="100%" height={180}>
+                  <BarChart data={stats?.topMarkets} layout="vertical" margin={{ left: 0, right: 16 }}>
+                    <XAxis type="number" tick={{ fontSize: 10 }} />
+                    <YAxis type="category" dataKey="market" tick={{ fontSize: 10 }} width={50} />
+                    <Tooltip formatter={(v) => [Number(v), "mentions"]} />
+                    <Bar dataKey="count" radius={[0,4,4,0]}>
+                      {(stats?.topMarkets ?? []).map((_, i) => (
+                        <Cell key={i} fill={["#4FA3A5","#D7B87A","#5B6CFA","#22C55E","#7A63D1","#4FAF7B"][i%6]} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+
+            {/* By Platform */}
+            {(stats?.topPlatforms ?? []).length > 0 && (
+              <div className="bg-white border border-gray-100 rounded-xl p-5 shadow-sm">
+                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-4">By Platform</h3>
+                <div className="space-y-3">
+                  {(stats?.topPlatforms ?? []).map(p => (
+                    <div key={p.platform}>
+                      <div className="flex justify-between text-xs text-gray-500 mb-1">
+                        <span>{p.platform}</span><span>{p.count}</span>
+                      </div>
+                      <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                        <div className="h-full rounded-full bg-[#4FA3A5]"
+                          style={{ width: `${Math.round((p.count / total) * 100)}%` }} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Sentiment split */}
+            <div className="bg-white border border-gray-100 rounded-xl p-5 shadow-sm">
+              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-4">Sentiment Split</h3>
+              <div className="space-y-3">
+                {[
+                  { label: "Positive", pct: stats?.positive_pct ?? 0 },
+                  { label: "Neutral",  pct: stats?.neutral_pct  ?? 0 },
+                  { label: "Negative", pct: stats?.negative_pct ?? 0 },
+                ].map(s => (
+                  <div key={s.label}>
+                    <div className="flex justify-between text-xs text-gray-500 mb-1">
+                      <span>{s.label}</span><span>{s.pct}%</span>
+                    </div>
+                    <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                      <div className="h-full rounded-full" style={{ width: `${s.pct}%`, background: SENT_COLOURS[s.label] }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Latest AI summaries */}
+        {summaries.length > 0 && (
+          <div className="bg-white border border-gray-100 rounded-xl p-5 shadow-sm">
+            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-4">Latest AI Summaries</h3>
+            <div className="space-y-2">
+              {summaries.slice(0, 8).map((s, i) => (
+                <div key={i} className="flex items-start gap-3 py-2 border-b border-gray-50 last:border-0">
+                  <div className="flex gap-1.5 flex-shrink-0 pt-0.5">
+                    {s.topic && <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full">{s.topic}</span>}
+                    {s.sentiment && (
+                      <span className="text-xs px-2 py-0.5 rounded-full font-medium"
+                        style={{ background: (SENT_COLOURS[s.sentiment] ?? "#9CA3AF") + "22", color: SENT_COLOURS[s.sentiment] ?? "#9CA3AF" }}>
+                        {s.sentiment}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-gray-500 italic flex-1">{s.ai_summary}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </AdminShell>
+  );
+}

@@ -215,6 +215,16 @@ export const NAV_ITEMS: NavItemConfig[] = [
     roles: ["admin"],
     navGroup: "developer",
   },
+  {
+    href: "/social-listening/validation",
+    label: "Validation",
+    icon: "◈",
+    description: "Review AI classification accuracy, distribution quality and manage synthetic datasets.",
+    cta: "Open Validation",
+    section: "developer-tool",
+    roles: ["admin"],
+    navGroup: "developer",
+  },
 
   // ── Footer links ──────────────────────────────────────────────────────────
   {

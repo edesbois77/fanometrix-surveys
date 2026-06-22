@@ -37,9 +37,10 @@ export default function SearchesPage() {
   const [kwInput,     setKwInput]     = useState("");
   const [kwType,      setKwType]      = useState<string>(KEYWORD_TYPES[0]);
   const [saving,       setSaving]       = useState(false);
-  const [generating,   setGenerating]   = useState<string | null>(null); // search_id being generated
-  const [genCount,     setGenCount]     = useState(200);
-  const [genTarget,    setGenTarget]    = useState<Search | null>(null);
+  const [generating,    setGenerating]    = useState<string | null>(null);
+  const [genCount,      setGenCount]      = useState(200);
+  const [genTarget,     setGenTarget]     = useState<Search | null>(null);
+  const [genPlatforms,  setGenPlatforms]  = useState<Record<string, number>>({});
   const [toast,        setToast]        = useState<{ msg: string; ok: boolean } | null>(null);
 
   function showToast(msg: string, ok = true) {
@@ -108,20 +109,57 @@ export default function SearchesPage() {
     if (res.ok) { showToast("Deleted."); load(); }
   }
 
+  function getDefaultDist(entityType: string): Record<string, number> {
+    if (entityType === "Club")        return { Reddit: 60, YouTube: 30, News: 10 };
+    if (entityType === "Brand")       return { Reddit: 40, News: 40, YouTube: 20 };
+    if (entityType === "Competition") return { Reddit: 35, News: 45, YouTube: 20 };
+    return { Reddit: 40, YouTube: 30, News: 30 };
+  }
+
+  function openGenerate(s: Search) {
+    setGenTarget(s);
+    setGenCount(200);
+    setGenPlatforms(getDefaultDist(s.entity_type));
+  }
+
+  function adjustPlatform(platform: string, enabled: boolean) {
+    setGenPlatforms(prev => {
+      if (!enabled) {
+        const next = { ...prev }; delete next[platform]; return next;
+      }
+      return { ...prev, [platform]: 20 };
+    });
+  }
+
+  function setPlatformPct(platform: string, pct: number) {
+    setGenPlatforms(prev => ({ ...prev, [platform]: pct }));
+  }
+
+  const GEN_BATCH_SIZE = 25;
+  const genBatches      = Math.ceil(genCount / GEN_BATCH_SIZE);
+  const classifyBatches = Math.ceil(genCount / 5);
+  const totalAPICalls   = genBatches + classifyBatches;
+  const estSecs         = Math.ceil(totalAPICalls * 3);  // ~3s per call with concurrency
+
   async function handleGenerate() {
     if (!genTarget) return;
-    setGenerating(genTarget.id);
+    const target = genTarget;
+    setGenerating(target.id);
     setGenTarget(null);
-    showToast(`Generating ${genCount} mentions for "${genTarget.name}"… this may take up to 60s.`);
-    const res  = await fetch("/api/social/generate-sample", {
+    showToast(`Generating ${genCount} raw mentions then classifying… ~${estSecs}s`);
+    const res = await fetch("/api/social/generate-sample", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ search_id: genTarget.id, count: genCount }),
+      body: JSON.stringify({
+        search_id:              target.id,
+        count:                  genCount,
+        platform_distribution:  genPlatforms,
+      }),
     });
     const json = await res.json();
     setGenerating(null);
     if (res.ok) {
-      showToast(`✓ Generated ${json.inserted} mentions. View them in Mentions.`);
+      showToast(`✓ Generated ${json.raw_generated} raw → ${json.classified} classified. View in Mentions.`);
     } else {
       showToast(json.error ?? "Generation failed.", false);
     }
@@ -194,13 +232,14 @@ export default function SearchesPage() {
                   </div>
                   <div className="flex items-center gap-3 flex-shrink-0">
                     <button
-                      onClick={() => { setGenTarget(s); setGenCount(200); }}
+                      onClick={() => openGenerate(s)}
                       disabled={generating === s.id}
                       className="text-xs font-semibold px-3 py-1.5 rounded-lg border-2 border-[#D7B87A] text-[#0B1929] hover:bg-[#FBF5E8] disabled:opacity-40 transition-colors"
                       title="Generate synthetic mentions using AI"
                     >
                       {generating === s.id ? "Generating…" : "✦ Generate Sample"}
                     </button>
+                    <a href={`/social-listening/searches/${s.id}`} className="text-xs text-blue-500 hover:text-blue-700 font-medium">View</a>
                     <button onClick={() => openEdit(s)} className="text-xs text-gray-500 hover:text-gray-800">Edit</button>
                     <button onClick={() => handleDelete(s.id, s.name)} className="text-xs text-red-400 hover:text-red-600">Delete</button>
                   </div>
@@ -211,42 +250,75 @@ export default function SearchesPage() {
         )}
       </div>
 
-      {/* Generate Sample modal */}
+      {/* Generate Sample modal — enhanced */}
       {genTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm mx-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md overflow-y-auto max-h-[90vh]">
             <h2 className="text-lg font-bold text-gray-900 mb-1">Generate Sample Dataset</h2>
-            <p className="text-sm text-gray-500 mb-4">
-              AI will generate realistic synthetic football fan mentions for <strong>{genTarget.name}</strong>,
-              pre-classified with sentiment, topic and summary.
+            <p className="text-sm text-gray-500 mb-5">
+              <strong>{genTarget.name}</strong> · {genTarget.entity_type} · {genTarget.research_goal}
+              <br /><span className="text-xs text-gray-400 mt-0.5 block">
+                Raw mentions generated first, then classified through the Fanometrix engine.
+              </span>
             </p>
 
+            {/* Count picker */}
             <div className="mb-5">
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Number of mentions</p>
-              <div className="flex gap-2">
-                {[100, 200, 300, 500].map(n => (
-                  <button
-                    key={n}
-                    onClick={() => setGenCount(n)}
-                    className={`flex-1 py-2 rounded-xl border-2 text-sm font-semibold transition-colors ${
-                      genCount === n
-                        ? "bg-[#0B1929] text-[#D7B87A] border-[#0B1929]"
-                        : "bg-white text-gray-500 border-gray-200 hover:border-[#D7B87A]"
-                    }`}
-                  >
-                    {n}
+              <div className="grid grid-cols-5 gap-1.5">
+                {[100, 200, 300, 500, 1000].map(n => (
+                  <button key={n} onClick={() => setGenCount(n)}
+                    className={`py-2 rounded-xl border-2 text-xs font-semibold transition-colors ${
+                      genCount === n ? "bg-[#0B1929] text-[#D7B87A] border-[#0B1929]" : "bg-white text-gray-500 border-gray-200 hover:border-[#D7B87A]"
+                    }`}>
+                    {n === 1000 ? "1000 ★" : n}
                   </button>
                 ))}
               </div>
-              <p className="text-xs text-gray-400 mt-2">
-                ~{Math.ceil(genCount / 25)} AI calls · est. {Math.ceil(genCount / 25) * 5}–{Math.ceil(genCount / 25) * 10}s
-              </p>
+            </div>
+
+            {/* Platform distribution */}
+            <div className="mb-5">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Platform distribution</p>
+              <div className="space-y-2">
+                {["Reddit", "YouTube", "News"].map(p => {
+                  const enabled = p in genPlatforms;
+                  const pct     = genPlatforms[p] ?? 0;
+                  return (
+                    <div key={p} className="flex items-center gap-3">
+                      <label className="flex items-center gap-2 w-24 cursor-pointer text-sm text-gray-700">
+                        <input type="checkbox" checked={enabled}
+                          onChange={e => adjustPlatform(p, e.target.checked)} />
+                        {p}
+                      </label>
+                      {enabled && (
+                        <>
+                          <input type="range" min={10} max={80} value={pct}
+                            onChange={e => setPlatformPct(p, parseInt(e.target.value))}
+                            className="flex-1" />
+                          <span className="text-xs text-gray-500 w-8 text-right">{pct}%</span>
+                          <span className="text-xs text-gray-400 w-12 text-right">
+                            ~{Math.round((pct / Math.max(Object.values(genPlatforms).reduce((a,b)=>a+b,0),1)) * genCount)}
+                          </span>
+                        </>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Estimates */}
+            <div className="bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 mb-5 text-xs text-gray-500 space-y-1">
+              <div className="flex justify-between"><span>Generation API calls</span><span className="font-semibold">{genBatches}</span></div>
+              <div className="flex justify-between"><span>Classification API calls</span><span className="font-semibold">{classifyBatches}</span></div>
+              <div className="flex justify-between"><span>Total API calls</span><span className="font-semibold">{totalAPICalls}</span></div>
+              <div className="flex justify-between border-t border-gray-200 pt-1"><span>Estimated time</span><span className="font-semibold">~{estSecs}s</span></div>
             </div>
 
             <div className="bg-amber-50 border border-amber-100 rounded-xl px-4 py-3 mb-5">
               <p className="text-xs text-amber-700 leading-relaxed">
-                Requires <code className="font-mono">OPENAI_API_KEY</code> in Vercel.
-                Synthetic mentions are marked <code className="font-mono">import_source = synthetic</code> and can be deleted separately.
+                Requires <code className="font-mono">OPENAI_API_KEY</code> · Marked <code className="font-mono">import_source = synthetic</code>
               </p>
             </div>
 
@@ -256,7 +328,8 @@ export default function SearchesPage() {
                 Cancel
               </button>
               <button onClick={handleGenerate}
-                className="flex-1 text-sm font-semibold py-2.5 rounded-xl"
+                disabled={Object.keys(genPlatforms).length === 0}
+                className="flex-1 text-sm font-semibold py-2.5 rounded-xl disabled:opacity-40"
                 style={{ background: "#0B1929", color: "#D7B87A" }}>
                 Generate {genCount} Mentions
               </button>

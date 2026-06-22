@@ -38,6 +38,8 @@ const ADMIN_ONLY_PREFIXES = [
   "/demo-data",
   "/access-requests",
   "/social-listening",
+  "/api/social/validation",
+  "/api/social/mentions",
   "/user-management",
   "/publishers",
   "/embed-test",
