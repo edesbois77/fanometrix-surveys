@@ -127,23 +127,17 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     return NextResponse.json({ success: true });
   }
 
-  // Soft delete — refuse if the survey has campaigns or real responses
+  // Soft delete — only block if the survey is still linked to active campaigns
   const { data: statsRows } = await supabaseAdmin
     .from("vw_survey_stats")
-    .select("campaign_count, response_count")
+    .select("campaign_count")
     .eq("id", id);
 
-  const stats = statsRows?.[0];
-  const campaignCount = (stats?.campaign_count as number) ?? 0;
-  const responseCount = (stats?.response_count as number) ?? 0;
+  const campaignCount = ((statsRows?.[0]?.campaign_count) as number) ?? 0;
 
-  if (campaignCount > 0 || responseCount > 0) {
+  if (campaignCount > 0) {
     return NextResponse.json(
-      {
-        error: "This survey has responses or is linked to campaign history. Archive instead.",
-        campaign_count: campaignCount,
-        response_count: responseCount,
-      },
+      { error: "This survey is still linked to active campaigns. Remove it from all campaigns first." },
       { status: 409 }
     );
   }

@@ -653,7 +653,10 @@ export default function SurveysPage() {
   }
 
   async function handleSoftDelete(s: Survey) {
-    if (!confirm(`Move "${s.name}" to deleted items? It can be restored later.`)) return;
+    const msg = s.response_count > 0
+      ? `⚠️ "${s.name}" has ${s.response_count.toLocaleString()} response${s.response_count !== 1 ? "s" : ""} collected.\n\nThe response data will be preserved in the database, but this survey will no longer appear in your active view.\n\nMove to deleted items?`
+      : `Move "${s.name}" to deleted items? It can be restored later.`;
+    if (!confirm(msg)) return;
     const res = await fetch(`/api/surveys/${s.id}`, { method: "DELETE" });
     if (!res.ok) {
       const json = await res.json().catch(() => ({}));
@@ -939,10 +942,10 @@ export default function SurveysPage() {
                         </button>
                         <button
                           onClick={() => handleSoftDelete(s)}
-                          disabled={s.campaign_count > 0 || s.response_count > 0}
+                          disabled={s.campaign_count > 0}
                           title={
-                            s.campaign_count > 0 || s.response_count > 0
-                              ? "This survey has responses or is linked to campaign history. Archive instead."
+                            s.campaign_count > 0
+                              ? "This survey is still linked to active campaigns. Remove it from all campaigns first."
                               : "Move to deleted items"
                           }
                           className="text-xs border border-red-100 text-red-400 hover:bg-red-50 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
