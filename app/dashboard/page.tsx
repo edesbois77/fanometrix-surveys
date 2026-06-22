@@ -102,15 +102,21 @@ export default function DashboardPage() {
   const load = useCallback(async () => {
     setLoading(true);
     setError("");
-    const [rRes, cRes] = await Promise.all([
-      fetch("/api/responses"),
-      fetch("/api/campaigns"),
-    ]);
-    if (!rRes.ok) { setError("Failed to load responses."); setLoading(false); return; }
-    const [rJson, cJson] = await Promise.all([rRes.json(), cRes.json()]);
-    setResponses(rJson.data ?? []);
-    setCampaigns(cJson.data ?? []);
-    setLoading(false);
+    try {
+      const [rRes, cRes] = await Promise.all([
+        fetch("/api/responses"),
+        fetch("/api/campaigns"),
+      ]);
+      if (!rRes.ok) { setError("Failed to load responses."); setLoading(false); return; }
+      const rJson = await rRes.json();
+      const cJson = cRes.ok ? await cRes.json() : { data: [] };
+      setResponses(rJson.data ?? []);
+      setCampaigns(cJson.data ?? []);
+    } catch {
+      setError("Failed to load dashboard data.");
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => { load(); }, [load]);

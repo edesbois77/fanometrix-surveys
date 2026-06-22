@@ -61,6 +61,10 @@ export async function GET(req: NextRequest) {
     const ids = session.allowedCampaignIds;
     if (ids.length === 0) return NextResponse.json({ data: [] });
     query = query.in("campaign_id", ids);
+  } else if (session.role === "publisher") {
+    const ids = session.allowedPublisherIds;
+    if (ids.length === 0) return NextResponse.json({ data: [] });
+    query = query.in("publisher", ids);
   }
 
   const [{ data: campaigns, error }, { data: statsData }] = await Promise.all([
