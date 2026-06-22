@@ -7,6 +7,12 @@ import { supabase } from "@/lib/supabase";
 import { validateSurvey } from "@/lib/survey-validation";
 import { resolveQuestion, type LangCode, type LocalisedQuestion } from "@/lib/survey-locale";
 
+const NO_CACHE = {
+  "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+  "Pragma":        "no-cache",
+  "Expires":       "0",
+} as const;
+
 export async function GET(req: NextRequest) {
   const id      = req.nextUrl.searchParams.get("id");
   const lang    = (req.nextUrl.searchParams.get("lang") ?? "en") as LangCode;
@@ -48,5 +54,5 @@ export async function GET(req: NextRequest) {
     questions,
     thank_you_title: data.thank_you_title ?? "Thank you!",
     thank_you_body:  data.thank_you_body  ?? "Your anonymous feedback helps improve the football experience for fans everywhere.",
-  });
+  }, { headers: NO_CACHE });
 }

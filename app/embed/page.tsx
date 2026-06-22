@@ -470,9 +470,32 @@ function EmbedSurvey() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [groupSlug]);
 
-  // Single-campaign mode: fetch survey questions when a survey UUID is provided
+  // Campaign mode: campaign= is present — ALWAYS takes priority over survey=
+  // Fetches via /api/embed/campaign (no char-count validation, live check only)
+  const hasCampaignSlug = !groupSlug && !!campaign && campaign !== "default";
   useEffect(() => {
-    if (groupSlug || !surveyId) return;
+    if (!hasCampaignSlug) return;
+    const p = new URLSearchParams({ campaign_id: campaign });
+    if (urlLang) p.set("lang", urlLang);
+    if (isPreview) p.set("preview", "1");
+    fetch(`/api/embed/campaign?${p.toString()}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data?.questions?.length) {
+          setQuestions(data.questions);
+          setThankYouTitle(data.thank_you_title ?? thankYouTitle);
+          setThankYouBody(data.thank_you_body   ?? thankYouBody);
+          setResolvedSurveyLang(data.survey_language ?? urlLang ?? "en");
+        }
+      })
+      .catch(() => {/* keep fallback questions */});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [campaign, hasCampaignSlug]);
+
+  // Survey-only mode: fallback when NO campaign= present — uses survey UUID directly
+  // Only used for standalone survey embeds (no campaign context)
+  useEffect(() => {
+    if (groupSlug || hasCampaignSlug || !surveyId) return;
     const surveyApiUrl = `/api/embed/survey?id=${surveyId}&lang=${encodeURIComponent(urlLang ?? "en")}${isPreview ? "&preview=1" : ""}`;
     fetch(surveyApiUrl)
       .then(r => r.ok ? r.json() : null)
@@ -485,7 +508,7 @@ function EmbedSurvey() {
         }
       })
       .catch(() => {/* keep fallback questions */});
-  }, [surveyId, groupSlug]);
+  }, [surveyId, groupSlug, hasCampaignSlug]);
 
   const [step,         setStep]         = useState(0);
   const [answers,      setAnswers]      = useState<Record<string, number>>({});

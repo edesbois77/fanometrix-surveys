@@ -85,21 +85,21 @@ export default function EmbedGeneratorPage() {
 
   const params = useMemo(() => {
     const p = new URLSearchParams();
-    if (campaignIdValue)         p.set("campaign",    campaignIdValue);
-    if (campaign?.survey_id)     p.set("survey",      campaign.survey_id);
-    if (publisher)               p.set("publisher",   publisher);
-    if (placement)               p.set("placement",   placement);
-    if (club)                    p.set("club",        club);
-    if (competition)             p.set("competition", competition);
-    if (segment)                 p.set("segment",     segment);
+    if (campaignIdValue) p.set("campaign",   campaignIdValue);
+    // survey= intentionally omitted — campaign= takes priority in the embed
+    if (publisher)       p.set("publisher",  publisher);
+    if (placement)       p.set("placement",  placement);
+    if (club)            p.set("club",       club);
+    if (competition)     p.set("competition", competition);
+    if (segment)         p.set("segment",    segment);
     p.set("country", countryMacro);
     return p.toString();
-  }, [campaignIdValue, campaign, publisher, placement, club, competition, segment, countryMacro]);
+  }, [campaignIdValue, publisher, placement, club, competition, segment, countryMacro]);
 
   const previewParams = useMemo(() => {
     const p = new URLSearchParams();
     if (campaignIdValue)             p.set("campaign",    campaignIdValue);
-    if (campaign?.survey_id)         p.set("survey",      campaign.survey_id);
+    // survey= omitted — embed resolves via campaign slug
     if (campaign?.survey_language)   p.set("lang",        campaign.survey_language);
     if (publisher)                   p.set("publisher",   publisher);
     if (placement)                   p.set("placement",   placement);
@@ -125,7 +125,7 @@ export default function EmbedGeneratorPage() {
     `<script`,
     `  src="${BASE}/embed.js"`,
     campaignIdValue         ? `  data-campaign="${campaignIdValue}"` : null,
-    campaign?.survey_id     ? `  data-survey="${campaign.survey_id}"` : null,
+    // data-survey intentionally omitted — embed resolves survey via campaign= slug
     publisher               ? `  data-publisher="${publisher}"` : null,
     placement               ? `  data-placement="${placement}"` : null,
     club                    ? `  data-club="${club}"` : null,
