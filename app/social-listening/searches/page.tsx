@@ -1,53 +1,339 @@
+"use client";
+
+import { useState, useEffect, useCallback } from "react";
 import { AdminShell } from "@/app/components/AdminShell";
+import {
+  ENTITY_TYPES, RESEARCH_GOALS, FREQUENCIES, SEARCH_STATUSES,
+  KEYWORD_TYPES, PLATFORMS, MARKETS,
+} from "@/lib/social-taxonomy";
 
-const FIELDS = [
-  { label: "Search Name",  hint: "e.g. Carlsberg — Fan Sentiment" },
-  { label: "Keywords",     hint: "Comma-separated, e.g. Carlsberg, Carlsberg beer, #Carlsberg" },
-  { label: "Markets",      hint: "ISO country codes, e.g. GB, DE, SE" },
-  { label: "Platforms",    hint: "Twitter/X, Reddit, Instagram, News…" },
-];
+type Keyword = { keyword: string; keyword_type: string };
+type Search = {
+  id: string; name: string; description: string | null;
+  entity_type: string; research_goal: string; markets: string[];
+  platforms: string[]; frequency: string; status: string;
+  social_keywords: Keyword[];
+  created_at: string;
+};
 
-export default function SLSearchesPage() {
+const BLANK = {
+  name: "", description: "", entity_type: "Brand", research_goal: "Fan Sentiment",
+  markets: ["GB"] as string[], platforms: PLATFORMS.filter(p => p.defaultOn).map(p => p.id) as string[],
+  frequency: "Manual", status: "Draft",
+};
+
+const STATUS_COLOURS: Record<string, string> = {
+  Draft: "bg-gray-100 text-gray-600", Active: "bg-green-100 text-green-700",
+  Paused: "bg-amber-100 text-amber-700", Archived: "bg-red-100 text-red-500",
+};
+
+export default function SearchesPage() {
+  const [searches,    setSearches]    = useState<Search[]>([]);
+  const [loading,     setLoading]     = useState(true);
+  const [showForm,    setShowForm]    = useState(false);
+  const [editId,      setEditId]      = useState<string | null>(null);
+  const [form,        setForm]        = useState(BLANK);
+  const [keywords,    setKeywords]    = useState<Keyword[]>([]);
+  const [kwInput,     setKwInput]     = useState("");
+  const [kwType,      setKwType]      = useState<string>(KEYWORD_TYPES[0]);
+  const [saving,      setSaving]      = useState(false);
+  const [toast,       setToast]       = useState<{ msg: string; ok: boolean } | null>(null);
+
+  function showToast(msg: string, ok = true) {
+    setToast({ msg, ok });
+    setTimeout(() => setToast(null), 4000);
+  }
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    const res = await fetch("/api/social/searches");
+    const json = await res.json();
+    setSearches(json.data ?? []);
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  function openCreate() {
+    setEditId(null); setForm(BLANK); setKeywords([]); setShowForm(true);
+  }
+
+  function openEdit(s: Search) {
+    setEditId(s.id);
+    setForm({ name: s.name, description: s.description ?? "", entity_type: s.entity_type,
+      research_goal: s.research_goal, markets: s.markets, platforms: s.platforms,
+      frequency: s.frequency, status: s.status });
+    setKeywords(s.social_keywords ?? []);
+    setShowForm(true);
+  }
+
+  function addKeyword() {
+    const k = kwInput.trim();
+    if (!k || keywords.some(kw => kw.keyword.toLowerCase() === k.toLowerCase())) return;
+    setKeywords(prev => [...prev, { keyword: k, keyword_type: kwType }]);
+    setKwInput("");
+  }
+
+  function toggleMarket(code: string) {
+    setForm(f => ({ ...f, markets: f.markets.includes(code) ? f.markets.filter(m => m !== code) : [...f.markets, code] }));
+  }
+
+  function togglePlatform(id: string) {
+    setForm(f => ({ ...f, platforms: f.platforms.includes(id) ? f.platforms.filter(p => p !== id) : [...f.platforms, id] }));
+  }
+
+  async function handleSave() {
+    if (!form.name.trim()) { showToast("Search name is required.", false); return; }
+    setSaving(true);
+    const url    = editId ? `/api/social/searches/${editId}` : "/api/social/searches";
+    const method = editId ? "PUT" : "POST";
+    const res    = await fetch(url, { method, headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...form, keywords }) });
+    setSaving(false);
+    if (res.ok) {
+      showToast(editId ? "Search updated." : "Search created.");
+      setShowForm(false); load();
+    } else {
+      const j = await res.json();
+      showToast(j.error ?? "Failed to save.", false);
+    }
+  }
+
+  async function handleDelete(id: string, name: string) {
+    if (!confirm(`Delete "${name}"?`)) return;
+    const res = await fetch(`/api/social/searches/${id}`, { method: "DELETE" });
+    if (res.ok) { showToast("Deleted."); load(); }
+  }
+
+  const INP = "w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A]";
+
   return (
     <AdminShell>
-      <div className="p-4 md:p-6 max-w-4xl mx-auto">
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">Searches</h1>
-          <p className="text-sm text-gray-400 mt-0.5">Define what to listen for</p>
-          <p className="text-sm text-gray-500 mt-2 leading-relaxed max-w-lg">
-            A Search defines the keywords, markets and platforms Fanometrix monitors.
-            Mentions are collected and classified against each search.
-          </p>
+      <div className="p-4 md:p-6 max-w-5xl mx-auto">
+
+        <div className="flex items-start justify-between mb-6">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Searches</h1>
+            <p className="text-sm text-gray-400 mt-0.5">{searches.length} search{searches.length !== 1 ? "es" : ""}</p>
+            <p className="text-sm text-gray-500 mt-2 max-w-lg leading-relaxed">
+              Define what to listen for — keywords, markets and platforms.
+              Mentions are imported and classified against each search.
+            </p>
+          </div>
+          <button onClick={openCreate}
+            className="text-sm font-semibold px-4 py-2 rounded-lg flex-shrink-0"
+            style={{ background: "#D7B87A", color: "#0B1929" }}>
+            + New Search
+          </button>
         </div>
 
-        {/* Placeholder form preview */}
-        <div className="bg-white border border-gray-100 rounded-2xl shadow-sm p-6 mb-5">
-          <div className="flex items-center justify-between mb-5">
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">New Search</p>
-            <span className="text-xs bg-amber-100 text-amber-700 px-2.5 py-1 rounded-full font-medium">Coming in V2</span>
+        {/* Search list */}
+        {loading ? (
+          <div className="space-y-3">{[0,1,2].map(i => (
+            <div key={i} className="bg-white border border-gray-100 rounded-xl p-5 animate-pulse">
+              <div className="h-4 w-48 bg-gray-100 rounded mb-2" /><div className="h-3 w-72 bg-gray-100 rounded" />
+            </div>
+          ))}</div>
+        ) : searches.length === 0 ? (
+          <div className="bg-white border border-gray-100 rounded-xl p-10 text-center shadow-sm">
+            <p className="text-gray-400">No searches yet. Create one to start building your listening strategy.</p>
           </div>
-          <div className="space-y-4 opacity-50 pointer-events-none">
-            {FIELDS.map(f => (
-              <div key={f.label}>
-                <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">{f.label}</label>
-                <input disabled
-                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-400 bg-gray-50"
-                  placeholder={f.hint}
-                />
+        ) : (
+          <div className="space-y-3">
+            {searches.map(s => (
+              <div key={s.id} className="bg-white border border-gray-100 rounded-xl p-5 shadow-sm">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="text-sm font-semibold text-gray-900">{s.name}</h3>
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLOURS[s.status]}`}>{s.status}</span>
+                      <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full">{s.entity_type}</span>
+                      <span className="text-xs bg-purple-50 text-purple-700 px-2 py-0.5 rounded-full">{s.research_goal}</span>
+                    </div>
+                    {s.description && <p className="text-xs text-gray-400 mt-1">{s.description}</p>}
+                    <div className="flex gap-3 mt-2 text-xs text-gray-400 flex-wrap">
+                      <span>{s.social_keywords?.length ?? 0} keywords</span>
+                      <span>{s.markets.join(", ") || "All markets"}</span>
+                      <span>{s.platforms.join(", ")}</span>
+                      <span>{s.frequency}</span>
+                    </div>
+                    {(s.social_keywords ?? []).length > 0 && (
+                      <div className="flex gap-1.5 mt-2 flex-wrap">
+                        {(s.social_keywords ?? []).slice(0, 8).map((k, i) => (
+                          <span key={i} className="text-xs bg-gray-50 border border-gray-200 px-2 py-0.5 rounded-full text-gray-600">
+                            {k.keyword}
+                          </span>
+                        ))}
+                        {(s.social_keywords ?? []).length > 8 && (
+                          <span className="text-xs text-gray-400">+{(s.social_keywords ?? []).length - 8} more</span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex gap-2 flex-shrink-0">
+                    <button onClick={() => openEdit(s)} className="text-xs text-gray-500 hover:text-gray-800">Edit</button>
+                    <button onClick={() => handleDelete(s.id, s.name)} className="text-xs text-red-400 hover:text-red-600">Delete</button>
+                  </div>
+                </div>
               </div>
             ))}
-            <button disabled
-              className="w-full py-3 rounded-xl text-sm font-semibold"
-              style={{ background: "#0B1929", color: "#D7B87A", opacity: 0.4 }}>
-              Save Search
-            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Create / Edit drawer */}
+      {showForm && (
+        <div className="fixed inset-0 z-50 flex">
+          <div className="flex-1 bg-black/40" onClick={() => setShowForm(false)} />
+          <div className="w-full sm:w-[560px] bg-white flex flex-col shadow-2xl overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <h2 className="font-bold text-gray-900">{editId ? "Edit Search" : "New Search"}</h2>
+              <button onClick={() => setShowForm(false)} className="text-gray-400 hover:text-gray-600 text-xl">×</button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-6 space-y-5">
+
+              {/* Basic Info */}
+              <section>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Basic Information</p>
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-xs font-semibold text-gray-600 block mb-1">Search Name *</label>
+                    <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+                      className={INP} placeholder="e.g. Carlsberg — Fan Sentiment" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-gray-600 block mb-1">Description</label>
+                    <textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+                      className={INP} rows={2} placeholder="What are you trying to understand?" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs font-semibold text-gray-600 block mb-1">Status</label>
+                      <select value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))} className={INP}>
+                        {SEARCH_STATUSES.map(s => <option key={s}>{s}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold text-gray-600 block mb-1">Frequency</label>
+                      <select value={form.frequency} onChange={e => setForm(f => ({ ...f, frequency: e.target.value }))} className={INP}>
+                        {FREQUENCIES.map(f => <option key={f}>{f}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              {/* Entity Type */}
+              <section>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Entity Type</p>
+                <div className="flex gap-3 flex-wrap">
+                  {ENTITY_TYPES.map(e => (
+                    <label key={e} className="flex items-center gap-2 cursor-pointer text-sm">
+                      <input type="radio" name="entity" value={e} checked={form.entity_type === e}
+                        onChange={() => setForm(f => ({ ...f, entity_type: e }))} />
+                      {e}
+                    </label>
+                  ))}
+                </div>
+              </section>
+
+              {/* Research Goal */}
+              <section>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Research Goal</p>
+                <div className="flex flex-col gap-2">
+                  {RESEARCH_GOALS.map(g => (
+                    <label key={g} className="flex items-center gap-2 cursor-pointer text-sm">
+                      <input type="radio" name="goal" value={g} checked={form.research_goal === g}
+                        onChange={() => setForm(f => ({ ...f, research_goal: g }))} />
+                      {g}
+                    </label>
+                  ))}
+                </div>
+              </section>
+
+              {/* Keywords */}
+              <section>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Keywords</p>
+                <div className="flex gap-2 mb-2">
+                  <input value={kwInput} onChange={e => setKwInput(e.target.value)}
+                    onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addKeyword(); }}}
+                    className="flex-1 border border-gray-200 rounded-xl px-3 py-1.5 text-sm focus:outline-none focus:border-[#D7B87A]"
+                    placeholder="e.g. Liverpool, #LFC, YNWA" />
+                  <select value={kwType} onChange={e => setKwType(e.target.value)}
+                    className="border border-gray-200 rounded-xl px-2 py-1.5 text-xs focus:outline-none focus:border-[#D7B87A]">
+                    {KEYWORD_TYPES.map(t => <option key={t}>{t}</option>)}
+                  </select>
+                  <button onClick={addKeyword}
+                    className="text-xs font-semibold px-3 py-1.5 rounded-xl border-2 border-[#D7B87A] text-[#0B1929] hover:bg-[#FBF5E8]">
+                    Add
+                  </button>
+                </div>
+                {keywords.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {keywords.map((k, i) => (
+                      <span key={i} className="inline-flex items-center gap-1 text-xs bg-gray-50 border border-gray-200 px-2 py-0.5 rounded-full">
+                        {k.keyword}
+                        <span className="text-gray-300">·</span>
+                        <span className="text-gray-400">{k.keyword_type}</span>
+                        <button onClick={() => setKeywords(prev => prev.filter((_, j) => j !== i))} className="text-gray-400 hover:text-red-400 ml-0.5">×</button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </section>
+
+              {/* Markets */}
+              <section>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Markets</p>
+                <div className="flex flex-wrap gap-2">
+                  {MARKETS.map(m => (
+                    <button key={m.code} type="button" onClick={() => toggleMarket(m.code)}
+                      className={`text-xs px-3 py-1 rounded-full border font-medium transition-colors ${
+                        form.markets.includes(m.code)
+                          ? "bg-[#0B1929] text-[#D7B87A] border-[#0B1929]"
+                          : "bg-white text-gray-500 border-gray-200 hover:border-[#D7B87A]"
+                      }`}>
+                      {m.code} · {m.label}
+                    </button>
+                  ))}
+                </div>
+              </section>
+
+              {/* Platforms */}
+              <section>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Platforms</p>
+                <div className="space-y-2">
+                  {PLATFORMS.map(p => (
+                    <label key={p.id} className="flex items-center gap-2 cursor-pointer text-sm">
+                      <input type="checkbox" checked={form.platforms.includes(p.id)}
+                        onChange={() => togglePlatform(p.id)} />
+                      {p.label}
+                      {!p.defaultOn && <span className="text-xs text-gray-400">(coming soon)</span>}
+                    </label>
+                  ))}
+                </div>
+              </section>
+
+            </div>
+
+            <div className="px-6 py-4 border-t border-gray-100 flex gap-3">
+              <button onClick={() => setShowForm(false)} className="flex-1 border border-gray-200 text-gray-600 text-sm font-medium py-2.5 rounded-xl">Cancel</button>
+              <button onClick={handleSave} disabled={saving}
+                className="flex-1 text-sm font-semibold py-2.5 rounded-xl disabled:opacity-60"
+                style={{ background: "#0B1929", color: "#D7B87A" }}>
+                {saving ? "Saving…" : editId ? "Save Changes" : "Create Search"}
+              </button>
+            </div>
           </div>
         </div>
+      )}
 
-        <div className="bg-white border border-gray-100 rounded-xl p-6 text-center shadow-sm">
-          <p className="text-sm text-gray-400">No searches yet. Search creation will be available in V2.</p>
+      {toast && (
+        <div className={`fixed bottom-6 right-6 z-50 px-5 py-3 rounded-xl shadow-lg text-sm font-medium ${toast.ok ? "bg-green-600 text-white" : "bg-red-600 text-white"}`}>
+          {toast.ok ? "✓" : "✕"} {toast.msg}
         </div>
-      </div>
+      )}
     </AdminShell>
   );
 }

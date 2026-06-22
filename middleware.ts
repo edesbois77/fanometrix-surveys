@@ -44,6 +44,7 @@ const ADMIN_ONLY_PREFIXES = [
   "/api/users",
   "/api/publishers",
   "/api/admin",
+  "/api/social",
   "/api/surveys",
   "/api/campaign-groups",
   "/api/demo",
