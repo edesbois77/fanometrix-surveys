@@ -402,6 +402,7 @@ function EmbedSurvey() {
   const groupSlug     = params.get("group")       ?? null;
   const urlLang       = params.get("lang");                                      // null if not in URL
   const surveyId      = params.get("survey")      ?? null;
+  const isPreview     = params.get("preview")     === "1";                       // admin deployment preview
   const questionSetId = params.get("qset")        ?? null;
   const publisher     = params.get("publisher")   ?? null;
   const placement     = params.get("placement")   ?? null;
@@ -472,7 +473,8 @@ function EmbedSurvey() {
   // Single-campaign mode: fetch survey questions when a survey UUID is provided
   useEffect(() => {
     if (groupSlug || !surveyId) return;
-    fetch(`/api/embed/survey?id=${surveyId}&lang=${encodeURIComponent(urlLang ?? "en")}`)
+    const surveyApiUrl = `/api/embed/survey?id=${surveyId}&lang=${encodeURIComponent(urlLang ?? "en")}${isPreview ? "&preview=1" : ""}`;
+    fetch(surveyApiUrl)
       .then(r => r.ok ? r.json() : null)
       .then(data => {
         if (data?.questions?.length) {
