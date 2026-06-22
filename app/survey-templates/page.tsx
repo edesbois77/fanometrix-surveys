@@ -277,7 +277,7 @@ function MPUPreviewModal({ survey, onClose }: { survey: Survey; onClose: () => v
                     : "border-white/30 text-white hover:bg-white/15"
                 }`}
               >
-                {l.nativeLabel}
+                {l.label}
               </button>
             ))}
           </div>
