@@ -9,7 +9,7 @@ type Mention = {
   id: string; platform: string; market: string | null; author: string | null;
   content: string; sentiment: string | null; topic: string | null;
   subtopic: string | null; ai_summary: string | null;
-  published_at: string | null; created_at: string;
+  published_at: string | null; created_at: string; import_source: string;
 };
 type Search = { id: string; name: string };
 
@@ -84,10 +84,18 @@ export default function MentionsPage() {
   }
 
   const displayed = mentions.filter(m =>
-    (!filterSearch || m.id === filterSearch || true) && // search_id filter via API
-    (!filterSent  || m.sentiment === filterSent)  &&
+    (!filterSent  || m.sentiment === filterSent) &&
     (!filterTopic || m.topic     === filterTopic)
   );
+
+  const syntheticCount = mentions.filter(m => m.import_source === "synthetic").length;
+
+  async function clearSynthetic() {
+    if (!confirm(`Delete all ${syntheticCount} synthetic mentions? This cannot be undone.`)) return;
+    const ids = mentions.filter(m => m.import_source === "synthetic").map(m => m.id);
+    await fetch("/api/social/mentions", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ids }) });
+    load();
+  }
 
   const SEL = "text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-[#D7B87A]";
 
@@ -100,8 +108,14 @@ export default function MentionsPage() {
             <h1 className="text-2xl font-bold text-gray-900">Mentions</h1>
             <p className="text-sm text-gray-400 mt-0.5">{mentions.length} mention{mentions.length !== 1 ? "s" : ""} collected</p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 flex-wrap">
             {importMsg && <p className="text-xs text-gray-500">{importMsg}</p>}
+            {syntheticCount > 0 && (
+              <button onClick={clearSynthetic}
+                className="text-xs text-red-400 hover:text-red-600 border border-red-100 px-3 py-1.5 rounded-lg transition-colors">
+                Clear {syntheticCount} synthetic
+              </button>
+            )}
             <button
               onClick={() => fileRef.current?.click()}
               disabled={importing}
@@ -160,7 +174,12 @@ export default function MentionsPage() {
                 <tbody>
                   {displayed.map(m => (
                     <tr key={m.id} className="border-b border-gray-50 hover:bg-gray-50">
-                      <td className="px-4 py-3 text-xs font-medium text-gray-600 whitespace-nowrap">{m.platform}</td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <p className="text-xs font-medium text-gray-600">{m.platform}</p>
+                        {m.import_source === "synthetic" && (
+                          <span className="text-[10px] text-purple-400 font-medium">synthetic</span>
+                        )}
+                      </td>
                       <td className="px-4 py-3 max-w-xs">
                         <p className="text-xs text-gray-700 line-clamp-2">{m.content}</p>
                       </td>

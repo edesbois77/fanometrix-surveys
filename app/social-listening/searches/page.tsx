@@ -36,8 +36,11 @@ export default function SearchesPage() {
   const [keywords,    setKeywords]    = useState<Keyword[]>([]);
   const [kwInput,     setKwInput]     = useState("");
   const [kwType,      setKwType]      = useState<string>(KEYWORD_TYPES[0]);
-  const [saving,      setSaving]      = useState(false);
-  const [toast,       setToast]       = useState<{ msg: string; ok: boolean } | null>(null);
+  const [saving,       setSaving]       = useState(false);
+  const [generating,   setGenerating]   = useState<string | null>(null); // search_id being generated
+  const [genCount,     setGenCount]     = useState(200);
+  const [genTarget,    setGenTarget]    = useState<Search | null>(null);
+  const [toast,        setToast]        = useState<{ msg: string; ok: boolean } | null>(null);
 
   function showToast(msg: string, ok = true) {
     setToast({ msg, ok });
@@ -105,6 +108,25 @@ export default function SearchesPage() {
     if (res.ok) { showToast("Deleted."); load(); }
   }
 
+  async function handleGenerate() {
+    if (!genTarget) return;
+    setGenerating(genTarget.id);
+    setGenTarget(null);
+    showToast(`Generating ${genCount} mentions for "${genTarget.name}"… this may take up to 60s.`);
+    const res  = await fetch("/api/social/generate-sample", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ search_id: genTarget.id, count: genCount }),
+    });
+    const json = await res.json();
+    setGenerating(null);
+    if (res.ok) {
+      showToast(`✓ Generated ${json.inserted} mentions. View them in Mentions.`);
+    } else {
+      showToast(json.error ?? "Generation failed.", false);
+    }
+  }
+
   const INP = "w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A]";
 
   return (
@@ -170,7 +192,15 @@ export default function SearchesPage() {
                       </div>
                     )}
                   </div>
-                  <div className="flex gap-2 flex-shrink-0">
+                  <div className="flex items-center gap-3 flex-shrink-0">
+                    <button
+                      onClick={() => { setGenTarget(s); setGenCount(200); }}
+                      disabled={generating === s.id}
+                      className="text-xs font-semibold px-3 py-1.5 rounded-lg border-2 border-[#D7B87A] text-[#0B1929] hover:bg-[#FBF5E8] disabled:opacity-40 transition-colors"
+                      title="Generate synthetic mentions using AI"
+                    >
+                      {generating === s.id ? "Generating…" : "✦ Generate Sample"}
+                    </button>
                     <button onClick={() => openEdit(s)} className="text-xs text-gray-500 hover:text-gray-800">Edit</button>
                     <button onClick={() => handleDelete(s.id, s.name)} className="text-xs text-red-400 hover:text-red-600">Delete</button>
                   </div>
@@ -180,6 +210,60 @@ export default function SearchesPage() {
           </div>
         )}
       </div>
+
+      {/* Generate Sample modal */}
+      {genTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm mx-4">
+            <h2 className="text-lg font-bold text-gray-900 mb-1">Generate Sample Dataset</h2>
+            <p className="text-sm text-gray-500 mb-4">
+              AI will generate realistic synthetic football fan mentions for <strong>{genTarget.name}</strong>,
+              pre-classified with sentiment, topic and summary.
+            </p>
+
+            <div className="mb-5">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Number of mentions</p>
+              <div className="flex gap-2">
+                {[100, 200, 300, 500].map(n => (
+                  <button
+                    key={n}
+                    onClick={() => setGenCount(n)}
+                    className={`flex-1 py-2 rounded-xl border-2 text-sm font-semibold transition-colors ${
+                      genCount === n
+                        ? "bg-[#0B1929] text-[#D7B87A] border-[#0B1929]"
+                        : "bg-white text-gray-500 border-gray-200 hover:border-[#D7B87A]"
+                    }`}
+                  >
+                    {n}
+                  </button>
+                ))}
+              </div>
+              <p className="text-xs text-gray-400 mt-2">
+                ~{Math.ceil(genCount / 25)} AI calls · est. {Math.ceil(genCount / 25) * 5}–{Math.ceil(genCount / 25) * 10}s
+              </p>
+            </div>
+
+            <div className="bg-amber-50 border border-amber-100 rounded-xl px-4 py-3 mb-5">
+              <p className="text-xs text-amber-700 leading-relaxed">
+                Requires <code className="font-mono">OPENAI_API_KEY</code> in Vercel.
+                Synthetic mentions are marked <code className="font-mono">import_source = synthetic</code> and can be deleted separately.
+              </p>
+            </div>
+
+            <div className="flex gap-3">
+              <button onClick={() => setGenTarget(null)}
+                className="flex-1 border border-gray-200 text-gray-600 text-sm font-medium py-2.5 rounded-xl">
+                Cancel
+              </button>
+              <button onClick={handleGenerate}
+                className="flex-1 text-sm font-semibold py-2.5 rounded-xl"
+                style={{ background: "#0B1929", color: "#D7B87A" }}>
+                Generate {genCount} Mentions
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Create / Edit drawer */}
       {showForm && (
