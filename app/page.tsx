@@ -110,7 +110,7 @@ export default function PublicHomePage() {
                   Log in
                 </Link>
                 <Link
-                  href="/login"
+                  href="/request-access"
                   className="text-sm font-bold px-8 py-3.5 rounded-xl border-2
                              bg-white hover:bg-[#FBF5E8] transition-colors duration-150"
                   style={{ color: "#0B1929", borderColor: "#D7B87A", letterSpacing: "0.01em" }}

@@ -5,6 +5,7 @@ import { getSession } from "@/lib/auth";
 const PUBLIC_PATHS = new Set([
   "/",
   "/login",
+  "/request-access",
   "/privacy",
   "/publisher-hub",
   "/publisher-guide",
@@ -15,7 +16,7 @@ const PUBLIC_PATHS = new Set([
 ]);
 
 // API paths that must remain public (auth endpoints, embed submissions, external Looker/reporting)
-const PUBLIC_API_PREFIXES = ["/api/auth", "/api/submit", "/api/reporting", "/api/embed"];
+const PUBLIC_API_PREFIXES = ["/api/auth", "/api/submit", "/api/reporting", "/api/embed", "/api/access-requests"];
 
 // Routes only admins may access
 const ADMIN_ONLY_PREFIXES = [
