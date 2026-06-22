@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
+import { ScrollFadeObserver } from "@/app/components/ScrollFadeObserver";
 
 export const metadata: Metadata = {
   title: "Fanometrix — Football Fan Intelligence",
@@ -226,43 +227,7 @@ export default function PublicHomePage() {
           </div>
         </section>
 
-        {/* Scroll-triggered fade-up observer — activates .scroll-fade-up elements */}
-        <script dangerouslySetInnerHTML={{ __html: `
-          (function() {
-            function activate() {
-              var els = document.querySelectorAll('.scroll-fade-up');
-              if (!els.length) return;
-
-              if (!('IntersectionObserver' in window)) {
-                // Fallback: just show everything immediately
-                els.forEach(function(el) { el.classList.add('visible'); });
-                return;
-              }
-
-              var obs = new IntersectionObserver(function(entries) {
-                entries.forEach(function(e) {
-                  if (e.isIntersecting) {
-                    e.target.classList.add('visible');
-                    obs.unobserve(e.target);
-                  }
-                });
-              }, { threshold: 0, rootMargin: '0px' });
-
-              els.forEach(function(el) { obs.observe(el); });
-
-              // Safety: reveal all after 4s in case observer never fires
-              setTimeout(function() {
-                els.forEach(function(el) { el.classList.add('visible'); });
-              }, 4000);
-            }
-
-            if (document.readyState === 'loading') {
-              document.addEventListener('DOMContentLoaded', activate);
-            } else {
-              activate();
-            }
-          })();
-        ` }} />
+        <ScrollFadeObserver />
       </main>
 
       {/* ── Footer ── */}
