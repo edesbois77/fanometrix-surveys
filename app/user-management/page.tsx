@@ -455,7 +455,8 @@ export default function UserManagementPage() {
       username:              cleanUsername,
       role:                  form.role,
       organisation_name:     form.organisation_name,
-      allowed_campaign_ids:  form.allowed_campaign_ids,
+      // Publishers use Publisher Access only — clear any campaign IDs stored historically
+      allowed_campaign_ids:  form.role === "publisher" ? [] : form.allowed_campaign_ids,
       allowed_publisher_ids: form.allowed_publisher_ids,
       is_active:             form.is_active,
       force_password_change: form.force_password_change,
@@ -737,7 +738,8 @@ export default function UserManagementPage() {
 
               <hr className="border-gray-100" />
 
-              {/* Campaign Access */}
+              {/* Campaign Access — hidden for publishers (they use Publisher Access instead) */}
+              {form.role !== "publisher" ? (
               <div>
                 <div className="flex items-center justify-between mb-1.5">
                   <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
@@ -762,6 +764,12 @@ export default function UserManagementPage() {
                   helperText="Restrict this account to specific campaigns. Leave blank for access to all campaigns."
                 />
               </div>
+              ) : (
+                <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3">
+                  <p className="text-xs text-blue-700 font-medium">Campaign Access not required for Publisher accounts</p>
+                  <p className="text-xs text-blue-500 mt-0.5">Publishers see all campaigns tagged with their publisher name(s) automatically via Publisher Access.</p>
+                </div>
+              )}
 
               {/* Publisher Access */}
               <Field label="Publisher Access">
