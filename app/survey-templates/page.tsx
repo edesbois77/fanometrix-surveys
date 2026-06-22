@@ -655,13 +655,19 @@ export default function SurveysPage() {
     );
 
     setSaving(false);
+
+    if (!res.ok) {
+      const json = await res.json().catch(() => ({}));
+      setFormError(json.error ?? "Failed to save survey. Please try again.");
+      return; // keep drawer open so the user sees the error
+    }
+
     setDrawerOpen(false);
 
     if (autoDowngraded) {
-      // Show an orange warning toast so the admin notices the status change
       setToast({ msg: "Survey has validation issues and was moved back to Draft.", ok: false });
       setTimeout(() => setToast(null), 6000);
-    } else if (res.ok) {
+    } else {
       showToast(editingId ? "Survey updated." : "Survey created.");
     }
     load();
