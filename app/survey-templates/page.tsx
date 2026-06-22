@@ -481,8 +481,23 @@ export default function SurveysPage() {
       return { ...f, questions: qs };
     });
 
+    // Warn about any translated fields that exceed MPU character limits
+    let overLimit = 0;
+    structure.forEach((s, i) => {
+      const t = translations[i] ?? "";
+      if (s.type === "question" && t.length > MAX_Q_CHARS)  overLimit++;
+      if (s.type === "option"   && t.length > MAX_OPT_CHARS) overLimit++;
+    });
+
     const langLabel = SUPPORTED_LANGUAGES.find(l => l.code === editorLang)?.label ?? editorLang;
-    showToast(`Translated ${texts.length} field${texts.length !== 1 ? "s" : ""} into ${langLabel}.`);
+    if (overLimit > 0) {
+      showToast(
+        `Translated into ${langLabel} — but ${overLimit} field${overLimit !== 1 ? "s" : ""} exceed the character limit. Review fields highlighted in red before saving.`,
+        false
+      );
+    } else {
+      showToast(`Translated ${texts.length} field${texts.length !== 1 ? "s" : ""} into ${langLabel}.`);
+    }
     setTranslating(false);
   }
 
