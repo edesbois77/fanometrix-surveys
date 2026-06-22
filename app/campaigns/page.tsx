@@ -333,7 +333,11 @@ export default function CampaignsPage() {
   }
 
   async function handleDelete(c: Campaign) {
-    if (!confirm(`Move "${c.campaign_name}" to deleted items? It can be restored later.`)) return;
+    const hasResponses = c.response_count > 0;
+    const msg = hasResponses
+      ? `⚠️ "${c.campaign_name}" has ${c.response_count.toLocaleString()} response${c.response_count !== 1 ? "s" : ""} collected.\n\nThe response data will be preserved in the database, but this campaign will no longer appear in your active view.\n\nMove to deleted items?`
+      : `Move "${c.campaign_name}" to deleted items? It can be restored later.`;
+    if (!confirm(msg)) return;
     const res  = await fetch(`/api/campaigns/${c.id}`, { method: "DELETE" });
     const json = await res.json();
     if (!res.ok) { showToast(json.error ?? "Could not delete campaign.", false); }
@@ -548,13 +552,15 @@ export default function CampaignsPage() {
           {displayed.map(c => {
             const isDeleted = !!c.deleted_at;
             const actions   = isDeleted ? [] : availableActions(c.effective_status ?? c.status as CampaignStatus);
-            const canDelete = (c.status === "draft" || c.status === "scheduled") && c.response_count === 0;
-            const deleteTitle =
-              c.response_count > 0
-                ? "This campaign has collected responses and cannot be deleted. Archive it instead."
-                : !["draft", "scheduled"].includes(c.status)
-                ? "Only draft or scheduled campaigns with zero responses can be deleted."
-                : "Move to deleted items";
+            // Live/paused campaigns cannot be deleted to prevent accidental loss of active data.
+            // All other statuses can be deleted; responses are preserved in the DB.
+            const isLiveOrPaused = c.effective_status === "live" || c.effective_status === "paused"
+              || c.status === "live" || c.status === "paused";
+            const canDelete  = !isDeleted && !isLiveOrPaused;
+            const hasResponses = c.response_count > 0;
+            const deleteTitle = isLiveOrPaused
+              ? "Live and paused campaigns cannot be deleted. Pause or close it first."
+              : "Move to deleted items";
 
             return (
               <div key={c.id} className={`bg-white border rounded-xl p-5 shadow-sm transition-colors ${
