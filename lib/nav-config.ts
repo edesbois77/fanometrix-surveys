@@ -95,6 +95,16 @@ export const NAV_ITEMS: NavItemConfig[] = [
     navGroup: "main",
   },
   {
+    href: "/publishers",
+    label: "Publishers",
+    icon: "◎",
+    description: "Manage the list of publishers available for campaign assignment and user access control.",
+    cta: "Manage Publishers",
+    section: "administration",
+    roles: ["admin"],
+    navGroup: "main",
+  },
+  {
     href: "/embed-test",
     label: "Embed Test",
     icon: "⬡",

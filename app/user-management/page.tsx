@@ -23,10 +23,6 @@ type CampaignOption = Option & { created_at: string };
 // ─── Constants ────────────────────────────────────────────────────────────────
 const ROLES = ["admin", "brand", "agency", "publisher"] as const;
 
-const KNOWN_PUBLISHERS = [
-  "FotMob", "Flashscore", "Forza Football", "LiveScore",
-  "OneFootball", "SofaScore", "WhoScored",
-];
 
 // ─── Password generator (uses Web Crypto) ─────────────────────────────────────
 function generatePassword(): string {
@@ -328,13 +324,25 @@ export default function UserManagementPage() {
           }))
         );
 
-        const seen = new Set<string>(KNOWN_PUBLISHERS);
+        // Build publisher options: start from DB registry, also include any
+        // publisher names already set on campaigns (covers legacy / unlisted ones)
+        const seen = new Set<string>();
         for (const c of data) if (c.publisher?.trim()) seen.add(c.publisher.trim());
         setPublisherOptions([...seen].sort().map(p => ({ value: p, label: p })));
       })
-      .catch(() => {
-        setPublisherOptions(KNOWN_PUBLISHERS.map(p => ({ value: p, label: p })));
-      });
+      .catch(() => {});
+
+    // Load publisher list from the publishers registry (admin-managed)
+    fetch("/api/publishers")
+      .then(r => r.json())
+      .then(json => {
+        const names: string[] = (json.data ?? []).map((p: { name: string }) => p.name);
+        setPublisherOptions(prev => {
+          const merged = new Set([...names, ...prev.map(o => o.value)]);
+          return [...merged].sort().map(p => ({ value: p, label: p }));
+        });
+      })
+      .catch(() => {});
   }, []);
 
   const sortedCampaignOptions: Option[] = campaignSort === "alpha"
