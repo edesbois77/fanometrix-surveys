@@ -11,6 +11,7 @@ type Campaign = {
   survey_id: string | null;
   surveys?: { name: string } | null;
   publisher: string | null;
+  survey_language: string | null;
 };
 
 const BASE = process.env.NEXT_PUBLIC_SURVEYS_URL ?? "https://fanometrix-surveys.vercel.app";
@@ -96,15 +97,16 @@ export default function EmbedGeneratorPage() {
 
   const previewParams = useMemo(() => {
     const p = new URLSearchParams();
-    if (campaignIdValue)     p.set("campaign",    campaignIdValue);
-    if (campaign?.survey_id) p.set("survey",      campaign.survey_id);
-    if (publisher)           p.set("publisher",   publisher);
-    if (placement)           p.set("placement",   placement);
-    if (club)                p.set("club",        club);
-    if (competition)         p.set("competition", competition);
-    if (segment)             p.set("segment",     segment);
+    if (campaignIdValue)             p.set("campaign",    campaignIdValue);
+    if (campaign?.survey_id)         p.set("survey",      campaign.survey_id);
+    if (campaign?.survey_language)   p.set("lang",        campaign.survey_language);
+    if (publisher)                   p.set("publisher",   publisher);
+    if (placement)                   p.set("placement",   placement);
+    if (club)                        p.set("club",        club);
+    if (competition)                 p.set("competition", competition);
+    if (segment)                     p.set("segment",     segment);
     p.set("country", "GB");
-    p.set("preview", "1");   // bypass validation so draft/invalid surveys show correctly
+    p.set("preview", "1");
     return p.toString();
   }, [campaignIdValue, campaign, publisher, placement, club, competition, segment]);
 
