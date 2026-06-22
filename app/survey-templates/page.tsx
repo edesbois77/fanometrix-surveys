@@ -1048,12 +1048,17 @@ export default function SurveysPage() {
                     const qs = s.questions as LocalisedQuestion[];
                     return (
                       <div className="flex gap-1.5 mt-3 flex-wrap">
-                        {SUPPORTED_LANGUAGES.filter(l => l.code !== "en").map(lang => {
-                          const complete = qs.length > 0 && qs.every(q =>
-                            (q.text as Record<string, string>)[lang.code]?.trim() &&
-                            q.options.every(o => (o.text as Record<string, string>)[lang.code]?.trim())
+                        {SUPPORTED_LANGUAGES.map(lang => {
+                          const isEN    = lang.code === "en";
+                          const complete = qs.length > 0 && (
+                            isEN
+                              ? qs.every(q => (q.text as Record<string, string>)["en"]?.trim())
+                              : qs.every(q =>
+                                  (q.text as Record<string, string>)[lang.code]?.trim() &&
+                                  q.options.every(o => (o.text as Record<string, string>)[lang.code]?.trim())
+                                )
                           );
-                          const partial = !complete && qs.some(q =>
+                          const partial = !isEN && !complete && qs.some(q =>
                             (q.text as Record<string, string>)[lang.code]?.trim()
                           );
                           if (!complete && !partial) return null;
@@ -1064,7 +1069,7 @@ export default function SurveysPage() {
                                 : "bg-amber-50 text-amber-600 border border-amber-200"
                             }`}>
                               <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${complete ? "bg-green-500" : "bg-amber-400"}`} />
-                              {lang.nativeLabel}
+                              {lang.label}
                               {!complete && <span className="text-[10px]">partial</span>}
                             </span>
                           );
@@ -1366,7 +1371,7 @@ export default function SurveysPage() {
                             : "bg-white text-gray-500 border-gray-200 hover:border-[#D7B87A]"
                         }`}
                       >
-                        {lang.nativeLabel}{isEN ? " *" : ""}
+                        {lang.label}{isEN ? " *" : ""}
                         {isComplete && <span className="w-1.5 h-1.5 rounded-full bg-green-500 flex-shrink-0" />}
                         {hasAny && !isComplete && <span className="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0" />}
                       </button>
