@@ -408,11 +408,82 @@ export default function SurveysPage() {
   const [saving,               setSaving]               = useState(false);
   const [formError,            setFormError]            = useState("");
   const [editorLang,           setEditorLang]           = useState<LangCode>("en");
+  const [translating,          setTranslating]          = useState(false);
   const [toast,                setToast]                = useState<{ msg: string; ok: boolean } | null>(null);
 
   function showToast(msg: string, ok = true) {
     setToast({ msg, ok });
     setTimeout(() => setToast(null), 4000);
+  }
+
+  // ── Auto-translate all questions from English into editorLang ──────────────
+  async function handleTranslate() {
+    if (editorLang === "en" || translating) return;
+    setTranslating(true);
+
+    // Build a flat list of all EN texts to translate, tracking the structure
+    // so we can reassemble: [q0_text, q0_opt0, q0_opt1, ..., q1_text, q1_opt0, ...]
+    const structure: { qIdx: number; type: "question" | "option"; oIdx?: number }[] = [];
+    const texts: string[] = [];
+
+    fields.questions.forEach((q, qi) => {
+      const enText = q.text.en ?? "";
+      if (enText.trim()) {
+        structure.push({ qIdx: qi, type: "question" });
+        texts.push(enText);
+      }
+      q.options.forEach((o, oi) => {
+        const enOpt = o.text.en ?? "";
+        if (enOpt.trim()) {
+          structure.push({ qIdx: qi, type: "option", oIdx: oi });
+          texts.push(enOpt);
+        }
+      });
+    });
+
+    if (!texts.length) {
+      showToast("No English text to translate. Fill in the EN tab first.", false);
+      setTranslating(false);
+      return;
+    }
+
+    const res  = await fetch("/api/translate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ texts, targetLang: editorLang }),
+    });
+    const json = await res.json();
+
+    if (!res.ok) {
+      showToast(json.error ?? "Translation failed.", false);
+      setTranslating(false);
+      return;
+    }
+
+    const translations: string[] = json.translations;
+
+    // Apply translations back to the correct fields
+    setFields(f => {
+      const qs = f.questions.map(q => ({
+        ...q,
+        text:    { ...q.text },
+        options: q.options.map(o => ({ ...o, text: { ...o.text } })),
+      }));
+      structure.forEach((s, i) => {
+        const translated = translations[i];
+        if (!translated) return;
+        if (s.type === "question") {
+          qs[s.qIdx].text[editorLang] = translated;
+        } else if (s.type === "option" && s.oIdx !== undefined) {
+          qs[s.qIdx].options[s.oIdx].text[editorLang] = translated;
+        }
+      });
+      return { ...f, questions: qs };
+    });
+
+    const langLabel = SUPPORTED_LANGUAGES.find(l => l.code === editorLang)?.label ?? editorLang;
+    showToast(`Translated ${texts.length} field${texts.length !== 1 ? "s" : ""} into ${langLabel}.`);
+    setTranslating(false);
   }
 
   // ── Load ──────────────────────────────────────────────────────────────────
@@ -1194,7 +1265,7 @@ export default function SurveysPage() {
                 </p>
 
                 {/* Language selector tabs */}
-                <div className="flex gap-1 mb-3 flex-wrap">
+                <div className="flex gap-1 mb-3 flex-wrap items-center">
                   {SUPPORTED_LANGUAGES.map(lang => {
                     const isActive = editorLang === lang.code;
                     const isEN     = lang.code === "en";
@@ -1209,16 +1280,26 @@ export default function SurveysPage() {
                             : "bg-white text-gray-500 border-gray-200 hover:border-[#D7B87A]"
                         }`}
                       >
-                        {lang.code.toUpperCase()}{isEN ? " *" : ""}
+                        {lang.nativeLabel}{isEN ? " *" : ""}
                       </button>
                     );
                   })}
                   {editorLang !== "en" && (
-                    <span className="text-xs text-gray-400 self-center ml-1">
-                      Optional — leave blank to show English
-                    </span>
+                    <button
+                      type="button"
+                      onClick={handleTranslate}
+                      disabled={translating}
+                      className="ml-auto text-xs font-semibold px-3 py-1 rounded-lg border-2 border-[#D7B87A] text-[#0B1929] hover:bg-[#FBF5E8] disabled:opacity-50 transition-colors"
+                    >
+                      {translating ? "Translating…" : "✦ Translate from English"}
+                    </button>
                   )}
                 </div>
+                {editorLang !== "en" && !translating && (
+                  <p className="text-xs text-gray-400 mb-3">
+                    Optional — leave blank to show English as fallback. Click "Translate from English" to auto-fill.
+                  </p>
+                )}
 
                 <div className="space-y-4">
                   {fields.questions.map((q, qi) => {
