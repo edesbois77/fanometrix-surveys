@@ -16,8 +16,14 @@ type AccessRequest = {
 
 const STATUS_STYLE: Record<string, string> = {
   pending:  "bg-amber-100 text-amber-700",
-  approved: "bg-green-100 text-green-700",
+  approved: "bg-blue-100 text-blue-700",
   declined: "bg-red-100 text-red-600",
+};
+
+const STATUS_LABEL: Record<string, string> = {
+  pending:  "Pending",
+  approved: "Ready to Create",
+  declined: "Declined",
 };
 
 function relativeTime(iso: string): string {
@@ -60,7 +66,8 @@ export default function AccessRequestsPage() {
     });
     setUpdating(null);
     if (res.ok) {
-      showToast(`Marked as ${status}.`);
+      const label = status === "approved" ? "marked as ready to create" : `marked as ${status}`;
+      showToast(`Request ${label}.`);
       load();
     } else {
       showToast("Failed to update status.", false);
@@ -92,19 +99,22 @@ export default function AccessRequestsPage() {
 
         {/* Filter tabs */}
         <div className="flex gap-1 mb-5 border-b border-gray-200">
-          {(["pending", "all", "approved", "declined"] as const).map(f => (
-            <button
-              key={f}
-              onClick={() => setFilter(f)}
-              className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
-                filter === f
-                  ? "border-[#0B1929] text-[#0B1929]"
-                  : "border-transparent text-gray-400 hover:text-gray-600"
-              }`}
-            >
-              {f.charAt(0).toUpperCase() + f.slice(1)} ({counts[f]})
-            </button>
-          ))}
+          {(["pending", "all", "approved", "declined"] as const).map(f => {
+            const label = f === "approved" ? "Ready to Create" : f === "all" ? "All" : f.charAt(0).toUpperCase() + f.slice(1);
+            return (
+              <button
+                key={f}
+                onClick={() => setFilter(f)}
+                className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
+                  filter === f
+                    ? "border-[#0B1929] text-[#0B1929]"
+                    : "border-transparent text-gray-400 hover:text-gray-600"
+                }`}
+              >
+                {label} ({counts[f]})
+              </button>
+            );
+          })}
         </div>
 
         {loading ? (
@@ -157,7 +167,7 @@ export default function AccessRequestsPage() {
 
                   {/* Status badge */}
                   <span className={`text-xs font-semibold px-2.5 py-1 rounded-full flex-shrink-0 ${STATUS_STYLE[r.status]}`}>
-                    {r.status.charAt(0).toUpperCase() + r.status.slice(1)}
+                    {STATUS_LABEL[r.status] ?? r.status}
                   </span>
 
                   {/* Expand toggle */}
@@ -186,9 +196,10 @@ export default function AccessRequestsPage() {
                         <button
                           onClick={() => updateStatus(r.id, "approved")}
                           disabled={updating === r.id}
-                          className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 transition-colors"
+                          title="Mark this request as ready to create an account — no account is created automatically"
+                          className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
                         >
-                          {updating === r.id ? "…" : "Approve"}
+                          {updating === r.id ? "…" : "Mark Ready"}
                         </button>
                       )}
                       {r.status !== "declined" && (
