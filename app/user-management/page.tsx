@@ -58,12 +58,18 @@ function MultiSelect({
   onChange,
   placeholder = "Search…",
   helperText,
+  strict = false,
+  onUnmatchedText,
 }: {
   options: Option[];
   selected: string[];
   onChange: (values: string[]) => void;
   placeholder?: string;
   helperText?: string;
+  /** When true, typing an unrecognised value is flagged as an error */
+  strict?: boolean;
+  /** Called with true when there is unmatched text, false when cleared */
+  onUnmatchedText?: (hasUnmatched: boolean) => void;
 }) {
   const [search, setSearch] = useState("");
   const [open,   setOpen]   = useState(false);
@@ -86,14 +92,35 @@ function MultiSelect({
          o.label.toLowerCase().includes(search.toLowerCase())
   );
 
+  // Notify parent whether there is unmatched text pending
+  const hasUnmatched = strict && search.trim().length > 0 && remaining.length === 0;
+  useEffect(() => {
+    onUnmatchedText?.(hasUnmatched);
+  }, [hasUnmatched, onUnmatchedText]);
+
   function add(value: string) {
     onChange([...selected, value]);
     setSearch("");
+    onUnmatchedText?.(false);
     inputRef.current?.focus();
   }
 
   function remove(value: string) {
     onChange(selected.filter(v => v !== value));
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "Enter") {
+      e.preventDefault(); // always stop outer form submitting
+      if (remaining.length > 0) add(remaining[0].value); // select first match
+    }
+    if (e.key === "Escape") { setOpen(false); setSearch(""); onUnmatchedText?.(false); }
+  }
+
+  function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
+    setSearch(e.target.value);
+    setOpen(true);
+    if (!e.target.value.trim()) onUnmatchedText?.(false);
   }
 
   const labelFor = (v: string) => options.find(o => o.value === v)?.label ?? v;
@@ -115,13 +142,19 @@ function MultiSelect({
           ref={inputRef}
           type="text"
           value={search}
-          onChange={e => { setSearch(e.target.value); setOpen(true); }}
+          onChange={handleChange}
           onFocus={() => setOpen(true)}
+          onKeyDown={handleKeyDown}
           placeholder={selected.length === 0 ? placeholder : "Add another…"}
-          className={INPUT}
+          className={[INPUT, hasUnmatched ? "border-red-400 focus:border-red-400" : ""].join(" ").trim()}
           autoComplete="off"
         />
-        {open && (
+        {hasUnmatched && (
+          <p className="text-xs text-red-500 mt-1">
+            &ldquo;{search}&rdquo; is not a recognised publisher — select from the list, or add it in Administration → Publishers first.
+          </p>
+        )}
+        {open && !hasUnmatched && (
           <div ref={dropRef} className="absolute z-20 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-44 overflow-y-auto">
             {remaining.length === 0 ? (
               <p className="px-3 py-2.5 text-xs text-gray-400">
@@ -251,9 +284,10 @@ export default function UserManagementPage() {
   const [saving,          setSaving]          = useState(false);
   const [toast,           setToast]           = useState<{ msg: string; ok: boolean } | null>(null);
   const [credentials,     setCredentials]     = useState<{ username: string; password: string } | null>(null);
-  const [campaignOptions, setCampaignOptions] = useState<CampaignOption[]>([]);
-  const [publisherOptions,setPublisherOptions]= useState<Option[]>([]);
-  const [campaignSort,    setCampaignSort]    = useState<"recent" | "alpha">("recent");
+  const [campaignOptions,     setCampaignOptions]     = useState<CampaignOption[]>([]);
+  const [publisherOptions,    setPublisherOptions]    = useState<Option[]>([]);
+  const [publisherUnmatched,  setPublisherUnmatched]  = useState(false);
+  const [campaignSort,        setCampaignSort]        = useState<"recent" | "alpha">("recent");
 
   // ── Table sort ───────────────────────────────────────────────────────────────
   type SortCol = "username" | "role" | "organisation_name" | "is_active" | "updated_at";
@@ -378,6 +412,12 @@ export default function UserManagementPage() {
     e.preventDefault();
     setFormError("");
 
+    // Block save if there is unmatched text in the publisher search input
+    if (publisherUnmatched) {
+      setFormError("Please select a publisher from the list, or clear the Publisher Access search field before saving.");
+      return;
+    }
+
     // Validate username — stored as typed, matched case-insensitively at login
     const cleanUsername = form.username.trim();
     if (!cleanUsername) { setFormError("Username is required."); return; }
@@ -428,6 +468,7 @@ export default function UserManagementPage() {
       showToast(editUser ? "Account updated." : "Account created.");
     }
 
+    setPublisherUnmatched(false);
     setShowModal(false);
     loadUsers();
   }
@@ -704,6 +745,8 @@ export default function UserManagementPage() {
                   onChange={v => setForm(f => ({ ...f, allowed_publisher_ids: v }))}
                   placeholder="Search publishers…"
                   helperText="Restrict this account to specific publishers. Leave blank for access to all publishers."
+                  strict
+                  onUnmatchedText={setPublisherUnmatched}
                 />
               </Field>
 
@@ -724,7 +767,7 @@ export default function UserManagementPage() {
               )}
 
               <div className="flex gap-3 pt-1">
-                <button type="button" onClick={() => setShowModal(false)}
+                <button type="button" onClick={() => { setPublisherUnmatched(false); setShowModal(false); }}
                   className="flex-1 border border-gray-200 text-gray-600 hover:bg-gray-50 text-sm font-medium py-2.5 rounded-lg transition-colors">
                   Cancel
                 </button>
