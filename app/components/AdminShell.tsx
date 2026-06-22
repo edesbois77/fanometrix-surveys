@@ -11,8 +11,11 @@ import type { UserRole } from "@/lib/auth";
 // Importing here keeps AdminShell in sync with the homepage automatically.
 import {
   getMainNavItems,
+  getHomeNavItems,
   getDeveloperNavItems,
   getFooterNavItems,
+  getNavGroupItems,
+  ADMIN_SIDEBAR_SECTIONS,
 } from "@/lib/nav-config";
 
 type NavItem = { href: string; label: string; icon: string; external?: boolean };
@@ -28,7 +31,8 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [devOpen,    setDevOpen]    = useState(false);
 
-  const nav     = user ? getMainNavItems(user.role as UserRole) : [];
+  const homeNav     = user ? getHomeNavItems(user.role as UserRole) : [];
+  const nav         = user ? getMainNavItems(user.role as UserRole) : []; // compat alias
   const footerLinks = user ? getFooterNavItems(user.role as UserRole) : [];
   const isAdmin = user?.role === "admin";
 
@@ -126,31 +130,44 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
 
           {/* Navigation */}
           <nav className="px-3 py-4">
-            {!loading && (
-              <div className="space-y-0.5 mb-1">
-                <NavLink href="/home" label="Home" icon="⌂" activePath={path} />
+
+            {/* HOME section — always shown */}
+            {loading ? (
+              <div className="space-y-0.5">
+                {SKELETON_NAV.map(i => (
+                  <div key={i} className="h-9 rounded-lg mx-0.5 my-0.5 animate-pulse"
+                    style={{ backgroundColor: "rgba(255,255,255,0.05)" }} />
+                ))}
               </div>
+            ) : (
+              <>
+                <NavLink href="/home" label="Home" icon="⌂" activePath={path} />
+                {homeNav.map(item => (
+                  <NavLink key={item.href} {...item} activePath={path} />
+                ))}
+              </>
             )}
 
-            {loading
-              ? (
-                <div className="space-y-0.5">
-                  {SKELETON_NAV.map(i => (
-                    <div key={i} className="h-9 rounded-lg mx-0.5 my-0.5 animate-pulse"
-                      style={{ backgroundColor: "rgba(255,255,255,0.05)" }} />
-                  ))}
+            {/* Admin: Surveys + Social Listening — labelled sections */}
+            {!loading && isAdmin && ADMIN_SIDEBAR_SECTIONS.map(({ heading, group }) => {
+              const items = getNavGroupItems(group);
+              if (!items.length) return null;
+              return (
+                <div key={group} className="mt-4 pt-3" style={{ borderTop: "1px solid rgba(255,255,255,0.07)" }}>
+                  <p className="px-3 mb-1 text-[10px] font-semibold uppercase tracking-widest"
+                    style={{ color: "rgba(176,183,195,0.45)", letterSpacing: "0.1em" }}>
+                    {heading}
+                  </p>
+                  <div className="space-y-0.5">
+                    {items.map(item => (
+                      <NavLink key={item.href} {...item} activePath={path} />
+                    ))}
+                  </div>
                 </div>
-              )
-              : (
-                <div className="space-y-0.5">
-                  {nav.map(item => (
-                    <NavLink key={item.href} {...item} activePath={path} />
-                  ))}
-                </div>
-              )
-            }
+              );
+            })}
 
-            {/* Developer section — admin only, collapsible */}
+            {/* Developer section — admin only, collapsible, alphabetical */}
             {!loading && isAdmin && (
               <div className="mt-4 pt-3" style={{ borderTop: "1px solid rgba(255,255,255,0.07)" }}>
                 <button

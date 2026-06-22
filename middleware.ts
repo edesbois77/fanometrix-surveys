@@ -37,6 +37,7 @@ const ADMIN_ONLY_PREFIXES = [
   "/looker-templates",
   "/demo-data",
   "/access-requests",
+  "/social-listening",
   "/user-management",
   "/publishers",
   "/embed-test",

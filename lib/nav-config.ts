@@ -1,36 +1,32 @@
 /**
- * Shared navigation configuration.
+ * Shared navigation configuration — single source of truth.
  *
- * Single source of truth for all navigation items. Changes here automatically
- * propagate to both the left sidebar (AdminShell) and the homepage card grid.
- *
- * To add a new item:
- *   1. Add an entry to NAV_ITEMS below.
- *   2. Set the correct `roles`, `section`, and `navGroup`.
- *   3. It will appear in the left nav AND the homepage for those roles.
+ * Left sidebar structure (admin):
+ *   HOME            → Home, Dashboard
+ *   SURVEYS         → Surveys, Campaigns, Campaign Groups, Deployment
+ *   SOCIAL LISTENING→ Dashboard, Searches, Mentions, Reports, Settings
+ *   DEVELOPER       → alphabetical list of admin tools
  */
 import type { UserRole } from "@/lib/auth";
 
-export type NavSection  = "platform" | "administration" | "development";
-export type NavGroup    = "main" | "developer" | "footer";
+export type NavSection = "home" | "platform" | "social-listening" | "developer-tool";
+export type NavGroup   = "home" | "surveys" | "social-listening" | "developer" | "footer";
 
 export interface NavItemConfig {
   href:        string;
-  label:       string;       // Left-nav label and card title
-  icon:        string;       // Icon character used in both nav and card
-  description: string;       // Homepage card description
-  cta:         string;       // Homepage card CTA text
-  roles:       UserRole[];   // Which roles can see this item
-  section?:    NavSection;   // Homepage section group (admin items only)
-  navGroup?:   NavGroup;     // Left-nav placement: main, developer, footer
-  external?:   boolean;      // Open in new tab
+  label:       string;
+  icon:        string;
+  description: string;
+  cta:         string;
+  roles:       UserRole[];
+  section?:    NavSection;
+  navGroup?:   NavGroup;
+  external?:   boolean;
 }
 
 export const NAV_ITEMS: NavItemConfig[] = [
 
-  // ── Dashboard ─────────────────────────────────────────────────────────────
-  // Shown in the left nav for every role. Admin gets it via the KPI CTA instead
-  // of a homepage card; other roles get it as their first card.
+  // ── HOME ──────────────────────────────────────────────────────────────────
   {
     href: "/dashboard",
     label: "Dashboard",
@@ -38,10 +34,11 @@ export const NAV_ITEMS: NavItemConfig[] = [
     description: "Live fan response data, KPI cards, trend charts and audience breakdowns.",
     cta: "Open Dashboard",
     roles: ["admin", "brand", "agency", "publisher"],
-    navGroup: "main",
+    navGroup: "home",
+    section: "home",
   },
 
-  // ── Admin: Platform Management ────────────────────────────────────────────
+  // ── SURVEYS ───────────────────────────────────────────────────────────────
   {
     href: "/survey-templates",
     label: "Surveys",
@@ -50,7 +47,7 @@ export const NAV_ITEMS: NavItemConfig[] = [
     cta: "Manage Surveys",
     section: "platform",
     roles: ["admin"],
-    navGroup: "main",
+    navGroup: "surveys",
   },
   {
     href: "/campaigns",
@@ -60,7 +57,7 @@ export const NAV_ITEMS: NavItemConfig[] = [
     cta: "View Campaigns",
     section: "platform",
     roles: ["admin"],
-    navGroup: "main",
+    navGroup: "surveys",
   },
   {
     href: "/campaign-groups",
@@ -70,7 +67,7 @@ export const NAV_ITEMS: NavItemConfig[] = [
     cta: "View Campaign Groups",
     section: "platform",
     roles: ["admin"],
-    navGroup: "main",
+    navGroup: "surveys",
   },
   {
     href: "/campaign-deployment",
@@ -80,39 +77,81 @@ export const NAV_ITEMS: NavItemConfig[] = [
     cta: "Deploy Campaign",
     section: "platform",
     roles: ["admin"],
-    navGroup: "main",
+    navGroup: "surveys",
   },
 
-  // ── Admin: Administration ─────────────────────────────────────────────────
+  // ── SOCIAL LISTENING ──────────────────────────────────────────────────────
+  {
+    href: "/social-listening/dashboard",
+    label: "Dashboard",
+    icon: "▦",
+    description: "Overview of listening activity, sentiment trends and top topics.",
+    cta: "Open SL Dashboard",
+    section: "social-listening",
+    roles: ["admin"],
+    navGroup: "social-listening",
+  },
+  {
+    href: "/social-listening/searches",
+    label: "Searches",
+    icon: "◎",
+    description: "Create and manage listening searches — define keywords, markets and platforms.",
+    cta: "Manage Searches",
+    section: "social-listening",
+    roles: ["admin"],
+    navGroup: "social-listening",
+  },
+  {
+    href: "/social-listening/mentions",
+    label: "Mentions",
+    icon: "◫",
+    description: "Browse and filter collected mentions with sentiment and topic classification.",
+    cta: "View Mentions",
+    section: "social-listening",
+    roles: ["admin"],
+    navGroup: "social-listening",
+  },
+  {
+    href: "/social-listening/reports",
+    label: "Reports",
+    icon: "↗",
+    description: "Generate summaries, trend reports and emerging theme highlights.",
+    cta: "View Reports",
+    section: "social-listening",
+    roles: ["admin"],
+    navGroup: "social-listening",
+  },
+  {
+    href: "/social-listening/settings",
+    label: "Settings",
+    icon: "⚗",
+    description: "Configure data sources, refresh intervals and retention policies.",
+    cta: "Configure",
+    section: "social-listening",
+    roles: ["admin"],
+    navGroup: "social-listening",
+  },
+
+  // ── DEVELOPER (alphabetical) ──────────────────────────────────────────────
   {
     href: "/access-requests",
     label: "Access Requests",
     icon: "◫",
     description: "Review and action inbound access requests from the public homepage form.",
     cta: "View Requests",
-    section: "administration",
+    section: "developer-tool",
     roles: ["admin"],
-    navGroup: "main",
+    navGroup: "developer",
   },
   {
-    href: "/user-management",
-    label: "User Management",
-    icon: "◉",
-    description: "Create and manage platform accounts, access rights and publisher permissions.",
-    cta: "Manage Users",
-    section: "administration",
+    href: "/demo-data",
+    label: "Demo Data",
+    icon: "⚗",
+    description: "Generate and manage realistic demo responses for testing and presentations.",
+    cta: "Manage Demo Data",
+    section: "developer-tool",
     roles: ["admin"],
-    navGroup: "main",
-  },
-  {
-    href: "/publishers",
-    label: "Publishers",
-    icon: "◎",
-    description: "Manage the list of publishers available for campaign assignment and user access control.",
-    cta: "Manage Publishers",
-    section: "administration",
-    roles: ["admin"],
-    navGroup: "main",
+    navGroup: "developer",
   },
   {
     href: "/embed-test",
@@ -120,17 +159,59 @@ export const NAV_ITEMS: NavItemConfig[] = [
     icon: "⬡",
     description: "Verify that a campaign embed is loading and accepting responses correctly.",
     cta: "Open Embed Test",
-    section: "administration",
+    section: "developer-tool",
     roles: ["admin"],
-    navGroup: "main",
+    navGroup: "developer",
   },
+  {
+    href: "/looker-templates",
+    label: "Looker Templates",
+    icon: "◈",
+    description: "Pre-built Looker Studio report templates for client-ready dashboards.",
+    cta: "View Templates",
+    section: "developer-tool",
+    roles: ["admin"],
+    navGroup: "developer",
+  },
+  {
+    href: "/publishers",
+    label: "Publishers",
+    icon: "◎",
+    description: "Manage the list of publishers available for campaign assignment and user access control.",
+    cta: "Manage Publishers",
+    section: "developer-tool",
+    roles: ["admin"],
+    navGroup: "developer",
+  },
+  {
+    href: "/reporting",
+    label: "Reporting",
+    icon: "↗",
+    description: "Reporting API settings, Looker Studio connection and data integration config.",
+    cta: "Open Reporting",
+    section: "developer-tool",
+    roles: ["admin"],
+    navGroup: "developer",
+  },
+  {
+    href: "/user-management",
+    label: "User Management",
+    icon: "◉",
+    description: "Create and manage platform accounts, access rights and publisher permissions.",
+    cta: "Manage Users",
+    section: "developer-tool",
+    roles: ["admin"],
+    navGroup: "developer",
+  },
+
+  // ── Footer links ──────────────────────────────────────────────────────────
   {
     href: "/publisher-hub",
     label: "Publisher Hub",
     icon: "☰",
     description: "Integration documentation, privacy information and technical resources for publishers.",
     cta: "View Publisher Hub",
-    section: "administration",
+    section: "developer-tool",
     roles: ["admin"],
     navGroup: "footer",
     external: true,
@@ -141,45 +222,13 @@ export const NAV_ITEMS: NavItemConfig[] = [
     icon: "◫",
     description: "Step-by-step platform documentation auto-synced with the live codebase.",
     cta: "Open Guide",
-    section: "administration",
+    section: "developer-tool",
     roles: ["admin"],
     navGroup: "footer",
     external: true,
   },
 
-  // ── Admin: Development ────────────────────────────────────────────────────
-  {
-    href: "/reporting",
-    label: "Reporting",
-    icon: "↗",
-    description: "Reporting API settings, Looker Studio connection and data integration config.",
-    cta: "Open Reporting",
-    section: "development",
-    roles: ["admin"],
-    navGroup: "developer",
-  },
-  {
-    href: "/looker-templates",
-    label: "Looker Templates",
-    icon: "◈",
-    description: "Pre-built Looker Studio report templates for client-ready dashboards.",
-    cta: "View Templates",
-    section: "development",
-    roles: ["admin"],
-    navGroup: "developer",
-  },
-  {
-    href: "/demo-data",
-    label: "Demo Data",
-    icon: "⚗",
-    description: "Generate and manage realistic demo responses for testing and presentations.",
-    cta: "Manage Demo Data",
-    section: "development",
-    roles: ["admin"],
-    navGroup: "developer",
-  },
-
-  // ── Brand ─────────────────────────────────────────────────────────────────
+  // ── Brand / Agency ────────────────────────────────────────────────────────
   {
     href: "/campaign-reports",
     label: "Campaign Reports",
@@ -187,7 +236,7 @@ export const NAV_ITEMS: NavItemConfig[] = [
     description: "Detailed reports for your active and completed fan survey campaigns.",
     cta: "View Reports",
     roles: ["brand", "agency"],
-    navGroup: "main",
+    navGroup: "home",
   },
   {
     href: "/exports",
@@ -196,7 +245,7 @@ export const NAV_ITEMS: NavItemConfig[] = [
     description: "Download fan data and campaign results as CSV for your own analysis.",
     cta: "Export Data",
     roles: ["brand", "agency"],
-    navGroup: "main",
+    navGroup: "home",
   },
   {
     href: "/insights",
@@ -205,7 +254,7 @@ export const NAV_ITEMS: NavItemConfig[] = [
     description: "AI-assisted insights and audience summaries from your campaign results.",
     cta: "View Insights",
     roles: ["brand"],
-    navGroup: "main",
+    navGroup: "home",
   },
 
   // ── Agency / Publisher ────────────────────────────────────────────────────
@@ -216,40 +265,56 @@ export const NAV_ITEMS: NavItemConfig[] = [
     description: "Audience reach, response rates and engagement metrics for your platforms.",
     cta: "View Performance",
     roles: ["agency", "publisher"],
-    navGroup: "main",
+    navGroup: "home",
   },
 ];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-/** Items that appear in the left sidebar main nav for a given role */
-export function getMainNavItems(role: UserRole): NavItemConfig[] {
+/** Sidebar sections for admin — used by AdminShell to render labelled groups */
+export const ADMIN_SIDEBAR_SECTIONS: { heading: string; group: NavGroup }[] = [
+  { heading: "Surveys",          group: "surveys"          },
+  { heading: "Social Listening", group: "social-listening" },
+];
+
+/** Items for the left sidebar HOME section (shown to all roles) */
+export function getHomeNavItems(role: UserRole): NavItemConfig[] {
   return NAV_ITEMS.filter(
-    item => item.roles.includes(role) && item.navGroup === "main"
+    item => item.roles.includes(role) && item.navGroup === "home"
   );
 }
 
-/** Items that go in the collapsible Developer section (admin only) */
-export function getDeveloperNavItems(): NavItemConfig[] {
-  return NAV_ITEMS.filter(item => item.navGroup === "developer");
+/** Items for a specific nav group */
+export function getNavGroupItems(group: NavGroup): NavItemConfig[] {
+  return NAV_ITEMS.filter(item => item.navGroup === group);
 }
 
-/** Items shown as footer links in the sidebar (admin only) */
+/** Developer section — alphabetically sorted, admin only */
+export function getDeveloperNavItems(): NavItemConfig[] {
+  return NAV_ITEMS
+    .filter(item => item.navGroup === "developer")
+    .sort((a, b) => a.label.localeCompare(b.label));
+}
+
+/** Items shown as footer links in the sidebar */
 export function getFooterNavItems(role: UserRole): NavItemConfig[] {
   return NAV_ITEMS.filter(
     item => item.roles.includes(role) && item.navGroup === "footer"
   );
 }
 
+/** Backward-compat: main nav items (used by publisher/brand/agency sidebar) */
+export function getMainNavItems(role: UserRole): NavItemConfig[] {
+  return NAV_ITEMS.filter(
+    item => item.roles.includes(role) && item.navGroup === "home"
+  );
+}
+
 /** Homepage card sections for a given role */
-export function getHomeSections(role: UserRole): {
-  label: string;
-  items: NavItemConfig[];
-}[] {
+export function getHomeSections(role: UserRole): { label: string; items: NavItemConfig[] }[] {
   if (role !== "admin") {
-    // Non-admin: flat list, no sections
     const items = NAV_ITEMS.filter(
-      item => item.roles.includes(role) && item.navGroup === "main"
+      item => item.roles.includes(role) && item.navGroup === "home"
     );
     return [{ label: "", items }];
   }
@@ -257,21 +322,15 @@ export function getHomeSections(role: UserRole): {
   return [
     {
       label: "Platform Management",
-      items: NAV_ITEMS.filter(
-        item => item.roles.includes("admin") && item.section === "platform"
-      ),
+      items: NAV_ITEMS.filter(item => item.navGroup === "surveys"),
+    },
+    {
+      label: "Social Listening",
+      items: NAV_ITEMS.filter(item => item.navGroup === "social-listening"),
     },
     {
       label: "Administration",
-      items: NAV_ITEMS.filter(
-        item => item.roles.includes("admin") && item.section === "administration"
-      ),
-    },
-    {
-      label: "Development",
-      items: NAV_ITEMS.filter(
-        item => item.roles.includes("admin") && item.section === "development"
-      ),
+      items: NAV_ITEMS.filter(item => item.navGroup === "developer"),
     },
   ];
 }
