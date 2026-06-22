@@ -35,6 +35,8 @@ type Campaign = {
   survey_id: string | null;
   surveys?: { name: string } | null;
   publisher: string | null;
+  research_theme: string | null;
+  year: string | null;
   country_code: string | null;
   market: string | null;
   survey_language: string;
@@ -54,6 +56,8 @@ type Campaign = {
 };
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
+import { generateCampaignName, generateCampaignSlug } from "@/lib/naming";
+
 function generateCampaignId(brand: string, name: string): string {
   const year = new Date().getFullYear();
   return `${brand}_${name}_${year}`
@@ -142,7 +146,7 @@ function CampaignProgress({ c }: { c: Campaign }) {
 const BLANK: Partial<Campaign> = {
   campaign_id: "", brand_name: "", campaign_name: "",
   campaign_description: "", start_date: null, end_date: null,
-  survey_id: null, publisher: "", country_code: null, market: null, survey_language: "en", status: "draft",
+  survey_id: null, publisher: "", research_theme: null, year: String(new Date().getFullYear()), country_code: null, market: null, survey_language: "en", status: "draft",
   target_responses: null, archive_after_days: 90,
 };
 
@@ -291,7 +295,19 @@ export default function CampaignsPage() {
   }
 
   function autoId() {
-    setEditing(e => ({ ...e, campaign_id: generateCampaignId(e.brand_name ?? "", e.campaign_name ?? "") }));
+    setEditing(e => {
+      const name = generateCampaignName(
+        e.brand_name ?? "", e.research_theme ?? "", e.country_code ?? "", e.publisher ?? "", e.year ?? ""
+      );
+      const slug = generateCampaignSlug(
+        e.brand_name ?? "", e.research_theme ?? "", e.country_code ?? "", e.publisher ?? "", e.year ?? ""
+      );
+      return {
+        ...e,
+        campaign_name: name || e.campaign_name,
+        campaign_id:   slug || generateCampaignId(e.brand_name ?? "", e.campaign_name ?? ""),
+      };
+    });
   }
 
   async function handleSave() {
@@ -392,7 +408,11 @@ export default function CampaignsPage() {
         "Campaign Name":    c.campaign_name,
         "Slug":             c.campaign_id,
         "Brand":            c.brand_name,
+        "Research Theme":   c.research_theme ?? "",
+        "Country":          c.country_code ?? "",
+        "Market":           c.market ?? "",
         "Publisher":        c.publisher ?? "",
+        "Year":             c.year ?? "",
         "Survey":           c.surveys?.name ?? "",
         "Status (Stored)":  c.status,
         "Status (Effective)": c.effective_status ?? c.status,
@@ -698,23 +718,57 @@ export default function CampaignsPage() {
             </div>
 
             <div className="flex-1 overflow-y-auto p-6 space-y-4">
-              <div className="grid grid-cols-2 gap-3">
-                <Field label="Brand Name *">
-                  <input value={editing.brand_name ?? ""} onChange={e => setEditing(x => ({ ...x, brand_name: e.target.value }))}
-                    className={INP} placeholder="e.g. Carlsberg" />
-                </Field>
-                <Field label="Campaign Name *">
-                  <input value={editing.campaign_name ?? ""} onChange={e => setEditing(x => ({ ...x, campaign_name: e.target.value }))}
-                    className={INP} placeholder="e.g. UCL 2026" />
-                </Field>
+
+              {/* ── Structured naming fields ── */}
+              <div className="bg-gray-50 border border-gray-100 rounded-xl p-4 space-y-3">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Name Builder</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="Brand *">
+                    <input value={editing.brand_name ?? ""} onChange={e => setEditing(x => ({ ...x, brand_name: e.target.value }))}
+                      className={INP} placeholder="Carlsberg" />
+                  </Field>
+                  <Field label="Research Theme *">
+                    <input value={editing.research_theme ?? ""} onChange={e => setEditing(x => ({ ...x, research_theme: e.target.value }))}
+                      className={INP} placeholder="Fan Understanding" />
+                  </Field>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="Year">
+                    <input value={editing.year ?? ""} onChange={e => setEditing(x => ({ ...x, year: e.target.value }))}
+                      className={INP} placeholder={String(new Date().getFullYear())} maxLength={9} />
+                  </Field>
+                  <div className="flex items-end">
+                    <button
+                      type="button"
+                      onClick={autoId}
+                      className="w-full text-xs font-semibold px-3 py-2 rounded-lg border-2 border-[#D7B87A] text-[#0B1929] hover:bg-[#FBF5E8] transition-colors"
+                    >
+                      Auto Generate Name &amp; Slug
+                    </button>
+                  </div>
+                </div>
+                {/* Live preview */}
+                {(editing.brand_name || editing.research_theme) && (() => {
+                  const preview = generateCampaignName(
+                    editing.brand_name ?? "", editing.research_theme ?? "",
+                    editing.country_code ?? "", editing.publisher ?? "", editing.year ?? ""
+                  );
+                  return preview ? (
+                    <p className="text-xs text-gray-500 bg-white border border-gray-200 rounded-lg px-3 py-2 font-mono">
+                      {preview}
+                    </p>
+                  ) : null;
+                })()}
               </div>
 
+              <Field label="Campaign Name *">
+                <input value={editing.campaign_name ?? ""} onChange={e => setEditing(x => ({ ...x, campaign_name: e.target.value }))}
+                  className={INP} placeholder="Carlsberg | Fan Understanding | UK | Football365 | 2026" />
+              </Field>
+
               <Field label="Campaign ID *">
-                <div className="flex gap-2">
-                  <input value={editing.campaign_id ?? ""} onChange={e => setEditing(x => ({ ...x, campaign_id: e.target.value }))}
-                    className={`flex-1 ${INP} font-mono`} placeholder="carlsberg_ucl_2026" />
-                  <button onClick={autoId} className="text-xs border border-[#E0E1DD] text-[#0B1929] hover:bg-gray-50 px-3 rounded-lg">Auto</button>
-                </div>
+                <input value={editing.campaign_id ?? ""} onChange={e => setEditing(x => ({ ...x, campaign_id: e.target.value }))}
+                  className={`${INP} font-mono`} placeholder="carlsberg_fan_understanding_uk_football365_2026" />
                 <p className="text-xs text-gray-400 mt-1">Used in embed URLs. Lowercase, underscores only.</p>
               </Field>
 

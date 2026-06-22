@@ -8,6 +8,7 @@ import {
   SUPPORTED_LANGUAGES, resolveQuestion,
   type LangCode, type LocalisedQuestion, type LocalisedOption,
 } from "@/lib/survey-locale";
+import { generateSurveyName } from "@/lib/naming";
 
 // ─── MPU colours ─────────────────────────────────────────────────────────────
 const NAVY = "#071B2F";
@@ -34,6 +35,9 @@ type Survey = {
   id: string;
   name: string;
   description: string | null;
+  brand_name: string | null;
+  research_theme: string | null;
+  version_number: number;
   questions: Question[];
   thank_you_title: string;
   thank_you_body: string;
@@ -55,13 +59,16 @@ type Survey = {
 
 // Content-only fields for the edit drawer
 type EditFields = {
-  name: string;
-  description: string | null;
-  questions: Question[];
+  name:           string;
+  description:    string | null;
+  brand_name:     string;
+  research_theme: string;
+  version_number: number;
+  questions:      Question[];
   thank_you_title: string;
-  thank_you_body: string;
-  status: "draft" | "ready";
-  is_template: boolean;
+  thank_you_body:  string;
+  status:          "draft" | "ready";
+  is_template:     boolean;
 };
 
 // Campaigns linked to a survey (for the usage modal)
@@ -365,7 +372,8 @@ const BLANK_Q = (): Question => ({
 });
 
 const BLANK_FIELDS: EditFields = {
-  name: "", description: "", questions: [BLANK_Q()],
+  name: "", description: "", brand_name: "", research_theme: "", version_number: 1,
+  questions: [BLANK_Q()],
   thank_you_title: "Thank you!",
   thank_you_body: "Your response has been recorded.",
   status: "draft", is_template: false,
@@ -481,12 +489,14 @@ export default function SurveysPage() {
   function openEdit(s: Survey) {
     setEditingOriginalStatus(s.status);
     setFields({
-      name: s.name,
-      description: s.description,
-      questions: s.questions,
+      name:           s.name,
+      description:    s.description,
+      brand_name:     s.brand_name ?? "",
+      research_theme: s.research_theme ?? "",
+      version_number: s.version_number ?? 1,
+      questions:      s.questions,
       thank_you_title: s.thank_you_title,
-      thank_you_body: s.thank_you_body,
-      // Archived surveys preserve their lifecycle status on save; form only shows draft/ready
+      thank_you_body:  s.thank_you_body,
       status: (s.status === "draft" || s.status === "ready") ? s.status : "draft",
       is_template: s.is_template,
     });
@@ -621,13 +631,16 @@ export default function SurveysPage() {
   // ── Survey actions ─────────────────────────────────────────────────────────
   async function openDuplicate(s: Survey) {
     const payload: EditFields = {
-      name: `${s.name} (Copy)`,
-      description: s.description,
-      questions: s.questions,
+      name:           `${s.name} (Copy)`,
+      description:    s.description,
+      brand_name:     s.brand_name ?? "",
+      research_theme: s.research_theme ?? "",
+      version_number: s.version_number ?? 1,
+      questions:      s.questions,
       thank_you_title: s.thank_you_title,
-      thank_you_body: s.thank_you_body,
-      status: "draft",
-      is_template: s.is_template,
+      thank_you_body:  s.thank_you_body,
+      status:          "draft",
+      is_template:     s.is_template,
     };
     await fetch("/api/surveys", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
     load();
@@ -670,6 +683,9 @@ export default function SurveysPage() {
     const d = (s: string | null | undefined) => s ? new Date(s).toISOString().slice(0, 10) : "";
     const rows = displayed.map(s => ({
       "Name":             s.name,
+      "Brand":            s.brand_name ?? "",
+      "Research Theme":   s.research_theme ?? "",
+      "Version":          s.version_number ?? 1,
       "Description":      s.description ?? "",
       "Status":           effectiveSurveyStatus(s),
       "Questions":        s.questions.length,
@@ -1047,13 +1063,62 @@ export default function SurveysPage() {
                 </div>
               )}
 
+              {/* ── Name Builder ── */}
+              <div className="bg-gray-50 border border-gray-100 rounded-xl p-4 space-y-3">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Name Builder</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-semibold text-gray-600 block mb-1">Brand</label>
+                    <input value={fields.brand_name}
+                      onChange={e => setFields(f => ({ ...f, brand_name: e.target.value }))}
+                      className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-[#D7B87A]"
+                      placeholder="Carlsberg" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-gray-600 block mb-1">Research Theme</label>
+                    <input value={fields.research_theme}
+                      onChange={e => setFields(f => ({ ...f, research_theme: e.target.value }))}
+                      className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-[#D7B87A]"
+                      placeholder="Fan Understanding" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-semibold text-gray-600 block mb-1">Version</label>
+                    <input type="number" min={1} max={99}
+                      value={fields.version_number}
+                      onChange={e => setFields(f => ({ ...f, version_number: Math.max(1, parseInt(e.target.value) || 1) }))}
+                      className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-[#D7B87A]" />
+                  </div>
+                  <div className="flex items-end">
+                    <button type="button"
+                      onClick={() => {
+                        const n = generateSurveyName(fields.brand_name, fields.research_theme, fields.version_number);
+                        if (n) setFields(f => ({ ...f, name: n }));
+                      }}
+                      className="w-full text-xs font-semibold px-3 py-2 rounded-lg border-2 border-[#D7B87A] text-[#0B1929] hover:bg-[#FBF5E8] transition-colors">
+                      Auto Generate Name
+                    </button>
+                  </div>
+                </div>
+                {/* Live preview */}
+                {(fields.brand_name || fields.research_theme) && (() => {
+                  const preview = generateSurveyName(fields.brand_name, fields.research_theme, fields.version_number);
+                  return preview ? (
+                    <p className="text-xs text-gray-500 bg-white border border-gray-200 rounded-lg px-3 py-2 font-mono">
+                      {preview}
+                    </p>
+                  ) : null;
+                })()}
+              </div>
+
               <div>
                 <label className="text-xs font-semibold text-gray-600 block mb-1">Survey Name *</label>
                 <input
                   value={fields.name}
                   onChange={e => setFields(f => ({ ...f, name: e.target.value }))}
                   className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A]"
-                  placeholder="e.g. Premier League Fan Pulse"
+                  placeholder="e.g. Carlsberg - Fan Understanding - v1"
                 />
               </div>
 

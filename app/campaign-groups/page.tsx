@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import Papa from "papaparse";
 import { AdminShell } from "@/app/components/AdminShell";
+import { generateGroupName, generateGroupSlug } from "@/lib/naming";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type CampaignGroup = {
@@ -11,6 +12,9 @@ type CampaignGroup = {
   name: string;
   description: string | null;
   publisher: string | null;
+  brand_name: string | null;
+  research_theme: string | null;
+  year: string | null;
   status: "draft" | "live" | "paused" | "closed" | "archived";
   rotation: "equal" | "weighted" | "priority";
   start_date: string | null;
@@ -153,19 +157,23 @@ function CampaignSelector({
 
 // ─── Blank form ───────────────────────────────────────────────────────────────
 type GroupForm = {
-  group_id:    string;
-  name:        string;
-  description: string;
-  publisher:   string;
-  status:      CampaignGroup["status"];
-  rotation:    CampaignGroup["rotation"];
-  start_date:  string;
-  end_date:    string;
-  campaign_ids: string[];
+  group_id:       string;
+  name:           string;
+  description:    string;
+  publisher:      string;
+  brand_name:     string;
+  research_theme: string;
+  year:           string;
+  status:         CampaignGroup["status"];
+  rotation:       CampaignGroup["rotation"];
+  start_date:     string;
+  end_date:       string;
+  campaign_ids:   string[];
 };
 
 const BLANK_FORM: GroupForm = {
   group_id: "", name: "", description: "", publisher: "",
+  brand_name: "", research_theme: "", year: String(new Date().getFullYear()),
   status: "draft", rotation: "equal",
   start_date: "", end_date: "", campaign_ids: [],
 };
@@ -230,22 +238,33 @@ export default function CampaignGroupsPage() {
   async function openEdit(g: CampaignGroup) {
     setEditingId(g.id);
     setForm({
-      group_id:     g.group_id,
-      name:         g.name,
-      description:  g.description ?? "",
-      publisher:    g.publisher ?? "",
-      status:       g.status,
-      rotation:     g.rotation,
-      start_date:   g.start_date ?? "",
-      end_date:     g.end_date ?? "",
-      campaign_ids: g.campaign_ids,
+      group_id:       g.group_id,
+      name:           g.name,
+      description:    g.description ?? "",
+      publisher:      g.publisher ?? "",
+      brand_name:     g.brand_name ?? "",
+      research_theme: g.research_theme ?? "",
+      year:           g.year ?? String(new Date().getFullYear()),
+      status:         g.status,
+      rotation:       g.rotation,
+      start_date:     g.start_date ?? "",
+      end_date:       g.end_date ?? "",
+      campaign_ids:   g.campaign_ids,
     });
     setError("");
     setDrawerOpen(true);
   }
 
   function autoSlug() {
-    setForm(f => ({ ...f, group_id: generateGroupId(f.name, f.publisher) }));
+    setForm(f => {
+      const name = generateGroupName(f.brand_name, f.research_theme, f.year);
+      const slug = generateGroupSlug(f.brand_name, f.research_theme, f.year);
+      return {
+        ...f,
+        name:     name || f.name,
+        group_id: slug || generateGroupId(f.name, f.publisher),
+      };
+    });
   }
 
   async function handleSave() {
@@ -520,10 +539,49 @@ export default function CampaignGroupsPage() {
 
             <div className="flex-1 overflow-y-auto p-6 space-y-5">
 
+              {/* ── Name Builder ── */}
+              <div className="bg-gray-50 border border-gray-100 rounded-xl p-4 space-y-3">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Name Builder</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className={LBL}>Brand</label>
+                    <input value={form.brand_name} onChange={e => setForm(f => ({ ...f, brand_name: e.target.value }))}
+                      className={INP} placeholder="Carlsberg" />
+                  </div>
+                  <div>
+                    <label className={LBL}>Research Theme</label>
+                    <input value={form.research_theme} onChange={e => setForm(f => ({ ...f, research_theme: e.target.value }))}
+                      className={INP} placeholder="Fan Understanding" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className={LBL}>Year</label>
+                    <input value={form.year} onChange={e => setForm(f => ({ ...f, year: e.target.value }))}
+                      className={INP} placeholder={String(new Date().getFullYear())} maxLength={9} />
+                  </div>
+                  <div className="flex items-end">
+                    <button type="button" onClick={autoSlug}
+                      className="w-full text-xs font-semibold px-3 py-2 rounded-lg border-2 border-[#D7B87A] text-[#0B1929] hover:bg-[#FBF5E8] transition-colors">
+                      Auto Generate Name &amp; Slug
+                    </button>
+                  </div>
+                </div>
+                {/* Live preview */}
+                {(form.brand_name || form.research_theme) && (() => {
+                  const preview = generateGroupName(form.brand_name, form.research_theme, form.year);
+                  return preview ? (
+                    <p className="text-xs text-gray-500 bg-white border border-gray-200 rounded-lg px-3 py-2 font-mono">
+                      {preview}
+                    </p>
+                  ) : null;
+                })()}
+              </div>
+
               <div>
                 <label className={LBL}>Group Name *</label>
                 <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-                  className={INP} placeholder="e.g. Carlsberg Research Wave 1" />
+                  className={INP} placeholder="Carlsberg | Fan Understanding | Global | 2026" />
               </div>
 
               <div>
