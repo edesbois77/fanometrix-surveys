@@ -519,6 +519,13 @@ function EmbedSurvey() {
         return;
       }
 
+      // Preview mode — skip submission and go straight to thank-you screen
+      if (isPreview) {
+        setStatus("success");
+        setAdvancing(false);
+        return;
+      }
+
       setStatus("submitting");
       const duration = Math.round((Date.now() - startRef.current) / 1000);
 
