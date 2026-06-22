@@ -400,14 +400,16 @@ function EmbedSurvey() {
 
   const campaign      = params.get("campaign")    ?? "default";
   const groupSlug     = params.get("group")       ?? null;
-  const lang          = params.get("lang")        ?? "en";
+  const urlLang       = params.get("lang");                                      // null if not in URL
   const surveyId      = params.get("survey")      ?? null;
   const questionSetId = params.get("qset")        ?? null;
   const publisher     = params.get("publisher")   ?? null;
   const placement     = params.get("placement")   ?? null;
   const club          = params.get("club")        ?? null;
   const competition   = params.get("competition") ?? null;
-  const country       = resolveCountry(params.get("country") ?? "");
+  const countryParam  = params.get("country")     ?? "";                         // raw ISO code, e.g. "GB"
+  const country       = resolveCountry(countryParam);                            // normalised display name
+  const marketParam   = params.get("market")      ?? null;                       // optional market name
   const segment       = params.get("segment")     ?? null;
 
   const [device,  setDevice]  = useState<string | null>(null);
@@ -424,6 +426,11 @@ function EmbedSurvey() {
   // specific campaign served, not just the group slug).
   const [resolvedCampaignId, setResolvedCampaignId] = useState<string>(campaign);
   const [groupReady,         setGroupReady]         = useState(!groupSlug);
+  // Group-resolved context — populated after the group API responds
+  const [resolvedGroupId,      setResolvedGroupId]      = useState<string | null>(null);
+  const [resolvedSurveyLang,   setResolvedSurveyLang]   = useState<string>(urlLang ?? "en");
+  const [resolvedCountryCode,  setResolvedCountryCode]  = useState<string | null>(countryParam || null);
+  const [resolvedMarket,       setResolvedMarket]       = useState<string | null>(marketParam);
 
   useEffect(() => {
     setDevice(detectDevice());
@@ -434,7 +441,14 @@ function EmbedSurvey() {
   // Group mode: resolve which campaign to serve and fetch its questions
   useEffect(() => {
     if (!groupSlug) return;
-    fetch(`/api/embed/group?slug=${encodeURIComponent(groupSlug)}`)
+    // Build group API URL with all available filter params
+    const gParams = new URLSearchParams({ slug: groupSlug });
+    if (countryParam)  gParams.set("country",   countryParam);
+    if (marketParam)   gParams.set("market",     marketParam);
+    if (publisher)     gParams.set("publisher",  publisher);
+    if (urlLang)       gParams.set("lang",       urlLang);       // explicit lang override
+
+    fetch(`/api/embed/group?${gParams.toString()}`)
       .then(r => r.ok ? r.json() : null)
       .then(data => {
         if (data?.campaign_id && data?.questions?.length) {
@@ -442,8 +456,13 @@ function EmbedSurvey() {
           setQuestions(data.questions);
           setThankYouTitle(data.thank_you_title ?? thankYouTitle);
           setThankYouBody(data.thank_you_body   ?? thankYouBody);
+          // Capture resolved metadata for response submission
+          setResolvedGroupId(data.group_id ?? groupSlug);
+          // Language priority: explicit URL lang > campaign survey_language > en
+          setResolvedSurveyLang(urlLang ?? data.survey_language ?? "en");
+          setResolvedCountryCode(data.country_code ?? (countryParam || null));
+          setResolvedMarket(data.market ?? marketParam);
         }
-        // If no eligible campaign, groupReady stays false → blank frame
         setGroupReady(!!data?.campaign_id);
       })
       .catch(() => setGroupReady(false));
@@ -453,13 +472,14 @@ function EmbedSurvey() {
   // Single-campaign mode: fetch survey questions when a survey UUID is provided
   useEffect(() => {
     if (groupSlug || !surveyId) return;
-    fetch(`/api/embed/survey?id=${surveyId}&lang=${encodeURIComponent(lang)}`)
+    fetch(`/api/embed/survey?id=${surveyId}&lang=${encodeURIComponent(urlLang ?? "en")}`)
       .then(r => r.ok ? r.json() : null)
       .then(data => {
         if (data?.questions?.length) {
           setQuestions(data.questions);
           setThankYouTitle(data.thank_you_title);
           setThankYouBody(data.thank_you_body);
+          setResolvedSurveyLang(urlLang ?? "en");
         }
       })
       .catch(() => {/* keep fallback questions */});
@@ -526,6 +546,11 @@ function EmbedSurvey() {
             device,
             browser,
             response_duration_seconds: duration,
+            // Group + market context
+            group_id:                  resolvedGroupId,
+            country_code:              resolvedCountryCode,
+            market:                    resolvedMarket,
+            survey_language:           resolvedSurveyLang,
           }),
         });
         if (res.ok) {
@@ -568,7 +593,7 @@ function EmbedSurvey() {
       {showPrivacy && (
         <PrivacyModal
           slide={privacySlide}
-          lang={lang}
+          lang={urlLang ?? "en"}
           onClose={() => setShowPrivacy(false)}
           onNav={(dir) =>
             setPrivacySlide((s) =>

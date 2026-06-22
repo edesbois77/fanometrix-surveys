@@ -35,6 +35,8 @@ type Campaign = {
   survey_id: string | null;
   surveys?: { name: string } | null;
   publisher: string | null;
+  country_code: string | null;
+  market: string | null;
   survey_language: string;
   status: string;
   effective_status: CampaignStatus;
@@ -140,7 +142,7 @@ function CampaignProgress({ c }: { c: Campaign }) {
 const BLANK: Partial<Campaign> = {
   campaign_id: "", brand_name: "", campaign_name: "",
   campaign_description: "", start_date: null, end_date: null,
-  survey_id: null, publisher: "", survey_language: "en", status: "draft",
+  survey_id: null, publisher: "", country_code: null, market: null, survey_language: "en", status: "draft",
   target_responses: null, archive_after_days: 90,
 };
 
@@ -790,6 +792,29 @@ export default function CampaignsPage() {
                   ))}
                 </select>
               </Field>
+
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Country Code">
+                  <input
+                    value={editing.country_code ?? ""}
+                    onChange={e => setEditing(x => ({ ...x, country_code: e.target.value.toUpperCase().slice(0, 2) || null }))}
+                    className={INP}
+                    placeholder="GB"
+                    maxLength={2}
+                  />
+                </Field>
+                <Field label="Market">
+                  <input
+                    value={editing.market ?? ""}
+                    onChange={e => setEditing(x => ({ ...x, market: e.target.value || null }))}
+                    className={INP}
+                    placeholder="United Kingdom"
+                  />
+                </Field>
+              </div>
+              <p className="text-xs text-gray-400 -mt-2">
+                ISO country code (e.g. GB, DE, SE) and market name. Used by group embeds with <code className="text-xs">?country=</code> to serve the correct campaign per market.
+              </p>
 
               <Field label="Survey Language">
                 <select

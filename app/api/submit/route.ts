@@ -20,6 +20,8 @@ export async function POST(req: NextRequest) {
     club, competition,
     device, browser, response_duration_seconds,
     is_demo,
+    // Group + market context — populated when served via a campaign group embed
+    group_id, country_code, market, survey_language,
   } = body as Record<string, unknown>;
 
   if (!campaign_id) {
@@ -102,6 +104,11 @@ export async function POST(req: NextRequest) {
     club, competition,
     device, browser, response_duration_seconds,
     is_demo: !!is_demo,
+    // Group + market context (null for single-campaign embeds)
+    group_id:        group_id        ?? null,
+    country_code:    country_code    ?? null,
+    market:          market          ?? null,
+    survey_language: survey_language ?? null,
   }]);
 
   if (error) {
