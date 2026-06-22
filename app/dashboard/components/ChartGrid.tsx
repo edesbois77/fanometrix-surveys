@@ -9,6 +9,14 @@ import {
 import type { SurveyResponse } from "@/lib/types";
 import type { DashFilters } from "./DashboardFilters";
 
+export type SurveyLabels = {
+  questions: {
+    index:   number;
+    text:    string;
+    options: Record<string, string>; // option ID → display label
+  }[];
+};
+
 // ─── Fanometrix chart palette ─────────────────────────────────────────────────
 // Premium, muted tones that work on white cards and remain distinguishable
 // for colour-blind users. Navy (#0B1929) and Gold (#D7B87A) stay dominant.
@@ -82,7 +90,7 @@ function ResponsesOverTime({ responses }: { responses: SurveyResponse[] }) {
 // color prop determines the progress bar and active-row tint for each question.
 
 function QChart({
-  label, responses, field, color, activeValue, onFilter,
+  label, responses, field, color, activeValue, onFilter, optionMap,
 }: {
   label: string;
   responses: SurveyResponse[];
@@ -90,15 +98,18 @@ function QChart({
   color: string;
   activeValue: string;
   onFilter: (value: string) => void;
+  optionMap?: Record<string, string>; // option ID → display label
 }) {
   const counts = useMemo(() => {
     const m: Record<string, number> = {};
     for (const r of responses) {
-      const v = (r[field as keyof SurveyResponse] as string) ?? "Not answered";
+      const raw = (r[field as keyof SurveyResponse] as string) ?? "Not answered";
+      // Resolve stored ID to display label if optionMap provided
+      const v = (optionMap && optionMap[raw]) ? optionMap[raw] : raw;
       m[v] = (m[v] ?? 0) + 1;
     }
     return Object.entries(m).sort((a, b) => b[1] - a[1]);
-  }, [responses, field]);
+  }, [responses, field, optionMap]);
 
   const total = responses.length;
   if (!total) return null;
@@ -366,19 +377,31 @@ export function ChartGrid({
   responses,
   filters,
   onFilter,
+  surveyLabels,
 }: {
   responses: SurveyResponse[];
   filters: DashFilters;
   onFilter: (field: keyof DashFilters, value: string) => void;
+  surveyLabels?: SurveyLabels | null;
 }) {
   if (!responses.length) return null;
+
+  // Build dynamic Q labels from survey if available, fall back to defaults
+  const qLabels = Q_LABELS.map((q, i) => {
+    const sq = surveyLabels?.questions[i];
+    return {
+      ...q,
+      label: sq ? `Q${i + 1} · ${sq.text}` : q.label,
+      optionMap: sq?.options,
+    };
+  });
 
   return (
     <div className="space-y-4">
       <ResponsesOverTime responses={responses} />
 
       <HScrollRow title="Question Results" cols={3} minCardW={320}>
-        {Q_LABELS.map(({ field, label, color }) => (
+        {qLabels.map(({ field, label, color, optionMap }) => (
           <QChart
             key={field}
             label={label}
@@ -387,6 +410,7 @@ export function ChartGrid({
             field={field}
             activeValue={filters[field]}
             onFilter={(v) => onFilter(field, v)}
+            optionMap={optionMap}
           />
         ))}
       </HScrollRow>

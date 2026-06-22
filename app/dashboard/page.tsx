@@ -7,7 +7,7 @@ import type { SurveyResponse } from "@/lib/types";
 import { AdminShell } from "@/app/components/AdminShell";
 import { KpiCards } from "./components/KpiCards";
 import { ResponseExplorer } from "./components/Explorer";
-import { ChartGrid } from "./components/ChartGrid";
+import { ChartGrid, type SurveyLabels } from "./components/ChartGrid";
 import { InsightsEngine } from "@/app/components/InsightsEngine";
 import {
   DashboardFilters,
@@ -85,9 +85,10 @@ function applyFilters(
 
 export default function DashboardPage() {
   const [responses,  setResponses]  = useState<SurveyResponse[]>([]);
-  const [campaigns,  setCampaigns]  = useState<CampaignInfo[]>([]);
-  const [loading,    setLoading]    = useState(true);
-  const [error,      setError]      = useState("");
+  const [campaigns,     setCampaigns]     = useState<CampaignInfo[]>([]);
+  const [loading,       setLoading]       = useState(true);
+  const [error,         setError]         = useState("");
+  const [surveyLabels,  setSurveyLabels]  = useState<SurveyLabels | null>(null);
 
   // Filter state — persisted in localStorage
   const [filters,     setFilters]     = useState<DashFilters>(() => loadLS("dash_filters", EMPTY_DASH_FILTERS));
@@ -128,6 +129,15 @@ export default function DashboardPage() {
     () => campaigns.find(c => c.campaign_id === filters.campaign_id) ?? null,
     [campaigns, filters.campaign_id],
   );
+
+  // Load survey labels (question text + option ID→text map) when a campaign is selected
+  useEffect(() => {
+    if (!filters.campaign_id) { setSurveyLabels(null); return; }
+    fetch(`/api/embed/survey-labels?campaign_id=${encodeURIComponent(filters.campaign_id)}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(json => setSurveyLabels(json ?? null))
+      .catch(() => setSurveyLabels(null));
+  }, [filters.campaign_id]);
 
   const dateBounds = useMemo(
     () => getDateBounds(datePreset, dateFrom, dateTo, activeCampaign),
@@ -246,6 +256,7 @@ export default function DashboardPage() {
                   responses={filtered}
                   filters={filters}
                   onFilter={onChartFilter}
+                  surveyLabels={surveyLabels}
                 />
 
                 {/* Response Explorer (independent filters) */}
