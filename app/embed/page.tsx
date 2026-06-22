@@ -417,8 +417,12 @@ function EmbedSurvey() {
   const [browser, setBrowser] = useState<string | null>(null);
   const startRef = useRef<number>(Date.now());
 
-  // Survey questions — defaults to hardcoded fallback, replaced when a survey is linked
-  const [questions,      setQuestions]      = useState<Question[]>(QUESTIONS);
+  // Start empty when a campaign or group is in the URL — prevents the hardcoded
+  // fallback questions flashing before the API response arrives.
+  // Only use QUESTIONS as initial state for pure standalone/test embeds (no campaign, no group).
+  const [questions,      setQuestions]      = useState<Question[]>(
+    (!groupSlug && (!campaign || campaign === "default")) ? QUESTIONS : []
+  );
   const [thankYouTitle,  setThankYouTitle]  = useState("Thank you!");
   const [thankYouBody,   setThankYouBody]   = useState("Your anonymous feedback helps improve the football experience for fans everywhere.");
   const [errorMsg,       setErrorMsg]       = useState("Something went wrong — tap an answer to try again.");
@@ -605,7 +609,8 @@ function EmbedSurvey() {
 
   // Group mode: don't render until the group API has resolved.
   // If no eligible campaign exists, render transparent (publisher sees nothing).
-  if (groupSlug && !groupReady) {
+  // Render transparent until questions have loaded — prevents any flash of default content
+  if ((groupSlug && !groupReady) || questions.length === 0) {
     return <div style={{ width: 300, height: 250, background: "transparent" }} />;
   }
 
