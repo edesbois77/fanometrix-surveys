@@ -103,7 +103,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     return NextResponse.json({ success: true });
   }
 
-  // Soft delete — validate status and response count first
+  // Soft delete — block only live/paused campaigns (too risky to delete while active)
   const { data: campaign } = await supabaseAdmin
     .from("campaigns")
     .select("status, campaign_id")
@@ -112,22 +112,9 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
 
   if (!campaign) return NextResponse.json({ error: "Campaign not found." }, { status: 404 });
 
-  if (!["draft", "scheduled"].includes(campaign.status)) {
+  if (["live", "paused"].includes(campaign.status)) {
     return NextResponse.json(
-      { error: "Only draft or scheduled campaigns with zero responses can be deleted." },
-      { status: 409 }
-    );
-  }
-
-  const { data: stats } = await supabaseAdmin
-    .from("vw_campaign_stats")
-    .select("response_count")
-    .eq("campaign_db_id", id)
-    .single();
-
-  if (Number(stats?.response_count ?? 0) > 0) {
-    return NextResponse.json(
-      { error: "This campaign has collected responses and cannot be deleted. Archive it instead." },
+      { error: "Live and paused campaigns cannot be deleted. Close or pause it first." },
       { status: 409 }
     );
   }
