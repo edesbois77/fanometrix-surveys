@@ -149,6 +149,7 @@ export default function CampaignsPage() {
   const [campaigns,        setCampaigns]        = useState<Campaign[]>([]);
   const [deletedCampaigns, setDeletedCampaigns] = useState<Campaign[]>([]);
   const [surveys,          setSurveys]          = useState<Survey[]>([]);
+  const [publishers,       setPublishers]       = useState<string[]>([]);
   const [loading,          setLoading]          = useState(true);
   const [loadingDeleted,   setLoadingDeleted]   = useState(false);
 
@@ -176,12 +177,15 @@ export default function CampaignsPage() {
   // ── Load ──────────────────────────────────────────────────────────────────
   const load = useCallback(async () => {
     setLoading(true);
-    const [camRes, surRes] = await Promise.all([
+    const [camRes, surRes, pubRes] = await Promise.all([
       fetch("/api/campaigns"),
       fetch("/api/surveys"),
+      fetch("/api/publishers"),
     ]);
     setCampaigns((await camRes.json()).data ?? []);
     setSurveys((await surRes.json()).data ?? []);
+    const pubData = (await pubRes.json()).data ?? [];
+    setPublishers(pubData.map((p: { name: string }) => p.name));
     setLoading(false);
   }, []);
 
@@ -774,12 +778,16 @@ export default function CampaignsPage() {
               </div>
 
               <Field label="Publisher">
-                <input
+                <select
                   value={editing.publisher ?? ""}
-                  onChange={e => setEditing(x => ({ ...x, publisher: e.target.value }))}
+                  onChange={e => setEditing(x => ({ ...x, publisher: e.target.value || null }))}
                   className={INP}
-                  placeholder="e.g. FotMob"
-                />
+                >
+                  <option value="">— Select publisher —</option>
+                  {publishers.map(p => (
+                    <option key={p} value={p}>{p}</option>
+                  ))}
+                </select>
               </Field>
 
               {error && <p className="text-red-500 text-xs">{error}</p>}
