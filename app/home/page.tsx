@@ -60,29 +60,58 @@ function useAdminKpis(isAdmin: boolean) {
   return { kpis, loading };
 }
 
+// ─── KPI accent colour rules ──────────────────────────────────────────────────
+const GREY  = "#9CA3AF";
+const GOLD  = "#D7B87A";
+const GREEN = "#22C55E";
+const BLUE  = "#3B82F6";
+
+function kpiAccent(metric: "activeCampaigns" | "totalResponses" | "activeSurveys" | "liveGroups" | "activeSessions", value: number): string {
+  switch (metric) {
+    case "activeCampaigns":  return value === 0 ? GREY : GREEN;
+    case "totalResponses":   return value === 0 ? GREY : value < 100 ? GOLD : GREEN;
+    case "activeSurveys":    return value === 0 ? GREY : GOLD;
+    case "liveGroups":       return value === 0 ? GREY : GREEN;
+    case "activeSessions":   return value === 0 ? GREY : value < 5 ? BLUE : GREEN;
+  }
+}
+
 // ─── KPI card ─────────────────────────────────────────────────────────────────
 function KpiCard({
-  value, label, href, linkLabel,
+  value, label, href, linkLabel, accent,
 }: {
-  value: number | string;
-  label: string;
-  href:  string;
+  value:     number | string;
+  label:     string;
+  href:      string;
   linkLabel: string;
+  accent:    string;
 }) {
   return (
     <Link
       href={href}
-      className="group bg-white border border-gray-100 rounded-xl p-4 shadow-sm flex flex-col
-                 transition-all duration-200 hover:bg-[#0B1929] hover:border-[#0B1929]
+      className="group relative bg-white border border-gray-100 rounded-xl p-4 shadow-sm flex flex-col
+                 overflow-hidden transition-all duration-200 hover:bg-[#0B1929] hover:border-[#0B1929]
                  hover:-translate-y-0.5 hover:shadow-md
                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D7B87A] focus-visible:ring-offset-2"
     >
-      <p className="text-2xl font-bold text-[#0B1929] group-hover:text-white transition-colors duration-200">
+      {/* 3px accent top border */}
+      <div className="absolute top-0 left-0 right-0" style={{ height: 3, background: accent }} />
+
+      {/* KPI number in accent colour */}
+      <p className="text-2xl font-bold group-hover:text-white transition-colors duration-200 mt-1"
+        style={{ color: accent }}>
         {value}
       </p>
-      <p className="text-xs text-gray-400 group-hover:text-white/60 mt-0.5 flex-1 transition-colors duration-200">
-        {label}
-      </p>
+
+      {/* Status dot + label */}
+      <div className="flex items-center gap-1.5 mt-0.5 flex-1">
+        <div className="w-1.5 h-1.5 rounded-full flex-shrink-0 transition-opacity duration-200 group-hover:opacity-60"
+          style={{ background: accent }} />
+        <p className="text-xs text-gray-400 group-hover:text-white/60 transition-colors duration-200">
+          {label}
+        </p>
+      </div>
+
       <p className="text-xs font-semibold text-[#D7B87A] mt-3">{linkLabel} →</p>
     </Link>
   );
@@ -247,30 +276,35 @@ export default function HomePage() {
                     label="Active Campaigns"
                     href="/campaigns"
                     linkLabel="View Campaigns"
+                    accent={kpiAccent("activeCampaigns", kpis.activeCampaigns)}
                   />
                   <KpiCard
                     value={kpis.totalResponses.toLocaleString()}
                     label="Total Responses"
                     href="/dashboard"
                     linkLabel="Open Dashboard"
+                    accent={kpiAccent("totalResponses", kpis.totalResponses)}
                   />
                   <KpiCard
                     value={kpis.activeSurveys}
                     label="Ready Surveys"
                     href="/survey-templates"
                     linkLabel="Manage Surveys"
+                    accent={kpiAccent("activeSurveys", kpis.activeSurveys)}
                   />
                   <KpiCard
                     value={kpis.liveGroups}
                     label="Live Campaign Groups"
                     href="/campaign-groups"
                     linkLabel="View Groups"
+                    accent={kpiAccent("liveGroups", kpis.liveGroups)}
                   />
                   <KpiCard
                     value={kpis.activeSessions}
                     label="Active Sessions (10 min)"
                     href="/user-management"
                     linkLabel="View Accounts"
+                    accent={kpiAccent("activeSessions", kpis.activeSessions)}
                   />
                 </>
               )}
