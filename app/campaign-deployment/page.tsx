@@ -106,7 +106,7 @@ export default function EmbedGeneratorPage() {
     if (club)                        p.set("club",        club);
     if (competition)                 p.set("competition", competition);
     if (segment)                     p.set("segment",     segment);
-    p.set("country", campaign?.country_code ?? "GB");
+    if (campaign?.country_code) p.set("country", campaign.country_code);
     p.set("preview", "1");
     return p.toString();
   }, [campaignIdValue, campaign, publisher, placement, club, competition, segment]);
@@ -313,9 +313,11 @@ export default function EmbedGeneratorPage() {
             {/* Preview */}
             <div className="bg-white border border-gray-100 rounded-xl p-4 md:p-5 shadow-sm">
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
-                Preview <span className="text-gray-400 font-normal normal-case">
-                (country = {campaign?.country_code ?? "GB"}{campaign?.survey_language && campaign.survey_language !== "en" ? ` · ${campaign.survey_language}` : ""})
-              </span>
+                Preview{campaign && (
+                <span className="text-gray-400 font-normal normal-case ml-1">
+                  ({campaign.country_code ? `country = ${campaign.country_code}` : "no country set"}{campaign.survey_language && campaign.survey_language !== "en" ? ` · ${campaign.survey_language}` : ""})
+                </span>
+              )}
               </p>
               {/*
                 overflow-x-auto allows the 300px iframe to scroll on screens
