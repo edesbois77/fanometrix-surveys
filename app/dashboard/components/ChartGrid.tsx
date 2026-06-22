@@ -386,6 +386,11 @@ export function ChartGrid({
 }) {
   if (!responses.length) return null;
 
+  // Q1/Q2/Q3 only make sense when scoped to a single survey.
+  // When no campaign/survey/group is selected, different surveys' answers are
+  // mixed under the same Q1 key — which produces meaningless aggregates.
+  const hasScope = !!(filters.campaign_id || filters.survey_id || filters.group_id);
+
   // Build dynamic Q labels from survey if available, fall back to defaults
   const qLabels = Q_LABELS.map((q, i) => {
     const sq = surveyLabels?.questions[i];
@@ -400,6 +405,8 @@ export function ChartGrid({
     <div className="space-y-4">
       <ResponsesOverTime responses={responses} />
 
+      {/* Question results — only shown when a campaign/survey/group is selected */}
+      {hasScope ? (
       <HScrollRow title="Question Results" cols={3} minCardW={320}>
         {qLabels.map(({ field, label, color, optionMap }) => (
           <QChart
@@ -414,6 +421,15 @@ export function ChartGrid({
           />
         ))}
       </HScrollRow>
+      ) : (
+        <div className="bg-white border border-gray-100 rounded-xl px-5 py-4 shadow-sm">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Question Results</p>
+          <p className="text-sm text-gray-400">
+            Select a campaign, survey or campaign group above to see question-level results.
+            Q1/Q2/Q3 answers differ between surveys — mixing them across all campaigns produces meaningless data.
+          </p>
+        </div>
+      )}
 
       {DIM_ROWS.map((row, ri) => (
         <HScrollRow key={ri} title={DIM_TITLES[ri]} cols={3} minCardW={300}>
