@@ -86,10 +86,17 @@ export default function SearchDetailPage({ params }: { params: Promise<{ id: str
               </div>
               {search.description && <p className="text-sm text-gray-500 mt-2 leading-relaxed">{search.description}</p>}
             </div>
-            <Link href={`/social-listening/mentions`}
-              className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 flex-shrink-0">
-              View Mentions →
-            </Link>
+            <div className="flex gap-2 flex-shrink-0">
+              <Link href={`/social-listening/mentions`}
+                className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50">
+                Mentions →
+              </Link>
+              <Link href={`/social-listening/searches/${id}/insights`}
+                className="text-xs font-semibold px-3 py-1.5 rounded-lg text-white"
+                style={{ background: "#0B1929" }}>
+                Generate Insights →
+              </Link>
+            </div>
           </div>
         </div>
 

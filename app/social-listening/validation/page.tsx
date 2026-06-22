@@ -103,8 +103,21 @@ export default function ValidationPage() {
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Validation</h1>
             <p className="text-sm text-gray-400 mt-0.5">Review classification accuracy and distribution quality</p>
+            <p className="text-sm text-gray-500 mt-1 max-w-lg">
+              Use "Seed Test Data" to create the three Phase 7 validation searches, then generate synthetic mentions on each.
+            </p>
           </div>
           <div className="flex items-center gap-2">
+            <button
+              onClick={async () => {
+                const res  = await fetch("/api/social/seed", { method: "POST" });
+                const json = await res.json();
+                alert(json.message ?? "Done.");
+                if (json.created?.length) window.location.href = "/social-listening/searches";
+              }}
+              className="text-xs font-semibold px-3 py-1.5 rounded-lg border-2 border-[#D7B87A] text-[#0B1929] hover:bg-[#FBF5E8] transition-colors">
+              ✦ Seed Test Data
+            </button>
             {(data?.synthetic_count ?? 0) > 0 && (
               <button onClick={clearSynthetic}
                 className="text-xs text-red-400 hover:text-red-600 border border-red-100 px-3 py-1.5 rounded-lg transition-colors">
