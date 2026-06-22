@@ -136,12 +136,11 @@ function NavCard({
           aria-hidden
           style={{
             position: "absolute",
-            bottom: -24,
-            right: -24,
-            width: 148,
-            height: 148,
-            opacity: 0.07,
-            filter: "blur(0.5px)",
+            bottom: 8,
+            right: 8,
+            width: 32,
+            height: 32,
+            opacity: 1,
             pointerEvents: "none",
             userSelect: "none",
           }}
