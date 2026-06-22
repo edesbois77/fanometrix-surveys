@@ -35,6 +35,7 @@ type Campaign = {
   survey_id: string | null;
   surveys?: { name: string } | null;
   publisher: string | null;
+  survey_language: string;
   status: string;
   effective_status: CampaignStatus;
   status_reason: string | null;
@@ -139,7 +140,7 @@ function CampaignProgress({ c }: { c: Campaign }) {
 const BLANK: Partial<Campaign> = {
   campaign_id: "", brand_name: "", campaign_name: "",
   campaign_description: "", start_date: null, end_date: null,
-  survey_id: null, publisher: "", status: "draft",
+  survey_id: null, publisher: "", survey_language: "en", status: "draft",
   target_responses: null, archive_after_days: 90,
 };
 
@@ -788,6 +789,22 @@ export default function CampaignsPage() {
                     <option key={p} value={p}>{p}</option>
                   ))}
                 </select>
+              </Field>
+
+              <Field label="Survey Language">
+                <select
+                  value={editing.survey_language ?? "en"}
+                  onChange={e => setEditing(x => ({ ...x, survey_language: e.target.value }))}
+                  className={INP}
+                >
+                  <option value="en">English (en)</option>
+                  <option value="de">German — Deutsch (de)</option>
+                  <option value="sv">Swedish — Svenska (sv)</option>
+                  <option value="zh-CN">Chinese Simplified — 中文 (zh-CN)</option>
+                </select>
+                <p className="text-xs text-gray-400 mt-1">
+                  The language the survey creative will render for this campaign.
+                </p>
               </Field>
 
               {error && <p className="text-red-500 text-xs">{error}</p>}

@@ -10,17 +10,32 @@ const QUESTIONS = [
   {
     id: "q1",
     text: "How often do you attend live events?",
-    options: ["Never", "1–2 times a year", "3–5 times a year", "5+ times a year"],
+    options: [
+      { id: 1, text: "Never" },
+      { id: 2, text: "1–2 times a year" },
+      { id: 3, text: "3–5 times a year" },
+      { id: 4, text: "5+ times a year" },
+    ],
   },
   {
     id: "q2",
     text: "Rate your overall fan experience?",
-    options: ["Poor", "Average", "Good", "Excellent"],
+    options: [
+      { id: 1, text: "Poor" },
+      { id: 2, text: "Average" },
+      { id: 3, text: "Good" },
+      { id: 4, text: "Excellent" },
+    ],
   },
   {
     id: "q3",
     text: "Likely to recommend us to a friend?",
-    options: ["Not likely", "Somewhat likely", "Likely", "Very likely"],
+    options: [
+      { id: 1, text: "Not likely" },
+      { id: 2, text: "Somewhat likely" },
+      { id: 3, text: "Likely" },
+      { id: 4, text: "Very likely" },
+    ],
   },
 ];
 
@@ -377,7 +392,8 @@ function AdHeader({ step, total }: { step?: number; total?: number }) {
 // Outer frame: 300×250px
 // Header: 46px | Progress: 3px | Body: flex:1 (179px) | Footer: 22px
 
-type Question = { id: string; text: string; options: string[] };
+type EmbedOption = { id: number; text: string };
+type Question    = { id: string; text: string; options: EmbedOption[] };
 
 function EmbedSurvey() {
   const params = useSearchParams();
@@ -437,7 +453,7 @@ function EmbedSurvey() {
   // Single-campaign mode: fetch survey questions when a survey UUID is provided
   useEffect(() => {
     if (groupSlug || !surveyId) return;
-    fetch(`/api/embed/survey?id=${surveyId}`)
+    fetch(`/api/embed/survey?id=${surveyId}&lang=${encodeURIComponent(lang)}`)
       .then(r => r.ok ? r.json() : null)
       .then(data => {
         if (data?.questions?.length) {
@@ -450,7 +466,7 @@ function EmbedSurvey() {
   }, [surveyId, groupSlug]);
 
   const [step,         setStep]         = useState(0);
-  const [answers,      setAnswers]      = useState<Record<string, string>>({});
+  const [answers,      setAnswers]      = useState<Record<string, number>>({});
   const [status,       setStatus]       = useState<"idle" | "submitting" | "success" | "error">("idle");
   const [advancing,    setAdvancing]    = useState(false);
   const [showPrivacy,  setShowPrivacy]  = useState(false);
@@ -468,9 +484,9 @@ function EmbedSurvey() {
     setShowPrivacy(true);
   }
 
-  function handleSelect(opt: string) {
+  function handleSelect(optId: number) {
     if (advancing) return;
-    const newAnswers = { ...answers, [q.id]: opt };
+    const newAnswers = { ...answers, [q.id]: optId };
     setAnswers(newAnswers);
     setAdvancing(true);
 
@@ -700,15 +716,15 @@ function EmbedSurvey() {
             {/* Answer options — top-anchored */}
             <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
               {q.options.map((opt) => {
-                const isSel = answers[q.id] === opt;
+                const isSel = answers[q.id] === opt.id;
                 return (
                   <div
-                    key={opt}
+                    key={opt.id}
                     role="radio"
                     aria-checked={isSel}
                     tabIndex={0}
-                    onClick={() => handleSelect(opt)}
-                    onKeyDown={(e) => e.key === " " && handleSelect(opt)}
+                    onClick={() => handleSelect(opt.id)}
+                    onKeyDown={(e) => e.key === " " && handleSelect(opt.id)}
                     style={{
                       display: "flex",
                       alignItems: "center",
@@ -745,7 +761,7 @@ function EmbedSurvey() {
                         lineHeight: 1,
                       }}
                     >
-                      {opt}
+                      {opt.text}
                     </span>
                   </div>
                 );

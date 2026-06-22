@@ -6,6 +6,11 @@
  *   - Campaign form (filter survey dropdown)
  *
  * All limits correspond to the 300×250 MPU creative constraints.
+ *
+ * Supports BOTH the legacy flat shape { text: string, options: string[] }
+ * and the new localised shape { text: {en: string}, options: [{id, text: {en: string}}] }.
+ * In the localised shape, only the English ("en") text is validated — translations
+ * are optional and have no character-limit enforcement here.
  */
 
 export const SURVEY_LIMITS = {
@@ -17,12 +22,31 @@ export const SURVEY_LIMITS = {
   MAX_TY_BODY:    90,
 } as const;
 
+type AnyQuestion = {
+  text:    string | Record<string, string>;
+  options: (string | { text: string | Record<string, string> })[];
+};
+
 export type SurveyForValidation = {
   name?:            string | null;
-  questions?:       Array<{ text: string; options: string[] }> | null;
+  questions?:       AnyQuestion[] | null;
   thank_you_title?: string | null;
   thank_you_body?:  string | null;
 };
+
+/** Extract the English validation text from either question shape */
+function qText(q: AnyQuestion): string {
+  if (typeof q.text === "string") return q.text;
+  return (q.text as Record<string, string>)["en"] ?? "";
+}
+
+/** Extract the English option text from either option shape */
+function optText(o: string | { text: string | Record<string, string> }): string {
+  if (typeof o === "string") return o;
+  const t = o.text;
+  if (typeof t === "string") return t;
+  return (t as Record<string, string>)["en"] ?? "";
+}
 
 /**
  * Returns an array of human-readable error strings.
@@ -45,16 +69,17 @@ export function validateSurvey(survey: SurveyForValidation): string[] {
   }
 
   for (let i = 0; i < qs.length; i++) {
-    const q = qs[i];
+    const q      = qs[i];
     const qLabel = `Q${i + 1}`;
+    const qt     = qText(q);
 
-    if (!q.text?.trim()) {
+    if (!qt.trim()) {
       errors.push(`${qLabel}: question text is required.`);
-    } else if (q.text.length > MAX_Q_CHARS) {
-      errors.push(`${qLabel}: question text exceeds ${MAX_Q_CHARS} characters (${q.text.length}).`);
+    } else if (qt.length > MAX_Q_CHARS) {
+      errors.push(`${qLabel}: question text exceeds ${MAX_Q_CHARS} characters (${qt.length}).`);
     }
 
-    const filledOptions = (q.options ?? []).filter(o => o.trim());
+    const filledOptions = (q.options ?? []).filter(o => optText(o).trim());
     if (filledOptions.length < 2) {
       errors.push(`${qLabel}: at least 2 answers are required.`);
     }
@@ -62,7 +87,8 @@ export function validateSurvey(survey: SurveyForValidation): string[] {
       errors.push(`${qLabel}: maximum ${MAX_OPTIONS} answers allowed (found ${q.options.length}).`);
     }
     for (let j = 0; j < (q.options ?? []).length; j++) {
-      if (q.options[j].trim().length > MAX_OPT_CHARS) {
+      const ot = optText(q.options[j]);
+      if (ot.trim().length > MAX_OPT_CHARS) {
         errors.push(`${qLabel}, answer ${j + 1}: exceeds ${MAX_OPT_CHARS} characters.`);
       }
     }

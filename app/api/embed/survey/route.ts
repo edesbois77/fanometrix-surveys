@@ -1,12 +1,16 @@
 // Public endpoint — no auth required.
-// Returns only the question content for a survey UUID so the embed iframe
-// can render the correct questions without exposing response data.
+// Returns resolved question content for a survey UUID so the embed iframe
+// can render questions in the requested language without exposing raw
+// localisation data or response data.
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { validateSurvey } from "@/lib/survey-validation";
+import { resolveQuestion, type LangCode, type LocalisedQuestion } from "@/lib/survey-locale";
 
 export async function GET(req: NextRequest) {
-  const id = req.nextUrl.searchParams.get("id");
+  const id   = req.nextUrl.searchParams.get("id");
+  const lang = (req.nextUrl.searchParams.get("lang") ?? "en") as LangCode;
+
   if (!id) {
     return NextResponse.json({ error: "id is required" }, { status: 400 });
   }
@@ -15,7 +19,7 @@ export async function GET(req: NextRequest) {
     .from("surveys")
     .select("id, questions, thank_you_title, thank_you_body")
     .eq("id", id)
-    .neq("status", "deleted")  // soft-deleted surveys must not be served
+    .neq("status", "deleted")
     .single();
 
   if (error || !data) {
@@ -31,8 +35,13 @@ export async function GET(req: NextRequest) {
     );
   }
 
+  // Resolve localised questions to the requested language (falls back to en)
+  const questions = ((data.questions ?? []) as LocalisedQuestion[]).map(q =>
+    resolveQuestion(q, lang)
+  );
+
   return NextResponse.json({
-    questions:       data.questions ?? [],
+    questions,
     thank_you_title: data.thank_you_title ?? "Thank you!",
     thank_you_body:  data.thank_you_body  ?? "Your anonymous feedback helps improve the football experience for fans everywhere.",
   });

@@ -4,6 +4,10 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import Papa from "papaparse";
 import { AdminShell } from "@/app/components/AdminShell";
 import { validateSurvey, SURVEY_LIMITS } from "@/lib/survey-validation";
+import {
+  SUPPORTED_LANGUAGES, resolveQuestion,
+  type LangCode, type LocalisedQuestion, type LocalisedOption,
+} from "@/lib/survey-locale";
 
 // ─── MPU colours ─────────────────────────────────────────────────────────────
 const NAVY = "#071B2F";
@@ -24,7 +28,7 @@ function CharCount({ len, max }: { len: number; max: number }) {
 }
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-type Question = { id: string; text: string; options: string[] };
+type Question = LocalisedQuestion;   // re-export alias used throughout this file
 
 type Survey = {
   id: string;
@@ -140,21 +144,22 @@ const CAMPAIGN_STATUS_COLOURS: Record<string, string> = {
 // ─── MPU Preview Modal ────────────────────────────────────────────────────────
 function MPUPreviewModal({ survey, onClose }: { survey: Survey; onClose: () => void }) {
   const [step,    setStep]    = useState(0);
-  const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [answers, setAnswers] = useState<Record<string, number>>({});
   const [done,    setDone]    = useState(false);
 
-  const questions   = survey.questions ?? [];
+  // Resolve to EN for preview — options become {id, text} flat shape
+  const questions   = (survey.questions ?? []).map(lq => resolveQuestion(lq, "en"));
   const q           = questions[step];
-  const selected    = q ? (answers[q.id] ?? "") : "";
+  const selected    = q ? (answers[q.id] ?? -1) : -1;
   const isLast      = step === questions.length - 1;
   const isFirst     = step === 0;
   const progressPct = done ? 100 : ((step + 1) / Math.max(questions.length, 1)) * 100;
 
   function restart() { setStep(0); setAnswers({}); setDone(false); }
 
-  function handleSelect(opt: string) {
+  function handleSelect(optId: number) {
     if (!q) return;
-    const newAnswers = { ...answers, [q.id]: opt };
+    const newAnswers = { ...answers, [q.id]: optId };
     setAnswers(newAnswers);
     setTimeout(() => {
       if (isLast) { setDone(true); return; }
@@ -217,11 +222,11 @@ function MPUPreviewModal({ survey, onClose }: { survey: Survey; onClose: () => v
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                 {(q?.options ?? []).map(opt => {
-                  const sel = selected === opt;
+                  const sel = selected === opt.id;
                   return (
                     <div
-                      key={opt} role="radio" aria-checked={sel} tabIndex={0}
-                      onClick={() => handleSelect(opt)} onKeyDown={e => e.key === " " && handleSelect(opt)}
+                      key={opt.id} role="radio" aria-checked={sel} tabIndex={0}
+                      onClick={() => handleSelect(opt.id)} onKeyDown={e => e.key === " " && handleSelect(opt.id)}
                       style={{
                         display: "flex", alignItems: "center", gap: 8,
                         padding: "5px 10px", borderRadius: 8, flexShrink: 0,
@@ -232,7 +237,7 @@ function MPUPreviewModal({ survey, onClose }: { survey: Survey; onClose: () => v
                       }}
                     >
                       <div style={{ width: 12, height: 12, borderRadius: "50%", flexShrink: 0, border: `2px solid ${sel ? GOLD : "#9CA3AF"}`, background: sel ? GOLD : "transparent", boxSizing: "border-box", transition: "background 0.15s, border-color 0.15s" }} />
-                      <span style={{ color: NAVY, fontSize: 10.5, fontWeight: 500, lineHeight: 1 }}>{opt}</span>
+                      <span style={{ color: NAVY, fontSize: 10.5, fontWeight: 500, lineHeight: 1 }}>{opt.text}</span>
                     </div>
                   );
                 })}
@@ -350,7 +355,14 @@ function SurveyUsageModal({ survey, campaigns, loading, onClose }: {
 }
 
 // ─── Blank state ──────────────────────────────────────────────────────────────
-const BLANK_Q = (): Question => ({ id: `q${Date.now()}`, text: "", options: ["", ""] });
+const BLANK_Q = (): Question => ({
+  id:      `q${Date.now()}`,
+  text:    { en: "" },
+  options: [
+    { id: 1, text: { en: "" } },
+    { id: 2, text: { en: "" } },
+  ],
+});
 
 const BLANK_FIELDS: EditFields = {
   name: "", description: "", questions: [BLANK_Q()],
@@ -387,6 +399,7 @@ export default function SurveysPage() {
   const [fields,               setFields]               = useState<EditFields>(BLANK_FIELDS);
   const [saving,               setSaving]               = useState(false);
   const [formError,            setFormError]            = useState("");
+  const [editorLang,           setEditorLang]           = useState<LangCode>("en");
   const [toast,                setToast]                = useState<{ msg: string; ok: boolean } | null>(null);
 
   function showToast(msg: string, ok = true) {
@@ -461,6 +474,7 @@ export default function SurveysPage() {
     setEditingId(null);
     setEditingOriginalStatus(null);
     setFormError("");
+    setEditorLang("en");
     setDrawerOpen(true);
   }
 
@@ -486,12 +500,19 @@ export default function SurveysPage() {
     const qs = fields.questions ?? [];
     if (!qs.length) { setFormError("At least one question is required."); return; }
     for (const q of qs) {
-      if (!q.text.trim()) { setFormError("All questions need text."); return; }
-      if (q.options.filter(o => o.trim()).length < 2) { setFormError("Each question needs at least 2 options."); return; }
+      if (!(q.text.en ?? "").trim()) { setFormError("All questions need English text."); return; }
+      if (q.options.filter(o => (o.text.en ?? "").trim()).length < 2) {
+        setFormError("Each question needs at least 2 English answers."); return;
+      }
     }
 
-    // Run full MPU validation using the shared validator
-    const cleanedQs = qs.map(q => ({ ...q, options: q.options.filter(o => o.trim()) }));
+    // Run full MPU validation — validator handles localised shape
+    const cleanedQs = qs.map(q => ({
+      ...q,
+      options: q.options
+        .filter(o => (o.text.en ?? "").trim())
+        .map((o, i) => ({ ...o, id: i + 1 })),  // reindex IDs after any deletions
+    }));
     const validationErrors = validateSurvey({
       name:            fields.name,
       questions:       cleanedQs,
@@ -551,8 +572,13 @@ export default function SurveysPage() {
   }
 
   // ── Question editing ───────────────────────────────────────────────────────
-  function setQ(idx: number, patch: Partial<Question>) {
-    setFields(f => ({ ...f, questions: f.questions.map((q, i) => i === idx ? { ...q, ...patch } : q) }));
+  function setQText(idx: number, lang: LangCode, text: string) {
+    setFields(f => ({
+      ...f,
+      questions: f.questions.map((q, i) =>
+        i === idx ? { ...q, text: { ...q.text, [lang]: text } } : q
+      ),
+    }));
   }
   function addQuestion() {
     if (fields.questions.length >= MAX_QUESTIONS) return;
@@ -561,14 +587,35 @@ export default function SurveysPage() {
   function removeQuestion(idx: number) {
     setFields(f => ({ ...f, questions: f.questions.filter((_, i) => i !== idx) }));
   }
-  function setOption(qIdx: number, oIdx: number, val: string) {
-    setFields(f => ({ ...f, questions: f.questions.map((q, i) => i === qIdx ? { ...q, options: q.options.map((o, j) => j === oIdx ? val : o) } : q) }));
+  function setOptionText(qIdx: number, oIdx: number, lang: LangCode, val: string) {
+    setFields(f => ({
+      ...f,
+      questions: f.questions.map((q, i) =>
+        i === qIdx
+          ? { ...q, options: q.options.map((o, j) => j === oIdx ? { ...o, text: { ...o.text, [lang]: val } } : o) }
+          : q
+      ),
+    }));
   }
   function addOption(qIdx: number) {
-    setFields(f => ({ ...f, questions: f.questions.map((q, i) => i === qIdx ? { ...q, options: [...q.options, ""] } : q) }));
+    setFields(f => ({
+      ...f,
+      questions: f.questions.map((q, i) =>
+        i === qIdx
+          ? { ...q, options: [...q.options, { id: q.options.length + 1, text: { en: "" } } as LocalisedOption] }
+          : q
+      ),
+    }));
   }
   function removeOption(qIdx: number, oIdx: number) {
-    setFields(f => ({ ...f, questions: f.questions.map((q, i) => i === qIdx ? { ...q, options: q.options.filter((_, j) => j !== oIdx) } : q) }));
+    setFields(f => ({
+      ...f,
+      questions: f.questions.map((q, i) =>
+        i === qIdx
+          ? { ...q, options: q.options.filter((_, j) => j !== oIdx).map((o, k) => ({ ...o, id: k + 1 })) }
+          : q
+      ),
+    }));
   }
 
   // ── Survey actions ─────────────────────────────────────────────────────────
@@ -1075,30 +1122,62 @@ export default function SurveysPage() {
                 </div>
                 <p className="text-xs text-gray-400 mb-3">
                   Maximum {MAX_QUESTIONS} questions · {MAX_OPTIONS} answers each.
-                  Shorter text performs best — longer translated text may not fit inside the 300×250 MPU.
+                  English is required. Translations are optional — the embed falls back to English if a translation is blank.
                 </p>
+
+                {/* Language selector tabs */}
+                <div className="flex gap-1 mb-3 flex-wrap">
+                  {SUPPORTED_LANGUAGES.map(lang => {
+                    const isActive = editorLang === lang.code;
+                    const isEN     = lang.code === "en";
+                    return (
+                      <button
+                        key={lang.code}
+                        type="button"
+                        onClick={() => setEditorLang(lang.code)}
+                        className={`text-xs px-2.5 py-1 rounded-lg border font-medium transition-colors ${
+                          isActive
+                            ? "bg-[#0B1929] text-[#D7B87A] border-[#0B1929]"
+                            : "bg-white text-gray-500 border-gray-200 hover:border-[#D7B87A]"
+                        }`}
+                      >
+                        {lang.code.toUpperCase()}{isEN ? " *" : ""}
+                      </button>
+                    );
+                  })}
+                  {editorLang !== "en" && (
+                    <span className="text-xs text-gray-400 self-center ml-1">
+                      Optional — leave blank to show English
+                    </span>
+                  )}
+                </div>
 
                 <div className="space-y-4">
                   {fields.questions.map((q, qi) => {
-                    const qOver = q.text.length > MAX_Q_CHARS;
+                    const qVal  = (q.text[editorLang] ?? "");
+                    const qOver = qVal.length > MAX_Q_CHARS;
                     return (
                       <div key={q.id} className={`border rounded-xl p-4 space-y-3 ${qOver ? "border-red-200" : "border-gray-200"}`}>
                         <div className="flex items-start gap-2">
                           <span className="text-xs font-bold text-[#0B1929] w-6 mt-1.5">Q{qi + 1}</span>
                           <div className="flex-1 min-w-0">
                             <input
-                              value={q.text}
+                              value={qVal}
                               maxLength={MAX_Q_CHARS + 10}
-                              onChange={e => setQ(qi, { text: e.target.value })}
+                              onChange={e => setQText(qi, editorLang, e.target.value)}
                               className={`w-full border rounded-lg px-3 py-1.5 text-sm focus:outline-none ${
                                 qOver
                                   ? "border-red-300 focus:border-red-400"
                                   : "border-gray-200 focus:border-[#D7B87A]"
                               }`}
-                              placeholder="Question text…"
+                              placeholder={
+                                editorLang === "en"
+                                  ? "Question text…"
+                                  : (q.text.en ? `"${q.text.en}"` : "Question text…")
+                              }
                             />
                             <div className="flex justify-end mt-0.5">
-                              <CharCount len={q.text.length} max={MAX_Q_CHARS} />
+                              <CharCount len={qVal.length} max={MAX_Q_CHARS} />
                             </div>
                           </div>
                           {fields.questions.length > 1 && (
@@ -1107,34 +1186,39 @@ export default function SurveysPage() {
                         </div>
                         <div className="space-y-2 pl-8">
                           {q.options.map((opt, oi) => {
-                            const oOver = opt.length > MAX_OPT_CHARS;
+                            const oVal  = (opt.text[editorLang] ?? "");
+                            const oOver = oVal.length > MAX_OPT_CHARS;
                             return (
-                              <div key={oi}>
+                              <div key={opt.id}>
                                 <div className="flex items-center gap-2">
                                   <input
-                                    value={opt}
+                                    value={oVal}
                                     maxLength={MAX_OPT_CHARS + 5}
-                                    onChange={e => setOption(qi, oi, e.target.value)}
+                                    onChange={e => setOptionText(qi, oi, editorLang, e.target.value)}
                                     className={`flex-1 border rounded-lg px-2 py-1 text-xs focus:outline-none ${
                                       oOver
                                         ? "border-red-300 focus:border-red-400"
                                         : "border-gray-100 focus:border-[#D7B87A]"
                                     }`}
-                                    placeholder={`Option ${oi + 1}`}
+                                    placeholder={
+                                      editorLang === "en"
+                                        ? `Option ${oi + 1}`
+                                        : (opt.text.en ? `"${opt.text.en}"` : `Option ${oi + 1}`)
+                                    }
                                   />
                                   {q.options.length > 2 && (
                                     <button onClick={() => removeOption(qi, oi)} className="text-gray-300 hover:text-red-400 text-xs flex-shrink-0">✕</button>
                                   )}
                                 </div>
-                                {opt.length > 0 && (
+                                {oVal.length > 0 && (
                                   <div className="flex justify-end">
-                                    <CharCount len={opt.length} max={MAX_OPT_CHARS} />
+                                    <CharCount len={oVal.length} max={MAX_OPT_CHARS} />
                                   </div>
                                 )}
                               </div>
                             );
                           })}
-                          {q.options.length < MAX_OPTIONS && (
+                          {q.options.length < MAX_OPTIONS && editorLang === "en" && (
                             <button onClick={() => addOption(qi)} className="text-xs text-[#D7B87A] hover:text-[#C9A766]">+ Add option</button>
                           )}
                           {q.options.length >= MAX_OPTIONS && (
