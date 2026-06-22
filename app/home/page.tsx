@@ -17,6 +17,7 @@ type Kpis = {
   totalResponses:  number;
   activeSurveys:   number;
   liveGroups:      number;
+  activeSessions:  number;
 };
 
 function useAdminKpis(isAdmin: boolean) {
@@ -27,14 +28,16 @@ function useAdminKpis(isAdmin: boolean) {
     if (!isAdmin) return;
     setLoading(true);
     try {
-      const [camRes, surRes, grpRes] = await Promise.all([
+      const [camRes, surRes, grpRes, sesRes] = await Promise.all([
         fetch("/api/campaigns"),
         fetch("/api/surveys"),
         fetch("/api/campaign-groups"),
+        fetch("/api/admin/active-sessions"),
       ]);
       const campaigns: Record<string, unknown>[] = (await camRes.json()).data ?? [];
       const surveys:   Record<string, unknown>[] = (await surRes.json()).data ?? [];
       const groups:    Record<string, unknown>[] = (await grpRes.json()).data ?? [];
+      const sessions:  { count: number }         = await sesRes.json();
 
       setKpis({
         activeCampaigns: campaigns.filter(c => {
@@ -44,9 +47,10 @@ function useAdminKpis(isAdmin: boolean) {
         totalResponses: campaigns.reduce((sum, c) => sum + ((c.response_count as number) ?? 0), 0),
         activeSurveys:  surveys.filter(s => s.status === "ready").length,
         liveGroups:     groups.filter(g => g.status === "live").length,
+        activeSessions: sessions.count ?? 0,
       });
     } catch {
-      setKpis({ activeCampaigns: 0, totalResponses: 0, activeSurveys: 0, liveGroups: 0 });
+      setKpis({ activeCampaigns: 0, totalResponses: 0, activeSurveys: 0, liveGroups: 0, activeSessions: 0 });
     } finally {
       setLoading(false);
     }
@@ -229,9 +233,9 @@ export default function HomePage() {
         {isAdmin && (
           <div className="mb-8">
             {/* KPI card row */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 mb-4">
               {kpisLoading || !kpis ? (
-                Array.from({ length: 4 }, (_, i) => (
+                Array.from({ length: 5 }, (_, i) => (
                   <div key={i} className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm animate-pulse">
                     <div className="h-7 w-12 bg-gray-100 rounded mb-2" />
                     <div className="h-3 w-24 bg-gray-100 rounded" />
@@ -262,6 +266,12 @@ export default function HomePage() {
                     label="Live Campaign Groups"
                     href="/campaign-groups"
                     linkLabel="View Groups"
+                  />
+                  <KpiCard
+                    value={kpis.activeSessions}
+                    label="Active Sessions (10 min)"
+                    href="/user-management"
+                    linkLabel="View Accounts"
                   />
                 </>
               )}

@@ -3,6 +3,18 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { AdminShell } from "@/app/components/AdminShell";
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+const ACTIVE_THRESHOLD_MS = 10 * 60 * 1000; // 10 minutes
+
+function relativeTime(iso: string | null): string {
+  if (!iso) return "Never";
+  const diff = Date.now() - new Date(iso).getTime();
+  if (diff < 60_000)          return "Just now";
+  if (diff < 3_600_000)       return `${Math.floor(diff / 60_000)} min ago`;
+  if (diff < 86_400_000)      return `${Math.floor(diff / 3_600_000)} hr ago`;
+  return `${Math.floor(diff / 86_400_000)} days ago`;
+}
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 type User = {
   id: string;
@@ -15,6 +27,7 @@ type User = {
   force_password_change: boolean;
   created_at: string;
   updated_at: string;
+  last_seen_at: string | null;
 };
 
 type Option = { value: string; label: string };
@@ -290,7 +303,7 @@ export default function UserManagementPage() {
   const [campaignSort,        setCampaignSort]        = useState<"recent" | "alpha">("recent");
 
   // ── Table sort ───────────────────────────────────────────────────────────────
-  type SortCol = "username" | "role" | "organisation_name" | "is_active" | "updated_at";
+  type SortCol = "username" | "role" | "organisation_name" | "is_active" | "updated_at" | "last_seen_at";
   type SortDir = "asc" | "desc";
   const [sortCol, setSortCol] = useState<SortCol | null>(null);
   const [sortDir, setSortDir] = useState<SortDir>("asc");
@@ -322,6 +335,8 @@ export default function UserManagementPage() {
         case "updated_at":
           va = a.updated_at ?? a.created_at;
           vb = b.updated_at ?? b.created_at; break;
+        case "last_seen_at":
+          va = a.last_seen_at ?? ""; vb = b.last_seen_at ?? ""; break;
         default: return 0;
       }
       if (va < vb) return sortDir === "asc" ? -1 : 1;
@@ -524,6 +539,7 @@ export default function UserManagementPage() {
                       { col: "role"              as SortCol, label: "Access Rights" },
                       { col: "organisation_name" as SortCol, label: "Organisation"  },
                       { col: "is_active"         as SortCol, label: "Status"        },
+                      { col: "last_seen_at"      as SortCol, label: "Last Seen"     },
                       { col: "updated_at"        as SortCol, label: "Last Updated"  },
                     ] as { col: SortCol; label: string }[]
                   ).map(({ col, label }) => {
@@ -570,6 +586,16 @@ export default function UserManagementPage() {
                       <span className={`text-xs font-semibold ${u.is_active ? "text-green-600" : "text-gray-400"}`}>
                         {u.is_active ? "Active" : "Disabled"}
                       </span>
+                    </td>
+                    <td className="px-5 py-3 text-xs">
+                      {u.last_seen_at && (Date.now() - new Date(u.last_seen_at).getTime()) < ACTIVE_THRESHOLD_MS ? (
+                        <span className="flex items-center gap-1.5 text-green-600 font-medium">
+                          <span className="w-1.5 h-1.5 rounded-full bg-green-500 flex-shrink-0" />
+                          Active now
+                        </span>
+                      ) : (
+                        <span className="text-gray-400">{relativeTime(u.last_seen_at)}</span>
+                      )}
                     </td>
                     <td className="px-5 py-3 text-gray-400 text-xs">
                       {u.updated_at

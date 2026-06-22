@@ -31,6 +31,7 @@ const ADMIN_ONLY_PREFIXES = [
   "/embed-test",
   "/api/users",
   "/api/publishers",
+  "/api/admin",
   "/api/surveys",
   "/api/campaigns",
   "/api/campaign-groups",

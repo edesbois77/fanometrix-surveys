@@ -35,6 +35,11 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   // Auto-close sidebar on navigation
   useEffect(() => { setMobileOpen(false); }, [path]);
 
+  // Ping last_seen_at on every navigation — server rate-limits writes to once per 5 min
+  useEffect(() => {
+    fetch("/api/auth/ping", { method: "POST" }).catch(() => {/* non-fatal */});
+  }, [path]);
+
   // Auto-expand Developer section when navigating to a developer route
   useEffect(() => {
     if (DEVELOPER_HREFS.some(h => path === h || path.startsWith(h + "/"))) {
