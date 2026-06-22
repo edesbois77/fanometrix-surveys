@@ -89,10 +89,12 @@ const COMPETITION_MAP: Record<string, string> = {
   "euros": "UEFA Euros", "euro": "UEFA Euros", "european championship": "UEFA Euros",
 };
 
-function normalise(map: Record<string, string>, val: string | null | undefined): string | null {
-  if (!val) return val ?? null;
-  const canonical = map[val.toLowerCase().trim()];
-  return canonical ?? val.trim();
+function normalise(map: Record<string, string>, val: string | number | null | undefined): string | null {
+  if (val === null || val === undefined || val === "") return null;
+  // q1/q2/q3 are now submitted as integer option IDs — convert safely before map lookup
+  const str = String(val);
+  const canonical = map[str.toLowerCase().trim()];
+  return canonical ?? str.trim();
 }
 
 function normaliseFanSegment(val: string | null | undefined): string | null {
