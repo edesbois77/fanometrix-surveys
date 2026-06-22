@@ -27,6 +27,7 @@ const ADMIN_ONLY_PREFIXES = [
   "/reporting",
   "/looker-templates",
   "/demo-data",
+  "/access-requests",
   "/user-management",
   "/publishers",
   "/embed-test",

@@ -85,6 +85,16 @@ export const NAV_ITEMS: NavItemConfig[] = [
 
   // ── Admin: Administration ─────────────────────────────────────────────────
   {
+    href: "/access-requests",
+    label: "Access Requests",
+    icon: "◫",
+    description: "Review and action inbound access requests from the public homepage form.",
+    cta: "View Requests",
+    section: "administration",
+    roles: ["admin"],
+    navGroup: "main",
+  },
+  {
     href: "/user-management",
     label: "User Management",
     icon: "◉",

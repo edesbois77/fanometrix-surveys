@@ -1,8 +1,8 @@
-// Public endpoint — no auth required.
-// Accepts access request form submissions from /request-access.
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { requireSession } from "@/lib/auth";
 
+// ── POST — public, submit access request form ─────────────────────────────────
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
   if (!body) return NextResponse.json({ error: "Invalid request." }, { status: 400 });
@@ -17,7 +17,6 @@ export async function POST(req: NextRequest) {
   if (!email)        return NextResponse.json({ error: "Email is required."        }, { status: 400 });
   if (!organisation) return NextResponse.json({ error: "Organisation is required." }, { status: 400 });
 
-  // Basic email format check
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return NextResponse.json({ error: "Please enter a valid email address." }, { status: 400 });
   }
@@ -33,5 +32,64 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Failed to submit request. Please try again." }, { status: 500 });
   }
 
+  // ── Email notification via Resend (non-fatal if not configured) ──────────────
+  // Set RESEND_API_KEY and NOTIFICATION_EMAIL in Vercel environment variables.
+  // Get a free Resend API key at resend.com — no domain verification needed for MVP.
+  const apiKey = process.env.RESEND_API_KEY;
+  const toEmail = process.env.NOTIFICATION_EMAIL;
+
+  if (apiKey && toEmail) {
+    try {
+      await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          from: "Fanometrix <onboarding@resend.dev>",
+          to:   [toEmail],
+          subject: `New Access Request — ${organisation}`,
+          html: `
+            <div style="font-family:sans-serif;max-width:520px;margin:0 auto;color:#111;">
+              <h2 style="color:#0B1929;margin-bottom:4px;">New Access Request</h2>
+              <p style="color:#888;font-size:13px;margin-top:0;">Received via fanometrix-surveys.vercel.app</p>
+              <table style="width:100%;border-collapse:collapse;margin-top:24px;font-size:14px;">
+                <tr><td style="padding:8px 0;color:#555;width:120px;">Name</td><td style="padding:8px 0;font-weight:600;">${name}</td></tr>
+                <tr><td style="padding:8px 0;color:#555;">Email</td><td style="padding:8px 0;"><a href="mailto:${email}" style="color:#D7B87A;">${email}</a></td></tr>
+                <tr><td style="padding:8px 0;color:#555;">Organisation</td><td style="padding:8px 0;">${organisation}</td></tr>
+                <tr><td style="padding:8px 0;color:#555;">Role</td><td style="padding:8px 0;">${role || "—"}</td></tr>
+                ${message ? `<tr><td style="padding:8px 0;color:#555;vertical-align:top;">Message</td><td style="padding:8px 0;">${message.replace(/\n/g, "<br>")}</td></tr>` : ""}
+              </table>
+              <div style="margin-top:32px;padding:16px;background:#f7f8fa;border-radius:8px;font-size:13px;color:#666;">
+                Review this request in the <a href="https://fanometrix-surveys.vercel.app/access-requests" style="color:#0B1929;font-weight:600;">Fanometrix admin panel</a>.
+              </div>
+            </div>
+          `,
+        }),
+      });
+    } catch (emailErr) {
+      // Non-fatal — request is already saved; don't fail the submission
+      console.error("[access-requests] Email notification failed:", emailErr);
+    }
+  }
+
   return NextResponse.json({ success: true }, { status: 201 });
+}
+
+// ── GET — admin only, list all requests ──────────────────────────────────────
+export async function GET(req: NextRequest) {
+  try {
+    await requireSession(req, ["admin"]);
+  } catch (err) {
+    return err as Response;
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from("access_requests")
+    .select("*")
+    .order("created_at", { ascending: false });
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ data });
 }
