@@ -308,39 +308,27 @@ export default function UserManagementPage() {
 
   // ── Load campaign + publisher options ───────────────────────────────────────
   useEffect(() => {
-    fetch("/api/campaigns")
-      .then(r => r.json())
-      .then(json => {
-        const data: Array<{
+    Promise.all([fetch("/api/campaigns"), fetch("/api/publishers")])
+      .then(async ([camRes, pubRes]) => {
+        const camData: Array<{
           campaign_id: string; campaign_name: string;
           brand_name: string; publisher: string | null; created_at: string;
-        }> = json.data ?? [];
+        }> = (await camRes.json()).data ?? [];
+        const pubData: Array<{ name: string }> = (await pubRes.json()).data ?? [];
 
         setCampaignOptions(
-          data.map(c => ({
+          camData.map(c => ({
             value:      c.campaign_id,
             label:      `${c.campaign_name} — ${c.brand_name}`,
             created_at: c.created_at,
           }))
         );
 
-        // Build publisher options: start from DB registry, also include any
-        // publisher names already set on campaigns (covers legacy / unlisted ones)
-        const seen = new Set<string>();
-        for (const c of data) if (c.publisher?.trim()) seen.add(c.publisher.trim());
+        // Publishers registry is primary source; supplement with any names
+        // set directly on campaigns (covers legacy / unlisted ones)
+        const seen = new Set<string>(pubData.map(p => p.name));
+        for (const c of camData) if (c.publisher?.trim()) seen.add(c.publisher.trim());
         setPublisherOptions([...seen].sort().map(p => ({ value: p, label: p })));
-      })
-      .catch(() => {});
-
-    // Load publisher list from the publishers registry (admin-managed)
-    fetch("/api/publishers")
-      .then(r => r.json())
-      .then(json => {
-        const names: string[] = (json.data ?? []).map((p: { name: string }) => p.name);
-        setPublisherOptions(prev => {
-          const merged = new Set([...names, ...prev.map(o => o.value)]);
-          return [...merged].sort().map(p => ({ value: p, label: p }));
-        });
       })
       .catch(() => {});
   }, []);
