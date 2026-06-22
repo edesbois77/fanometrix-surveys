@@ -11,40 +11,42 @@ export async function GET(req: NextRequest) {
     return err as Response;
   }
 
-  const publisherIds = session.allowedPublisherIds ?? [];
-  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  const publisherIds  = session.allowedPublisherIds ?? [];
+  const sevenDaysAgo  = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  const isRestricted  = session.role !== "admin" && publisherIds.length > 0;
+  const noAccess      = session.role !== "admin" && publisherIds.length === 0;
 
-  // Build the publisher filter — admin sees all
-  const applyFilter = (q: ReturnType<typeof supabaseAdmin.from>) => {
-    if (session.role !== "admin" && publisherIds.length > 0) {
-      return (q as unknown as { in: (col: string, vals: string[]) => typeof q })
-        .in("publisher", publisherIds);
-    }
-    return q;
-  };
+  if (noAccess) {
+    return NextResponse.json({
+      totalResponses: 0, responsesThisWeek: 0, activeCampaigns: 0, publisherCount: 0,
+    });
+  }
 
-  const [totalRes, weekRes, campaignRes] = await Promise.all([
-    // Total responses
-    applyFilter(
-      supabaseAdmin.from("responses").select("*", { count: "exact", head: true }).eq("is_demo", false)
-    ),
-    // Responses in the last 7 days
-    applyFilter(
-      supabaseAdmin.from("responses")
-        .select("*", { count: "exact", head: true })
-        .eq("is_demo", false)
-        .gte("created_at", sevenDaysAgo)
-    ),
-    // Live campaigns for this publisher
-    applyFilter(
-      supabaseAdmin.from("campaigns").select("*", { count: "exact", head: true }).eq("status", "live")
-    ),
-  ]);
+  // Total responses
+  let totalQ = supabaseAdmin.from("responses")
+    .select("*", { count: "exact", head: true })
+    .eq("is_demo", false);
+  if (isRestricted) totalQ = totalQ.in("publisher", publisherIds);
+
+  // Responses this week
+  let weekQ = supabaseAdmin.from("responses")
+    .select("*", { count: "exact", head: true })
+    .eq("is_demo", false)
+    .gte("created_at", sevenDaysAgo);
+  if (isRestricted) weekQ = weekQ.in("publisher", publisherIds);
+
+  // Live campaigns
+  let campQ = supabaseAdmin.from("campaigns")
+    .select("*", { count: "exact", head: true })
+    .eq("status", "live");
+  if (isRestricted) campQ = campQ.in("publisher", publisherIds);
+
+  const [totalRes, weekRes, campRes] = await Promise.all([totalQ, weekQ, campQ]);
 
   return NextResponse.json({
-    totalResponses:   totalRes.count   ?? 0,
-    responsesThisWeek: weekRes.count   ?? 0,
-    activeCampaigns:  campaignRes.count ?? 0,
-    publisherCount:   publisherIds.length,
+    totalResponses:    totalRes.count ?? 0,
+    responsesThisWeek: weekRes.count  ?? 0,
+    activeCampaigns:   campRes.count  ?? 0,
+    publisherCount:    publisherIds.length,
   });
 }
