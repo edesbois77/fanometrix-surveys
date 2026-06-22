@@ -28,8 +28,15 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   const path   = usePathname();
   const router = useRouter();
   const { user, loading } = useSession();
-  const [mobileOpen, setMobileOpen] = useState(false);
-  const [devOpen,    setDevOpen]    = useState(false);
+  const [mobileOpen,   setMobileOpen]   = useState(false);
+  const [devOpen,      setDevOpen]      = useState(false);
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>({
+    surveys: true, "social-listening": true,
+  });
+
+  function toggleSection(group: string) {
+    setOpenSections(s => ({ ...s, [group]: !s[group] }));
+  }
 
   const homeNav     = user ? getHomeNavItems(user.role as UserRole) : [];
   const nav         = user ? getMainNavItems(user.role as UserRole) : []; // compat alias
@@ -148,21 +155,33 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
               </>
             )}
 
-            {/* Admin: Surveys + Social Listening — labelled sections */}
+            {/* Admin: Surveys + Social Listening — collapsible sections */}
             {!loading && isAdmin && ADMIN_SIDEBAR_SECTIONS.map(({ heading, group }) => {
-              const items = getNavGroupItems(group);
+              const items   = getNavGroupItems(group);
+              const isOpen  = openSections[group] ?? true;
               if (!items.length) return null;
               return (
                 <div key={group} className="mt-4 pt-3" style={{ borderTop: "1px solid rgba(255,255,255,0.07)" }}>
-                  <p className="px-3 mb-1 text-[10px] font-semibold uppercase tracking-widest"
-                    style={{ color: "rgba(176,183,195,0.45)", letterSpacing: "0.1em" }}>
-                    {heading}
-                  </p>
-                  <div className="space-y-0.5">
-                    {items.map(item => (
-                      <NavLink key={item.href} {...item} activePath={path} />
-                    ))}
-                  </div>
+                  <button
+                    onClick={() => toggleSection(group)}
+                    className="w-full flex items-center justify-between px-3 py-1.5 rounded-lg
+                               text-xs font-semibold uppercase tracking-widest transition-colors
+                               hover:bg-white/5 select-none"
+                    style={{ color: "rgba(176,183,195,0.6)", letterSpacing: "0.1em" }}
+                  >
+                    <span>{heading}</span>
+                    <span className="text-[10px] transition-transform duration-150"
+                      style={{ transform: isOpen ? "rotate(180deg)" : "rotate(0deg)" }}>
+                      ▾
+                    </span>
+                  </button>
+                  {isOpen && (
+                    <div className="space-y-0.5 mt-1">
+                      {items.map(item => (
+                        <NavLink key={item.href} {...item} activePath={path} />
+                      ))}
+                    </div>
+                  )}
                 </div>
               );
             })}
