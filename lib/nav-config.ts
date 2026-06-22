@@ -26,19 +26,19 @@ export interface NavItemConfig {
 
 export const NAV_ITEMS: NavItemConfig[] = [
 
-  // ── HOME ──────────────────────────────────────────────────────────────────
+  // ── SURVEYS ───────────────────────────────────────────────────────────────
+  // Dashboard sits at the top of the Surveys section for admin;
+  // non-admin roles still get it via the home navGroup below.
   {
     href: "/dashboard",
     label: "Dashboard",
     icon: "▦",
     description: "Live fan response data, KPI cards, trend charts and audience breakdowns.",
     cta: "Open Dashboard",
-    roles: ["admin", "brand", "agency", "publisher"],
-    navGroup: "home",
-    section: "home",
+    roles: ["admin"],
+    navGroup: "surveys",
+    section: "platform",
   },
-
-  // ── SURVEYS ───────────────────────────────────────────────────────────────
   {
     href: "/survey-templates",
     label: "Surveys",
@@ -228,7 +228,17 @@ export const NAV_ITEMS: NavItemConfig[] = [
     external: true,
   },
 
-  // ── Brand / Agency ────────────────────────────────────────────────────────
+  // ── Brand / Agency / Publisher — Dashboard in home group ─────────────────
+  {
+    href: "/dashboard",
+    label: "Dashboard",
+    icon: "▦",
+    description: "Live fan response data, KPI cards, trend charts and audience breakdowns.",
+    cta: "Open Dashboard",
+    roles: ["brand", "agency", "publisher"],
+    navGroup: "home",
+    section: "home",
+  },
   {
     href: "/campaign-reports",
     label: "Campaign Reports",
