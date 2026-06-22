@@ -13,7 +13,7 @@ type Campaign = {
   publisher: string | null;
 };
 
-const BASE = "https://fanometrix-surveys.vercel.app";
+const BASE = process.env.NEXT_PUBLIC_SURVEYS_URL ?? "https://fanometrix-surveys.vercel.app";
 
 const GEO_MACROS: Record<string, string> = {
   "Google Ad Manager / DV360": "%%COUNTRY%%",

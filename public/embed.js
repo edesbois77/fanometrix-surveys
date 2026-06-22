@@ -2,7 +2,7 @@
   var script = document.currentScript;
   if (!script) return;
 
-  var base = "https://fanometrix-surveys.vercel.app";
+  var base = "https://surveys.fanometrix.com";
 
   var params = new URLSearchParams();
   var attrs = [

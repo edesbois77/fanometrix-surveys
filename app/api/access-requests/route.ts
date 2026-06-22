@@ -61,7 +61,7 @@ export async function POST(req: NextRequest) {
                 ${message ? `<tr><td style="padding:8px 0;color:#555;vertical-align:top;">Message</td><td style="padding:8px 0;">${message.replace(/\n/g, "<br>")}</td></tr>` : ""}
               </table>
               <div style="margin-top:32px;padding:16px;background:#f7f8fa;border-radius:8px;font-size:13px;color:#666;">
-                Review in the <a href="https://fanometrix-surveys.vercel.app/access-requests" style="color:#0B1929;font-weight:600;">Fanometrix admin panel →</a>
+                Review in the <a href="${process.env.NEXT_PUBLIC_APP_URL ?? "https://fanometrix-surveys.vercel.app"}/access-requests" style="color:#0B1929;font-weight:600;">Fanometrix admin panel →</a>
               </div>
             </div>
           `,

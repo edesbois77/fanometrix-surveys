@@ -171,7 +171,7 @@ export default async function PrivacyPage(
         {/* Footer */}
         <p className="text-xs text-gray-400 mt-10 pt-6 border-t border-gray-200">
           Fanometrix · Fan Insight Platform ·{" "}
-          <Link href="/" className="hover:underline">fanometrix-surveys.vercel.app</Link>
+          <Link href="/" className="hover:underline">fanometrix.com</Link>
         </p>
       </div>
     </main>

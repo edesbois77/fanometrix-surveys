@@ -3,9 +3,7 @@
 import { useEffect, useState } from "react";
 import { AdminShell } from "@/app/components/AdminShell";
 
-const BASE = typeof window !== "undefined"
-  ? window.location.origin
-  : "https://fanometrix-surveys.vercel.app";
+const BASE = process.env.NEXT_PUBLIC_APP_URL ?? "https://fanometrix-surveys.vercel.app";
 
 const ENDPOINT   = `${BASE}/api/reporting`;
 const STATS_URL  = `${BASE}/api/reporting/stats`;

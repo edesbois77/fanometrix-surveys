@@ -1,7 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 
-// Exact paths that require no authentication
+// ── Domain constants (resolved at Edge runtime) ───────────────────────────────
+const MARKETING_ORIGIN = process.env.NEXT_PUBLIC_MARKETING_URL ?? "https://fanometrix-surveys.vercel.app";
+const APP_ORIGIN       = process.env.NEXT_PUBLIC_APP_URL       ?? "https://fanometrix-surveys.vercel.app";
+
+// Paths served exclusively on surveys.fanometrix.com
+const SURVEYS_ALLOWED_PREFIXES = [
+  "/embed", "/privacy", "/api/embed", "/api/submit", "/api/reporting",
+];
+
+// Exact paths that require no authentication (platform / app domain)
 const PUBLIC_PATHS = new Set([
   "/",
   "/login",
@@ -42,12 +51,60 @@ const ADMIN_ONLY_PREFIXES = [
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
+  const hostname = req.headers.get("host") ?? "";
+
+  // ── Hostname-based routing ──────────────────────────────────────────────────
+
+  // www → canonical marketing domain (permanent redirect)
+  if (hostname === "www.fanometrix.com") {
+    return NextResponse.redirect(`${MARKETING_ORIGIN}${pathname}`, 301);
+  }
+
+  // surveys.fanometrix.com — only serve embed + privacy + their APIs
+  if (hostname === "surveys.fanometrix.com") {
+    const isSurveysPath =
+      SURVEYS_ALLOWED_PREFIXES.some(p => pathname.startsWith(p)) ||
+      /^\/[a-z]{2}\/privacy$/.test(pathname);
+
+    if (!isSurveysPath) {
+      // Root or anything unknown → redirect to marketing site
+      return NextResponse.redirect(`${MARKETING_ORIGIN}`, 302);
+    }
+    return NextResponse.next();
+  }
+
+  // fanometrix.com (marketing) — /login should go to the app domain
+  if (hostname === "fanometrix.com") {
+    if (pathname === "/login") {
+      return NextResponse.redirect(`${APP_ORIGIN}/login`, 301);
+    }
+    // Admin routes accessed on the marketing domain → redirect to app
+    if (
+      ADMIN_ONLY_PREFIXES.some(p => pathname.startsWith(p)) ||
+      pathname.startsWith("/home") ||
+      pathname.startsWith("/dashboard")
+    ) {
+      return NextResponse.redirect(`${APP_ORIGIN}${pathname}`, 302);
+    }
+    // All other marketing paths (/, /request-access, /privacy, etc.) → serve normally
+    return NextResponse.next();
+  }
+
+  // app.fanometrix.com — root / → redirect based on auth state
+  if (hostname === "app.fanometrix.com" && pathname === "/") {
+    const session = await getSession(req);
+    return NextResponse.redirect(
+      new URL(session ? "/home" : "/login", req.url)
+    );
+  }
+
+  // ── Existing platform auth logic (app domain + Vercel fallback) ────────────
 
   // Pass static assets through immediately
   if (
     pathname.startsWith("/_next/") ||
     pathname.startsWith("/public/") ||
-    /\.(png|jpg|jpeg|svg|ico|gif|webp|woff2?|ttf)$/.test(pathname)
+    /\.(png|jpg|jpeg|svg|ico|gif|webp|woff2?|ttf|js)$/.test(pathname)
   ) {
     return NextResponse.next();
   }

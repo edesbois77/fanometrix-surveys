@@ -78,7 +78,7 @@ const TECH_SECTIONS = [
         style={{ background: "#0d1117", color: "#7ee787", fontSize: 12, borderRadius: 10, padding: "16px 18px", overflowX: "auto", whiteSpace: "pre-wrap", lineHeight: 1.6 }}
       >{`<!-- Fanometrix MPU (300×250) — Google Ad Manager -->
 <iframe
-  src="https://fanometrix-surveys.vercel.app/embed
+  src="https://surveys.fanometrix.com/embed
     ?campaign=YOUR_CAMPAIGN_ID
     &publisher=YOUR_PUBLISHER_NAME
     &placement=YOUR_PLACEMENT_NAME
@@ -208,7 +208,7 @@ const TECH_SECTIONS = [
           { q: "Survey not appearing", a: "Check the campaign_id parameter is exactly correct and the campaign is set to Live status in the Fanometrix platform." },
           { q: "Geo macro not firing", a: "Ensure the macro is URL-encoded if required by your ad server. Test with a hardcoded country=GB first." },
           { q: "Safe frame issues", a: "Fanometrix is compatible with all major safe frame implementations. Ensure scrolling=no is set in the iframe tag." },
-          { q: "Blank creative", a: "Check that your ad server is not blocking third-party iframes. The creative must load from fanometrix-surveys.vercel.app." },
+          { q: "Blank creative", a: "Check that your ad server is not blocking third-party iframes. The creative must load from surveys.fanometrix.com." },
         ].map(({ q, a }) => (
           <div key={q} style={{ padding: "14px 16px", background: "#F9FAFB", borderRadius: 10, border: "1px solid #E5E7EB" }}>
             <p style={{ fontWeight: 600, fontSize: 13, color: N, marginBottom: 6 }}>{q}</p>

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { ScrollFadeObserver } from "@/app/components/ScrollFadeObserver";
+import { APP_URL } from "@/lib/env";
 
 export const metadata: Metadata = {
   title: "Fanometrix — Football Fan Intelligence",
@@ -103,7 +104,7 @@ export default function PublicHomePage() {
               <div className="hero-fade-up flex flex-wrap gap-3.5 justify-center"
                 style={{ animationDelay: "0.38s" }}>
                 <Link
-                  href="/login"
+                  href={`${APP_URL}/login`}
                   className="text-sm font-bold px-8 py-3.5 rounded-xl border-2
                              transition-opacity duration-150 hover:opacity-85"
                   style={{ background: "#0B1929", color: "#D7B87A", borderColor: "#0B1929", letterSpacing: "0.01em" }}

@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
     supabase.from("responses").select("created_at").order("created_at", { ascending: false }).limit(1),
   ]);
 
-  const base = process.env.NEXT_PUBLIC_APP_URL ?? "https://fanometrix-surveys.vercel.app";
+  const base = process.env.NEXT_PUBLIC_APP_URL ?? "https://app.fanometrix.com";
 
   return NextResponse.json({
     total_rows:         countRes.count ?? 0,
