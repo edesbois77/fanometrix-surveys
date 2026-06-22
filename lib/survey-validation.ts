@@ -14,7 +14,7 @@
  */
 
 export const SURVEY_LIMITS = {
-  MAX_QUESTIONS:  4,
+  MAX_QUESTIONS:  3,
   MAX_OPTIONS:    4,
   MAX_Q_CHARS:    70,
   MAX_OPT_CHARS:  32,
