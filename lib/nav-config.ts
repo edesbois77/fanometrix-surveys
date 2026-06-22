@@ -26,9 +26,21 @@ export interface NavItemConfig {
 
 export const NAV_ITEMS: NavItemConfig[] = [
 
+  // ── HOME — admin Dashboard (always visible at top) ────────────────────────
+  {
+    href: "/dashboard",
+    label: "Dashboard",
+    icon: "▦",
+    description: "Live fan response data, KPI cards, trend charts and audience breakdowns.",
+    cta: "Open Dashboard",
+    roles: ["admin"],
+    navGroup: "home",
+    section: "home",
+  },
+
   // ── SURVEYS ───────────────────────────────────────────────────────────────
-  // Dashboard sits at the top of the Surveys section for admin;
-  // non-admin roles still get it via the home navGroup below.
+  // Dashboard repeated at the top of the Surveys section so it's accessible
+  // in context when working across the survey workflow.
   {
     href: "/dashboard",
     label: "Dashboard",
