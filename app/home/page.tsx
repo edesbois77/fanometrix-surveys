@@ -60,6 +60,36 @@ function useAdminKpis(isAdmin: boolean) {
   return { kpis, loading };
 }
 
+// ─── Publisher KPI data ───────────────────────────────────────────────────────
+type PublisherKpis = {
+  totalResponses:    number;
+  responsesThisWeek: number;
+  activeCampaigns:   number;
+  publisherCount:    number;
+};
+
+function usePublisherKpis(active: boolean) {
+  const [kpis,    setKpis]    = useState<PublisherKpis | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const fetch_ = useCallback(async () => {
+    if (!active) return;
+    setLoading(true);
+    try {
+      const res  = await fetch("/api/publisher/stats");
+      const json = await res.json();
+      setKpis(json);
+    } catch {
+      setKpis({ totalResponses: 0, responsesThisWeek: 0, activeCampaigns: 0, publisherCount: 0 });
+    } finally {
+      setLoading(false);
+    }
+  }, [active]);
+
+  useEffect(() => { fetch_(); }, [fetch_]);
+  return { kpis, loading };
+}
+
 // ─── KPI accent colour rules ──────────────────────────────────────────────────
 const GREY  = "#9CA3AF";
 const GOLD  = "#D7B87A";
@@ -236,6 +266,8 @@ export default function HomePage() {
   const isAdmin = role === "admin";
 
   const { kpis, loading: kpisLoading } = useAdminKpis(isAdmin);
+  const isPublisher = role === "publisher" || role === "agency";
+  const { kpis: pubKpis, loading: pubLoading } = usePublisherKpis(isPublisher);
 
   const sections = getHomeSections(role);
 
@@ -256,6 +288,53 @@ export default function HomePage() {
             <p className="text-sm text-gray-400 capitalize">{user.role}</p>
           )}
         </div>
+
+        {/* ── Publisher / Agency: KPI summary ── */}
+        {isPublisher && (
+          <div className="mb-8">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {pubLoading || !pubKpis ? (
+                Array.from({ length: 4 }, (_, i) => (
+                  <div key={i} className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm animate-pulse">
+                    <div className="h-7 w-12 bg-gray-100 rounded mb-2" />
+                    <div className="h-3 w-24 bg-gray-100 rounded" />
+                  </div>
+                ))
+              ) : (
+                <>
+                  <KpiCard
+                    value={pubKpis.totalResponses.toLocaleString()}
+                    label="Total Responses"
+                    href="/dashboard"
+                    linkLabel="Open Dashboard"
+                    accent={pubKpis.totalResponses === 0 ? GREY : pubKpis.totalResponses < 100 ? GOLD : GREEN}
+                  />
+                  <KpiCard
+                    value={pubKpis.responsesThisWeek.toLocaleString()}
+                    label="Responses This Week"
+                    href="/dashboard"
+                    linkLabel="View Trend"
+                    accent={pubKpis.responsesThisWeek === 0 ? GREY : pubKpis.responsesThisWeek < 10 ? GOLD : GREEN}
+                  />
+                  <KpiCard
+                    value={pubKpis.activeCampaigns}
+                    label="Live Campaigns"
+                    href="/dashboard"
+                    linkLabel="View Campaigns"
+                    accent={pubKpis.activeCampaigns === 0 ? GREY : GREEN}
+                  />
+                  <KpiCard
+                    value={pubKpis.publisherCount}
+                    label={pubKpis.publisherCount === 1 ? "Publisher" : "Publishers"}
+                    href="/publisher-performance"
+                    linkLabel="View Performance"
+                    accent={pubKpis.publisherCount === 0 ? GREY : BLUE}
+                  />
+                </>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* ── Admin: KPI summary ── */}
         {isAdmin && (
