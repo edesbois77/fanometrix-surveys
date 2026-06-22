@@ -24,6 +24,7 @@ const GEO_MACROS: Record<string, string> = {
 };
 
 const PLACEMENT_OPTIONS = [
+  "run-of-network",
   "homepage-mpu",
   "match-centre-mpu",
   "lineups-mpu",
@@ -103,6 +104,7 @@ export default function EmbedGeneratorPage() {
     if (competition)         p.set("competition", competition);
     if (segment)             p.set("segment",     segment);
     p.set("country", "GB");
+    p.set("preview", "1");   // bypass validation so draft/invalid surveys show correctly
     return p.toString();
   }, [campaignIdValue, campaign, publisher, placement, club, competition, segment]);
 

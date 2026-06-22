@@ -8,8 +8,10 @@ import { validateSurvey } from "@/lib/survey-validation";
 import { resolveQuestion, type LangCode, type LocalisedQuestion } from "@/lib/survey-locale";
 
 export async function GET(req: NextRequest) {
-  const id   = req.nextUrl.searchParams.get("id");
-  const lang = (req.nextUrl.searchParams.get("lang") ?? "en") as LangCode;
+  const id      = req.nextUrl.searchParams.get("id");
+  const lang    = (req.nextUrl.searchParams.get("lang") ?? "en") as LangCode;
+  // preview=1 bypasses validation so admin deployment previews show draft/invalid surveys
+  const preview = req.nextUrl.searchParams.get("preview") === "1";
 
   if (!id) {
     return NextResponse.json({ error: "id is required" }, { status: 400 });
@@ -26,13 +28,15 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Survey not found" }, { status: 404 });
   }
 
-  // Validate before serving — a survey that fails MPU limits must not reach a live embed
-  const validationErrors = validateSurvey(data as Parameters<typeof validateSurvey>[0]);
-  if (validationErrors.length > 0) {
-    return NextResponse.json(
-      { error: "Survey failed MPU validation", reason: validationErrors[0] },
-      { status: 404 }
-    );
+  // Validate before serving — skip only for admin deployment previews
+  if (!preview) {
+    const validationErrors = validateSurvey(data as Parameters<typeof validateSurvey>[0]);
+    if (validationErrors.length > 0) {
+      return NextResponse.json(
+        { error: "Survey failed MPU validation", reason: validationErrors[0] },
+        { status: 404 }
+      );
+    }
   }
 
   // Resolve localised questions to the requested language (falls back to en)
