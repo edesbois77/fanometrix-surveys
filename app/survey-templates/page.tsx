@@ -150,12 +150,20 @@ const CAMPAIGN_STATUS_COLOURS: Record<string, string> = {
 
 // ─── MPU Preview Modal ────────────────────────────────────────────────────────
 function MPUPreviewModal({ survey, onClose }: { survey: Survey; onClose: () => void }) {
-  const [step,    setStep]    = useState(0);
-  const [answers, setAnswers] = useState<Record<string, number>>({});
-  const [done,    setDone]    = useState(false);
+  const [step,        setStep]        = useState(0);
+  const [answers,     setAnswers]     = useState<Record<string, number>>({});
+  const [done,        setDone]        = useState(false);
+  const [previewLang, setPreviewLang] = useState<LangCode>("en");
 
-  // Resolve to EN for preview — options become {id, text} flat shape
-  const questions   = (survey.questions ?? []).map(lq => resolveQuestion(lq, "en"));
+  // Which languages have at least some content (for the language switcher)
+  const availableLangs = SUPPORTED_LANGUAGES.filter(l =>
+    l.code === "en" ||
+    (survey.questions ?? []).some(q =>
+      (q.text as Record<string, string>)[l.code]?.trim()
+    )
+  );
+
+  const questions   = (survey.questions ?? []).map(lq => resolveQuestion(lq, previewLang));
   const q           = questions[step];
   const selected    = q ? (answers[q.id] ?? -1) : -1;
   const isLast      = step === questions.length - 1;
@@ -253,6 +261,25 @@ function MPUPreviewModal({ survey, onClose }: { survey: Survey; onClose: () => v
             <div style={{ height: 22, minHeight: 22, display: "flex", alignItems: "center", justifyContent: "center", background: "#EDEEF0", borderTop: "1.5px solid #C9CDD6", flexShrink: 0 }}>
               <span style={{ color: "#374151", fontSize: 9.5, fontWeight: 500 }}>🛡 Anonymous insights • No personal data collected</span>
             </div>
+          </div>
+        )}
+
+        {/* Language switcher */}
+        {availableLangs.length > 1 && (
+          <div className="flex gap-1 flex-wrap justify-center">
+            {availableLangs.map(l => (
+              <button
+                key={l.code}
+                onClick={() => { setPreviewLang(l.code); setStep(0); setAnswers({}); setDone(false); }}
+                className={`text-xs px-2.5 py-1 rounded-lg border font-medium transition-colors ${
+                  previewLang === l.code
+                    ? "bg-[#D7B87A] text-[#0B1929] border-[#D7B87A]"
+                    : "border-white/30 text-white hover:bg-white/15"
+                }`}
+              >
+                {l.nativeLabel}
+              </button>
+            ))}
           </div>
         )}
 
@@ -1016,6 +1043,41 @@ export default function SurveysPage() {
                     )}
                   </div>
 
+                  {/* Language coverage badges */}
+                  {(() => {
+                    const qs = s.questions as LocalisedQuestion[];
+                    return (
+                      <div className="flex gap-1.5 mt-3 flex-wrap">
+                        {SUPPORTED_LANGUAGES.map(lang => {
+                          const isEN = lang.code === "en";
+                          const complete = isEN
+                            ? qs.length > 0
+                            : qs.length > 0 && qs.every(q =>
+                                (q.text as Record<string, string>)[lang.code]?.trim() &&
+                                q.options.every(o => (o.text as Record<string, string>)[lang.code]?.trim())
+                              );
+                          const partial = !isEN && !complete && qs.some(q =>
+                            (q.text as Record<string, string>)[lang.code]?.trim()
+                          );
+                          if (!complete && !partial && !isEN) return null;
+                          return (
+                            <span key={lang.code} className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium ${
+                              complete
+                                ? isEN
+                                  ? "bg-gray-100 text-gray-600"
+                                  : "bg-green-50 text-green-700 border border-green-200"
+                                : "bg-amber-50 text-amber-600 border border-amber-200"
+                            }`}>
+                              <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${complete ? isEN ? "bg-gray-400" : "bg-green-500" : "bg-amber-400"}`} />
+                              {lang.nativeLabel}
+                              {!isEN && !complete && <span className="text-amber-400 text-[10px]">partial</span>}
+                            </span>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
+
                   {/* Action buttons */}
                   <div className="flex gap-2 mt-4 flex-wrap">
                     <button
@@ -1288,20 +1350,30 @@ export default function SurveysPage() {
                 {/* Language selector tabs */}
                 <div className="flex gap-1 mb-3 flex-wrap items-center">
                   {SUPPORTED_LANGUAGES.map(lang => {
-                    const isActive = editorLang === lang.code;
-                    const isEN     = lang.code === "en";
+                    const isActive   = editorLang === lang.code;
+                    const isEN       = lang.code === "en";
+                    const isComplete = !isEN && fields.questions.length > 0 &&
+                      fields.questions.every(q =>
+                        (q.text[lang.code] ?? "").trim() &&
+                        q.options.every(o => (o.text[lang.code] ?? "").trim())
+                      );
+                    const hasAny = !isEN && fields.questions.some(q =>
+                      (q.text[lang.code] ?? "").trim()
+                    );
                     return (
                       <button
                         key={lang.code}
                         type="button"
                         onClick={() => setEditorLang(lang.code)}
-                        className={`text-xs px-2.5 py-1 rounded-lg border font-medium transition-colors ${
+                        className={`text-xs px-2.5 py-1 rounded-lg border font-medium transition-colors flex items-center gap-1.5 ${
                           isActive
                             ? "bg-[#0B1929] text-[#D7B87A] border-[#0B1929]"
                             : "bg-white text-gray-500 border-gray-200 hover:border-[#D7B87A]"
                         }`}
                       >
                         {lang.nativeLabel}{isEN ? " *" : ""}
+                        {isComplete && <span className="w-1.5 h-1.5 rounded-full bg-green-500 flex-shrink-0" />}
+                        {hasAny && !isComplete && <span className="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0" />}
                       </button>
                     );
                   })}
