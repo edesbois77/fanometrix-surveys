@@ -295,6 +295,29 @@ export default function CampaignsPage() {
     setDrawerOpen(true);
   }
 
+  // Auto-update name + slug whenever any of the 5 builder fields change.
+  // Runs only while the drawer is open. The Campaign Name and Campaign ID
+  // fields remain editable — any manual edit simply becomes the new value.
+  useEffect(() => {
+    if (!drawerOpen) return;
+    const name = generateCampaignName(
+      editing.brand_name ?? "", editing.research_theme ?? "",
+      editing.country_code ?? "", editing.publisher ?? "", editing.year ?? ""
+    );
+    const slug = generateCampaignSlug(
+      editing.brand_name ?? "", editing.research_theme ?? "",
+      editing.country_code ?? "", editing.publisher ?? "", editing.year ?? ""
+    );
+    if (name || slug) {
+      setEditing(e => ({
+        ...e,
+        campaign_name: name || e.campaign_name,
+        campaign_id:   slug || e.campaign_id,
+      }));
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editing.brand_name, editing.research_theme, editing.country_code, editing.publisher, editing.year, drawerOpen]);
+
   function autoId() {
     setEditing(e => {
       const name = generateCampaignName(
