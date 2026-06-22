@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
+import { countryCodeWarning, languageCodeWarning, MARKET_REFERENCE_PAIRS, isValidCountryCode } from "@/lib/locales";
 import Link from "next/link";
 import Papa from "papaparse";
 import { AdminShell } from "@/app/components/AdminShell";
@@ -853,44 +854,99 @@ export default function CampaignsPage() {
                 </select>
               </Field>
 
-              <div className="grid grid-cols-2 gap-3">
-                <Field label="Country Code">
+              {/* ── Market targeting ── */}
+              <div className="border border-gray-100 rounded-xl p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Market Targeting</p>
+                  <span className="text-xs text-gray-400">These are always stored independently</span>
+                </div>
+
+                {/* Country Code */}
+                <div>
+                  <label className="text-xs font-semibold text-gray-600 block mb-1">
+                    Country Code <span className="font-normal text-gray-400">(ISO 3166-1 alpha-2)</span>
+                  </label>
                   <input
                     value={editing.country_code ?? ""}
                     onChange={e => setEditing(x => ({ ...x, country_code: e.target.value.toUpperCase().slice(0, 2) || null }))}
-                    className={INP}
+                    className={`${INP} font-mono uppercase ${
+                      editing.country_code && !isValidCountryCode(editing.country_code) ? "border-amber-400" : ""
+                    }`}
                     placeholder="GB"
                     maxLength={2}
                   />
-                </Field>
-                <Field label="Market">
+                  {(() => {
+                    const warn = countryCodeWarning(editing.country_code ?? "");
+                    return warn ? <p className="text-xs text-amber-600 mt-1">⚠ {warn}</p> : null;
+                  })()}
+                  <p className="text-xs text-gray-400 mt-1">
+                    Used for embed routing <code className="text-xs">?country=GB</code> and reporting. Always uppercase.
+                  </p>
+                </div>
+
+                {/* Market name */}
+                <div>
+                  <label className="text-xs font-semibold text-gray-600 block mb-1">Market Name</label>
                   <input
                     value={editing.market ?? ""}
                     onChange={e => setEditing(x => ({ ...x, market: e.target.value || null }))}
                     className={INP}
                     placeholder="United Kingdom"
                   />
-                </Field>
-              </div>
-              <p className="text-xs text-gray-400 -mt-2">
-                ISO country code (e.g. GB, DE, SE) and market name. Used by group embeds with <code className="text-xs">?country=</code> to serve the correct campaign per market.
-              </p>
+                  <p className="text-xs text-gray-400 mt-1">Human-readable market label for display and reporting.</p>
+                </div>
 
-              <Field label="Survey Language">
-                <select
-                  value={editing.survey_language ?? "en"}
-                  onChange={e => setEditing(x => ({ ...x, survey_language: e.target.value }))}
-                  className={INP}
-                >
-                  <option value="en">English (en)</option>
-                  <option value="de">German — Deutsch (de)</option>
-                  <option value="sv">Swedish — Svenska (sv)</option>
-                  <option value="zh-CN">Chinese Simplified — 中文 (zh-CN)</option>
-                </select>
-                <p className="text-xs text-gray-400 mt-1">
-                  The language the survey creative will render for this campaign.
-                </p>
-              </Field>
+                {/* Survey Language */}
+                <div>
+                  <label className="text-xs font-semibold text-gray-600 block mb-1">
+                    Survey Language <span className="font-normal text-gray-400">(ISO 639-1)</span>
+                  </label>
+                  <select
+                    value={editing.survey_language ?? "en"}
+                    onChange={e => setEditing(x => ({ ...x, survey_language: e.target.value }))}
+                    className={INP}
+                  >
+                    <option value="en">en — English</option>
+                    <option value="de">de — Deutsch (German)</option>
+                    <option value="sv">sv — Svenska (Swedish)</option>
+                    <option value="zh-CN">zh-CN — 中文 (Chinese Simplified)</option>
+                  </select>
+                  {(() => {
+                    const warn = languageCodeWarning(editing.survey_language ?? "");
+                    return warn ? <p className="text-xs text-amber-600 mt-1">⚠ {warn}</p> : null;
+                  })()}
+                  <p className="text-xs text-gray-400 mt-1">
+                    Controls which translation the survey creative renders. Independent of country code.
+                  </p>
+                </div>
+
+                {/* Reference pairs */}
+                <details className="group">
+                  <summary className="text-xs text-[#D7B87A] cursor-pointer select-none hover:opacity-75">
+                    Show common country → language pairs
+                  </summary>
+                  <div className="mt-2 rounded-lg overflow-hidden border border-gray-100">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="bg-gray-50 text-gray-400 uppercase tracking-wide text-[10px]">
+                          <th className="text-left px-3 py-2">Market</th>
+                          <th className="text-left px-3 py-2">country_code</th>
+                          <th className="text-left px-3 py-2">survey_language</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {MARKET_REFERENCE_PAIRS.map(p => (
+                          <tr key={p.country_code} className="border-t border-gray-50">
+                            <td className="px-3 py-1.5 text-gray-600">{p.market}</td>
+                            <td className="px-3 py-1.5 font-mono font-semibold text-[#0B1929]">{p.country_code}</td>
+                            <td className="px-3 py-1.5 font-mono text-[#D7B87A]">{p.survey_language}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </details>
+              </div>
 
               {error && <p className="text-red-500 text-xs">{error}</p>}
             </div>
