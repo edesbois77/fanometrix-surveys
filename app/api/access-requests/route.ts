@@ -32,45 +32,30 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Failed to submit request. Please try again." }, { status: 500 });
   }
 
-  // ── Email notification via Resend (non-fatal if not configured) ──────────────
-  // Set RESEND_API_KEY and NOTIFICATION_EMAIL in Vercel environment variables.
-  // Get a free Resend API key at resend.com — no domain verification needed for MVP.
-  const apiKey = process.env.RESEND_API_KEY;
-  const toEmail = process.env.NOTIFICATION_EMAIL;
+  // ── Forward to Formcarry for email notification ───────────────────────────────
+  // Add FORMCARRY_URL to Vercel environment variables.
+  // In your Formcarry account, create a new form for Fanometrix and paste the
+  // endpoint URL (e.g. https://formcarry.com/s/YOUR_FORM_ID) as FORMCARRY_URL.
+  // Non-fatal — request is already saved to DB; Formcarry failure won't break submission.
+  const formcarryUrl = process.env.FORMCARRY_URL;
 
-  if (apiKey && toEmail) {
+  if (formcarryUrl) {
     try {
-      await fetch("https://api.resend.com/emails", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          from: "Fanometrix <onboarding@resend.dev>",
-          to:   [toEmail],
-          subject: `New Access Request — ${organisation}`,
-          html: `
-            <div style="font-family:sans-serif;max-width:520px;margin:0 auto;color:#111;">
-              <h2 style="color:#0B1929;margin-bottom:4px;">New Access Request</h2>
-              <p style="color:#888;font-size:13px;margin-top:0;">Received via fanometrix-surveys.vercel.app</p>
-              <table style="width:100%;border-collapse:collapse;margin-top:24px;font-size:14px;">
-                <tr><td style="padding:8px 0;color:#555;width:120px;">Name</td><td style="padding:8px 0;font-weight:600;">${name}</td></tr>
-                <tr><td style="padding:8px 0;color:#555;">Email</td><td style="padding:8px 0;"><a href="mailto:${email}" style="color:#D7B87A;">${email}</a></td></tr>
-                <tr><td style="padding:8px 0;color:#555;">Organisation</td><td style="padding:8px 0;">${organisation}</td></tr>
-                <tr><td style="padding:8px 0;color:#555;">Role</td><td style="padding:8px 0;">${role || "—"}</td></tr>
-                ${message ? `<tr><td style="padding:8px 0;color:#555;vertical-align:top;">Message</td><td style="padding:8px 0;">${message.replace(/\n/g, "<br>")}</td></tr>` : ""}
-              </table>
-              <div style="margin-top:32px;padding:16px;background:#f7f8fa;border-radius:8px;font-size:13px;color:#666;">
-                Review this request in the <a href="https://fanometrix-surveys.vercel.app/access-requests" style="color:#0B1929;font-weight:600;">Fanometrix admin panel</a>.
-              </div>
-            </div>
-          `,
-        }),
+      const fd = new URLSearchParams({
+        name,
+        email,
+        company:  organisation,
+        type:     role || "Other",
+        message:  message || "",
+        source:   "fanometrix-request-access",
       });
-    } catch (emailErr) {
-      // Non-fatal — request is already saved; don't fail the submission
-      console.error("[access-requests] Email notification failed:", emailErr);
+      await fetch(formcarryUrl, {
+        method: "POST",
+        headers: { Accept: "application/json", "Content-Type": "application/x-www-form-urlencoded" },
+        body: fd.toString(),
+      });
+    } catch (err) {
+      console.error("[access-requests] Formcarry notification failed:", err);
     }
   }
 
