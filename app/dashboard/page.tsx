@@ -20,8 +20,10 @@ import {
 
 type CampaignInfo = {
   campaign_id: string;
+  campaign_name: string;
   start_date: string | null;
   end_date: string | null;
+  created_at: string;
 };
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -205,6 +207,7 @@ export default function DashboardPage() {
             {/* Filters */}
             <DashboardFilters
               allResponses={responses}
+              campaigns={campaigns}
               filters={filters}
               setFilter={setFilter}
               clearFilters={clearFilters}

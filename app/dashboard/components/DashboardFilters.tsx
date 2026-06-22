@@ -45,8 +45,11 @@ function uniqueVals(data: SurveyResponse[], field: keyof SurveyResponse): string
   return [...new Set(data.map(r => r[field] as string).filter(Boolean))].sort();
 }
 
+type CampaignOption = { campaign_id: string; campaign_name: string; created_at: string };
+
 interface Props {
   allResponses: SurveyResponse[];
+  campaigns: CampaignOption[];
   filters: DashFilters;
   setFilter: (field: keyof DashFilters, value: string) => void;
   clearFilters: () => void;
@@ -62,10 +65,14 @@ interface Props {
 }
 
 export function DashboardFilters({
-  allResponses, filters, setFilter, clearFilters,
+  allResponses, campaigns, filters, setFilter, clearFilters,
   datePreset, setDatePreset, dateFrom, dateTo, setDateFrom, setDateTo,
   campaignHasDates, filteredCount, totalCount,
 }: Props) {
+  // Campaigns sorted most recent first — always shown regardless of response count
+  const sortedCampaigns = [...campaigns].sort(
+    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+  );
 
   // All active filter chips (dimensions + date + q answers)
   const chips: { label: string; field: keyof DashFilters | "__date__"; value: string }[] = [];
@@ -144,9 +151,16 @@ export function DashboardFilters({
               className="w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 text-gray-700 focus:outline-none focus:border-[#D7B87A]"
             >
               <option value="">All {label}s</option>
-              {uniqueVals(allResponses, key as keyof SurveyResponse).map(v => (
-                <option key={v} value={v}>{v}</option>
-              ))}
+              {key === "campaign_id"
+                ? sortedCampaigns.map(c => (
+                    <option key={c.campaign_id} value={c.campaign_id}>
+                      {c.campaign_name || c.campaign_id}
+                    </option>
+                  ))
+                : uniqueVals(allResponses, key as keyof SurveyResponse).map(v => (
+                    <option key={v} value={v}>{v}</option>
+                  ))
+              }
             </select>
           </div>
         ))}
