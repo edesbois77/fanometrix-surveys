@@ -906,10 +906,10 @@ export default function CampaignsPage() {
                     onChange={e => setEditing(x => ({ ...x, survey_language: e.target.value }))}
                     className={INP}
                   >
-                    <option value="en">en — English</option>
-                    <option value="de">de — Deutsch (German)</option>
-                    <option value="sv">sv — Svenska (Swedish)</option>
-                    <option value="zh-CN">zh-CN — 中文 (Chinese Simplified)</option>
+                    <option value="en">English (en)</option>
+                    <option value="de">German / Deutsch (de)</option>
+                    <option value="sv">Swedish / Svenska (sv)</option>
+                    <option value="zh-CN">Chinese Simplified / 中文 (zh-CN)</option>
                   </select>
                   {(() => {
                     const warn = languageCodeWarning(editing.survey_language ?? "");
