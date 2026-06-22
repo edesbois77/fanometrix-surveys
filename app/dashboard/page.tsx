@@ -182,30 +182,36 @@ export default function DashboardPage() {
     return base;
   }, [responses, filters.group_id, filters.survey_id, groupOptions, campaigns]);
 
-  // Load survey labels when campaign, survey, or group changes
+  // Load survey labels — resolves question/option text for the active scope.
+  // When no scope filter is set, uses the most recently created campaign as context
+  // so Q1/Q2/Q3 always show real question text rather than hardcoded defaults.
   useEffect(() => {
     const campaignId = filters.campaign_id;
     const surveyId   = filters.survey_id;
     const groupId    = filters.group_id;
 
+    const fetchLabels = (url: string) =>
+      fetch(url).then(r => r.ok ? r.json() : null)
+        .then(json => setSurveyLabels(json ?? null))
+        .catch(() => setSurveyLabels(null));
+
     if (campaignId) {
-      fetch(`/api/embed/survey-labels?campaign_id=${encodeURIComponent(campaignId)}`)
-        .then(r => r.ok ? r.json() : null).then(json => setSurveyLabels(json ?? null)).catch(() => setSurveyLabels(null));
+      fetchLabels(`/api/embed/survey-labels?campaign_id=${encodeURIComponent(campaignId)}`);
     } else if (surveyId) {
-      fetch(`/api/embed/survey-labels?survey_id=${encodeURIComponent(surveyId)}`)
-        .then(r => r.ok ? r.json() : null).then(json => setSurveyLabels(json ?? null)).catch(() => setSurveyLabels(null));
+      fetchLabels(`/api/embed/survey-labels?survey_id=${encodeURIComponent(surveyId)}`);
     } else if (groupId) {
-      // Use the first campaign in the group to get survey labels
       const group = groupOptions.find(g => g.id === groupId);
-      const firstCampaign = group
+      const first = group
         ? campaigns.find(c => group.campaign_ids.includes((c as unknown as { id: string }).id))
         : null;
-      if (firstCampaign) {
-        fetch(`/api/embed/survey-labels?campaign_id=${encodeURIComponent(firstCampaign.campaign_id)}`)
-          .then(r => r.ok ? r.json() : null).then(json => setSurveyLabels(json ?? null)).catch(() => setSurveyLabels(null));
-      } else {
-        setSurveyLabels(null);
-      }
+      if (first) fetchLabels(`/api/embed/survey-labels?campaign_id=${encodeURIComponent(first.campaign_id)}`);
+      else setSurveyLabels(null);
+    } else if (campaigns.length > 0) {
+      // No filter active — use the most recently created campaign for question labels
+      const latest = [...campaigns].sort(
+        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      )[0];
+      fetchLabels(`/api/embed/survey-labels?campaign_id=${encodeURIComponent(latest.campaign_id)}`);
     } else {
       setSurveyLabels(null);
     }
