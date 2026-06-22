@@ -338,6 +338,34 @@ export default function EmbedGeneratorPage() {
                   )}
                 </div>
               </div>
+
+              {/* Shareable preview URL for adops */}
+              {campaignIdValue && (
+                <div className="mt-3 pt-3 border-t border-gray-100">
+                  <p className="text-xs text-gray-500 mb-1.5">
+                    <span className="font-semibold">Preview URL</span>
+                    <span className="text-gray-400 ml-1">— share with adops to review the creative before going live</span>
+                  </p>
+                  <div className="flex gap-2 items-center">
+                    <code className="flex-1 text-xs bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-gray-600 truncate">
+                      {`${BASE}/embed?${previewParams}`}
+                    </code>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(`${BASE}/embed?${previewParams}`);
+                        setCopied("iframe");
+                        setTimeout(() => setCopied(null), 2000);
+                      }}
+                      className="text-xs border border-gray-200 px-3 py-2 rounded-lg hover:bg-gray-50 transition-colors flex-shrink-0"
+                    >
+                      {copied === "iframe" ? "✓ Copied" : "Copy"}
+                    </button>
+                  </div>
+                  <p className="text-xs text-amber-600 mt-1.5">
+                    ⚠ Preview URLs bypass validation — for review only, not for production use.
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* Iframe tag */}
