@@ -3,15 +3,24 @@
 import type { SurveyResponse } from "@/lib/types";
 
 export type DashFilters = {
-  campaign_id: string; publisher: string; placement: string; club: string;
+  // Scope filters (applied before dimension filters)
+  group_id:    string;   // Campaign Group UUID
+  survey_id:   string;   // Survey UUID
+  campaign_id: string;   // Single campaign slug
+  // Dimension filters
+  publisher: string; placement: string; club: string;
   competition: string; country: string; fan_segment: string;
   device: string; browser: string; q1: string; q2: string; q3: string;
 };
 
+type SurveyOption = { id: string; name: string };
+type GroupOption  = { id: string; group_id: string; name: string; campaign_ids: string[] };
+
 export type DatePreset = "all" | "today" | "7d" | "30d" | "campaign" | "custom";
 
 export const EMPTY_DASH_FILTERS: DashFilters = {
-  campaign_id: "", publisher: "", placement: "", club: "",
+  group_id: "", survey_id: "", campaign_id: "",
+  publisher: "", placement: "", club: "",
   competition: "", country: "", fan_segment: "",
   device: "", browser: "", q1: "", q2: "", q3: "",
 };
@@ -26,7 +35,6 @@ const DATE_PRESETS: { key: DatePreset; label: string }[] = [
 ];
 
 const DIM_FIELDS: { key: keyof DashFilters; label: string }[] = [
-  { key: "campaign_id",  label: "Campaign"    },
   { key: "publisher",    label: "Publisher"   },
   { key: "placement",    label: "Placement"   },
   { key: "club",         label: "Club"        },
@@ -49,7 +57,9 @@ type CampaignOption = { campaign_id: string; campaign_name: string; created_at: 
 
 interface Props {
   allResponses: SurveyResponse[];
-  campaigns: CampaignOption[];
+  campaigns:     CampaignOption[];
+  surveyOptions: SurveyOption[];
+  groupOptions:  GroupOption[];
   filters: DashFilters;
   setFilter: (field: keyof DashFilters, value: string) => void;
   clearFilters: () => void;
@@ -65,11 +75,10 @@ interface Props {
 }
 
 export function DashboardFilters({
-  allResponses, campaigns, filters, setFilter, clearFilters,
+  allResponses, campaigns, surveyOptions, groupOptions, filters, setFilter, clearFilters,
   datePreset, setDatePreset, dateFrom, dateTo, setDateFrom, setDateTo,
   campaignHasDates, filteredCount, totalCount,
 }: Props) {
-  // Campaigns sorted most recent first — always shown regardless of response count
   const sortedCampaigns = [...campaigns].sort(
     (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
   );
@@ -140,6 +149,60 @@ export function DashboardFilters({
           </div>
         </div>
       )}
+
+      {/* Scope selectors — Campaign Group / Survey / Campaign */}
+      <div className="px-4 py-3 border-b border-gray-50 space-y-2">
+        <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Study scope</p>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          {/* Campaign Group */}
+          {groupOptions.length > 0 && (
+            <div>
+              <select
+                value={filters.group_id}
+                onChange={e => setFilter("group_id", e.target.value)}
+                className="w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 text-gray-700 focus:outline-none focus:border-[#D7B87A]"
+              >
+                <option value="">All Campaign Groups</option>
+                {groupOptions.map(g => (
+                  <option key={g.id} value={g.id}>{g.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Survey */}
+          {surveyOptions.length > 1 && (
+            <div>
+              <select
+                value={filters.survey_id}
+                onChange={e => setFilter("survey_id", e.target.value)}
+                className="w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 text-gray-700 focus:outline-none focus:border-[#D7B87A]"
+              >
+                <option value="">All Surveys</option>
+                {surveyOptions.map(s => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Single Campaign */}
+          <div>
+            <select
+              value={filters.campaign_id}
+              onChange={e => setFilter("campaign_id", e.target.value)}
+              className="w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 text-gray-700 focus:outline-none focus:border-[#D7B87A]"
+            >
+              <option value="">All Campaigns</option>
+              {sortedCampaigns.map(c => (
+                <option key={c.campaign_id} value={c.campaign_id}>
+                  {c.campaign_name || c.campaign_id}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+      </div>
 
       {/* Dimension dropdowns — 2 columns on mobile, 3 on sm+ */}
       <div className="px-4 py-3 grid grid-cols-2 sm:grid-cols-3 gap-2">

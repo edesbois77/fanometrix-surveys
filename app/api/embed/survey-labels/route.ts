@@ -15,16 +15,38 @@ export type SurveyLabels = {
 
 export async function GET(req: NextRequest) {
   const campaignId = req.nextUrl.searchParams.get("campaign_id");
+  const surveyId   = req.nextUrl.searchParams.get("survey_id");
   const lang       = (req.nextUrl.searchParams.get("lang") ?? "en") as LangCode;
 
-  if (!campaignId) {
-    return NextResponse.json({ error: "campaign_id is required" }, { status: 400 });
+  if (!campaignId && !surveyId) {
+    return NextResponse.json({ error: "campaign_id or survey_id is required" }, { status: 400 });
+  }
+
+  // When survey_id is provided directly, fetch survey only (no language override)
+  if (surveyId && !campaignId) {
+    const { data: survey, error } = await supabase
+      .from("surveys")
+      .select("questions")
+      .eq("id", surveyId)
+      .single();
+
+    if (error || !survey) return NextResponse.json({ questions: [] });
+
+    const questions = (survey.questions as LocalisedQuestion[]) ?? [];
+    const labels = questions.map((q, i) => ({
+      index: i,
+      text:  resolveText(q.text, lang) || resolveText(q.text, "en"),
+      options: Object.fromEntries(
+        q.options.map(o => [String(o.id), resolveText(o.text, lang) || resolveText(o.text, "en")])
+      ),
+    }));
+    return NextResponse.json({ questions: labels });
   }
 
   const { data: campaign, error } = await supabase
     .from("campaigns")
     .select("survey_language, surveys(questions)")
-    .eq("campaign_id", campaignId)
+    .eq("campaign_id", campaignId!)
     .is("deleted_at", null)
     .single();
 

@@ -25,7 +25,7 @@ const PUBLIC_PATHS = new Set([
 ]);
 
 // API paths that must remain public (auth endpoints, embed submissions, external Looker/reporting)
-const PUBLIC_API_PREFIXES = ["/api/auth", "/api/submit", "/api/reporting", "/api/embed", "/api/access-requests", "/api/publisher"];
+const PUBLIC_API_PREFIXES = ["/api/auth", "/api/submit", "/api/reporting", "/api/embed", "/api/access-requests", "/api/publisher", "/api/dashboard"];
 
 // Routes only admins may access
 const ADMIN_ONLY_PREFIXES = [

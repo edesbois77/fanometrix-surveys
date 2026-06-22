@@ -19,12 +19,17 @@ import {
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 type CampaignInfo = {
-  campaign_id: string;
-  campaign_name: string;
-  start_date: string | null;
-  end_date: string | null;
-  created_at: string;
+  id:              string;   // UUID — needed for group membership lookup
+  campaign_id:     string;
+  campaign_name:   string;
+  survey_id:       string | null;
+  start_date:      string | null;
+  end_date:        string | null;
+  created_at:      string;
 };
+
+type SurveyOption  = { id: string; name: string };
+type GroupOption   = { id: string; group_id: string; name: string; campaign_ids: string[] };
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -89,6 +94,7 @@ export default function DashboardPage() {
   const [loading,       setLoading]       = useState(true);
   const [error,         setError]         = useState("");
   const [surveyLabels,  setSurveyLabels]  = useState<SurveyLabels | null>(null);
+  const [groupOptions,  setGroupOptions]  = useState<GroupOption[]>([]);
 
   // Filter state — persisted in localStorage
   const [filters,     setFilters]     = useState<DashFilters>(() => loadLS("dash_filters", EMPTY_DASH_FILTERS));
@@ -106,15 +112,18 @@ export default function DashboardPage() {
     setLoading(true);
     setError("");
     try {
-      const [rRes, cRes] = await Promise.all([
+      const [rRes, cRes, gRes] = await Promise.all([
         fetch("/api/responses"),
         fetch("/api/campaigns"),
+        fetch("/api/dashboard/groups"),
       ]);
       if (!rRes.ok) { setError("Failed to load responses."); setLoading(false); return; }
       const rJson = await rRes.json();
       const cJson = cRes.ok ? await cRes.json() : { data: [] };
+      const gJson = gRes.ok ? await gRes.json() : { data: [] };
       setResponses(rJson.data ?? []);
       setCampaigns(cJson.data ?? []);
+      setGroupOptions(gJson.data ?? []);
     } catch {
       setError("Failed to load dashboard data.");
     } finally {
@@ -130,14 +139,77 @@ export default function DashboardPage() {
     [campaigns, filters.campaign_id],
   );
 
-  // Load survey labels (question text + option ID→text map) when a campaign is selected
+  // Derive unique survey options from the loaded campaigns
+  const surveyOptions = useMemo<SurveyOption[]>(() => {
+    const seen = new Map<string, string>();
+    for (const c of campaigns) {
+      const sid  = (c as unknown as { survey_id?: string; surveys?: { name: string } }).survey_id;
+      const name = (c as unknown as { surveys?: { name: string } }).surveys?.name;
+      if (sid && name && !seen.has(sid)) seen.set(sid, name);
+    }
+    return [...seen.entries()].map(([id, name]) => ({ id, name }));
+  }, [campaigns]);
+
+  // Pre-filter responses by Campaign Group or Survey before applying dimension filters
+  const scopedResponses = useMemo(() => {
+    let base = responses;
+
+    // Group filter: keep only responses from campaigns in this group
+    if (filters.group_id) {
+      const group = groupOptions.find(g => g.id === filters.group_id);
+      if (group) {
+        const groupCampaignUUIDs = new Set(group.campaign_ids);
+        // Map campaign UUIDs → text slugs via the campaigns list
+        const slugs = new Set(
+          campaigns
+            .filter(c => groupCampaignUUIDs.has((c as unknown as { id: string }).id))
+            .map(c => c.campaign_id)
+        );
+        base = base.filter(r => slugs.has(r.campaign_id));
+      }
+    }
+
+    // Survey filter: keep only responses from campaigns using this survey
+    if (filters.survey_id) {
+      const surveyCampaignSlugs = new Set(
+        campaigns
+          .filter(c => (c as unknown as { survey_id?: string }).survey_id === filters.survey_id)
+          .map(c => c.campaign_id)
+      );
+      base = base.filter(r => surveyCampaignSlugs.has(r.campaign_id));
+    }
+
+    return base;
+  }, [responses, filters.group_id, filters.survey_id, groupOptions, campaigns]);
+
+  // Load survey labels when campaign, survey, or group changes
   useEffect(() => {
-    if (!filters.campaign_id) { setSurveyLabels(null); return; }
-    fetch(`/api/embed/survey-labels?campaign_id=${encodeURIComponent(filters.campaign_id)}`)
-      .then(r => r.ok ? r.json() : null)
-      .then(json => setSurveyLabels(json ?? null))
-      .catch(() => setSurveyLabels(null));
-  }, [filters.campaign_id]);
+    const campaignId = filters.campaign_id;
+    const surveyId   = filters.survey_id;
+    const groupId    = filters.group_id;
+
+    if (campaignId) {
+      fetch(`/api/embed/survey-labels?campaign_id=${encodeURIComponent(campaignId)}`)
+        .then(r => r.ok ? r.json() : null).then(json => setSurveyLabels(json ?? null)).catch(() => setSurveyLabels(null));
+    } else if (surveyId) {
+      fetch(`/api/embed/survey-labels?survey_id=${encodeURIComponent(surveyId)}`)
+        .then(r => r.ok ? r.json() : null).then(json => setSurveyLabels(json ?? null)).catch(() => setSurveyLabels(null));
+    } else if (groupId) {
+      // Use the first campaign in the group to get survey labels
+      const group = groupOptions.find(g => g.id === groupId);
+      const firstCampaign = group
+        ? campaigns.find(c => group.campaign_ids.includes((c as unknown as { id: string }).id))
+        : null;
+      if (firstCampaign) {
+        fetch(`/api/embed/survey-labels?campaign_id=${encodeURIComponent(firstCampaign.campaign_id)}`)
+          .then(r => r.ok ? r.json() : null).then(json => setSurveyLabels(json ?? null)).catch(() => setSurveyLabels(null));
+      } else {
+        setSurveyLabels(null);
+      }
+    } else {
+      setSurveyLabels(null);
+    }
+  }, [filters.campaign_id, filters.survey_id, filters.group_id, groupOptions, campaigns]);
 
   const dateBounds = useMemo(
     () => getDateBounds(datePreset, dateFrom, dateTo, activeCampaign),
@@ -145,8 +217,8 @@ export default function DashboardPage() {
   );
 
   const filtered = useMemo(
-    () => applyFilters(responses, filters, dateBounds),
-    [responses, filters, dateBounds],
+    () => applyFilters(scopedResponses, filters, dateBounds),
+    [scopedResponses, filters, dateBounds],
   );
 
   function setFilter(field: keyof DashFilters, value: string) {
@@ -216,8 +288,10 @@ export default function DashboardPage() {
           <>
             {/* Filters */}
             <DashboardFilters
-              allResponses={responses}
+              allResponses={scopedResponses}
               campaigns={campaigns}
+              surveyOptions={surveyOptions}
+              groupOptions={groupOptions}
               filters={filters}
               setFilter={setFilter}
               clearFilters={clearFilters}
@@ -229,7 +303,7 @@ export default function DashboardPage() {
               setDateTo={setDateTo}
               campaignHasDates={campaignHasDates}
               filteredCount={filtered.length}
-              totalCount={responses.length}
+              totalCount={scopedResponses.length}
             />
 
             {/* KPI cards */}
