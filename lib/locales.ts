@@ -28,22 +28,17 @@ export function countryCodeWarning(code: string): string | null {
   const raw = code.trim();
   if (!raw) return null;
 
-  // Too long or wrong format
-  if (!/^[A-Za-z]{1,3}(-[A-Za-z]{2})?$/.test(raw)) return null;
+  // Already a valid country code (2 uppercase letters) — no warning needed
+  if (/^[A-Z]{2}$/.test(raw)) return null;
 
-  const lower = raw.toLowerCase();
-
-  // Matches a known language code
-  if (LANGUAGE_CODE_SET.has(lower)) {
-    const suggestion = LANGUAGE_TO_COUNTRY[lower];
-    return suggestion
-      ? `"${raw}" is a language code. Did you mean country code "${suggestion}"?`
-      : `"${raw}" looks like a language code, not a country code. Country codes are 2 uppercase letters (e.g. GB, DE, SE).`;
+  // Lowercase 2-letter — almost certainly meant the country code, just wrong case
+  if (/^[a-z]{2}$/.test(raw)) {
+    return `Country codes must be uppercase. Did you mean "${raw.toUpperCase()}"?`;
   }
 
-  // Lowercase 2-letter — might just be wrong case
-  if (/^[a-z]{2}$/.test(raw)) {
-    return `Country codes must be uppercase (e.g. "${raw.toUpperCase()}")?`;
+  // Looks like a language code with regional variant (e.g. zh-CN) entered as country code
+  if (/^[a-z]{2}-[A-Z]{2}$/.test(raw)) {
+    return `"${raw}" looks like a language code. Country codes are 2 uppercase letters (e.g. GB, DE, SE).`;
   }
 
   return null;
