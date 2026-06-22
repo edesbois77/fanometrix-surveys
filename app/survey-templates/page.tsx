@@ -1048,29 +1048,24 @@ export default function SurveysPage() {
                     const qs = s.questions as LocalisedQuestion[];
                     return (
                       <div className="flex gap-1.5 mt-3 flex-wrap">
-                        {SUPPORTED_LANGUAGES.map(lang => {
-                          const isEN = lang.code === "en";
-                          const complete = isEN
-                            ? qs.length > 0
-                            : qs.length > 0 && qs.every(q =>
-                                (q.text as Record<string, string>)[lang.code]?.trim() &&
-                                q.options.every(o => (o.text as Record<string, string>)[lang.code]?.trim())
-                              );
-                          const partial = !isEN && !complete && qs.some(q =>
+                        {SUPPORTED_LANGUAGES.filter(l => l.code !== "en").map(lang => {
+                          const complete = qs.length > 0 && qs.every(q =>
+                            (q.text as Record<string, string>)[lang.code]?.trim() &&
+                            q.options.every(o => (o.text as Record<string, string>)[lang.code]?.trim())
+                          );
+                          const partial = !complete && qs.some(q =>
                             (q.text as Record<string, string>)[lang.code]?.trim()
                           );
-                          if (!complete && !partial && !isEN) return null;
+                          if (!complete && !partial) return null;
                           return (
                             <span key={lang.code} className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium ${
                               complete
-                                ? isEN
-                                  ? "bg-gray-100 text-gray-600"
-                                  : "bg-green-50 text-green-700 border border-green-200"
+                                ? "bg-green-50 text-green-700 border border-green-200"
                                 : "bg-amber-50 text-amber-600 border border-amber-200"
                             }`}>
-                              <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${complete ? isEN ? "bg-gray-400" : "bg-green-500" : "bg-amber-400"}`} />
+                              <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${complete ? "bg-green-500" : "bg-amber-400"}`} />
                               {lang.nativeLabel}
-                              {!isEN && !complete && <span className="text-amber-400 text-[10px]">partial</span>}
+                              {!complete && <span className="text-[10px]">partial</span>}
                             </span>
                           );
                         })}
