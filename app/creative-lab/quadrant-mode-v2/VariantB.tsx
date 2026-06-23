@@ -581,10 +581,10 @@ export function VariantB({
           aria-label="Privacy information"
           style={{
             position: "absolute", bottom: 5, left: "50%", transform: "translateX(-50%)",
-            background: "none", border: "none", cursor: "pointer",
+            background: theme.quad, border: "none", cursor: "pointer",
             color: theme.privacyLink, fontSize: 8.5,
             zIndex: 7, padding: "3px 8px", letterSpacing: "0.02em", lineHeight: 1,
-            background: theme.quad, borderRadius: 4,
+            borderRadius: 4,
           }}
         >
           ⓘ Privacy
