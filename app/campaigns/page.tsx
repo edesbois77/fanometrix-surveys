@@ -5,6 +5,7 @@ import { countryCodeWarning, languageCodeWarning, MARKET_REFERENCE_PAIRS, isVali
 import Link from "next/link";
 import Papa from "papaparse";
 import { AdminShell } from "@/app/components/AdminShell";
+import { useSession } from "@/app/components/SessionProvider";
 import { isSurveyValidForReady } from "@/lib/survey-validation";
 import {
   availableActions,
@@ -54,6 +55,8 @@ type Campaign = {
   deleted_at: string | null;
   deleted_by: string | null;
   delete_reason: string | null;
+  // Creative theme (optional — null = default production creative)
+  creative_theme: string | null;
 };
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
@@ -148,11 +151,26 @@ const BLANK: Partial<Campaign> = {
   campaign_id: "", brand_name: "", campaign_name: "",
   campaign_description: "", start_date: null, end_date: null,
   survey_id: null, publisher: "", research_theme: null, year: String(new Date().getFullYear()), country_code: null, market: null, survey_language: "en", status: "draft",
-  target_responses: null, archive_after_days: 90,
+  target_responses: null, archive_after_days: 90, creative_theme: null,
 };
+
+// ─── Creative theme options ───────────────────────────────────────────────────
+const CREATIVE_THEMES: { id: string; name: string; gradient: string; text: string }[] = [
+  { id: "fanometrix",       name: "Fanometrix Premium", gradient: "linear-gradient(135deg,#D7B87A,#A8864A)", text: "#041B33" },
+  { id: "electric-football",name: "Electric Football",  gradient: "linear-gradient(180deg,#00F5A0,#00C2FF)", text: "#061A2F" },
+  { id: "fan-energy",       name: "Fan Energy",         gradient: "linear-gradient(180deg,#FF4FA3,#A855F7)", text: "#fff"    },
+  { id: "electric-purple",  name: "Electric Purple",    gradient: "linear-gradient(180deg,#D946EF,#7C3AED)", text: "#fff"    },
+  { id: "sky-pulse",        name: "Sky Pulse",          gradient: "linear-gradient(180deg,#7DD3FC,#3B82F6)", text: "#071625" },
+  { id: "ocean",            name: "Ocean",              gradient: "linear-gradient(180deg,#7DD3FC,#2563EB)", text: "#081421" },
+  { id: "lime-energy",      name: "Lime Energy",        gradient: "linear-gradient(180deg,#F8F32B,#A3D92F)", text: "#10120B" },
+  { id: "stadium-green",    name: "Stadium Green",      gradient: "linear-gradient(180deg,#64DD17,#0B5D1E)", text: "#fff"    },
+];
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function CampaignsPage() {
+  const { user } = useSession();
+  const isAdmin = user?.role === "admin";
+
   // Data
   const [campaigns,        setCampaigns]        = useState<Campaign[]>([]);
   const [deletedCampaigns, setDeletedCampaigns] = useState<Campaign[]>([]);
@@ -970,6 +988,54 @@ export default function CampaignsPage() {
                   </div>
                 </details>
               </div>
+
+              {/* ── Creative Theme — admin only ── */}
+              {isAdmin && (
+                <div className="border border-gray-100 rounded-xl p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Creative Theme</p>
+                    {editing.creative_theme && (
+                      <button type="button" onClick={() => setEditing(x => ({ ...x, creative_theme: null }))}
+                        className="text-xs text-gray-400 hover:text-gray-600 underline">
+                        Remove (use default)
+                      </button>
+                    )}
+                  </div>
+                  <p className="text-xs text-gray-400 leading-relaxed">
+                    Select a visual theme for this campaign&apos;s survey MPU. Leave unset to use the standard production creative.
+                  </p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {CREATIVE_THEMES.map(t => {
+                      const active = editing.creative_theme === t.id;
+                      return (
+                        <button
+                          key={t.id} type="button"
+                          onClick={() => setEditing(x => ({ ...x, creative_theme: active ? null : t.id }))}
+                          className="flex items-center gap-2.5 p-2.5 rounded-lg border text-left transition-all"
+                          style={{
+                            borderColor: active ? "#D7B87A" : "#E5E7EB",
+                            background:  active ? "#FBF5E8" : "#fff",
+                          }}
+                        >
+                          <div style={{
+                            width: 28, height: 28, borderRadius: 6, flexShrink: 0,
+                            background: t.gradient, border: "1px solid rgba(0,0,0,0.08)",
+                          }} />
+                          <span className="text-xs font-medium leading-tight" style={{ color: active ? "#0B1929" : "#374151" }}>
+                            {t.name}
+                          </span>
+                          {active && <span className="ml-auto text-[#D7B87A] text-xs font-bold flex-shrink-0">✓</span>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {editing.creative_theme && (
+                    <p className="text-xs text-[#0B1929] bg-[#FBF5E8] border border-[#D7B87A]/30 rounded-lg px-3 py-2">
+                      Selected: <strong>{CREATIVE_THEMES.find(t => t.id === editing.creative_theme)?.name}</strong>
+                    </p>
+                  )}
+                </div>
+              )}
 
               {error && <p className="text-red-500 text-xs">{error}</p>}
             </div>

@@ -86,7 +86,7 @@ export async function GET(req: NextRequest) {
 
   const { data: campaigns } = await supabase
     .from("campaigns")
-    .select("id, campaign_id, status, start_date, end_date, target_responses, deleted_at, publisher, country_code, market, survey_language, surveys(questions, thank_you_title, thank_you_body)")
+    .select("id, campaign_id, status, start_date, end_date, target_responses, deleted_at, publisher, country_code, market, survey_language, creative_theme, surveys(questions, thank_you_title, thank_you_body)")
     .in("id", campaignUuids) as { data: CampaignRow[] | null };
 
   if (!campaigns?.length) {
@@ -178,6 +178,7 @@ export async function GET(req: NextRequest) {
     survey_language: lang,
     country_code:    campaign.country_code ?? null,
     market:          campaign.market ?? null,
+    creative_theme:  (campaign as Record<string, unknown>).creative_theme ?? null,
     questions,
     thank_you_title: survey?.thank_you_title ?? "Thank you!",
     thank_you_body:  survey?.thank_you_body  ?? "Your anonymous feedback helps improve the football experience for fans everywhere.",

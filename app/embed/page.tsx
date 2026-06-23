@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
+import { ThemedSurvey } from "./ThemedSurvey";
 
 const NAVY = "#071B2F";
 const GOLD = "#D7B87A";
@@ -431,6 +432,7 @@ function EmbedSurvey() {
   // specific campaign served, not just the group slug).
   const [resolvedCampaignId, setResolvedCampaignId] = useState<string>(campaign);
   const [groupReady,         setGroupReady]         = useState(!groupSlug);
+  const [creativeTheme,      setCreativeTheme]      = useState<string | null>(null);
   // Group-resolved context — populated after the group API responds
   const [resolvedGroupId,      setResolvedGroupId]      = useState<string | null>(null);
   const [resolvedSurveyLang,   setResolvedSurveyLang]   = useState<string>(urlLang ?? "en");
@@ -461,12 +463,11 @@ function EmbedSurvey() {
           setQuestions(data.questions);
           setThankYouTitle(data.thank_you_title ?? thankYouTitle);
           setThankYouBody(data.thank_you_body   ?? thankYouBody);
-          // Capture resolved metadata for response submission
           setResolvedGroupId(data.group_id ?? groupSlug);
-          // Language priority: explicit URL lang > campaign survey_language > en
           setResolvedSurveyLang(urlLang ?? data.survey_language ?? "en");
           setResolvedCountryCode(data.country_code ?? (countryParam || null));
           setResolvedMarket(data.market ?? marketParam);
+          setCreativeTheme(data.creative_theme ?? null);
         }
         setGroupReady(!!data?.campaign_id);
       })
@@ -490,6 +491,7 @@ function EmbedSurvey() {
           setThankYouTitle(data.thank_you_title ?? thankYouTitle);
           setThankYouBody(data.thank_you_body   ?? thankYouBody);
           setResolvedSurveyLang(data.survey_language ?? urlLang ?? "en");
+          setCreativeTheme(data.creative_theme ?? null);
         }
       })
       .catch(() => {/* keep fallback questions */});
@@ -612,6 +614,33 @@ function EmbedSurvey() {
   // Render transparent until questions have loaded — prevents any flash of default content
   if ((groupSlug && !groupReady) || questions.length === 0) {
     return <div style={{ width: 300, height: 250, background: "transparent" }} />;
+  }
+
+  // Themed creative — render instead of default when campaign has a creative_theme set
+  if (creativeTheme) {
+    return (
+      <ThemedSurvey
+        themeId={creativeTheme}
+        questions={questions}
+        thankYouTitle={thankYouTitle}
+        thankYouBody={thankYouBody}
+        isPreview={isPreview}
+        campaignId={resolvedCampaignId}
+        surveyId={surveyId}
+        publisher={publisher}
+        placement={placement}
+        club={club}
+        competition={competition}
+        country={country}
+        segment={segment}
+        device={device}
+        browser={browser}
+        groupId={resolvedGroupId}
+        countryCode={resolvedCountryCode}
+        market={resolvedMarket}
+        surveyLanguage={resolvedSurveyLang}
+      />
+    );
   }
 
   return (

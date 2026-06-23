@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
 
   const { data: campaign, error } = await supabase
     .from("campaigns")
-    .select("campaign_id, status, survey_language, surveys(id, status, questions, thank_you_title, thank_you_body)")
+    .select("campaign_id, status, survey_language, creative_theme, surveys(id, status, questions, thank_you_title, thank_you_body)")
     .eq("campaign_id", campaignId)
     .is("deleted_at", null)
     .single();
@@ -62,6 +62,7 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     campaign_id:     campaign.campaign_id,
     survey_language: lang,
+    creative_theme:  campaign.creative_theme ?? null,
     questions,
     thank_you_title: survey.thank_you_title ?? "Thank you!",
     thank_you_body:  survey.thank_you_body  ?? "Your anonymous feedback helps improve the football experience for fans everywhere.",
