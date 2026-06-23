@@ -13,6 +13,7 @@ const DEFAULT_QUESTIONS: SurveyQuestion[] = [
 ];
 
 type Variant    = "A" | "B";
+const DESIGN_LABEL = "Design — Timer (300×250)";
 type Device     = "desktop" | "mobile";
 type Tab        = "gallery" | "sidebyside" | "analytics";
 type SurveyEvent = EventA | EventB;
@@ -355,13 +356,13 @@ function QuestionEditor({ questions, setQuestions, onRestart }: {
 
 function GalleryTab({
   variant, device, surveyKey, forceExpire, events, onRestart, onForceExpire,
-  setVariant, setDevice, onEvent, typography, setTypography,
+  setDevice, onEvent, typography, setTypography,
   questions, setQuestions,
 }: {
   variant: Variant; device: Device; surveyKey: number; forceExpire: number;
   events: Array<SurveyEvent & { id: number; time: string }>;
   onRestart: () => void; onForceExpire: () => void;
-  setVariant: (v: Variant) => void; setDevice: (d: Device) => void;
+  setDevice: (d: Device) => void;
   onEvent: (e: SurveyEvent) => void; typography: TypographyMode;
   setTypography: (t: TypographyMode) => void;
   questions: SurveyQuestion[]; setQuestions: (q: SurveyQuestion[]) => void;
@@ -380,28 +381,11 @@ function GalleryTab({
         gap: 10,
         alignItems: "center",
       }}>
-        {/* Variant toggle */}
-        <div style={{ display: "flex", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 20, padding: 2, gap: 2 }}>
-          {(["A", "B"] as Variant[]).map((v) => {
-            const labels = { A: "Variant A — Circle", B: "Variant B — Timer" };
-            return (
-              <button
-                key={v}
-                onClick={() => { setVariant(v); onRestart(); }}
-                style={{
-                  background: variant === v ? GOLD : "transparent",
-                  border: "none", cursor: "pointer",
-                  color: variant === v ? DARK_NAVY : "rgba(255,255,255,0.5)",
-                  fontSize: 9.5, fontWeight: variant === v ? 700 : 500,
-                  padding: "5px 14px", borderRadius: 18,
-                  transition: "all 0.2s ease", whiteSpace: "nowrap",
-                  fontFamily: "inherit",
-                }}
-              >
-                {labels[v]}
-              </button>
-            );
-          })}
+        {/* Design label */}
+        <div style={{ background: GOLD, borderRadius: 20, padding: "5px 16px" }}>
+          <span style={{ color: DARK_NAVY, fontSize: 9.5, fontWeight: 700, whiteSpace: "nowrap" }}>
+            {DESIGN_LABEL}
+          </span>
         </div>
 
         {/* Device */}
@@ -515,26 +499,12 @@ function SideBySideTab({ surveyKey, forceExpire, onRestart, typography, question
         </button>
       </div>
 
-      {/* Two MPUs side by side */}
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 32, alignItems: "flex-start" }}>
-        {/* Variant A */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 10, alignItems: "center" }}>
-          <div style={{ background: `${theme.accent}18`, border: `1px solid ${theme.outerBorder}`, borderRadius: 5, padding: "3px 12px" }}>
-            <span style={{ color: theme.accent, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase" }}>Variant A — Question in circle</span>
-          </div>
-          <VariantA key={`sbs-a-${surveyKey}-${theme.id}`} theme={theme} typography={typography} questions={questions} />
+      {/* MPU preview */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 10, alignItems: "flex-start" }}>
+        <div style={{ background: `${theme.accent}18`, border: `1px solid ${theme.outerBorder}`, borderRadius: 5, padding: "3px 12px" }}>
+          <span style={{ color: theme.accent, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase" }}>{DESIGN_LABEL}</span>
         </div>
-
-        {/* Divider */}
-        <div style={{ width: 1, alignSelf: "stretch", background: "rgba(255,255,255,0.06)", flexShrink: 0, minHeight: 250 }} />
-
-        {/* Variant B */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 10, alignItems: "center" }}>
-          <div style={{ background: `${theme.accent}18`, border: `1px solid ${theme.outerBorder}`, borderRadius: 5, padding: "3px 12px" }}>
-            <span style={{ color: theme.accent, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase" }}>Variant B — Header + timer</span>
-          </div>
-          <VariantB key={`sbs-b-${surveyKey}-${theme.id}`} theme={theme} typography={typography} questions={questions} forceExpire={forceExpire} />
-        </div>
+        <VariantB key={`sbs-b-${surveyKey}-${theme.id}`} theme={theme} typography={typography} questions={questions} forceExpire={forceExpire} />
       </div>
 
       {/* Analytics summary for selected theme */}
@@ -654,7 +624,7 @@ function AnalyticsTab() {
 
 export default function ThemeGalleryPage() {
   const [activeTab, setActiveTab]     = useState<Tab>("gallery");
-  const [variant, setVariant]         = useState<Variant>("A");
+  const [variant, setVariant]         = useState<Variant>("B");
   const [device, setDevice]           = useState<Device>("desktop");
   const [typography, setTypography]   = useState<TypographyMode>("electric");
   const [surveyKey, setSurveyKey]     = useState(0);
@@ -680,7 +650,7 @@ export default function ThemeGalleryPage() {
 
   const TABS: { id: Tab; label: string }[] = [
     { id: "gallery",    label: "Gallery" },
-    { id: "sidebyside", label: "Side by Side" },
+    { id: "sidebyside", label: "Theme Preview" },
     { id: "analytics",  label: "Analytics" },
   ];
 
@@ -747,7 +717,6 @@ export default function ThemeGalleryPage() {
           events={events}
           onRestart={restart}
           onForceExpire={() => setForceExpire((n) => n + 1)}
-          setVariant={setVariant}
           setDevice={setDevice}
           onEvent={handleEvent}
           typography={typography}
