@@ -729,6 +729,16 @@ export default function CampaignsPage() {
                           </button>
                         )}
 
+                        <a
+                          href={`/embed?campaign=${c.campaign_id}&preview=1`}
+                          target="_blank" rel="noopener"
+                          title="Preview the survey creative in a new tab"
+                          className="text-xs border px-3 py-1.5 rounded-lg transition-colors font-medium"
+                          style={{ borderColor: "#D7B87A", color: "#0B1929", background: "#D7B87A", textDecoration: "none", display: "inline-flex", alignItems: "center" }}
+                        >
+                          Preview
+                        </a>
+
                         <button onClick={() => handleDuplicate(c)}
                           className="text-xs border border-gray-200 text-gray-600 hover:bg-gray-50 px-3 py-1.5 rounded-lg transition-colors">
                           Duplicate

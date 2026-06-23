@@ -1081,14 +1081,6 @@ export default function SurveysPage() {
                   {/* Action buttons */}
                   <div className="flex gap-2 mt-4 flex-wrap">
                     <button
-                      onClick={() => setPreviewSurvey(s)}
-                      disabled={s.questions.length === 0}
-                      className="text-xs border border-gray-200 text-gray-700 hover:bg-gray-50 px-3 py-1.5 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed transition-colors font-medium"
-                    >
-                      Preview
-                    </button>
-
-                    <button
                       onClick={() => openEdit(s)}
                       className="text-xs border border-gray-200 text-gray-600 hover:bg-gray-50 px-3 py-1.5 rounded-lg transition-colors"
                     >
@@ -1153,13 +1145,6 @@ export default function SurveysPage() {
                     </div>
                   </div>
                   <div className="flex gap-2 mt-3 flex-wrap">
-                    <button
-                      onClick={() => setPreviewSurvey(s)}
-                      disabled={s.questions.length === 0}
-                      className="text-xs border border-gray-200 text-gray-600 hover:bg-gray-50 px-3 py-1.5 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                    >
-                      Preview
-                    </button>
                     <button
                       onClick={() => openDuplicate(s)}
                       className="text-xs border border-gray-200 text-gray-600 hover:bg-gray-50 px-3 py-1.5 rounded-lg transition-colors"
