@@ -23,6 +23,25 @@ const PAGE_BG   = "#07101A";
 const GOLD      = "#D7B87A";
 const DARK_NAVY = "#0B1929";
 
+// ── Page-level colour system (dark / light mode) ──────────────────────────────
+
+function pc(dark: boolean) {
+  return {
+    bg:          dark ? "#07101A" : "#F1F3F5",
+    surface:     dark ? "rgba(255,255,255,0.02)"  : "#ffffff",
+    border:      dark ? "rgba(255,255,255,0.06)"  : "rgba(0,0,0,0.08)",
+    borderFaint: dark ? "rgba(255,255,255,0.04)"  : "rgba(0,0,0,0.05)",
+    divider:     dark ? "rgba(255,255,255,0.07)"  : "rgba(0,0,0,0.09)",
+    text:        dark ? "#ffffff"                 : "#0B1929",
+    muted:       dark ? "rgba(255,255,255,0.4)"   : "rgba(11,25,41,0.5)",
+    faint:       dark ? "rgba(255,255,255,0.2)"   : "rgba(11,25,41,0.3)",
+    vfaint:      dark ? "rgba(255,255,255,0.07)"  : "rgba(11,25,41,0.06)",
+    inputBg:     dark ? "rgba(255,255,255,0.05)"  : "rgba(0,0,0,0.04)",
+    inputBorder: dark ? "rgba(255,255,255,0.1)"   : "rgba(0,0,0,0.12)",
+    stripRow:    dark ? "rgba(255,255,255,0.015)" : "rgba(0,0,0,0.02)",
+  };
+}
+
 // ── Palette helpers ───────────────────────────────────────────────────────────
 
 const METRIC_LABELS: Record<string, string> = {
@@ -103,13 +122,14 @@ function Btn({ label, onClick, active, accent, small }: { label: string; onClick
 // ── Theme card — single survey + metadata ─────────────────────────────────────
 
 function ThemeCard({
-  theme, variant, device, surveyKey, forceExpire, onEvent, typography, questions,
+  theme, variant, device, surveyKey, forceExpire, onEvent, typography, questions, dark,
 }: {
   theme: Theme; variant: Variant; device: Device;
   surveyKey: number; forceExpire: number;
   onEvent: (e: SurveyEvent) => void; typography: TypographyMode;
-  questions: SurveyQuestion[];
+  questions: SurveyQuestion[]; dark: boolean;
 }) {
+  const p = pc(dark);
   const survey = variant === "A"
     ? <VariantA key={`${surveyKey}-${theme.id}`} theme={theme} typography={typography} questions={questions} onEvent={onEvent as (e: EventA) => void} />
     : <VariantB key={`${surveyKey}-${theme.id}`} theme={theme} typography={typography} questions={questions} forceExpire={forceExpire} onEvent={onEvent as (e: EventB) => void} />;
@@ -123,10 +143,10 @@ function ThemeCard({
       {wrapped}
       {/* Theme info */}
       <div style={{ width: "100%", maxWidth: 300, textAlign: "center" }}>
-        <p style={{ color: "#fff", fontSize: 11, fontWeight: 700, margin: "0 0 2px", letterSpacing: "-0.01em" }}>{theme.name}</p>
-        <p style={{ color: "rgba(255,255,255,0.35)", fontSize: 9, margin: "0 0 6px", lineHeight: 1.4 }}>{theme.feeling}</p>
+        <p style={{ color: p.text, fontSize: 11, fontWeight: 700, margin: "0 0 2px", letterSpacing: "-0.01em" }}>{theme.name}</p>
+        <p style={{ color: p.muted, fontSize: 9, margin: "0 0 6px", lineHeight: 1.4 }}>{theme.feeling}</p>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
-          <span style={{ color: "rgba(255,255,255,0.3)", fontSize: 8 }}>Interaction</span>
+          <span style={{ color: p.faint, fontSize: 8 }}>Interaction</span>
           <div style={{ width: 60, height: 2.5, background: "rgba(255,255,255,0.07)", borderRadius: 2, overflow: "hidden" }}>
             <div style={{ width: `${score * 10}%`, height: "100%", background: theme.accent, borderRadius: 2 }} />
           </div>
@@ -229,12 +249,14 @@ function AnalyticsCard({ theme }: { theme: Theme }) {
 const ANSWER_LABELS: [string, string, string, string] = ["Top Left", "Top Right", "Bottom Left", "Bottom Right"];
 const ANSWER_IDX:   [number, number, number, number]  = [0, 1, 3, 2]; // display order → array index
 
-function QuestionEditor({ questions, setQuestions, onRestart }: {
+function QuestionEditor({ questions, setQuestions, onRestart, dark }: {
   questions: SurveyQuestion[];
   setQuestions: (q: SurveyQuestion[]) => void;
   onRestart: () => void;
+  dark: boolean;
 }) {
   const [open, setOpen] = useState(false);
+  const p = pc(dark);
 
   function updateQuestion(qi: number, text: string) {
     const next = questions.map((q, i) => i === qi ? { ...q, text } : q);
@@ -257,10 +279,10 @@ function QuestionEditor({ questions, setQuestions, onRestart }: {
   }
 
   const inputStyle: React.CSSProperties = {
-    background: "rgba(255,255,255,0.05)",
-    border: "1px solid rgba(255,255,255,0.1)",
+    background: p.inputBg,
+    border: `1px solid ${p.inputBorder}`,
     borderRadius: 6,
-    color: "#fff",
+    color: p.text,
     fontSize: 11,
     padding: "6px 9px",
     outline: "none",
@@ -272,7 +294,7 @@ function QuestionEditor({ questions, setQuestions, onRestart }: {
   };
 
   return (
-    <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 10 }}>
+    <div style={{ background: p.surface, border: `1px solid ${p.border}`, borderRadius: 10 }}>
       {/* Header row */}
       <button
         onClick={() => setOpen(o => !o)}
@@ -284,10 +306,10 @@ function QuestionEditor({ questions, setQuestions, onRestart }: {
       >
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <span style={{ color: GOLD, fontSize: 12 }}>✏</span>
-          <span style={{ color: "#fff", fontSize: 11, fontWeight: 700 }}>Edit Questions &amp; Answers</span>
-          <span style={{ color: "rgba(255,255,255,0.3)", fontSize: 9.5 }}>— changes apply to all 8 cards live</span>
+          <span style={{ color: p.text, fontSize: 11, fontWeight: 700 }}>Edit Questions &amp; Answers</span>
+          <span style={{ color: p.faint, fontSize: 9.5 }}>— changes apply to all 8 cards live</span>
         </div>
-        <span style={{ color: "rgba(255,255,255,0.4)", fontSize: 13, transform: open ? "rotate(180deg)" : "none", transition: "transform 0.2s ease" }}>▾</span>
+        <span style={{ color: p.muted, fontSize: 13, transform: open ? "rotate(180deg)" : "none", transition: "transform 0.2s ease" }}>▾</span>
       </button>
 
       {open && (
@@ -305,8 +327,8 @@ function QuestionEditor({ questions, setQuestions, onRestart }: {
           {/* 3-column grid of question editors */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 14 }}>
             {questions.map((q, qi) => (
-              <div key={qi} style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, padding: "12px" }}>
-                <p style={{ color: "rgba(255,255,255,0.35)", fontSize: 8.5, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", margin: "0 0 8px" }}>
+              <div key={qi} style={{ background: p.vfaint, border: `1px solid ${p.border}`, borderRadius: 8, padding: "12px" }}>
+                <p style={{ color: p.muted, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", margin: "0 0 8px" }}>
                   Question {qi + 1}
                 </p>
 
@@ -325,7 +347,7 @@ function QuestionEditor({ questions, setQuestions, onRestart }: {
                     const answerIdx = ANSWER_IDX[displayPos];
                     return (
                       <div key={displayPos}>
-                        <p style={{ color: "rgba(255,255,255,0.25)", fontSize: 7.5, margin: "0 0 3px", letterSpacing: "0.04em" }}>
+                        <p style={{ color: p.faint, fontSize: 7.5, margin: "0 0 3px", letterSpacing: "0.04em" }}>
                           {ANSWER_LABELS[displayPos]}
                         </p>
                         <textarea
@@ -358,7 +380,7 @@ function QuestionEditor({ questions, setQuestions, onRestart }: {
 function GalleryTab({
   variant, device, surveyKey, forceExpire, events, onRestart, onForceExpire,
   setDevice, onEvent, typography, setTypography,
-  questions, setQuestions,
+  questions, setQuestions, dark,
 }: {
   variant: Variant; device: Device; surveyKey: number; forceExpire: number;
   events: Array<SurveyEvent & { id: number; time: string }>;
@@ -367,14 +389,16 @@ function GalleryTab({
   onEvent: (e: SurveyEvent) => void; typography: TypographyMode;
   setTypography: (t: TypographyMode) => void;
   questions: SurveyQuestion[]; setQuestions: (q: SurveyQuestion[]) => void;
+  dark: boolean;
 }) {
+  const p = pc(dark);
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
 
       {/* Controls */}
       <div style={{
-        background: "rgba(255,255,255,0.02)",
-        border: "1px solid rgba(255,255,255,0.06)",
+        background: p.surface,
+        border: `1px solid ${p.border}`,
         borderRadius: 10,
         padding: "12px 16px",
         display: "flex",
@@ -436,35 +460,37 @@ function GalleryTab({
             onEvent={onEvent}
             typography={typography}
             questions={questions}
+            dark={dark}
           />
         ))}
       </div>
 
       {/* Event log */}
       <div style={{ maxWidth: 640 }}>
-        <p style={{ color: "rgba(255,255,255,0.25)", fontSize: 8, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", margin: "0 0 7px" }}>
+        <p style={{ color: p.faint, fontSize: 8, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", margin: "0 0 7px" }}>
           Live event log
         </p>
         <EventLog events={events} />
       </div>
 
       {/* Question editor */}
-      <QuestionEditor questions={questions} setQuestions={setQuestions} onRestart={onRestart} />
+      <QuestionEditor questions={questions} setQuestions={setQuestions} onRestart={onRestart} dark={dark} />
     </div>
   );
 }
 
 // ── Side-by-side tab ──────────────────────────────────────────────────────────
 
-function SideBySideTab({ surveyKey, forceExpire, onRestart, typography, questions }: { surveyKey: number; forceExpire: number; onRestart: () => void; typography: TypographyMode; questions: SurveyQuestion[] }) {
+function SideBySideTab({ surveyKey, forceExpire, onRestart, typography, questions, dark }: { surveyKey: number; forceExpire: number; onRestart: () => void; typography: TypographyMode; questions: SurveyQuestion[]; dark: boolean }) {
   const [selectedId, setSelectedId] = useState(THEMES[0].id);
   const theme = THEMES.find((t) => t.id === selectedId) ?? THEMES[0];
+  const p = pc(dark);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       {/* Theme picker */}
       <div>
-        <p style={{ color: "rgba(255,255,255,0.25)", fontSize: 8, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", margin: "0 0 8px" }}>Select theme</p>
+        <p style={{ color: p.faint, fontSize: 8, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", margin: "0 0 8px" }}>Select theme</p>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
           {THEMES.map((t) => {
             const active = t.id === selectedId;
@@ -494,7 +520,7 @@ function SideBySideTab({ surveyKey, forceExpire, onRestart, typography, question
       {/* Theme feeling + colour swatch row */}
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
         <div style={{ width: 14, height: 14, borderRadius: 3, background: theme.gradient, flexShrink: 0 }} />
-        <span style={{ color: "rgba(255,255,255,0.5)", fontSize: 10 }}>{theme.feeling}</span>
+        <span style={{ color: p.muted, fontSize: 10 }}>{theme.feeling}</span>
         <button onClick={onRestart} style={{ marginLeft: "auto", background: "none", border: `1px solid rgba(255,255,255,0.08)`, borderRadius: 6, cursor: "pointer", color: "rgba(255,255,255,0.4)", fontSize: 9, padding: "3px 10px", fontFamily: "inherit" }}>
           ↺ Reset
         </button>
@@ -510,7 +536,7 @@ function SideBySideTab({ surveyKey, forceExpire, onRestart, typography, question
 
       {/* Analytics summary for selected theme */}
       <div style={{ maxWidth: 500 }}>
-        <p style={{ color: "rgba(255,255,255,0.25)", fontSize: 8, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", margin: "0 0 10px" }}>
+        <p style={{ color: p.faint, fontSize: 8, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", margin: "0 0 10px" }}>
           Theme analytics — {theme.name}
         </p>
         <AnalyticsCard theme={theme} />
@@ -521,14 +547,15 @@ function SideBySideTab({ surveyKey, forceExpire, onRestart, typography, question
 
 // ── Archive tab — Variant A (circle design) across all 8 themes ──────────────
 
-function ArchiveTab({ surveyKey, typography, questions }: {
-  surveyKey: number; typography: TypographyMode; questions: SurveyQuestion[];
+function ArchiveTab({ surveyKey, typography, questions, dark }: {
+  surveyKey: number; typography: TypographyMode; questions: SurveyQuestion[]; dark: boolean;
 }) {
+  const p = pc(dark);
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 10, padding: "14px 18px" }}>
-        <p style={{ color: "#fff", fontSize: 13, fontWeight: 700, margin: "0 0 4px", letterSpacing: "-0.01em" }}>Archived — Question in Circle (Variant A)</p>
-        <p style={{ color: "rgba(255,255,255,0.35)", fontSize: 10, margin: 0, lineHeight: 1.5 }}>
+      <div style={{ background: p.surface, border: `1px solid ${p.border}`, borderRadius: 10, padding: "14px 18px" }}>
+        <p style={{ color: p.text, fontSize: 13, fontWeight: 700, margin: "0 0 4px", letterSpacing: "-0.01em" }}>Archived — Question in Circle (Variant A)</p>
+        <p style={{ color: p.muted, fontSize: 10, margin: 0, lineHeight: 1.5 }}>
           The circle layout was evaluated but not selected for production. Retained here for reference.
         </p>
       </div>
@@ -537,8 +564,8 @@ function ArchiveTab({ surveyKey, typography, questions }: {
           <div key={t.id} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
             <VariantA key={`arch-${surveyKey}-${t.id}`} theme={t} typography={typography} questions={questions} />
             <div style={{ width: "100%", maxWidth: 300, textAlign: "center" }}>
-              <p style={{ color: "#fff", fontSize: 11, fontWeight: 700, margin: "0 0 2px" }}>{t.name}</p>
-              <p style={{ color: "rgba(255,255,255,0.35)", fontSize: 9, margin: 0 }}>{t.feeling}</p>
+              <p style={{ color: p.text, fontSize: 11, fontWeight: 700, margin: "0 0 2px" }}>{t.name}</p>
+              <p style={{ color: p.muted, fontSize: 9, margin: 0 }}>{t.feeling}</p>
             </div>
           </div>
         ))}
@@ -549,15 +576,16 @@ function ArchiveTab({ surveyKey, typography, questions }: {
 
 // ── Design - Original tab — V1 production creative ────────────────────────────
 
-function OriginalTab({ surveyKey, questions }: { surveyKey: number; questions: SurveyQuestion[] }) {
+function OriginalTab({ surveyKey, questions, dark }: { surveyKey: number; questions: SurveyQuestion[]; dark: boolean }) {
+  const p = pc(dark);
   // QuadrantSurvey uses QMQuestion shape — same structure, compatible
   const qmQuestions = questions.map(q => ({ text: q.text, answers: q.answers }));
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(215,184,122,0.2)", borderRadius: 10, padding: "14px 18px" }}>
-        <p style={{ color: "#fff", fontSize: 13, fontWeight: 700, margin: "0 0 4px", letterSpacing: "-0.01em" }}>Design — Original</p>
-        <p style={{ color: "rgba(255,255,255,0.35)", fontSize: 10, margin: 0, lineHeight: 1.5 }}>
+      <div style={{ background: p.surface, border: "1px solid rgba(215,184,122,0.2)", borderRadius: 10, padding: "14px 18px" }}>
+        <p style={{ color: p.text, fontSize: 13, fontWeight: 700, margin: "0 0 4px", letterSpacing: "-0.01em" }}>Design — Original</p>
+        <p style={{ color: p.muted, fontSize: 10, margin: 0, lineHeight: 1.5 }}>
           The original Fanometrix survey creative — fixed navy/gold, no theme system. This is the reference point for how far the new designs have evolved.
         </p>
       </div>
@@ -573,9 +601,9 @@ function OriginalTab({ surveyKey, questions }: { surveyKey: number; questions: S
 
         {/* Separator */}
         <div style={{ display: "flex", flexDirection: "column", gap: 8, justifyContent: "center", alignSelf: "center", padding: "0 8px" }}>
-          <div style={{ width: 1, height: 60, background: "rgba(255,255,255,0.06)", margin: "0 auto" }} />
-          <span style={{ color: "rgba(255,255,255,0.2)", fontSize: 9, textTransform: "uppercase", letterSpacing: "0.08em" }}>vs</span>
-          <div style={{ width: 1, height: 60, background: "rgba(255,255,255,0.06)", margin: "0 auto" }} />
+          <div style={{ width: 1, height: 60, background: p.border, margin: "0 auto" }} />
+          <span style={{ color: p.faint, fontSize: 9, textTransform: "uppercase", letterSpacing: "0.08em" }}>vs</span>
+          <div style={{ width: 1, height: 60, background: p.border, margin: "0 auto" }} />
         </div>
 
         {/* New design — Fanometrix Premium theme for a fair comparison */}
@@ -589,7 +617,7 @@ function OriginalTab({ surveyKey, questions }: { surveyKey: number; questions: S
 
       {/* Callout */}
       <div style={{ maxWidth: 560, background: "rgba(215,184,122,0.05)", border: "1px solid rgba(215,184,122,0.15)", borderRadius: 8, padding: "12px 16px" }}>
-        <p style={{ color: "rgba(255,255,255,0.6)", fontSize: 10, margin: 0, lineHeight: 1.7 }}>
+        <p style={{ color: p.muted, fontSize: 10, margin: 0, lineHeight: 1.7 }}>
           The original design uses a fixed navy background with a gold accent, a small 90px centre circle, and a progress ring that fills as questions are completed.
           The new designs introduce themed gradients, a header bar, countdown timer, and the Electric Football typography system.
         </p>
@@ -600,7 +628,8 @@ function OriginalTab({ surveyKey, questions }: { surveyKey: number; questions: S
 
 // ── Analytics tab ─────────────────────────────────────────────────────────────
 
-function AnalyticsTab() {
+function AnalyticsTab({ dark }: { dark: boolean }) {
+  const p = pc(dark);
   const metrics = [
     { key: "prominenceScore",      label: "Prominence" },
     { key: "interactionPotential", label: "Interaction" },
@@ -613,9 +642,9 @@ function AnalyticsTab() {
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
 
       {/* Header */}
-      <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 10, padding: "14px 18px" }}>
-        <p style={{ color: "#fff", fontSize: 13, fontWeight: 700, margin: "0 0 4px" }}>Creative Analytics Dashboard</p>
-        <p style={{ color: "rgba(255,255,255,0.35)", fontSize: 10, margin: 0, lineHeight: 1.5 }}>
+      <div style={{ background: p.surface, border: `1px solid ${p.border}`, borderRadius: 10, padding: "14px 18px" }}>
+        <p style={{ color: p.text, fontSize: 13, fontWeight: 700, margin: "0 0 4px" }}>Creative Analytics Dashboard</p>
+        <p style={{ color: p.muted, fontSize: 10, margin: 0, lineHeight: 1.5 }}>
           Mocked scoring for prototype evaluation. Scores represent estimated performance characteristics to help identify which concepts warrant production testing.
         </p>
       </div>
@@ -625,18 +654,18 @@ function AnalyticsTab() {
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 10, fontFamily: "system-ui, -apple-system, sans-serif" }}>
           <thead>
             <tr>
-              <th style={{ textAlign: "left", color: "rgba(255,255,255,0.3)", fontSize: 8, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", padding: "6px 12px 10px 0", borderBottom: "1px solid rgba(255,255,255,0.07)", whiteSpace: "nowrap" }}>
+              <th style={{ textAlign: "left", color: p.faint, fontSize: 8, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", padding: "6px 12px 10px 0", borderBottom: `1px solid ${p.divider}`, whiteSpace: "nowrap" }}>
                 Theme
               </th>
               {metrics.map((m) => (
-                <th key={m.key} style={{ textAlign: "center", color: "rgba(255,255,255,0.3)", fontSize: 8, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", padding: "6px 8px 10px", borderBottom: "1px solid rgba(255,255,255,0.07)", whiteSpace: "nowrap" }}>
+                <th key={m.key} style={{ textAlign: "center", color: p.faint, fontSize: 8, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", padding: "6px 8px 10px", borderBottom: `1px solid ${p.divider}`, whiteSpace: "nowrap" }}>
                   {m.label}
                 </th>
               ))}
-              <th style={{ textAlign: "center", color: "rgba(255,255,255,0.3)", fontSize: 8, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", padding: "6px 8px 10px", borderBottom: "1px solid rgba(255,255,255,0.07)", whiteSpace: "nowrap" }}>
+              <th style={{ textAlign: "center", color: p.faint, fontSize: 8, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", padding: "6px 8px 10px", borderBottom: `1px solid ${p.divider}`, whiteSpace: "nowrap" }}>
                 Avg
               </th>
-              <th style={{ textAlign: "left", color: "rgba(255,255,255,0.3)", fontSize: 8, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", padding: "6px 0 10px 8px", borderBottom: "1px solid rgba(255,255,255,0.07)", whiteSpace: "nowrap" }}>
+              <th style={{ textAlign: "left", color: p.faint, fontSize: 8, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", padding: "6px 0 10px 8px", borderBottom: `1px solid ${p.divider}`, whiteSpace: "nowrap" }}>
                 Best for
               </th>
             </tr>
@@ -647,30 +676,30 @@ function AnalyticsTab() {
               const vals = [a.prominenceScore, a.interactionPotential, a.readabilityScore, a.mobileFriendliness, a.accessibilityScore];
               const avg = Math.round(vals.reduce((s, v) => s + v, 0) / vals.length * 10) / 10;
               return (
-                <tr key={t.id} style={{ background: i % 2 === 0 ? "rgba(255,255,255,0.015)" : "transparent" }}>
-                  <td style={{ padding: "10px 12px 10px 0", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+                <tr key={t.id} style={{ background: i % 2 === 0 ? p.stripRow : "transparent" }}>
+                  <td style={{ padding: "10px 12px 10px 0", borderBottom: `1px solid ${p.borderFaint}` }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                       <div style={{ width: 20, height: 20, borderRadius: 4, background: t.gradient, flexShrink: 0 }} />
                       <div>
-                        <p style={{ color: "#fff", fontSize: 10, fontWeight: 600, margin: 0 }}>{t.name}</p>
-                        <p style={{ color: "rgba(255,255,255,0.3)", fontSize: 8, margin: 0 }}>{t.feeling.split(" · ")[0]}</p>
+                        <p style={{ color: p.text, fontSize: 10, fontWeight: 600, margin: 0 }}>{t.name}</p>
+                        <p style={{ color: p.faint, fontSize: 8, margin: 0 }}>{t.feeling.split(" · ")[0]}</p>
                       </div>
                     </div>
                   </td>
                   {vals.map((v, vi) => (
-                    <td key={vi} style={{ textAlign: "center", padding: "10px 8px", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+                    <td key={vi} style={{ textAlign: "center", padding: "10px 8px", borderBottom: `1px solid ${p.borderFaint}` }}>
                       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
-                        <span style={{ color: v >= 9 ? t.accent : v >= 7 ? "rgba(255,255,255,0.7)" : "rgba(255,255,255,0.4)", fontSize: 12, fontWeight: 700, lineHeight: 1 }}>{v}</span>
-                        <div style={{ width: 28, height: 2, background: "rgba(255,255,255,0.08)", borderRadius: 1, overflow: "hidden" }}>
+                        <span style={{ color: v >= 9 ? t.accent : v >= 7 ? p.text : p.muted, fontSize: 12, fontWeight: 700, lineHeight: 1 }}>{v}</span>
+                        <div style={{ width: 28, height: 2, background: p.vfaint, borderRadius: 1, overflow: "hidden" }}>
                           <div style={{ width: `${v * 10}%`, height: "100%", background: t.accent, borderRadius: 1 }} />
                         </div>
                       </div>
                     </td>
                   ))}
-                  <td style={{ textAlign: "center", padding: "10px 8px", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+                  <td style={{ textAlign: "center", padding: "10px 8px", borderBottom: `1px solid ${p.borderFaint}` }}>
                     <span style={{ color: t.accent, fontSize: 13, fontWeight: 700 }}>{avg}</span>
                   </td>
-                  <td style={{ padding: "10px 0 10px 8px", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+                  <td style={{ padding: "10px 0 10px 8px", borderBottom: `1px solid ${p.borderFaint}` }}>
                     <span style={{ background: `${t.accent}18`, border: `1px solid ${t.outerBorder}`, borderRadius: 4, padding: "2px 7px", color: t.accent, fontSize: 8, fontWeight: 600, whiteSpace: "nowrap" }}>
                       {a.recommendedUseCase}
                     </span>
@@ -684,7 +713,7 @@ function AnalyticsTab() {
 
       {/* Individual analytics cards */}
       <div>
-        <p style={{ color: "rgba(255,255,255,0.25)", fontSize: 8, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", margin: "0 0 12px" }}>
+        <p style={{ color: p.faint, fontSize: 8, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", margin: "0 0 12px" }}>
           Detailed breakdown
         </p>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 14 }}>
@@ -693,7 +722,7 @@ function AnalyticsTab() {
       </div>
 
       {/* Disclaimer */}
-      <p style={{ color: "rgba(255,255,255,0.18)", fontSize: 8.5, lineHeight: 1.6, margin: 0, textAlign: "center" }}>
+      <p style={{ color: p.faint, fontSize: 8.5, lineHeight: 1.6, margin: 0, textAlign: "center" }}>
         All scores are mocked estimates for prototype evaluation purposes only. Real-world performance requires A/B testing with live audiences.
       </p>
     </div>
@@ -707,6 +736,9 @@ export default function ThemeGalleryPage() {
   const [variant, setVariant]         = useState<Variant>("B");
   const [device, setDevice]           = useState<Device>("desktop");
   const [typography, setTypography]   = useState<TypographyMode>("electric");
+  const [pageMode, setPageMode]       = useState<"dark" | "light">("dark");
+  const dark = pageMode === "dark";
+  const p = pc(dark);
   const [surveyKey, setSurveyKey]     = useState(0);
   const [forceExpire, setForceExpire] = useState(0);
   const [events, setEvents]           = useState<Array<SurveyEvent & { id: number; time: string }>>([]);
@@ -737,7 +769,7 @@ export default function ThemeGalleryPage() {
   ];
 
   return (
-    <div style={{ minHeight: "100vh", background: PAGE_BG }}>
+    <div style={{ minHeight: "100vh", background: p.bg, transition: "background 0.25s ease" }}>
     <div style={{
       fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
       padding: "28px 24px 72px",
@@ -747,24 +779,51 @@ export default function ThemeGalleryPage() {
     }}>
 
       {/* ── Page header ── */}
-      <div style={{ marginBottom: 28 }}>
-        <div style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "rgba(215,184,122,0.1)", border: "1px solid rgba(215,184,122,0.3)", borderRadius: 20, padding: "3px 12px", marginBottom: 10 }}>
-          <span style={{ width: 5, height: 5, borderRadius: "50%", background: GOLD, display: "inline-block" }} />
-          <span style={{ color: GOLD, fontSize: 8, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase" }}>
-            Creative Lab · Theme Gallery
-          </span>
+      <div style={{ marginBottom: 28, display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16 }}>
+        <div>
+          <div style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "rgba(215,184,122,0.1)", border: "1px solid rgba(215,184,122,0.3)", borderRadius: 20, padding: "3px 12px", marginBottom: 10 }}>
+            <span style={{ width: 5, height: 5, borderRadius: "50%", background: GOLD, display: "inline-block" }} />
+            <span style={{ color: GOLD, fontSize: 8, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase" }}>
+              Creative Lab · Theme Gallery
+            </span>
+          </div>
+          <h1 style={{ color: p.text, fontSize: 26, fontWeight: 700, margin: "0 0 6px", letterSpacing: "-0.02em", transition: "color 0.25s ease" }}>
+            Survey Creative Gallery
+          </h1>
+          <p style={{ color: p.muted, fontSize: 11, margin: 0, lineHeight: 1.6, maxWidth: 580, transition: "color 0.25s ease" }}>
+            Compare survey creative concepts, colour themes and interaction patterns across 8 themes.
+            All interactive. Isolated at <code style={{ color: "rgba(215,184,122,0.6)", background: "rgba(215,184,122,0.08)", padding: "1px 5px", borderRadius: 3, fontSize: 9 }}>/creative-lab/theme-gallery</code>
+          </p>
         </div>
-        <h1 style={{ color: "#fff", fontSize: 26, fontWeight: 700, margin: "0 0 6px", letterSpacing: "-0.02em" }}>
-          Survey Creative Gallery
-        </h1>
-        <p style={{ color: "rgba(255,255,255,0.35)", fontSize: 11, margin: 0, lineHeight: 1.6, maxWidth: 580 }}>
-          Compare survey creative concepts, colour themes and interaction patterns across 8 themes and 2 variants.
-          All interactive. Isolated at <code style={{ color: "rgba(215,184,122,0.5)", background: "rgba(215,184,122,0.05)", padding: "1px 5px", borderRadius: 3, fontSize: 9 }}>/creative-lab/theme-gallery</code> — removable without affecting production.
-        </p>
+
+        {/* Dark / Light toggle */}
+        <button
+          onClick={() => setPageMode(m => m === "dark" ? "light" : "dark")}
+          title={dark ? "Switch to light mode" : "Switch to dark mode"}
+          style={{
+            flexShrink: 0,
+            marginTop: 4,
+            background: p.surface,
+            border: `1px solid ${p.border}`,
+            borderRadius: 20,
+            padding: "6px 14px",
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            gap: 7,
+            fontFamily: "inherit",
+            transition: "background 0.2s ease, border-color 0.2s ease",
+          }}
+        >
+          <span style={{ fontSize: 13 }}>{dark ? "☀" : "🌙"}</span>
+          <span style={{ color: p.muted, fontSize: 10, fontWeight: 600, letterSpacing: "0.04em", whiteSpace: "nowrap" }}>
+            {dark ? "Light mode" : "Dark mode"}
+          </span>
+        </button>
       </div>
 
       {/* ── Tab bar ── */}
-      <div style={{ display: "flex", borderBottom: "1px solid rgba(255,255,255,0.07)", marginBottom: 24, gap: 0 }}>
+      <div style={{ display: "flex", borderBottom: `1px solid ${p.divider}`, marginBottom: 24, gap: 0 }}>
         {TABS.map(({ id, label }) => {
           const active = activeTab === id;
           return (
@@ -773,7 +832,7 @@ export default function ThemeGalleryPage() {
               onClick={() => setActiveTab(id)}
               style={{
                 background: "none", border: "none", cursor: "pointer",
-                color: active ? "#fff" : "rgba(255,255,255,0.4)",
+                color: active ? p.text : p.muted,
                 fontSize: 11.5, fontWeight: active ? 700 : 400,
                 padding: "8px 18px 10px",
                 borderBottom: active ? `2px solid ${GOLD}` : "2px solid transparent",
@@ -805,6 +864,7 @@ export default function ThemeGalleryPage() {
           setTypography={setTypography}
           questions={questions}
           setQuestions={setQuestions}
+          dark={dark}
         />
       )}
 
@@ -815,18 +875,19 @@ export default function ThemeGalleryPage() {
           onRestart={restart}
           typography={typography}
           questions={questions}
+          dark={dark}
         />
       )}
 
       {activeTab === "archive" && (
-        <ArchiveTab surveyKey={surveyKey} typography={typography} questions={questions} />
+        <ArchiveTab surveyKey={surveyKey} typography={typography} questions={questions} dark={dark} />
       )}
 
       {activeTab === "original" && (
-        <OriginalTab surveyKey={surveyKey} questions={questions} />
+        <OriginalTab surveyKey={surveyKey} questions={questions} dark={dark} />
       )}
 
-      {activeTab === "analytics" && <AnalyticsTab />}
+      {activeTab === "analytics" && <AnalyticsTab dark={dark} />}
     </div>
     </div>
   );
