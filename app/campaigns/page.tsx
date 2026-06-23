@@ -6,6 +6,7 @@ import Link from "next/link";
 import Papa from "papaparse";
 import { AdminShell } from "@/app/components/AdminShell";
 import { useSession } from "@/app/components/SessionProvider";
+import { ThemedSurvey } from "@/app/embed/ThemedSurvey";
 import { isSurveyValidForReady } from "@/lib/survey-validation";
 import {
   availableActions,
@@ -164,6 +165,12 @@ const CREATIVE_THEMES: { id: string; name: string; gradient: string; text: strin
   { id: "ocean",            name: "Ocean",              gradient: "linear-gradient(180deg,#7DD3FC,#2563EB)", text: "#081421" },
   { id: "lime-energy",      name: "Lime Energy",        gradient: "linear-gradient(180deg,#F8F32B,#A3D92F)", text: "#10120B" },
   { id: "stadium-green",    name: "Stadium Green",      gradient: "linear-gradient(180deg,#64DD17,#0B5D1E)", text: "#fff"    },
+];
+
+const PREVIEW_QUESTIONS = [
+  { id: "p1", text: "Why do you watch football?",     options: [{ id:1, text:"Entertainment & Escape" }, { id:2, text:"Friends & Family" },   { id:3, text:"Inspiration & Ambition" }, { id:4, text:"Identity & Community" }] },
+  { id: "p2", text: "What shapes your match day?",    options: [{ id:1, text:"The Atmosphere" },          { id:2, text:"The Result" },          { id:3, text:"Social Experience" },      { id:4, text:"Player Performance" }]  },
+  { id: "p3", text: "What drives your club loyalty?", options: [{ id:1, text:"Local Pride" },              { id:2, text:"Family Tradition" },    { id:3, text:"Winning Culture" },         { id:4, text:"Player Heritage" }]     },
 ];
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
@@ -994,16 +1001,25 @@ export default function CampaignsPage() {
                 <div className="border border-gray-100 rounded-xl p-4 space-y-3">
                   <div className="flex items-center justify-between">
                     <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Creative Theme</p>
-                    {editing.creative_theme && (
-                      <button type="button" onClick={() => setEditing(x => ({ ...x, creative_theme: null }))}
-                        className="text-xs text-gray-400 hover:text-gray-600 underline">
-                        Remove (use default)
-                      </button>
-                    )}
+                    <div className="flex items-center gap-3">
+                      <a href="/creative-lab/theme-gallery" target="_blank" rel="noopener"
+                        className="text-xs font-medium underline"
+                        style={{ color: "#D7B87A" }}>
+                        Browse all designs →
+                      </a>
+                      {editing.creative_theme && (
+                        <button type="button" onClick={() => setEditing(x => ({ ...x, creative_theme: null }))}
+                          className="text-xs text-gray-400 hover:text-gray-600 underline">
+                          Remove
+                        </button>
+                      )}
+                    </div>
                   </div>
                   <p className="text-xs text-gray-400 leading-relaxed">
                     Select a visual theme for this campaign&apos;s survey MPU. Leave unset to use the standard production creative.
                   </p>
+
+                  {/* Swatch grid */}
                   <div className="grid grid-cols-2 gap-2">
                     {CREATIVE_THEMES.map(t => {
                       const active = editing.creative_theme === t.id;
@@ -1012,15 +1028,9 @@ export default function CampaignsPage() {
                           key={t.id} type="button"
                           onClick={() => setEditing(x => ({ ...x, creative_theme: active ? null : t.id }))}
                           className="flex items-center gap-2.5 p-2.5 rounded-lg border text-left transition-all"
-                          style={{
-                            borderColor: active ? "#D7B87A" : "#E5E7EB",
-                            background:  active ? "#FBF5E8" : "#fff",
-                          }}
+                          style={{ borderColor: active ? "#D7B87A" : "#E5E7EB", background: active ? "#FBF5E8" : "#fff" }}
                         >
-                          <div style={{
-                            width: 28, height: 28, borderRadius: 6, flexShrink: 0,
-                            background: t.gradient, border: "1px solid rgba(0,0,0,0.08)",
-                          }} />
+                          <div style={{ width:28, height:28, borderRadius:6, flexShrink:0, background:t.gradient, border:"1px solid rgba(0,0,0,0.08)" }} />
                           <span className="text-xs font-medium leading-tight" style={{ color: active ? "#0B1929" : "#374151" }}>
                             {t.name}
                           </span>
@@ -1029,10 +1039,28 @@ export default function CampaignsPage() {
                       );
                     })}
                   </div>
+
+                  {/* Live preview */}
                   {editing.creative_theme && (
-                    <p className="text-xs text-[#0B1929] bg-[#FBF5E8] border border-[#D7B87A]/30 rounded-lg px-3 py-2">
-                      Selected: <strong>{CREATIVE_THEMES.find(t => t.id === editing.creative_theme)?.name}</strong>
-                    </p>
+                    <div className="space-y-2 pt-1">
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                        Preview — {CREATIVE_THEMES.find(t => t.id === editing.creative_theme)?.name}
+                      </p>
+                      <div className="flex justify-center py-2">
+                        <ThemedSurvey
+                          key={editing.creative_theme}
+                          themeId={editing.creative_theme}
+                          questions={PREVIEW_QUESTIONS}
+                          thankYouTitle="Thank You"
+                          thankYouBody="Your anonymous feedback helps improve the football experience for fans everywhere."
+                          isPreview={true}
+                          campaignId="preview" surveyId={null} publisher={null} placement={null}
+                          club={null} competition={null} country={null} segment={null}
+                          device={null} browser={null} groupId={null} countryCode={null}
+                          market={null} surveyLanguage="en"
+                        />
+                      </div>
+                    </div>
                   )}
                 </div>
               )}
