@@ -3,6 +3,7 @@
 import { useState, useCallback, useRef } from "react";
 import { VariantA, type SurveyEvent as EventA } from "./VariantA";
 import { VariantB, type SurveyEvent as EventB } from "./VariantB";
+import { QuadrantSurvey } from "../quadrant-mode/QuadrantSurvey";
 import { THEMES, type Theme, type SurveyQuestion } from "./themes";
 import { type TypographyMode } from "./typography";
 
@@ -15,7 +16,7 @@ const DEFAULT_QUESTIONS: SurveyQuestion[] = [
 type Variant    = "A" | "B";
 const DESIGN_LABEL = "Design — Timer (300×250)";
 type Device     = "desktop" | "mobile";
-type Tab        = "gallery" | "sidebyside" | "analytics";
+type Tab        = "gallery" | "sidebyside" | "analytics" | "archive" | "original";
 type SurveyEvent = EventA | EventB;
 
 const PAGE_BG   = "#07101A";
@@ -518,6 +519,85 @@ function SideBySideTab({ surveyKey, forceExpire, onRestart, typography, question
   );
 }
 
+// ── Archive tab — Variant A (circle design) across all 8 themes ──────────────
+
+function ArchiveTab({ surveyKey, typography, questions }: {
+  surveyKey: number; typography: TypographyMode; questions: SurveyQuestion[];
+}) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 10, padding: "14px 18px" }}>
+        <p style={{ color: "#fff", fontSize: 13, fontWeight: 700, margin: "0 0 4px", letterSpacing: "-0.01em" }}>Archived — Question in Circle (Variant A)</p>
+        <p style={{ color: "rgba(255,255,255,0.35)", fontSize: 10, margin: 0, lineHeight: 1.5 }}>
+          The circle layout was evaluated but not selected for production. Retained here for reference.
+        </p>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: 28, justifyItems: "center" }}>
+        {THEMES.map((t) => (
+          <div key={t.id} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
+            <VariantA key={`arch-${surveyKey}-${t.id}`} theme={t} typography={typography} questions={questions} />
+            <div style={{ width: "100%", maxWidth: 300, textAlign: "center" }}>
+              <p style={{ color: "#fff", fontSize: 11, fontWeight: 700, margin: "0 0 2px" }}>{t.name}</p>
+              <p style={{ color: "rgba(255,255,255,0.35)", fontSize: 9, margin: 0 }}>{t.feeling}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Design - Original tab — V1 production creative ────────────────────────────
+
+function OriginalTab({ surveyKey, questions }: { surveyKey: number; questions: SurveyQuestion[] }) {
+  // QuadrantSurvey uses QMQuestion shape — same structure, compatible
+  const qmQuestions = questions.map(q => ({ text: q.text, answers: q.answers }));
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(215,184,122,0.2)", borderRadius: 10, padding: "14px 18px" }}>
+        <p style={{ color: "#fff", fontSize: 13, fontWeight: 700, margin: "0 0 4px", letterSpacing: "-0.01em" }}>Design — Original</p>
+        <p style={{ color: "rgba(255,255,255,0.35)", fontSize: 10, margin: 0, lineHeight: 1.5 }}>
+          The original Fanometrix survey creative — fixed navy/gold, no theme system. This is the reference point for how far the new designs have evolved.
+        </p>
+      </div>
+
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 32, alignItems: "flex-start" }}>
+        {/* Original creative */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 10, alignItems: "center" }}>
+          <div style={{ background: "rgba(215,184,122,0.1)", border: "1px solid rgba(215,184,122,0.3)", borderRadius: 5, padding: "3px 12px" }}>
+            <span style={{ color: GOLD, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase" }}>V1 Original — Fanometrix Navy/Gold</span>
+          </div>
+          <QuadrantSurvey key={`orig-${surveyKey}`} questions={qmQuestions} />
+        </div>
+
+        {/* Separator */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, justifyContent: "center", alignSelf: "center", padding: "0 8px" }}>
+          <div style={{ width: 1, height: 60, background: "rgba(255,255,255,0.06)", margin: "0 auto" }} />
+          <span style={{ color: "rgba(255,255,255,0.2)", fontSize: 9, textTransform: "uppercase", letterSpacing: "0.08em" }}>vs</span>
+          <div style={{ width: 1, height: 60, background: "rgba(255,255,255,0.06)", margin: "0 auto" }} />
+        </div>
+
+        {/* New design — Fanometrix Premium theme for a fair comparison */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 10, alignItems: "center" }}>
+          <div style={{ background: "rgba(215,184,122,0.1)", border: "1px solid rgba(215,184,122,0.3)", borderRadius: 5, padding: "3px 12px" }}>
+            <span style={{ color: GOLD, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase" }}>New Design — Fanometrix Premium</span>
+          </div>
+          <VariantB key={`orig-new-${surveyKey}`} theme={THEMES[0]} questions={questions} />
+        </div>
+      </div>
+
+      {/* Callout */}
+      <div style={{ maxWidth: 560, background: "rgba(215,184,122,0.05)", border: "1px solid rgba(215,184,122,0.15)", borderRadius: 8, padding: "12px 16px" }}>
+        <p style={{ color: "rgba(255,255,255,0.6)", fontSize: 10, margin: 0, lineHeight: 1.7 }}>
+          The original design uses a fixed navy background with a gold accent, a small 90px centre circle, and a progress ring that fills as questions are completed.
+          The new designs introduce themed gradients, a header bar, countdown timer, and the Electric Football typography system.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 // ── Analytics tab ─────────────────────────────────────────────────────────────
 
 function AnalyticsTab() {
@@ -651,6 +731,8 @@ export default function ThemeGalleryPage() {
   const TABS: { id: Tab; label: string }[] = [
     { id: "gallery",    label: "Gallery" },
     { id: "sidebyside", label: "Theme Preview" },
+    { id: "original",   label: "Design — Original" },
+    { id: "archive",    label: "Archive" },
     { id: "analytics",  label: "Analytics" },
   ];
 
@@ -734,6 +816,14 @@ export default function ThemeGalleryPage() {
           typography={typography}
           questions={questions}
         />
+      )}
+
+      {activeTab === "archive" && (
+        <ArchiveTab surveyKey={surveyKey} typography={typography} questions={questions} />
+      )}
+
+      {activeTab === "original" && (
+        <OriginalTab surveyKey={surveyKey} questions={questions} />
       )}
 
       {activeTab === "analytics" && <AnalyticsTab />}
