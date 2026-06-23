@@ -299,8 +299,8 @@ function Quadrant({ text, side, isSelected, isOther, isHovered, visible, onSelec
         opacity: isOther ? 0.6 : 1, transform:`scale(${scale})`,
         transition:"background 0.25s ease, opacity 0.25s ease, transform 0.15s ease, box-shadow 0.15s ease",
         boxShadow: isHovered && !isSelected && !isOther ? theme.hoverGlow : "none",
-        paddingLeft: side === "left" ? 16 : 0,
-        paddingRight: side === "right" ? 16 : 0,
+        paddingLeft:  side === "left"  ? 16 : 40,
+        paddingRight: side === "right" ? 16 : 40,
       }}>
       <span style={{
         color:textColor, fontSize:11.5, fontWeight:500, fontFamily:FONT_A,
