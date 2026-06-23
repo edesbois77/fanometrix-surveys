@@ -146,6 +146,16 @@ export const NAV_ITEMS: NavItemConfig[] = [
 
   // ── DEVELOPER (alphabetical) ──────────────────────────────────────────────
   {
+    href: "/creative-lab/theme-gallery",
+    label: "Creative Lab",
+    icon: "◈",
+    description: "Interactive survey creative gallery — compare themes, typography and interaction patterns with publishers.",
+    cta: "Open Creative Lab",
+    section: "developer-tool",
+    roles: ["admin"],
+    navGroup: "developer",
+  },
+  {
     href: "/access-requests",
     label: "Access Requests",
     icon: "◫",
