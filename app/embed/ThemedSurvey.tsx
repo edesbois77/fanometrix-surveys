@@ -305,6 +305,7 @@ function Quadrant({ text, side, isSelected, isOther, isHovered, visible, onSelec
       <span style={{
         color:textColor, fontSize:11.5, fontWeight:500, fontFamily:FONT_A,
         lineHeight:1.35, textAlign:side, whiteSpace:"pre-line",
+        width:"100%", minWidth:0,
         opacity: visible ? 1 : 0, transition:"opacity 0.22s ease, color 0.22s ease",
         pointerEvents:"none",
       }}>

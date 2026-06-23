@@ -168,9 +168,9 @@ const CREATIVE_THEMES: { id: string; name: string; gradient: string; text: strin
 ];
 
 const PREVIEW_QUESTIONS = [
-  { id: "p1", text: "Why do you watch football?",     options: [{ id:1, text:"Entertainment & Escape" }, { id:2, text:"Friends & Family" },   { id:3, text:"Inspiration & Ambition" }, { id:4, text:"Identity & Community" }] },
-  { id: "p2", text: "What shapes your match day?",    options: [{ id:1, text:"The Atmosphere" },          { id:2, text:"The Result" },          { id:3, text:"Social Experience" },      { id:4, text:"Player Performance" }]  },
-  { id: "p3", text: "What drives your club loyalty?", options: [{ id:1, text:"Local Pride" },              { id:2, text:"Family Tradition" },    { id:3, text:"Winning Culture" },         { id:4, text:"Player Heritage" }]     },
+  { id: "p1", text: "Why do you watch football?",     options: [{ id:1, text:"Entertainment\n& Escape" }, { id:2, text:"Friends\n& Family" },   { id:3, text:"Inspiration\n& Ambition" }, { id:4, text:"Identity &\nCommunity" }] },
+  { id: "p2", text: "What shapes your match day?",    options: [{ id:1, text:"The\nAtmosphere" },          { id:2, text:"The\nResult" },          { id:3, text:"Social\nExperience" },      { id:4, text:"Player\nPerformance" }]  },
+  { id: "p3", text: "What drives your club loyalty?", options: [{ id:1, text:"Local\nPride" },              { id:2, text:"Family\nTradition" },    { id:3, text:"Winning\nCulture" },         { id:4, text:"Player\nHeritage" }]     },
 ];
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
