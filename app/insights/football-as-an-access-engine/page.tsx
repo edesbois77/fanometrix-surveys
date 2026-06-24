@@ -213,16 +213,22 @@ function MarketProfile({
   const { display: statDisplay, ref: statRef } = useCountUp(stat ?? "");
   return (
     <div ref={ref} className="report-reveal border-t-[3px]" style={{ borderColor: GOLD }}>
-      <div className={`${PAD} pt-12 pb-10`} style={{ background: NAVY }}>
+      <div className={`${PAD} pt-12 pb-10 relative`} style={{ background: NAVY }}>
+        {stat && (
+          <div ref={statRef} className="hidden md:flex absolute right-6 md:right-16 lg:right-24 top-0 bottom-0 flex-col items-end justify-center text-right max-w-[200px]">
+            <p className="text-4xl md:text-6xl font-bold tabular-nums leading-none" style={{ color: GOLD }}>{statDisplay}</p>
+            {statLabel && <p className="text-xs uppercase tracking-widest mt-2 leading-relaxed" style={{ color: "rgba(255,255,255,0.45)" }}>{statLabel}</p>}
+          </div>
+        )}
         <div className={W}>
           <p className="text-[10px] font-bold tracking-[0.35em] uppercase mb-4 flex items-center gap-3" style={{ color: GOLD }}>
             <span className="w-6 h-px inline-block" style={{ background: GOLD }} />Market
           </p>
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6 mb-6">
+          <div className="mb-6">
             <h2 className="text-4xl md:text-6xl font-bold text-white leading-none tracking-tight">{flag} {market}</h2>
             {stat && (
-              <div ref={statRef} className="text-right flex-shrink-0 max-w-[200px]">
-                <p className="text-4xl md:text-6xl font-bold tabular-nums leading-none" style={{ color: GOLD }}>{statDisplay}</p>
+              <div ref={statRef} className="md:hidden mt-4 text-left">
+                <p className="text-4xl font-bold tabular-nums leading-none" style={{ color: GOLD }}>{statDisplay}</p>
                 {statLabel && <p className="text-xs uppercase tracking-widest mt-2 leading-relaxed" style={{ color: "rgba(255,255,255,0.45)" }}>{statLabel}</p>}
               </div>
             )}
@@ -566,7 +572,7 @@ function Methodology() {
         <p className="text-[9px] font-bold text-gray-400 uppercase tracking-[0.25em] mb-4">Methodology & Next Steps</p>
         <div className="text-sm text-gray-500 leading-relaxed space-y-4">
           <p>This report combines proprietary Fanometrix fan research with cross-market football intelligence to identify what supporters value most and how brands can create more meaningful football experiences.</p>
-          <p>During June 2026, Fanometrix surveyed more than 1,800 football fans across the United Kingdom, Germany and Sweden through in-context placements within football media environments including LiveScore and Football365. These findings were supplemented by strategic desk research across five major football markets: the United Kingdom, Germany, Sweden, India and China.</p>
+          <p>During June 2026, Fanometrix surveyed more than 1,800 football fans across the United Kingdom, Germany, India and Sweden through in-context placements within football media environments including LiveScore and Football365. These findings were supplemented by strategic desk research across five major football markets: the United Kingdom, Germany, Sweden, India and China.</p>
           <p>The objective was not to produce nationally representative market data, but to identify recurring themes, behaviours and sponsorship opportunities emerging across football audiences. While market nuances exist, a clear pattern emerged: fans consistently reward brands that improve their football experience rather than simply increase their visibility.</p>
           <p>The findings presented in this report should therefore be viewed as directional strategic intelligence designed to support early planning for UEFA EURO 2028.</p>
           <p><strong className="text-gray-700">Next phase:</strong> Fanometrix is now expanding its research programme to include larger market-specific samples, publisher behavioural signals, social conversation analysis and ongoing fan tracking. Future studies will provide deeper market-level insight and longitudinal measurement to help brands understand how supporter expectations evolve over time.</p>
@@ -590,17 +596,19 @@ function Report({ scrolled }: { scrolled: boolean }) {
           WebkitBackdropFilter: scrolled ? "blur(14px)" : "none",
           boxShadow: scrolled ? "0 1px 0 rgba(255,255,255,0.06)" : "none",
         }}>
-        <div className={`${W} ${PAD} h-14 flex items-center justify-between gap-4`}>
-          <Link href="/insights" className="flex items-center transition-opacity hover:opacity-70">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/Fanometrix_Logo.png" alt="Fanometrix" style={{ height: 15, objectFit: "contain" }} />
-          </Link>
-          <button
-            onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-            className="text-[10px] font-semibold uppercase tracking-[0.2em] transition-opacity hover:opacity-100"
-            style={{ color: GOLD, opacity: scrolled ? 0.6 : 0, pointerEvents: scrolled ? "auto" : "none" }}>
-            ↑ Back to top
-          </button>
+        <div className={PAD}>
+          <div className={`${W} h-14 flex items-center justify-between gap-4`}>
+            <Link href="/insights" className="flex items-center transition-opacity hover:opacity-70">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/Fanometrix_Logo.png" alt="Fanometrix" style={{ height: 15, objectFit: "contain" }} />
+            </Link>
+            <button
+              onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+              className="text-[10px] font-semibold uppercase tracking-[0.2em] transition-opacity hover:opacity-100"
+              style={{ color: GOLD, opacity: scrolled ? 0.6 : 0, pointerEvents: scrolled ? "auto" : "none" }}>
+              ↑ Back to top
+            </button>
+          </div>
         </div>
       </div>
 
@@ -825,17 +833,23 @@ export default function FootballAccessEnginePage() {
     return () => window.removeEventListener("scroll", fn);
   }, []);
 
-  // Restore scroll position after refresh
+  // Save scroll on unload
   useEffect(() => {
-    const saved = sessionStorage.getItem("faae-scroll-y");
-    if (saved) {
-      window.scrollTo(0, parseInt(saved, 10));
-      sessionStorage.removeItem("faae-scroll-y");
-    }
     const save = () => sessionStorage.setItem("faae-scroll-y", String(window.scrollY));
     window.addEventListener("beforeunload", save);
     return () => window.removeEventListener("beforeunload", save);
   }, []);
+
+  // Restore scroll only after content has rendered
+  useEffect(() => {
+    if (status !== "allowed") return;
+    const saved = sessionStorage.getItem("faae-scroll-y");
+    if (!saved) return;
+    sessionStorage.removeItem("faae-scroll-y");
+    const y = parseInt(saved, 10);
+    // Delay lets the DOM finish painting before scrolling
+    requestAnimationFrame(() => requestAnimationFrame(() => window.scrollTo(0, y)));
+  }, [status]);
 
   if (status === "loading") {
     return (
