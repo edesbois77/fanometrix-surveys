@@ -12,12 +12,31 @@ export type InsightContentType =
 export type InsightStatus = "draft" | "published" | "archived";
 export type InsightVisibility = "public" | "admin_only" | "restricted";
 
-export type InsightBlock = {
-  type: "heading" | "subheading" | "paragraph" | "image" | "quote" | "divider";
-  content?: string;
-  url?: string;
-  alt?: string;
-};
+export type InsightBlock =
+  // ── Report structure ──────────────────────────────────────────────────────
+  | { type: "hero"; headline: string; subheadline?: string; label?: string }
+  | { type: "exec_summary"; headline?: string; narrative: string; points?: string[] }
+  | { type: "chapter_break"; number: string; label: string; description?: string }
+  // ── Data & insight ─────────────────────────────────────────────────────────
+  | { type: "stat"; value: string; label: string; context?: string; source?: string }
+  | { type: "stat_row"; stats: Array<{ value: string; label: string; context?: string }> }
+  | { type: "insight_section"; chapter?: string; headline: string; narrative: string; stat?: string; stat_label?: string; implication?: string; recommendation?: string }
+  | { type: "pull_quote"; quote: string; attribution?: string }
+  | { type: "findings_list"; headline?: string; items: string[]; style?: "numbered" | "check" | "arrow" }
+  | { type: "comparison_table"; headline?: string; headers: string[]; rows: Array<{ label: string; values: string[] }> }
+  // ── Market deep-dive ───────────────────────────────────────────────────────
+  | { type: "market_profile"; market: string; headline: string; stat?: string; stat_label?: string; narrative: string; findings?: string[]; opportunity?: string; recommendation?: string }
+  // ── Action & framing ──────────────────────────────────────────────────────
+  | { type: "recommendation"; number?: number; headline: string; body: string }
+  | { type: "methodology"; headline?: string; body: string }
+  | { type: "download_cta"; headline?: string; description?: string; primary_label?: string; primary_url?: string; secondary_label?: string; secondary_url?: string }
+  // ── Legacy / basic ─────────────────────────────────────────────────────────
+  | { type: "heading"; content: string }
+  | { type: "subheading"; content: string }
+  | { type: "paragraph"; content: string }
+  | { type: "quote"; content: string }
+  | { type: "divider" }
+  | { type: "image"; url: string; alt?: string };
 
 export type Insight = {
   id: string;
