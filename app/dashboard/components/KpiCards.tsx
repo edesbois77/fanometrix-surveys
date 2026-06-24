@@ -17,6 +17,7 @@ function avg(nums: (number | null)[]): number {
 
 function pct(num: number, denom: number): string {
   if (!denom) return "—";
+  if (!num)   return "0%";
   const v = (num / denom) * 100;
   return v < 0.1 ? "<0.1%" : `${v.toFixed(v < 10 ? 1 : 0)}%`;
 }
