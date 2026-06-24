@@ -173,6 +173,42 @@ export interface ThemedSurveyProps {
   surveyLanguage: string;
 }
 
+// ── Answer text formatter ─────────────────────────────────────────────────────
+// Inserts a line break so the visual weight of the text leans away from the
+// centre circle:  top quadrants → first line longer,  bottom → second line longer.
+// Uses character counts (not word counts) so short words like "and" don't skew it.
+
+function formatAnswer(text: string, isTopRow: boolean): string {
+  if (text.includes('\n')) return text; // already has explicit breaks — respect them
+  const words = text.split(' ');
+  if (words.length <= 1) return text;   // single word, nothing to split
+
+  // For exactly 2 words: only split if it creates the right distribution
+  if (words.length === 2) {
+    const [w1, w2] = words;
+    if (isTopRow && w1.length >= w2.length) return `${w1}\n${w2}`;
+    if (!isTopRow && w2.length >= w1.length) return `${w1}\n${w2}`;
+    return text; // wrong distribution — keep as one line
+  }
+
+  // For 3+ words: find the word boundary closest to the target split ratio.
+  // Top row wants ~60% of characters on line 1 (longer first line).
+  // Bottom row wants ~40% of characters on line 1 (longer second line).
+  const target = text.length * (isTopRow ? 0.60 : 0.40);
+
+  for (let i = 0; i < words.length - 1; i++) {
+    const line1Len = words.slice(0, i + 2).join(' ').length; // length IF we include next word
+    if (line1Len > target) {
+      // Adding the next word would exceed the target — split here
+      return words.slice(0, i + 1).join(' ') + '\n' + words.slice(i + 1).join(' ');
+    }
+  }
+
+  // Fallback: split at the middle word
+  const mid = Math.ceil(words.length / 2);
+  return words.slice(0, mid).join(' ') + '\n' + words.slice(mid).join(' ');
+}
+
 // ── Timer circle ──────────────────────────────────────────────────────────────
 
 function TimerCircle({ timeLeft, isRunning, expired, pulse, visible, theme }: {
@@ -504,9 +540,10 @@ export function ThemedSurvey(props: ThemedSurveyProps) {
         {[0, 1, 2, 3].map(gridIdx => {
           const optionIdx = GRID_TO_ANS[gridIdx];
           const option    = q?.options[optionIdx];
+          const isTopRow  = gridIdx <= 1;
           return (
             <Quadrant key={gridIdx}
-              text={option?.text ?? ""}
+              text={formatAnswer(option?.text ?? "", isTopRow)}
               side={gridIdx % 2 === 0 ? "left" : "right"}
               isSelected={selectedIdx === gridIdx}
               isOther={selectedIdx !== null && selectedIdx !== gridIdx}
