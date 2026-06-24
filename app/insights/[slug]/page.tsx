@@ -254,6 +254,34 @@ function ChartRow({
   );
 }
 
+// ─── BLOCK: Insight Cards ─────────────────────────────────────────────────────
+
+function InsightCardsBlock({ b }: { b: Extract<InsightBlock, { type: "insight_cards" }> }) {
+  const ref = useReveal(0.1);
+  return (
+    <div ref={ref} className="report-reveal bg-white px-6 md:px-16 lg:px-24 pb-12">
+      <div className={`${MAX_W} mx-auto`}>
+        {b.headline && (
+          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.25em] mb-6">{b.headline}</p>
+        )}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
+          {b.cards.map((card, i) => (
+            <div key={i} className="border-l-[3px] pl-5 py-1 pr-4" style={{ borderColor: GOLD }}>
+              <p className="text-sm font-bold mb-1.5 leading-snug" style={{ color: NAVY }}>{card.title}</p>
+              <p className="text-sm text-gray-500 leading-relaxed">{card.body}</p>
+            </div>
+          ))}
+        </div>
+        {b.note && (
+          <p className="text-xs text-gray-400 leading-relaxed border-t border-gray-100 pt-5 italic max-w-3xl">
+            {b.note}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── BLOCK: Stat ──────────────────────────────────────────────────────────────
 
 function StatBlock({ b }: { b: Extract<InsightBlock, { type: "stat" }> }) {
@@ -798,6 +826,7 @@ function BlockRenderer({ block }: { block: InsightBlock }) {
     case "exec_summary":     return <ExecSummaryBlock b={block} />;
     case "chapter_break":    return <ChapterBreakBlock b={block} />;
     case "survey_chart":     return <SurveyChartBlock b={block} />;
+    case "insight_cards":    return <InsightCardsBlock b={block} />;
     case "stat":             return <StatBlock b={block} />;
     case "stat_row":         return <StatRowBlock b={block} />;
     case "insight_section":  return <InsightSectionBlock b={block} />;

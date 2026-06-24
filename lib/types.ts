@@ -26,6 +26,8 @@ export type InsightBlock =
   | { type: "comparison_table"; headline?: string; headers: string[]; rows: Array<{ label: string; values: string[] }> }
   // ── Survey data visualisation ─────────────────────────────────────────────
   | { type: "survey_chart"; question: string; source?: string; items: Array<{ label: string; value: number; highlight?: boolean }> }
+  // ── Editorial insight cards (2×2 grid) ────────────────────────────────────
+  | { type: "insight_cards"; headline?: string; cards: Array<{ title: string; body: string }>; note?: string }
   // ── Visual pyramid framework ──────────────────────────────────────────────
   | { type: "pyramid"; title: string; subtitle?: string; levels: Array<{ number: number; label: string; sublabel?: string; description?: string }> }
   // ── Market deep-dive ───────────────────────────────────────────────────────
