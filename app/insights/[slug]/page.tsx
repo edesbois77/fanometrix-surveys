@@ -272,11 +272,6 @@ function InsightCardsBlock({ b }: { b: Extract<InsightBlock, { type: "insight_ca
             </div>
           ))}
         </div>
-        {b.note && (
-          <p className="text-xs text-gray-400 leading-relaxed border-t border-gray-100 pt-5 italic max-w-3xl">
-            {b.note}
-          </p>
-        )}
       </div>
     </div>
   );
