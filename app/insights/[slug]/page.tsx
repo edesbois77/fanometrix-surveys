@@ -264,10 +264,10 @@ function InsightCardsBlock({ b }: { b: Extract<InsightBlock, { type: "insight_ca
         {b.headline && (
           <p className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.25em] mb-6">{b.headline}</p>
         )}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
           {b.cards.map((card, i) => (
             <div key={i} className="border-l-[3px] pl-5 py-1 pr-4" style={{ borderColor: GOLD }}>
-              <p className="text-sm font-bold mb-1.5 leading-snug" style={{ color: NAVY }}>{card.title}</p>
+              <p className="text-sm font-bold mb-1 leading-snug" style={{ color: NAVY }}>{card.title}</p>
               <p className="text-sm text-gray-500 leading-relaxed">{card.body}</p>
             </div>
           ))}
