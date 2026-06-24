@@ -258,34 +258,18 @@ export const NAV_ITEMS: NavItemConfig[] = [
     external: true,
   },
 
-  // ── Brand / Agency / Publisher — Dashboard in home group ─────────────────
+  // ── Publisher — Dashboard in home group ──────────────────────────────────
+  // Brand and Agency: Insights only at this stage.
+  // Publisher: Dashboard + Publisher Performance only.
   {
     href: "/dashboard",
     label: "Dashboard",
     icon: "▦",
     description: "Live fan response data, KPI cards, trend charts and audience breakdowns.",
     cta: "Open Dashboard",
-    roles: ["brand", "agency", "publisher"],
+    roles: ["publisher"],
     navGroup: "home",
     section: "home",
-  },
-  {
-    href: "/campaign-reports",
-    label: "Campaign Reports",
-    icon: "↗",
-    description: "Detailed reports for your active and completed fan survey campaigns.",
-    cta: "View Reports",
-    roles: ["brand", "agency"],
-    navGroup: "home",
-  },
-  {
-    href: "/exports",
-    label: "Exports",
-    icon: "⬇",
-    description: "Download fan data and campaign results as CSV for your own analysis.",
-    cta: "Export Data",
-    roles: ["brand", "agency"],
-    navGroup: "home",
   },
   {
     href: "/insights",
@@ -297,14 +281,14 @@ export const NAV_ITEMS: NavItemConfig[] = [
     navGroup: "home",
   },
 
-  // ── Agency / Publisher ────────────────────────────────────────────────────
+  // ── Publisher ─────────────────────────────────────────────────────────────
   {
     href: "/publisher-performance",
     label: "Publisher Performance",
     icon: "◉",
     description: "Audience reach, response rates and engagement metrics for your platforms.",
     cta: "View Performance",
-    roles: ["agency", "publisher"],
+    roles: ["publisher"],
     navGroup: "home",
   },
 ];

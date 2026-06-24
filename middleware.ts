@@ -27,6 +27,14 @@ const PUBLIC_PATHS = new Set([
 // API paths that must remain public (auth endpoints, embed submissions, external Looker/reporting)
 const PUBLIC_API_PREFIXES = ["/api/auth", "/api/submit", "/api/reporting", "/api/embed", "/api/access-requests", "/api/publisher", "/api/dashboard"];
 
+// Routes restricted to brand/agency (not accessible at this stage — redirect to /insights)
+const BRAND_AGENCY_RESTRICTED = [
+  "/dashboard",
+  "/campaign-reports",
+  "/exports",
+  "/publisher-performance",
+];
+
 // Routes only admins may access
 const ADMIN_ONLY_PREFIXES = [
   "/survey-templates",
@@ -148,6 +156,16 @@ export async function middleware(req: NextRequest) {
   // Force password change — gate all protected routes until the user sets a new password
   if (session.forcePasswordChange && pathname !== "/change-password") {
     return NextResponse.redirect(new URL("/change-password", req.url));
+  }
+
+  // Brand/Agency: send /home → /insights and block restricted routes
+  if (session.role === "brand" || session.role === "agency") {
+    if (pathname === "/home") {
+      return NextResponse.redirect(new URL("/insights", req.url));
+    }
+    if (BRAND_AGENCY_RESTRICTED.some((p) => pathname.startsWith(p))) {
+      return NextResponse.redirect(new URL("/insights", req.url));
+    }
   }
 
   // Admin-only routes
