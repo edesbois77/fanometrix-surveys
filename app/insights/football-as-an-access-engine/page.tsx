@@ -100,7 +100,14 @@ function Hero() {
         <p className="text-lg md:text-xl max-w-xl leading-relaxed font-light tracking-wide" style={{ color: "rgba(255,255,255,0.55)" }}>
           Understanding what football fans value and how Carlsberg can turn UEFA EURO 2028 into a platform for access, participation and community impact.
         </p>
-        <div className="w-14 h-[3px] mt-10 mb-8" style={{ background: GOLD }} />
+        <div className="w-14 h-[3px] mt-10 mb-6" style={{ background: GOLD }} />
+        <div className="flex flex-wrap gap-2 mb-6">
+          {["Dentsu", "Carlsberg"].map(tag => (
+            <span key={tag} className="text-[10px] font-semibold uppercase tracking-[0.15em] px-3 py-1.5 rounded-full border" style={{ borderColor: "rgba(215,184,122,0.3)", color: "rgba(215,184,122,0.7)", background: "rgba(215,184,122,0.06)" }}>
+              {tag}
+            </span>
+          ))}
+        </div>
         <button
           data-no-print
           onClick={() => window.print()}
