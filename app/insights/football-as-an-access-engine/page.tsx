@@ -128,7 +128,7 @@ function ExecSummary() {
         <h2 className="text-2xl md:text-3xl font-bold mb-5 leading-snug max-w-2xl" style={{ color: NAVY }}>What this report tells you</h2>
         <div className="text-gray-500 text-base md:text-lg leading-relaxed mb-10 font-light space-y-4">
           <p>This report draws on Fanometrix fan survey data - collected across LiveScore and Football365 publisher audiences, representing approximately 1,800 football fans predominantly from the UK with additional Germany and Sweden representation - alongside desk research across five markets.</p>
-          <p>The consistent signal across both data sources and the wider desk research is this: fans value experiences over exposure, participation over interruption and utility over visibility. Sponsorship is most effective when it creates tangible fan value - through access, community investment, better football experiences and content that unlocks something real.</p>
+          <p>The consistent signal across both data sources and the wider desk research is this: Fans value experiences, participation and utility. Media and content are most effective when they help deliver or amplify those benefits. Sponsorship is most effective when it creates tangible fan value - through access, community investment, better football experiences and content that unlocks something real.</p>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {points.map((pt, i) => (
@@ -617,11 +617,11 @@ function Report({ scrolled }: { scrolled: boolean }) {
       <Hero />
 
       <ExecSummary />
-      <Divider />
+      <HowWeAskedFans />
 
       {/* ── Insight 01 ── */}
       <ChapterBreak number="INSIGHT 01" title="Why Grassroots Wins"
-        description="Grassroots investment turns sponsorship from visibility into contribution." />
+        description="Grassroots investment turns sponsorship from visibility into contribution. Publisher media, content and creator partnerships remain critical because they are the mechanisms through which fans discover, experience and share that contribution." />
       <InsightBlock
         headline="Authenticity is earned at the grassroots"
         narrative={
@@ -793,8 +793,6 @@ function Report({ scrolled }: { scrolled: boolean }) {
         body="Track whether the partnership improves fan perception, brand trust, access, participation and community impact - not just reach, impressions and awareness. The Football Collective can provide both the media delivery and the fan research infrastructure to measure what is actually changing. Define targets before the tournament begins." />
 
       {/* <DownloadSection /> */}
-      <div className="h-16 bg-white" />
-      <HowWeAskedFans />
       <Methodology />
 
       {/* Footer */}
