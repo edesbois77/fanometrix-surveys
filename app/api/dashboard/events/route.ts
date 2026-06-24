@@ -12,6 +12,10 @@ export async function GET(req: NextRequest) {
 
   const p            = req.nextUrl.searchParams;
   const campaign_id  = p.get("campaign_id")  || null;
+  // campaign_ids: comma-separated list used when scoping by survey (multiple campaigns)
+  const campaign_ids = p.get("campaign_ids")
+    ? p.get("campaign_ids")!.split(",").filter(Boolean)
+    : null;
   const publisher    = p.get("publisher")    || null;
   const placement    = p.get("placement")    || null;
   const country      = p.get("country")      || null;
@@ -27,7 +31,8 @@ export async function GET(req: NextRequest) {
       .select("*", { count: "exact", head: true })
       .eq("event_type", eventType);
 
-    if (campaign_id) q = q.eq("campaign_id", campaign_id);
+    if (campaign_id)        q = q.eq("campaign_id", campaign_id);
+    else if (campaign_ids)  q = q.in("campaign_id", campaign_ids);
     if (publisher)   q = q.eq("publisher",   publisher);
     if (placement)   q = q.eq("placement",   placement);
     if (country)     q = q.eq("country",     country);

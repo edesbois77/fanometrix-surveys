@@ -53,7 +53,7 @@ function uniqueVals(data: SurveyResponse[], field: keyof SurveyResponse): string
   return [...new Set(data.map(r => r[field] as string).filter(Boolean))].sort();
 }
 
-type CampaignOption = { campaign_id: string; campaign_name: string; created_at: string };
+type CampaignOption = { campaign_id: string; campaign_name: string; created_at: string; survey_id?: string | null };
 
 interface Props {
   allResponses: SurveyResponse[];
@@ -82,6 +82,11 @@ export function DashboardFilters({
   const sortedCampaigns = [...campaigns].sort(
     (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
   );
+
+  // When a survey is selected, restrict the campaign dropdown to campaigns using that survey
+  const campaignDropdownOptions = filters.survey_id
+    ? sortedCampaigns.filter(c => c.survey_id === filters.survey_id)
+    : sortedCampaigns;
 
   // All active filter chips (dimensions + date + q answers)
   const chips: { label: string; field: keyof DashFilters | "__date__"; value: string }[] = [];
@@ -193,8 +198,12 @@ export function DashboardFilters({
               onChange={e => setFilter("campaign_id", e.target.value)}
               className="w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 text-gray-700 focus:outline-none focus:border-[#D7B87A]"
             >
-              <option value="">All Campaigns</option>
-              {sortedCampaigns.map(c => (
+              <option value="">
+                {filters.survey_id && campaignDropdownOptions.length > 0
+                  ? `All Campaigns (${campaignDropdownOptions.length})`
+                  : "All Campaigns"}
+              </option>
+              {campaignDropdownOptions.map(c => (
                 <option key={c.campaign_id} value={c.campaign_id}>
                   {c.campaign_name || c.campaign_id}
                 </option>

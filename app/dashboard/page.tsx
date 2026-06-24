@@ -160,12 +160,23 @@ export default function DashboardPage() {
   // Fetch event counts — re-runs when filters or date bounds change
   useEffect(() => {
     const p = new URLSearchParams();
-    if (filters.campaign_id) p.set("campaign_id", filters.campaign_id);
-    if (filters.publisher)   p.set("publisher",   filters.publisher);
-    if (filters.placement)   p.set("placement",   filters.placement);
-    if (filters.country)     p.set("country",     filters.country);
-    if (filters.device)      p.set("device",      filters.device);
-    if (filters.browser)     p.set("browser",     filters.browser);
+
+    // Campaign scope: a single campaign takes priority; otherwise scope by survey's campaigns
+    if (filters.campaign_id) {
+      p.set("campaign_id", filters.campaign_id);
+    } else if (filters.survey_id) {
+      const ids = campaigns
+        .filter(c => c.survey_id === filters.survey_id)
+        .map(c => c.campaign_id);
+      if (ids.length) p.set("campaign_ids", ids.join(","));
+    }
+
+    if (filters.publisher) p.set("publisher", filters.publisher);
+    if (filters.placement) p.set("placement", filters.placement);
+    if (filters.country)   p.set("country",   filters.country);
+    if (filters.device)    p.set("device",    filters.device);
+    if (filters.browser)   p.set("browser",   filters.browser);
+
     const activeCamp = campaigns.find(c => c.campaign_id === filters.campaign_id) ?? null;
     const bounds = getDateBounds(datePreset, dateFrom, dateTo, activeCamp);
     if (bounds) {
@@ -179,7 +190,7 @@ export default function DashboardPage() {
       .catch(() => setEventCounts(null))
       .finally(() => setEventsLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters.campaign_id, filters.publisher, filters.placement, filters.country, filters.device, filters.browser, datePreset, dateFrom, dateTo, campaigns]);
+  }, [filters.campaign_id, filters.survey_id, filters.publisher, filters.placement, filters.country, filters.device, filters.browser, datePreset, dateFrom, dateTo, campaigns]);
 
   // Derive filtered dataset
   const activeCampaign = useMemo(
