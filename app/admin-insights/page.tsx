@@ -159,7 +159,7 @@ function BlockEditor({ block, onChange }: { block: InsightBlock; onChange: (b: I
           <Field label="Label *"><input className={IN} value={block.label} onChange={e=>set("label",e.target.value)} placeholder="of fans said..." /></Field>
         </div>
         <Field label="Context"><input className={IN} value={block.context??""} onChange={e=>set("context",e.target.value)} /></Field>
-        <Field label="Source"><input className={IN} value={block.source??""} onChange={e=>set("source",e.target.value)} placeholder="Fanometrix Fan Survey 2025" /></Field>
+        <Field label="Source"><input className={IN} value={block.source??""} onChange={e=>set("source",e.target.value)} placeholder="Fanometrix Fan Survey 2026" /></Field>
       </div>;
 
     case "stat_row": {

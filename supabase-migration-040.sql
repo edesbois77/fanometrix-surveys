@@ -32,7 +32,7 @@ SET content_blocks = $blocks$
   {
     "type": "survey_chart",
     "question": "Which of the following would make you feel that a brand is genuinely giving back to football fans?",
-    "source": "Fanometrix Fan Survey 2025",
+    "source": "Fanometrix Fan Survey 2026",
     "items": [
       { "label": "Supporting grassroots and local communities", "value": 44, "highlight": true },
       { "label": "Access to matches and experiences",           "value": 26 },
@@ -44,7 +44,7 @@ SET content_blocks = $blocks$
   {
     "type": "pull_quote",
     "quote": "Fans don't want brands to sponsor football. They want brands to improve football.",
-    "attribution": "Fanometrix Fan Survey Insight, 2025"
+    "attribution": "Fanometrix Fan Survey Insight, 2026"
   },
   {
     "type": "chapter_break",
@@ -250,7 +250,7 @@ SET content_blocks = $blocks$
   {
     "type": "pull_quote",
     "quote": "The brands that win in football over the next decade will not be the most visible. They will be the brands that make football better.",
-    "attribution": "Fanometrix Football Intelligence Report, 2025"
+    "attribution": "Fanometrix Football Intelligence Report, 2026"
   },
   {
     "type": "download_cta",

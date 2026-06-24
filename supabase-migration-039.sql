@@ -39,7 +39,7 @@ SET
     "value": "44%",
     "label": "of fans say supporting grassroots football and local communities is the clearest sign a brand is genuinely giving back.",
     "context": "When asked which brand behaviours demonstrate genuine commitment to football, grassroots and community investment ranked first — ahead of match access, rewards, events and content combined.",
-    "source": "Fanometrix Fan Survey 2025"
+    "source": "Fanometrix Fan Survey 2026"
   },
   {
     "type": "stat_row",
@@ -52,7 +52,7 @@ SET
   {
     "type": "pull_quote",
     "quote": "Fans don't want brands to sponsor football. They want brands to improve football.",
-    "attribution": "Fanometrix Fan Survey Insight, 2025"
+    "attribution": "Fanometrix Fan Survey Insight, 2026"
   },
   {
     "type": "chapter_break",
@@ -233,7 +233,7 @@ SET
   {
     "type": "pull_quote",
     "quote": "The brands that win in football over the next decade will not be the most visible. They will be the brands that make football better.",
-    "attribution": "Fanometrix Football Intelligence Report, 2025"
+    "attribution": "Fanometrix Football Intelligence Report, 2026"
   },
   {
     "type": "download_cta",
