@@ -118,11 +118,10 @@ function ExecSummary() {
       <div className={W}>
         <GoldLabel>Executive Summary</GoldLabel>
         <h2 className="text-2xl md:text-3xl font-bold mb-5 leading-snug max-w-2xl" style={{ color: NAVY }}>What this report tells you</h2>
-        <p className="text-gray-500 text-base md:text-lg leading-relaxed mb-10 font-light">
-          This report draws on Fanometrix fan survey data — collected across LiveScore and Football365 publisher audiences, representing approximately 1,800 football fans predominantly from the UK with additional Germany and Sweden representation — alongside desk research across five markets. The LiveScore sample (~1,339 responses) provides the primary evidence base. Football365 results (33–72 responses per question) are treated as directional validation: they help confirm the pattern but do not drive conclusions independently.
-
-          The consistent signal across both data sources and the wider desk research is this: fans value experiences over exposure, participation over interruption, and utility over visibility. Sponsorship is most effective when it creates tangible fan value — through access, community investment, better football experiences and content that unlocks something real.
-        </p>
+        <div className="text-gray-500 text-base md:text-lg leading-relaxed mb-10 font-light space-y-4">
+          <p>This report draws on Fanometrix fan survey data — collected across LiveScore and Football365 publisher audiences, representing approximately 1,800 football fans predominantly from the UK with additional Germany and Sweden representation — alongside desk research across five markets.</p>
+          <p>The consistent signal across both data sources and the wider desk research is this: fans value experiences over exposure, participation over interruption, and utility over visibility. Sponsorship is most effective when it creates tangible fan value — through access, community investment, better football experiences and content that unlocks something real.</p>
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {points.map((pt, i) => (
             <div key={i} className="flex gap-4 items-start border border-gray-200 rounded-xl px-5 py-4 hover:border-gray-300 transition-colors">
@@ -168,7 +167,7 @@ function InsightBlock({
         {chapter && <GoldLabel>{chapter}</GoldLabel>}
         <h2 className="text-3xl md:text-5xl font-bold leading-tight tracking-tight mb-10 max-w-3xl" style={{ color: NAVY }}>{headline}</h2>
         <div className="grid grid-cols-1 md:grid-cols-12 gap-8 mb-10">
-          <div className="md:col-span-7">
+          <div className={stat ? "md:col-span-7" : "md:col-span-12"}>
             <div className="text-base text-gray-500 leading-[1.8] space-y-4">
               {typeof narrative === "string"
                 ? narrative.split("\n\n").map((p, i) => <p key={i}>{p}</p>)
@@ -438,12 +437,12 @@ function Methodology() {
       <div className={W}>
         <p className="text-[9px] font-bold text-gray-400 uppercase tracking-[0.25em] mb-4">Methodology & Next Steps</p>
         <p className="text-sm text-gray-500 leading-relaxed max-w-2xl mb-5">
-          This report was developed as a fast-turnaround strategic intelligence exercise to support early planning around Carlsberg, UEFA and EURO 2028. Fan survey data was collected across Fanometrix publisher network audiences — primarily LiveScore (~1,339 responses, primary evidence base) and Football365 (33–72 responses per question, used as directional validation). Respondents are predominantly UK-based football fans, with additional representation from Germany and Sweden. Football365 sub-samples are small enough that they should be read as confirming the LiveScore pattern rather than driving independent conclusions.
+          This report was developed as a fast-turnaround strategic intelligence exercise to support early planning around Carlsberg, UEFA and EURO 2028. Fan survey data was collected across Fanometrix publisher network audiences - LiveScore and Football365. Respondents are predominantly UK-based football fans, with additional representation from Germany and Sweden. Football365 sub-samples are small enough that they should be read as confirming the LiveScore pattern rather than driving independent conclusions.
 
           Desk research covers the United Kingdom, Germany, Sweden, India and China, drawing on publicly available data from UEFA, Nielsen Sports, Statista, local football associations and regional media organisations. All survey findings should be treated as directional indicators rather than nationally representative market data.
         </p>
         <p className="text-sm text-gray-500 leading-relaxed max-w-2xl">
-          A future Fanometrix programme would be structured over a longer period and could combine planned partner inventory, larger sample sizes, market-specific survey deployment, social listening, publisher behavioural signals and ongoing fan tracking. This would allow Carlsberg and Dentsu to move from directional intelligence to a continuous football fan learning engine — combining media delivery, fan research and campaign measurement across the full EURO 2028 planning cycle.
+          A future Fanometrix programme would be structured over a longer period and could combine planned partner inventory, larger sample sizes, market-specific survey deployment, social listening, publisher behavioural signals and ongoing fan tracking. This would allow Carlsberg and Dentsu to move from directional intelligence to a continuous football fan learning engine - combining media delivery, fan research and campaign measurement across the full EURO 2028 planning cycle.
         </p>
       </div>
     </div>
@@ -484,7 +483,7 @@ function Report({ scrolled }: { scrolled: boolean }) {
             <p>Grassroots and community investment performs strongly because it feels additive. It supports the places where football starts, strengthens the local game and creates a benefit that sits beyond matchday advertising.</p>
             <div className="border-l-[3px] pl-5 py-1 my-2" style={{ borderColor: GOLD }}>
               <p className="text-[9px] font-bold uppercase tracking-[0.25em] mb-1.5" style={{ color: GOLD }}>Survey Signal — Directional</p>
-              <p className="text-sm leading-relaxed" style={{ color: "#4B5563" }}>Across approximately 1,800 football fans surveyed through LiveScore and Football365 publisher audiences, grassroots and community investment ranked first as the indicator of genuine brand commitment — ahead of match access, rewards, fan events and branded content. The Football365 sub-samples (33–72 responses per question) directionally confirm the pattern seen in the larger LiveScore data.</p>
+              <p className="text-sm leading-relaxed" style={{ color: "#4B5563" }}>Across approximately 1,800 football fans surveyed through LiveScore and Football365 publisher audiences, grassroots and community investment ranked first as the indicator of genuine brand commitment — ahead of match access, rewards, fan events and branded content. The Football365 sub-samples directionally confirm the pattern seen in the larger LiveScore data.</p>
             </div>
             <p>This matters for Carlsberg because UEFA EURO 2028 will create large-scale visibility. Visibility creates reach; it does not create the contribution story fans are looking for. A clear, funded grassroots commitment — delivered through partners, content and community programmes — turns that visibility into something fans can understand, respect and share.</p>
           </>
