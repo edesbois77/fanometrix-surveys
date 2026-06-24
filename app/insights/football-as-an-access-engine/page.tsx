@@ -98,7 +98,7 @@ function Hero() {
           Football as an<br />Access Engine
         </h1>
         <p className="text-lg md:text-xl max-w-xl leading-relaxed font-light tracking-wide" style={{ color: "rgba(255,255,255,0.55)" }}>
-          Understanding what football fans value, and how Carlsberg can turn UEFA EURO 2028 into a platform for access, participation and community impact.
+          Understanding what football fans value and how Carlsberg can turn UEFA EURO 2028 into a platform for access, participation and community impact.
         </p>
         <div className="w-14 h-[3px] mt-10" style={{ background: GOLD }} />
       </div>
@@ -120,7 +120,7 @@ function ExecSummary() {
         <h2 className="text-2xl md:text-3xl font-bold mb-5 leading-snug max-w-2xl" style={{ color: NAVY }}>What this report tells you</h2>
         <div className="text-gray-500 text-base md:text-lg leading-relaxed mb-10 font-light space-y-4">
           <p>This report draws on Fanometrix fan survey data - collected across LiveScore and Football365 publisher audiences, representing approximately 1,800 football fans predominantly from the UK with additional Germany and Sweden representation - alongside desk research across five markets.</p>
-          <p>The consistent signal across both data sources and the wider desk research is this: fans value experiences over exposure, participation over interruption, and utility over visibility. Sponsorship is most effective when it creates tangible fan value - through access, community investment, better football experiences and content that unlocks something real.</p>
+          <p>The consistent signal across both data sources and the wider desk research is this: fans value experiences over exposure, participation over interruption and utility over visibility. Sponsorship is most effective when it creates tangible fan value - through access, community investment, better football experiences and content that unlocks something real.</p>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {points.map((pt, i) => (
@@ -529,7 +529,7 @@ function Report({ scrolled }: { scrolled: boolean }) {
         description="Fans can see a sponsor without feeling positively about it." />
       <InsightBlock
         headline="The sponsorship challenge is not being noticed. It is being relevant."
-        narrative={`Sponsorship visibility at scale remains valuable. Tournament assets, broadcast presence, publisher placements, social content and media create awareness across large audiences - and that awareness is the foundation everything else builds on. The question is what sits on top of that foundation.\n\nFans are more likely to feel positively about brands that improve their experience, support the game or create access they could not otherwise reach. The issue is not whether advertising and media work - they do. The issue is whether the brand has a contribution story that gives that media a reason to resonate.\n\nFor Carlsberg, the goal for EURO 2028 is not to choose between visibility and contribution. It is to ensure both are working together - so that the media creates awareness, and the contribution gives fans a reason to remember the brand positively.`}
+        narrative={`Sponsorship visibility at scale remains valuable. Tournament assets, broadcast presence, publisher placements, social content and media create awareness across large audiences - and that awareness is the foundation everything else builds on. The question is what sits on top of that foundation.\n\nFans are more likely to feel positively about brands that improve their experience, support the game or create access they could not otherwise reach. The issue is not whether advertising and media work - they do. The issue is whether the brand has a contribution story that gives that media a reason to resonate.\n\nFor Carlsberg, the goal for EURO 2028 is not to choose between visibility and contribution. It is to ensure both are working together - so that the media creates awareness and the contribution gives fans a reason to remember the brand positively.`}
         implication="Visibility creates recognition. Contribution creates relevance. The Football Collective media network can deliver both - if the brand story is built to earn genuine fan value."
         recommendation="Build a 'what Carlsberg gave to football' narrative that runs alongside the visibility programme. Use publisher partnerships, creator content and fan experiences as the channels that make the contribution tangible."
       />
@@ -537,7 +537,7 @@ function Report({ scrolled }: { scrolled: boolean }) {
 
       {/* ── Access Pyramid ── */}
       <ChapterBreak number="STRATEGIC FRAMEWORK" title="The Access Pyramid"
-        description="Not all access is equal. As brands move up the pyramid, their sponsorship becomes more valuable - to fans, to communities, and to football itself." />
+        description="Not all access is equal. As brands move up the pyramid, their sponsorship becomes more valuable - to fans, to communities and to football itself." />
       <AccessPyramid />
       <InsightBlock
         chapter="STRATEGIC IMPLICATION"
@@ -583,7 +583,7 @@ function Report({ scrolled }: { scrolled: boolean }) {
       <MarketProfile flag="🇸🇪" market="Sweden" headline="ACCESS MEANS ENABLING LOCAL FOOTBALL PARTICIPATION"
         stat="79%" statLabel="identify football as important to national culture"
         signals={[{ label: "Participation culture", value: "VERY HIGH" }, { label: "Local support", value: "Top Driver" }, { label: "Women's football", value: "↑ Growing" }]}
-        narrative="Sweden's football culture is built around participation. The sport is understood as something people do, not just watch, and local clubs are central to community life in a way that top-tier sponsorship rarely reaches. In this context, brand scale matters less than local relevance. A brand that funds local facilities, supports women's football or creates pathways for local players tends to earn more trust than one that simply buys elite visibility."
+        narrative="Sweden's football culture is built around participation. The sport is understood as something people do, not just watch and local clubs are central to community life in a way that top-tier sponsorship rarely reaches. In this context, brand scale matters less than local relevance. A brand that funds local facilities, supports women's football or creates pathways for local players tends to earn more trust than one that simply buys elite visibility."
         findings={[
           "Football participation rates in Sweden are among the highest in Europe, driven by a strong local club network",
           "Support for local clubs directionally outperforms national team sponsorship as a driver of brand approval",
@@ -611,7 +611,7 @@ function Report({ scrolled }: { scrolled: boolean }) {
       <MarketProfile flag="🇨🇳" market="China" headline="ACCESS MEANS A BRIDGE BETWEEN DIGITAL FANDOM AND REAL EXPERIENCE"
         stat="289M" statLabel="football fans - the world's largest single fan base"
         signals={[{ label: "Digital fandom", value: "VERY HIGH" }, { label: "Player access", value: "Top Demand" }, { label: "Platform", value: "WeChat/Weibo" }]}
-        narrative="China's football market is defined by scale and digital intensity. The audience is vast, deeply engaged with football's biggest players and moments, but largely experiencing the sport through screens and social platforms rather than live attendance. What this audience appears to value most is the feeling of access - closeness to players, exclusive content, and moments that bridge the gap between following a sport digitally and experiencing it directly. This is where a brand with UEFA rights has a meaningful and distinctive advantage."
+        narrative="China's football market is defined by scale and digital intensity. The audience is vast, deeply engaged with football's biggest players and moments, but largely experiencing the sport through screens and social platforms rather than live attendance. What this audience appears to value most is the feeling of access - closeness to players, exclusive content and moments that bridge the gap between following a sport digitally and experiencing it directly. This is where a brand with UEFA rights has a meaningful and distinctive advantage."
         findings={[
           "Player-led content appears to significantly outperform club or competition-led content on Chinese platforms",
           "Behind-the-scenes and exclusive access content is the category most associated with high brand value in this market",
