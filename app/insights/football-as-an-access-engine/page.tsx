@@ -590,16 +590,24 @@ function Report({ scrolled }: { scrolled: boolean }) {
     <div className="min-h-screen bg-white">
 
       {/* Sticky top bar */}
-      <div className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${scrolled ? "shadow-lg" : ""}`}
-        style={{ background: scrolled ? `${NAVY}f0` : "transparent", backdropFilter: scrolled ? "blur(12px)" : "none" }}>
-        <div className="max-w-7xl mx-auto px-6 md:px-10 h-14 flex items-center justify-between gap-4">
-          <Link href="/insights" className="flex items-center transition-opacity hover:opacity-80">
+      <div className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500`}
+        style={{
+          background: scrolled ? "rgba(11,25,41,0.82)" : "transparent",
+          backdropFilter: scrolled ? "blur(14px)" : "none",
+          WebkitBackdropFilter: scrolled ? "blur(14px)" : "none",
+          boxShadow: scrolled ? "0 1px 0 rgba(255,255,255,0.06)" : "none",
+        }}>
+        <div className={`${W} ${PAD} h-14 flex items-center justify-between gap-4`}>
+          <Link href="/insights" className="flex items-center transition-opacity hover:opacity-70">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/Fanometrix_Logo.png" alt="Fanometrix" style={{ height: 14, filter: `brightness(0) saturate(100%) invert(77%) sepia(38%) saturate(500%) hue-rotate(5deg) brightness(105%)` }} />
+            <img src="/Fanometrix_Logo.png" alt="Fanometrix" style={{ height: 15, objectFit: "contain" }} />
           </Link>
-          <p className="text-[10px] font-bold uppercase tracking-[0.2em] truncate max-w-xs transition-opacity duration-500"
-            style={{ color: GOLD, opacity: scrolled ? 1 : 0 }}>Football as an Access Engine</p>
-          <div />
+          <button
+            onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+            className="text-[10px] font-semibold uppercase tracking-[0.2em] transition-opacity hover:opacity-100"
+            style={{ color: GOLD, opacity: scrolled ? 0.6 : 0, pointerEvents: scrolled ? "auto" : "none" }}>
+            ↑ Back to top
+          </button>
         </div>
       </div>
 
