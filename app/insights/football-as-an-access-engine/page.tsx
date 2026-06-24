@@ -86,7 +86,7 @@ function Divider() {
 
 function Hero() {
   return (
-    <section className={`relative min-h-[75vh] flex flex-col justify-end overflow-hidden ${PAD} pb-20 pt-32`}
+    <section className={`relative flex flex-col justify-end overflow-hidden ${PAD} pb-14 pt-24`}
       style={{ background: `linear-gradient(160deg, ${NAVY} 0%, #122536 100%)` }}>
       <div className="absolute inset-0 opacity-[0.07] pointer-events-none"
         style={{ backgroundImage: `radial-gradient(ellipse at 70% 30%, ${GOLD} 0%, transparent 55%), radial-gradient(ellipse at 20% 90%, ${GOLD} 0%, transparent 45%)` }} />
