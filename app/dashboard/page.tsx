@@ -98,6 +98,8 @@ export default function DashboardPage() {
   const [groupOptions,  setGroupOptions]  = useState<GroupOption[]>([]);
   const [eventCounts,   setEventCounts]   = useState<EventCounts | null>(null);
   const [eventsLoading, setEventsLoading] = useState(false);
+  const [lastUpdated,   setLastUpdated]   = useState<Date | null>(null);
+  const [secondsAgo,    setSecondsAgo]    = useState(0);
 
   // Filter state — persisted in localStorage
   const [filters,     setFilters]     = useState<DashFilters>(() => loadLS("dash_filters", EMPTY_DASH_FILTERS));
@@ -135,6 +137,25 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  // Record timestamp after each load completes
+  useEffect(() => {
+    if (!loading) setLastUpdated(new Date());
+  }, [loading]);
+
+  // Auto-refresh every 30 seconds
+  useEffect(() => {
+    const interval = setInterval(load, 30_000);
+    return () => clearInterval(interval);
+  }, [load]);
+
+  // Tick the "X seconds ago" counter every second
+  useEffect(() => {
+    const tick = setInterval(() => {
+      setSecondsAgo(lastUpdated ? Math.floor((Date.now() - lastUpdated.getTime()) / 1000) : 0);
+    }, 1000);
+    return () => clearInterval(tick);
+  }, [lastUpdated]);
 
   // Fetch event counts — re-runs when filters or date bounds change
   useEffect(() => {
@@ -299,10 +320,15 @@ export default function DashboardPage() {
             <h1 className="text-2xl font-bold" style={{ color: "#0B1929" }}>Dashboard</h1>
             <p className="text-gray-400 text-xs mt-0.5">Dashboard</p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex items-center gap-2">
+            {lastUpdated && (
+              <span className="text-xs text-gray-400 hidden sm:block">
+                {loading ? "Updating…" : `Updated ${secondsAgo}s ago`}
+              </span>
+            )}
             <button onClick={load}
               className="border border-gray-200 text-gray-600 hover:bg-gray-50 text-sm font-medium px-3 py-1.5 rounded-lg transition-colors">
-              Refresh
+              {loading ? "…" : "Refresh"}
             </button>
             <button onClick={exportCSV} disabled={filtered.length === 0}
               className="text-sm font-semibold px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
