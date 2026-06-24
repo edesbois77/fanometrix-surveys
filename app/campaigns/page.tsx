@@ -173,6 +173,51 @@ const PREVIEW_QUESTIONS = [
   { id: "p3", text: "What drives your club loyalty?", options: [{ id:1, text:"Local\nPride" },              { id:2, text:"Family\nTradition" },    { id:3, text:"Winning\nCulture" },         { id:4, text:"Player\nHeritage" }]     },
 ];
 
+// ─── Campaign preview modal ───────────────────────────────────────────────────
+function CampaignPreviewModal({ campaign, onClose }: { campaign: Campaign; onClose: () => void }) {
+  function onBackdrop(e: React.MouseEvent<HTMLDivElement>) {
+    if (e.target === e.currentTarget) onClose();
+  }
+  const themeName = CREATIVE_THEMES.find(t => t.id === campaign.creative_theme)?.name;
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+      onClick={onBackdrop}
+    >
+      <div className="flex flex-col items-center gap-4">
+        {/* Badge */}
+        <div className="bg-amber-50 border border-amber-200 rounded-xl px-5 py-3 text-center shadow">
+          <p className="text-xs font-bold text-amber-700 uppercase tracking-widest">◆ Preview Mode</p>
+          <p className="text-xs text-amber-600 mt-0.5">No responses are recorded.</p>
+          <p className="text-xs text-amber-500 mt-0.5 font-medium">{campaign.campaign_name}</p>
+          {themeName && (
+            <p className="text-xs font-semibold mt-1" style={{ color: "#0B1929" }}>
+              Creative: <span style={{ color: "#D7B87A" }}>{themeName}</span>
+            </p>
+          )}
+        </div>
+
+        {/* Embed iframe — shows real questions + correct theme */}
+        <iframe
+          src={`/embed?campaign=${campaign.campaign_id}&preview=1`}
+          width={300}
+          height={250}
+          style={{ border: "none", borderRadius: 12, display: "block",
+            boxShadow: "0 8px 40px rgba(0,0,0,0.5)" }}
+          title="Campaign creative preview"
+        />
+
+        <button
+          onClick={onClose}
+          className="text-sm text-white/60 hover:text-white transition-colors px-4 py-2"
+        >
+          ✕ Close preview
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function CampaignsPage() {
   const { user } = useSession();
@@ -193,6 +238,9 @@ export default function CampaignsPage() {
   const [usageFilter,  setUsageFilter]  = useState<"all" | "no_responses" | "has_responses" | "target_reached" | "end_reached">("all");
   const [dateFilter,   setDateFilter]   = useState<"all" | "today" | "7days" | "30days">("all");
   const [sortBy,       setSortBy]       = useState<"recent" | "oldest" | "az" | "status">("recent");
+
+  // Preview modal
+  const [previewCampaign, setPreviewCampaign] = useState<Campaign | null>(null);
 
   // Edit drawer
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -729,15 +777,14 @@ export default function CampaignsPage() {
                           </button>
                         )}
 
-                        <a
-                          href={`/embed?campaign=${c.campaign_id}&preview=1`}
-                          target="_blank" rel="noopener"
-                          title="Preview the survey creative in a new tab"
+                        <button
+                          onClick={() => setPreviewCampaign(c)}
+                          title="Preview the survey creative"
                           className="text-xs border px-3 py-1.5 rounded-lg transition-colors font-medium"
-                          style={{ borderColor: "#D7B87A", color: "#0B1929", background: "#D7B87A", textDecoration: "none", display: "inline-flex", alignItems: "center" }}
+                          style={{ borderColor: "#D7B87A", color: "#0B1929", background: "#D7B87A" }}
                         >
                           Preview
-                        </a>
+                        </button>
 
                         <button onClick={() => handleDuplicate(c)}
                           className="text-xs border border-gray-200 text-gray-600 hover:bg-gray-50 px-3 py-1.5 rounded-lg transition-colors">
@@ -1088,6 +1135,11 @@ export default function CampaignsPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Campaign preview modal */}
+      {previewCampaign && (
+        <CampaignPreviewModal campaign={previewCampaign} onClose={() => setPreviewCampaign(null)} />
       )}
 
       {/* Toast */}
