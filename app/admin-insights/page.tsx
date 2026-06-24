@@ -37,6 +37,7 @@ const BLOCK_TYPES: { value: string; label: string; group: string }[] = [
   { value: "stat",            label: "Single Stat",      group: "Data"       },
   { value: "stat_row",        label: "Stat Row (3-up)",  group: "Data"       },
   { value: "insight_section", label: "Insight Section",  group: "Data"       },
+  { value: "insight_cards",   label: "Insight Cards",    group: "Data"       },
   { value: "findings_list",   label: "Findings List",    group: "Data"       },
   { value: "comparison_table",label: "Comparison Table", group: "Data"       },
   // Narrative
@@ -102,6 +103,7 @@ function emptyBlock(type: string): InsightBlock {
     case "stat_row":        return { type:"stat_row", stats:[{value:"",label:"",context:""},{value:"",label:"",context:""},{value:"",label:"",context:""}] };
     case "insight_section": return { type:"insight_section", chapter:"", headline:"", narrative:"", stat:"", stat_label:"", implication:"", recommendation:"" };
     case "pull_quote":      return { type:"pull_quote", quote:"", attribution:"" };
+    case "insight_cards":   return { type:"insight_cards", headline:"", cards:[{title:"",body:""},{title:"",body:""}] };
     case "findings_list":   return { type:"findings_list", headline:"", items:[""], style:"arrow" };
     case "comparison_table":return { type:"comparison_table", headline:"", headers:["",""], rows:[{label:"",values:["",""]}] };
     case "market_profile":  return { type:"market_profile", market:"", headline:"", stat:"", stat_label:"", narrative:"", findings:[], opportunity:"", recommendation:"" };
@@ -195,6 +197,29 @@ function BlockEditor({ block, onChange }: { block: InsightBlock; onChange: (b: I
         <Field label="Quote *"><textarea className={`${IN} resize-none`} rows={3} value={block.quote} onChange={e=>set("quote",e.target.value)} /></Field>
         <Field label="Attribution"><input className={IN} value={block.attribution??""} onChange={e=>set("attribution",e.target.value)} /></Field>
       </div>;
+
+    case "insight_cards": {
+      const cards = (block as Extract<InsightBlock, { type: "insight_cards" }>).cards;
+      return <div className="space-y-3">
+        <Field label="Section Headline (optional)">
+          <input className={IN} value={(block as Extract<InsightBlock, { type: "insight_cards" }>).headline??""} onChange={e=>set("headline",e.target.value)} />
+        </Field>
+        {cards.map((c,i)=>(
+          <div key={i} className="grid grid-cols-2 gap-2 p-3 bg-gray-50 rounded-lg">
+            <Field label={`Card ${i+1} Title`}><input className={IN} value={c.title} onChange={e=>{const nc=[...cards];nc[i]={...nc[i],title:e.target.value};set("cards",nc);}}/></Field>
+            <Field label="Body"><input className={IN} value={c.body} onChange={e=>{const nc=[...cards];nc[i]={...nc[i],body:e.target.value};set("cards",nc);}}/></Field>
+          </div>
+        ))}
+        <div className="flex gap-2">
+          <button type="button" className="text-xs text-[#0B1929] border border-dashed border-gray-300 px-3 py-1.5 rounded-lg hover:border-[#D7B87A]"
+            onClick={()=>set("cards",[...cards,{title:"",body:""}])}>+ Add Card</button>
+          {cards.length > 1 && (
+            <button type="button" className="text-xs text-red-400 border border-dashed border-red-200 px-3 py-1.5 rounded-lg hover:border-red-400"
+              onClick={()=>set("cards",cards.slice(0,-1))}>− Remove Last</button>
+          )}
+        </div>
+      </div>;
+    }
 
     case "findings_list": {
       const items = block.items;
