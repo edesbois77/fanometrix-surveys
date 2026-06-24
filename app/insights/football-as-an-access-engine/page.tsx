@@ -91,6 +91,12 @@ function Hero() {
       <div className="absolute inset-0 opacity-[0.07] pointer-events-none"
         style={{ backgroundImage: `radial-gradient(ellipse at 70% 30%, ${GOLD} 0%, transparent 55%), radial-gradient(ellipse at 20% 90%, ${GOLD} 0%, transparent 45%)` }} />
       <div className={`relative z-10 ${W} w-full`}>
+        <div className="flex items-center gap-6 mb-8">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/DentsuLogo.webp" alt="Dentsu" className="h-5 w-auto object-contain opacity-70" />
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/CarlsbergLogo.webp" alt="Carlsberg" className="h-5 w-auto object-contain opacity-70" />
+        </div>
         <p className="text-[10px] font-bold tracking-[0.35em] uppercase mb-10 flex items-center gap-3" style={{ color: GOLD }}>
           <span className="w-8 h-px" style={{ background: GOLD }} />Fanometrix Intelligence Report
         </p>
@@ -100,13 +106,7 @@ function Hero() {
         <p className="text-lg md:text-xl max-w-xl leading-relaxed font-light tracking-wide" style={{ color: "rgba(255,255,255,0.55)" }}>
           Understanding what football fans value and how Carlsberg can turn UEFA EURO 2028 into a platform for access, participation and community impact.
         </p>
-        <div className="w-14 h-[3px] mt-10 mb-10" style={{ background: GOLD }} />
-        <div className="flex items-center gap-8">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/DentsuLogo.webp" alt="Dentsu" className="h-7 w-auto object-contain opacity-80" />
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/CarlsbergLogo.webp" alt="Carlsberg" className="h-7 w-auto object-contain opacity-80" />
-        </div>
+        <div className="w-14 h-[3px] mt-10" style={{ background: GOLD }} />
       </div>
     </section>
   );
@@ -550,8 +550,8 @@ function HowWeAskedFans() {
       <div className={W}>
         <GoldLabel>Research Methodology</GoldLabel>
         <h2 className="text-2xl md:text-3xl font-bold text-white mb-5 leading-tight">How We Asked Fans</h2>
-        <p className="text-sm leading-relaxed mb-12 max-w-2xl" style={{ color: "rgba(255,255,255,0.6)" }}>
-          Fanometrix surveyed more than 1,800 football fans across the UK, Germany and Sweden using in-feed survey placements across football media environments. The examples below show the survey creative as it appeared to fans — embedded in-context within publisher environments rather than presented as a standalone research instrument.
+        <p className="text-sm leading-relaxed mb-12" style={{ color: "rgba(255,255,255,0.6)" }}>
+          Fanometrix surveyed more than 1,800 football fans across the UK, Germany and Sweden using in-feed survey placements across football media environments. The examples below show the survey creative as it appeared to fans - embedded in-context within publisher environments rather than presented as a standalone research instrument.
         </p>
 
         <div className="flex flex-col md:flex-row gap-10 md:gap-8 items-start justify-center">
@@ -593,8 +593,10 @@ function Report({ scrolled }: { scrolled: boolean }) {
       <div className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${scrolled ? "shadow-lg" : ""}`}
         style={{ background: scrolled ? `${NAVY}f0` : "transparent", backdropFilter: scrolled ? "blur(12px)" : "none" }}>
         <div className="max-w-7xl mx-auto px-6 md:px-10 h-14 flex items-center justify-between gap-4">
-          <Link href="/insights" className="text-sm font-semibold transition-colors"
-            style={{ color: scrolled ? "rgba(255,255,255,0.75)" : "rgba(255,255,255,0.6)" }}>← Insights</Link>
+          <Link href="/insights" className="flex items-center transition-opacity hover:opacity-80">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/Fanometrix_Logo.png" alt="Fanometrix" style={{ height: 14, filter: `brightness(0) saturate(100%) invert(77%) sepia(38%) saturate(500%) hue-rotate(5deg) brightness(105%)` }} />
+          </Link>
           <p className="text-[10px] font-bold uppercase tracking-[0.2em] truncate max-w-xs transition-opacity duration-500"
             style={{ color: GOLD, opacity: scrolled ? 1 : 0 }}>Football as an Access Engine</p>
           <div />
