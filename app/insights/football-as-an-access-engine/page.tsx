@@ -221,22 +221,16 @@ function MarketProfile({
   const { display: statDisplay, ref: statRef } = useCountUp(stat ?? "");
   return (
     <div ref={ref} className="report-reveal border-t-[3px]" style={{ borderColor: GOLD }}>
-      <div className={`${PAD} pt-12 pb-10 relative`} style={{ background: NAVY }}>
-        {stat && (
-          <div ref={statRef} className="hidden md:flex absolute right-6 md:right-16 lg:right-24 top-0 bottom-0 flex-col items-end justify-center text-right max-w-[200px]">
-            <p className="text-4xl md:text-6xl font-bold tabular-nums leading-none" style={{ color: GOLD }}>{statDisplay}</p>
-            {statLabel && <p className="text-xs uppercase tracking-widest mt-2 leading-relaxed" style={{ color: "rgba(255,255,255,0.45)" }}>{statLabel}</p>}
-          </div>
-        )}
+      <div className={`${PAD} pt-12 pb-10`} style={{ background: NAVY }}>
         <div className={W}>
           <p className="text-[10px] font-bold tracking-[0.35em] uppercase mb-4 flex items-center gap-3" style={{ color: GOLD }}>
             <span className="w-6 h-px inline-block" style={{ background: GOLD }} />Market
           </p>
-          <div className="mb-6">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6 mb-6">
             <h2 className="text-4xl md:text-6xl font-bold text-white leading-none tracking-tight">{flag} {market}</h2>
             {stat && (
-              <div ref={statRef} className="md:hidden mt-4 text-left">
-                <p className="text-4xl font-bold tabular-nums leading-none" style={{ color: GOLD }}>{statDisplay}</p>
+              <div ref={statRef} className="text-left md:text-right flex-shrink-0 md:max-w-[220px]">
+                <p className="text-4xl md:text-6xl font-bold tabular-nums leading-none" style={{ color: GOLD }}>{statDisplay}</p>
                 {statLabel && <p className="text-xs uppercase tracking-widest mt-2 leading-relaxed" style={{ color: "rgba(255,255,255,0.45)" }}>{statLabel}</p>}
               </div>
             )}
