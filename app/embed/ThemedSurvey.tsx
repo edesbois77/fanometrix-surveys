@@ -4,7 +4,7 @@
 // No imports from /creative-lab/ — safe to deploy independently.
 // Renders the 4-quadrant timer design with the chosen theme applied.
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useLayoutEffect } from "react";
 
 // ── Compact theme definitions (8 themes, independent of creative-lab) ─────────
 
@@ -174,39 +174,51 @@ export interface ThemedSurveyProps {
 }
 
 // ── Answer text formatter ─────────────────────────────────────────────────────
-// Inserts a line break so the visual weight of the text leans away from the
-// centre circle:  top quadrants → first line longer,  bottom → second line longer.
-// Uses character counts (not word counts) so short words like "and" don't skew it.
+// Ensures text splits into exactly 2 lines, then picks the split that puts more
+// weight on the correct side:
+//   top quadrants  → first line longer (weight away from centre circle)
+//   bottom quadrants → second line longer
+//
+// PRIMARY constraint: both lines must fit within CHARS_PER_LINE characters
+// (tuned to the 94 px content area at 11.5 px Inter).
+// SECONDARY constraint: honour the row direction.
+
+const CHARS_PER_LINE = 15;
 
 function formatAnswer(text: string, isTopRow: boolean): string {
-  if (text.includes('\n')) return text; // already has explicit breaks — respect them
+  if (text.includes('\n')) return text; // explicit break already set — respect it
   const words = text.split(' ');
-  if (words.length <= 1) return text;   // single word, nothing to split
+  if (words.length <= 1) return text;
 
-  // For exactly 2 words: only split if it creates the right distribution
-  if (words.length === 2) {
-    const [w1, w2] = words;
-    if (isTopRow && w1.length >= w2.length) return `${w1}\n${w2}`;
-    if (!isTopRow && w2.length >= w1.length) return `${w1}\n${w2}`;
-    return text; // wrong distribution — keep as one line
-  }
-
-  // For 3+ words: find the word boundary closest to the target split ratio.
-  // Top row wants ~60% of characters on line 1 (longer first line).
-  // Bottom row wants ~40% of characters on line 1 (longer second line).
-  const target = text.length * (isTopRow ? 0.60 : 0.40);
-
-  for (let i = 0; i < words.length - 1; i++) {
-    const line1Len = words.slice(0, i + 2).join(' ').length; // length IF we include next word
-    if (line1Len > target) {
-      // Adding the next word would exceed the target — split here
-      return words.slice(0, i + 1).join(' ') + '\n' + words.slice(i + 1).join(' ');
+  // Collect every word-boundary split where BOTH resulting lines fit in one render line
+  function collectSplits(maxChars: number) {
+    const out: Array<{ i: number; l1: number; l2: number }> = [];
+    for (let i = 1; i < words.length; i++) {
+      const l1 = words.slice(0, i).join(' ').length;
+      const l2 = words.slice(i).join(' ').length;
+      if (l1 <= maxChars && l2 <= maxChars) out.push({ i, l1, l2 });
     }
+    return out;
   }
 
-  // Fallback: split at the middle word
-  const mid = Math.ceil(words.length / 2);
-  return words.slice(0, mid).join(' ') + '\n' + words.slice(mid).join(' ');
+  // Try strict limit first; relax to 18 for longer (but valid) answers up to 32 chars
+  const valid = collectSplits(CHARS_PER_LINE).length > 0
+    ? collectSplits(CHARS_PER_LINE)
+    : collectSplits(18);
+
+  // No valid 2-line split found — fall back to a balanced middle split
+  // (font-size reducer in the Quadrant component will handle overflow)
+  if (valid.length === 0) {
+    const mid = Math.ceil(words.length / 2);
+    return words.slice(0, mid).join(' ') + '\n' + words.slice(mid).join(' ');
+  }
+
+  // Among valid splits, pick the one that best honours the row direction
+  const best = isTopRow
+    ? valid.reduce((b, s) => s.l1 >= b.l1 ? s : b, valid[0])  // longest first line
+    : valid.reduce((b, s) => s.l2 >= b.l2 ? s : b, valid[0]); // longest second line
+
+  return words.slice(0, best.i).join(' ') + '\n' + words.slice(best.i).join(' ');
 }
 
 // ── Timer circle ──────────────────────────────────────────────────────────────
@@ -319,6 +331,20 @@ function Quadrant({ text, side, isSelected, isOther, isHovered, visible, onSelec
   const textColor = isSelected ? theme.selectedText : theme.text;
   const scale     = isHovered && !isSelected && !isOther ? 1.025 : 1;
 
+  // Safety-net: reduce font size until text fits in ≤ 2 rendered lines
+  const textRef = useRef<HTMLSpanElement>(null);
+  useLayoutEffect(() => {
+    const el = textRef.current;
+    if (!el) return;
+    let size = 11.5;
+    el.style.fontSize = `${size}px`;
+    // 2-line threshold = 2 × lineHeight × fontSize + small buffer
+    while (el.scrollHeight > size * 1.35 * 2 + 4 && size > 8.5) {
+      size -= 0.5;
+      el.style.fontSize = `${size}px`;
+    }
+  }, [text]);
+
   return (
     <div role="button" tabIndex={disabled ? -1 : 0}
       aria-label={text.replace(/\n/g, " ")} aria-disabled={disabled}
@@ -338,7 +364,7 @@ function Quadrant({ text, side, isSelected, isOther, isHovered, visible, onSelec
         paddingLeft:  side === "left"  ? 16 : 40,
         paddingRight: side === "right" ? 16 : 40,
       }}>
-      <span style={{
+      <span ref={textRef} style={{
         color:textColor, fontSize:11.5, fontWeight:500, fontFamily:FONT_A,
         lineHeight:1.35, textAlign:side, whiteSpace:"pre-line",
         width:"100%", minWidth:0,
