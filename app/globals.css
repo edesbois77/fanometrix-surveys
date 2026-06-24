@@ -96,6 +96,57 @@
 }
 .gold-rule.revealed { transform: scaleX(1); }
 
+/* ── Report print styles ──────────────────────────────────────────────────── */
+
+@media print {
+  /* Preserve background colours and images */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Page setup — no margins so sections bleed to the edge */
+  @page { margin: 0; size: A4; }
+
+  /* Force all scroll-animated elements to their visible end state */
+  .report-reveal,
+  .report-reveal.revealed {
+    opacity: 1 !important;
+    transform: translateY(0) !important;
+    transition: none !important;
+  }
+
+  .report-reveal-stagger > *,
+  .report-reveal-stagger.revealed > * {
+    opacity: 1 !important;
+    transform: translateY(0) !important;
+    transition: none !important;
+    transition-delay: 0s !important;
+  }
+
+  .stat-entrance,
+  .stat-entrance.revealed {
+    opacity: 1 !important;
+    transform: none !important;
+    transition: none !important;
+  }
+
+  .gold-rule,
+  .gold-rule.revealed {
+    transform: scaleX(1) !important;
+    transition: none !important;
+  }
+
+  /* Hide all interactive / navigation elements */
+  [data-no-print] { display: none !important; }
+
+  /* Avoid page breaks inside key report sections */
+  .report-reveal { break-inside: avoid; page-break-inside: avoid; }
+
+  /* Let dark sections start on a new page if they don't fit */
+  section { break-before: auto; }
+}
+
 :root {
   --background: #ffffff;
   --foreground: #171717;

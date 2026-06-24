@@ -100,7 +100,15 @@ function Hero() {
         <p className="text-lg md:text-xl max-w-xl leading-relaxed font-light tracking-wide" style={{ color: "rgba(255,255,255,0.55)" }}>
           Understanding what football fans value and how Carlsberg can turn UEFA EURO 2028 into a platform for access, participation and community impact.
         </p>
-        <div className="w-14 h-[3px] mt-10" style={{ background: GOLD }} />
+        <div className="w-14 h-[3px] mt-10 mb-8" style={{ background: GOLD }} />
+        <button
+          data-no-print
+          onClick={() => window.print()}
+          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-semibold border transition-all hover:opacity-90 active:scale-95"
+          style={{ borderColor: GOLD, color: GOLD, background: "rgba(215,184,122,0.08)" }}
+        >
+          <span style={{ fontSize: "0.9em" }}>↓</span> Download PDF
+        </button>
       </div>
     </section>
   );
@@ -589,7 +597,7 @@ function Report({ scrolled }: { scrolled: boolean }) {
     <div className="min-h-screen bg-white">
 
       {/* Sticky top bar */}
-      <div className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500`}
+      <div data-no-print className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500`}
         style={{
           background: scrolled ? "rgba(11,25,41,0.82)" : "transparent",
           backdropFilter: scrolled ? "blur(14px)" : "none",
