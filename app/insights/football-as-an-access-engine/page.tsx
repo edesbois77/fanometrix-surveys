@@ -481,7 +481,7 @@ function Report({ scrolled }: { scrolled: boolean }) {
           <>
             <p>Early Fanometrix testing and supporting market analysis suggest that fans are quick to distinguish between brands that appear around football and brands that actively contribute to it.</p>
             <p>Grassroots and community investment performs strongly because it feels additive. It supports the places where football starts, strengthens the local game and creates a benefit that sits beyond matchday advertising.</p>
-            <div className="border-l-[3px] pl-5 py-1 my-2" style={{ borderColor: GOLD }}>
+            <div className="border-l-[3px] pl-5 py-2 my-6" style={{ borderColor: GOLD }}>
               <p className="text-[9px] font-bold uppercase tracking-[0.25em] mb-1.5" style={{ color: GOLD }}>Survey Signal - Directional</p>
               <p className="text-sm leading-relaxed" style={{ color: "#4B5563" }}>Across approximately 1,800 football fans surveyed through LiveScore and Football365 publisher audiences, grassroots and community investment ranked first as the indicator of genuine brand commitment - ahead of match access, rewards, fan events and branded content. The Football365 sub-samples directionally confirm the pattern seen in the larger LiveScore data.</p>
             </div>
@@ -512,7 +512,7 @@ function Report({ scrolled }: { scrolled: boolean }) {
         narrative={
           <>
             <p>Rewards are useful, but they are usually transactional. Experiences create memory. A discount can be offered by almost any brand; access to a player, a training session, a matchday moment or behind-the-scenes content can only be created by a brand with real football rights and relationships.</p>
-            <div className="border-l-[3px] pl-5 py-1 my-2" style={{ borderColor: GOLD }}>
+            <div className="border-l-[3px] pl-5 py-2 my-6" style={{ borderColor: GOLD }}>
               <p className="text-[9px] font-bold uppercase tracking-[0.25em] mb-1.5" style={{ color: GOLD }}>Survey Signal - Directional</p>
               <p className="text-sm leading-relaxed" style={{ color: "#4B5563" }}>Across the Fanometrix fan panel, access to matches and experiences ranked second overall as a form of brand value - ahead of rewards, fan events and content. This does not mean content is ineffective. It means content is most valued when it unlocks access, community or participation rather than functioning as advertising alone.</p>
             </div>
