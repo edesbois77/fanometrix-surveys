@@ -570,14 +570,13 @@ function Methodology() {
     <div ref={ref} className={`report-reveal bg-white border-t border-gray-100 ${PAD} py-14`}>
       <div className={W}>
         <p className="text-[9px] font-bold text-gray-400 uppercase tracking-[0.25em] mb-4">Methodology & Next Steps</p>
-        <p className="text-sm text-gray-500 leading-relaxed mb-5">
-          This report was developed as a fast-turnaround strategic intelligence exercise to support early planning around Carlsberg, UEFA and EURO 2028. Fan survey data was collected across Fanometrix publisher network audiences - LiveScore and Football365. Respondents are predominantly UK-based football fans, with additional representation from Germany and Sweden. Football365 sub-samples are small enough that they should be read as confirming the LiveScore pattern rather than driving independent conclusions.
-
-          Desk research covers the United Kingdom, Germany, Sweden, India and China, drawing on publicly available data from UEFA, Nielsen Sports, Statista, local football associations and regional media organisations. All survey findings should be treated as directional indicators rather than nationally representative market data.
-        </p>
-        <p className="text-sm text-gray-500 leading-relaxed">
-          A future Fanometrix programme would be structured over a longer period and could combine planned partner inventory, larger sample sizes, market-specific survey deployment, social listening, publisher behavioural signals and ongoing fan tracking. This would allow Carlsberg and Dentsu to move from directional intelligence to a continuous football fan learning engine - combining media delivery, fan research and campaign measurement across the full EURO 2028 planning cycle.
-        </p>
+        <div className="text-sm text-gray-500 leading-relaxed space-y-4">
+          <p>This report combines proprietary Fanometrix fan research with cross-market football intelligence to identify what supporters value most and how brands can create more meaningful football experiences.</p>
+          <p>During June 2026, Fanometrix surveyed more than 1,800 football fans across the United Kingdom, Germany and Sweden through in-context placements within football media environments including LiveScore and Football365. These findings were supplemented by strategic desk research across five major football markets: the United Kingdom, Germany, Sweden, India and China.</p>
+          <p>The objective was not to produce nationally representative market data, but to identify recurring themes, behaviours and sponsorship opportunities emerging across football audiences. While market nuances exist, a clear pattern emerged: fans consistently reward brands that improve their football experience rather than simply increase their visibility.</p>
+          <p>The findings presented in this report should therefore be viewed as directional strategic intelligence designed to support early planning for UEFA EURO 2028.</p>
+          <p><strong className="text-gray-700">Next phase:</strong> Fanometrix is now expanding its research programme to include larger market-specific samples, publisher behavioural signals, social conversation analysis and ongoing fan tracking. Future studies will provide deeper market-level insight and longitudinal measurement to help brands understand how supporter expectations evolve over time.</p>
+        </div>
       </div>
     </div>
   );
@@ -830,6 +829,18 @@ export default function FootballAccessEnginePage() {
     const fn = () => setScrolled(window.scrollY > 80);
     window.addEventListener("scroll", fn, { passive: true });
     return () => window.removeEventListener("scroll", fn);
+  }, []);
+
+  // Restore scroll position after refresh
+  useEffect(() => {
+    const saved = sessionStorage.getItem("faae-scroll-y");
+    if (saved) {
+      window.scrollTo(0, parseInt(saved, 10));
+      sessionStorage.removeItem("faae-scroll-y");
+    }
+    const save = () => sessionStorage.setItem("faae-scroll-y", String(window.scrollY));
+    window.addEventListener("beforeunload", save);
+    return () => window.removeEventListener("beforeunload", save);
   }, []);
 
   if (status === "loading") {
