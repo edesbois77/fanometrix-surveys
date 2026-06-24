@@ -118,7 +118,7 @@ function ExecSummary() {
       <div className={W}>
         <GoldLabel>Executive Summary</GoldLabel>
         <h2 className="text-2xl md:text-3xl font-bold mb-5 leading-snug max-w-2xl" style={{ color: NAVY }}>What this report tells you</h2>
-        <p className="text-gray-500 text-base md:text-lg leading-relaxed mb-10 max-w-2xl font-light">
+        <p className="text-gray-500 text-base md:text-lg leading-relaxed mb-10 font-light">
           This report draws on Fanometrix fan survey data — collected across LiveScore and Football365 publisher audiences, representing approximately 1,800 football fans predominantly from the UK with additional Germany and Sweden representation — alongside desk research across five markets. The LiveScore sample (~1,339 responses) provides the primary evidence base. Football365 results (33–72 responses per question) are treated as directional validation: they help confirm the pattern but do not drive conclusions independently.
 
           The consistent signal across both data sources and the wider desk research is this: fans value experiences over exposure, participation over interruption, and utility over visibility. Sponsorship is most effective when it creates tangible fan value — through access, community investment, better football experiences and content that unlocks something real.
