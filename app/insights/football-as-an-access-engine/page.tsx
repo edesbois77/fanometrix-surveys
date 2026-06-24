@@ -572,13 +572,81 @@ function Methodology() {
     <div ref={ref} className={`report-reveal bg-white border-t border-gray-100 ${PAD} py-14`}>
       <div className={W}>
         <p className="text-[9px] font-bold text-gray-400 uppercase tracking-[0.25em] mb-4">Methodology & Next Steps</p>
-        <div className="text-sm text-gray-500 leading-relaxed space-y-4">
+        <div className="text-sm text-gray-500 leading-relaxed space-y-4 mb-12">
           <p>This report combines proprietary Fanometrix fan research with cross-market football intelligence to identify what supporters value most and how brands can create more meaningful football experiences.</p>
           <p>During June 2026, Fanometrix surveyed more than 1,800 football fans across the United Kingdom, Germany, India and Sweden through in-context placements within football media environments including LiveScore and Football365. These findings were supplemented by strategic desk research across five major football markets: the United Kingdom, Germany, Sweden, India and China.</p>
           <p>The objective was not to produce nationally representative market data, but to identify recurring themes, behaviours and sponsorship opportunities emerging across football audiences. While market nuances exist, a clear pattern emerged: fans consistently reward brands that improve their football experience rather than simply increase their visibility.</p>
           <p>The findings presented in this report should therefore be viewed as directional strategic intelligence designed to support early planning for UEFA EURO 2028.</p>
           <p><strong className="text-gray-700">Next phase:</strong> Fanometrix is now expanding its research programme to include larger market-specific samples, publisher behavioural signals, social conversation analysis and ongoing fan tracking. Future studies will provide deeper market-level insight and longitudinal measurement to help brands understand how supporter expectations evolve over time.</p>
         </div>
+
+        {/* Research Sources */}
+        <div className="border-t border-gray-100 pt-10 mb-10">
+          <p className="text-[9px] font-bold text-gray-400 uppercase tracking-[0.25em] mb-6">Research Sources</p>
+          <p className="text-sm text-gray-500 mb-7">This report combines:</p>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <div>
+              <p className="text-xs font-bold text-gray-700 uppercase tracking-wide mb-3">Primary Research</p>
+              <ul className="space-y-1.5">
+                {[
+                  "Fanometrix football fan survey",
+                  "Approx. 1,800 responses",
+                  "LiveScore publisher audiences",
+                  "Football365 publisher audiences",
+                  "UK, Germany and Sweden",
+                ].map((item, i) => (
+                  <li key={i} className="flex gap-2 items-start text-sm text-gray-500">
+                    <span className="mt-1.5 w-1 h-1 rounded-full flex-shrink-0" style={{ background: GOLD }} />
+                    {item}
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div>
+              <p className="text-xs font-bold text-gray-700 uppercase tracking-wide mb-3">Secondary Research</p>
+              <ul className="space-y-1.5">
+                {[
+                  "UEFA",
+                  "FIFA",
+                  "Nielsen Sports",
+                  "YouGov Profiles",
+                  "Statista",
+                  "GWI (GlobalWebIndex)",
+                  "German Football Association (DFB)",
+                  "Swedish Football Association (SvFF)",
+                  "Industry and market intelligence reports",
+                ].map((item, i) => (
+                  <li key={i} className="flex gap-2 items-start text-sm text-gray-500">
+                    <span className="mt-1.5 w-1 h-1 rounded-full flex-shrink-0" style={{ background: GOLD }} />
+                    {item}
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div>
+              <p className="text-xs font-bold text-gray-700 uppercase tracking-wide mb-3">Approach</p>
+              <p className="text-sm text-gray-500 leading-relaxed">Fanometrix primary research was used to identify fan priorities and attitudes. Secondary research sources were used to provide market context, validate directional findings and support strategic recommendations.</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Important Notes */}
+        <div className="border-t border-gray-100 pt-10">
+          <p className="text-[9px] font-bold text-gray-400 uppercase tracking-[0.25em] mb-6">Important Notes</p>
+          <div className="space-y-3">
+            {[
+              "Findings should be treated as directional indicators rather than nationally representative market research.",
+              "Survey respondents were predominantly UK football fans, with smaller samples from Germany and Sweden.",
+              "Market-specific recommendations for India and China are based primarily on secondary research and market intelligence rather than direct survey responses.",
+            ].map((note, i) => (
+              <div key={i} className="flex gap-3 items-start">
+                <span className="mt-1.5 w-1 h-1 rounded-full flex-shrink-0" style={{ background: GOLD }} />
+                <p className="text-sm text-gray-500 leading-relaxed">{note}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
       </div>
     </div>
   );
