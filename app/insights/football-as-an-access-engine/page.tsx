@@ -422,12 +422,12 @@ function Methodology() {
     <div ref={ref} className={`report-reveal ${PAD} py-14`} style={{ background: NAVY }}>
       <div className={W}>
         <p className="text-[9px] font-bold uppercase tracking-[0.25em] mb-4" style={{ color: `${GOLD}99` }}>Methodology & Next Steps</p>
-        <p className="text-sm leading-relaxed mb-5" style={{ color: "rgba(255,255,255,0.5)" }}>
+        <p className="text-sm leading-relaxed mb-5" style={{ color: "rgba(255,255,255,1)" }}>
           This report was developed as a fast-turnaround strategic intelligence exercise to support early planning around Carlsberg, UEFA and EURO 2028. Fan survey data was collected across Fanometrix publisher network audiences - LiveScore and Football365. Respondents are predominantly UK-based football fans, with additional representation from Germany and Sweden. Football365 sub-samples are small enough that they should be read as confirming the LiveScore pattern rather than driving independent conclusions.
 
           Desk research covers the United Kingdom, Germany, Sweden, India and China, drawing on publicly available data from UEFA, Nielsen Sports, Statista, local football associations and regional media organisations. All survey findings should be treated as directional indicators rather than nationally representative market data.
         </p>
-        <p className="text-sm leading-relaxed" style={{ color: "rgba(255,255,255,0.5)" }}>
+        <p className="text-sm leading-relaxed" style={{ color: "rgba(255,255,255,1)" }}>
           A future Fanometrix programme would be structured over a longer period and could combine planned partner inventory, larger sample sizes, market-specific survey deployment, social listening, publisher behavioural signals and ongoing fan tracking. This would allow Carlsberg and Dentsu to move from directional intelligence to a continuous football fan learning engine - combining media delivery, fan research and campaign measurement across the full EURO 2028 planning cycle.
         </p>
       </div>
