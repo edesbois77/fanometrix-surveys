@@ -259,7 +259,7 @@ function ChartRow({
 function InsightCardsBlock({ b }: { b: Extract<InsightBlock, { type: "insight_cards" }> }) {
   const ref = useReveal(0.1);
   return (
-    <div ref={ref} className="report-reveal bg-white px-6 md:px-16 lg:px-24 pb-12">
+    <div ref={ref} className="report-reveal bg-white px-6 md:px-16 lg:px-24 pt-2 pb-12">
       <div className={`${MAX_W} mx-auto`}>
         {b.headline && (
           <p className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.25em] mb-6">{b.headline}</p>
@@ -334,7 +334,7 @@ function InsightSectionBlock({ b }: { b: Extract<InsightBlock, { type: "insight_
   const ref = useReveal(0.08);
   const { display: statDisplay, ref: statRef } = useCountUp(b.stat ?? "");
   return (
-    <div ref={ref} className="report-reveal bg-white px-6 md:px-16 lg:px-24 py-16 md:py-20">
+    <div ref={ref} className="report-reveal bg-white px-6 md:px-16 lg:px-24 pt-12 md:pt-16 pb-8">
       <div className={`${MAX_W} mx-auto`}>
         {b.chapter && (
           <p className="text-[#D7B87A] text-[10px] font-bold tracking-[0.3em] uppercase mb-5 flex items-center gap-3">
