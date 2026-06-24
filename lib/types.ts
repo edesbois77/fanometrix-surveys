@@ -24,8 +24,12 @@ export type InsightBlock =
   | { type: "pull_quote"; quote: string; attribution?: string }
   | { type: "findings_list"; headline?: string; items: string[]; style?: "numbered" | "check" | "arrow" }
   | { type: "comparison_table"; headline?: string; headers: string[]; rows: Array<{ label: string; values: string[] }> }
+  // ── Survey data visualisation ─────────────────────────────────────────────
+  | { type: "survey_chart"; question: string; source?: string; items: Array<{ label: string; value: number; highlight?: boolean }> }
+  // ── Visual pyramid framework ──────────────────────────────────────────────
+  | { type: "pyramid"; title: string; subtitle?: string; levels: Array<{ number: number; label: string; sublabel?: string; description?: string }> }
   // ── Market deep-dive ───────────────────────────────────────────────────────
-  | { type: "market_profile"; market: string; headline: string; stat?: string; stat_label?: string; narrative: string; findings?: string[]; opportunity?: string; recommendation?: string }
+  | { type: "market_profile"; market: string; headline: string; stat?: string; stat_label?: string; narrative: string; signals?: Array<{ label: string; value?: string }>; findings?: string[]; opportunity?: string; recommendation?: string }
   // ── Action & framing ──────────────────────────────────────────────────────
   | { type: "recommendation"; number?: number; headline: string; body: string }
   | { type: "methodology"; headline?: string; body: string }
