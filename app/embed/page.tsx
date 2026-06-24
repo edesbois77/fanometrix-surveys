@@ -436,7 +436,7 @@ function EmbedSurvey() {
   const [resolvedMarket,       setResolvedMarket]       = useState<string | null>(marketParam);
 
   // ─── Event tracking state ────────────────────────────────────────────────
-  const sessionId       = useRef<string>("");
+  const sessionId       = useRef<string>(typeof crypto !== "undefined" ? crypto.randomUUID() : "");
   const hasRendered     = useRef(false);
   const hasStarted      = useRef(false);
   const hasCompleted    = useRef(false);
@@ -471,19 +471,20 @@ function EmbedSurvey() {
   }, [isPreview, publisher, placement, placementId, creativeId, country]);
 
   useEffect(() => {
-    sessionId.current = crypto.randomUUID();
     setDevice(detectDevice());
     setBrowser(detectBrowser());
     startRef.current = Date.now();
   }, []);
 
-  // SURVEY_RENDER: fire once when questions are loaded and component is mounted
+  // SURVEY_RENDER: fire once when questions are loaded.
+  // Skipped when creativeTheme is set — ThemedSurvey fires its own SURVEY_RENDER
+  // via IntersectionObserver so the parent doesn't double-count.
   useEffect(() => {
-    if (questions.length > 0 && !hasRendered.current) {
+    if (questions.length > 0 && !creativeTheme && !hasRendered.current) {
       hasRendered.current = true;
       sendEvent("SURVEY_RENDER");
     }
-  }, [questions.length, sendEvent]);
+  }, [questions.length, creativeTheme, sendEvent]);
 
   // SURVEY_EXIT: fire when page becomes hidden if started but not completed
   useEffect(() => {
