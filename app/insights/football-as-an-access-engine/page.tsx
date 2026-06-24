@@ -91,12 +91,6 @@ function Hero() {
       <div className="absolute inset-0 opacity-[0.07] pointer-events-none"
         style={{ backgroundImage: `radial-gradient(ellipse at 70% 30%, ${GOLD} 0%, transparent 55%), radial-gradient(ellipse at 20% 90%, ${GOLD} 0%, transparent 45%)` }} />
       <div className={`relative z-10 ${W} w-full`}>
-        <div className="flex items-center gap-6 mb-8">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/DentsuLogo.webp" alt="Dentsu" className="h-5 w-auto object-contain opacity-70" />
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/CarlsbergLogo.webp" alt="Carlsberg" className="h-5 w-auto object-contain opacity-70" />
-        </div>
         <p className="text-[10px] font-bold tracking-[0.35em] uppercase mb-10 flex items-center gap-3" style={{ color: GOLD }}>
           <span className="w-8 h-px" style={{ background: GOLD }} />Fanometrix Intelligence Report
         </p>
