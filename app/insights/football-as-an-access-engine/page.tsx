@@ -202,20 +202,6 @@ function InsightBlock({
   );
 }
 
-function PullQuote({ quote, attribution }: { quote: string; attribution?: string }) {
-  const ref = useReveal(0.2);
-  return (
-    <div ref={ref} className={`report-reveal ${PAD} py-20 md:py-24`} style={{ background: NAVY }}>
-      <div className={`${W} text-center`}>
-        <div className="text-7xl leading-none font-serif opacity-40 mb-6" style={{ color: GOLD }}>&ldquo;</div>
-        <blockquote className="text-2xl md:text-3xl lg:text-4xl font-bold text-white leading-tight tracking-tight max-w-3xl mx-auto">{quote}</blockquote>
-        <div className="text-7xl leading-none font-serif opacity-40 mt-4 mb-6" style={{ color: GOLD }}>&rdquo;</div>
-        {attribution && <p className="text-xs tracking-[0.2em] uppercase" style={{ color: "rgba(255,255,255,0.35)" }}>{attribution}</p>}
-      </div>
-    </div>
-  );
-}
-
 function MarketProfile({
   flag, market, headline, stat, statLabel, signals, narrative, findings, opportunity, recommendation,
 }: {
@@ -644,11 +630,6 @@ function Report({ scrolled }: { scrolled: boolean }) {
       <Recommendation number={5}
         headline="Measure fan value alongside media delivery"
         body="Track whether the partnership improves fan perception, brand trust, access, participation and community impact - not just reach, impressions and awareness. The Football Collective can provide both the media delivery and the fan research infrastructure to measure what is actually changing. Define targets before the tournament begins." />
-
-      <PullQuote
-        quote="The brands that win in football will not only be the most visible. They will be the brands fans believe made football better."
-        attribution="Fanometrix Football Intelligence Report, 2026"
-      />
 
       <DownloadSection />
       <Methodology />
