@@ -154,42 +154,54 @@ interface KpiCardsProps {
   eventsLoading: boolean;
 }
 
+const LEGACY_TOOLTIP = "Survey event tracking was introduced after these responses were collected.";
+
 export function KpiCards({ responses, events, eventsLoading }: KpiCardsProps) {
   const avgTime   = avg(responses.map(r => r.response_duration_seconds));
   const completed = responses.length;
 
-  const renders    = events?.renders    ?? 0;
-  const starts     = events?.starts     ?? 0;
-  const q2Reached  = events?.q2_reached ?? 0;
-  const q3Reached  = events?.q3_reached ?? 0;
-  const evCompleted = events?.completed ?? 0;
+  const renders     = events?.renders    ?? 0;
+  const starts      = events?.starts     ?? 0;
+  const q2Reached   = events?.q2_reached ?? 0;
+  const q3Reached   = events?.q3_reached ?? 0;
+  const evCompleted = events?.completed  ?? 0;
+
+  const hasEvents = !eventsLoading && events !== null;
+
+  // When events are loaded but renders=0 and starts=0 yet responses exist,
+  // the data predates event tracking. Show — instead of misleading zeros.
+  const isLegacyData = hasEvents && renders === 0 && starts === 0 && completed > 0;
+
+  const showEventValue = hasEvents && !isLegacyData;
 
   const startRate      = pct(starts,      renders);
   const completionRate = pct(evCompleted, starts);
   const responseRate   = pct(evCompleted, renders);
+  const funnelCompleted = showEventValue ? evCompleted : completed;
 
-  const hasEvents = !eventsLoading && events !== null;
-
-  // Funnel uses event-based completed count when available, falls back to responses count
-  const funnelCompleted = hasEvents ? evCompleted : completed;
+  const legacyFullCount = responses.filter(r => r.q1 && r.q2 && r.q3).length;
+  const legacyCompRate  = completed > 0 ? `${Math.round((legacyFullCount / completed) * 100)}%` : "—";
 
   return (
     <div className="space-y-5 mb-6">
 
-      {/* ── DELIVERY ──────────────────────────────────────────────────── */}
+      {/* ── DELIVERY METRICS ──────────────────────────────────────────── */}
       <div>
-        <SectionLabel>Delivery</SectionLabel>
+        <SectionLabel>Delivery Metrics</SectionLabel>
         <div className="flex gap-3">
           <DeliveryCard
             label="Survey Renders"
-            value={hasEvents ? renders : "—"}
+            value={showEventValue ? renders : "—"}
             sub="creatives loaded"
-            tooltip="Fanometrix-measured creative loads. Not the same as publisher ad server impressions, reach or frequency."
+            tooltip={isLegacyData
+              ? LEGACY_TOOLTIP
+              : "Fanometrix-measured creative loads. Not the same as publisher ad server impressions, reach or frequency."}
           />
           <DeliveryCard
             label="Q1 Answered"
-            value={hasEvents ? starts : "—"}
+            value={showEventValue ? starts : "—"}
             sub="first answer selected"
+            tooltip={isLegacyData ? LEGACY_TOOLTIP : undefined}
           />
           <DeliveryCard
             label="Completed Responses"
@@ -197,25 +209,29 @@ export function KpiCards({ responses, events, eventsLoading }: KpiCardsProps) {
             sub="all questions answered"
           />
         </div>
-        {!hasEvents && !eventsLoading && (
-          <ZeroNotice message="Survey Renders and Q1 Answered require event tracking — no events recorded yet." />
-        )}
         {eventsLoading && (
           <p className="text-xs text-gray-400 mt-1">Loading event data…</p>
         )}
+        {isLegacyData && (
+          <ZeroNotice message="Survey Renders and Q1 Answered are not available for historical responses collected before event tracking was enabled." />
+        )}
+        {!hasEvents && !eventsLoading && (
+          <ZeroNotice message="Survey Renders and Q1 Answered require event tracking — no events recorded yet." />
+        )}
       </div>
 
-      {/* ── ENGAGEMENT ────────────────────────────────────────────────── */}
+      {/* ── ENGAGEMENT METRICS ────────────────────────────────────────── */}
       <div>
-        <SectionLabel>Engagement</SectionLabel>
+        <SectionLabel>Engagement Metrics</SectionLabel>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <EngagementCard
             label="Q1 Answer Rate"
-            value={hasEvents ? startRate : "—"}
+            value={showEventValue ? startRate : "—"}
             sub="Q1 Answered ÷ Renders"
-            highlight
+            highlight={showEventValue}
+            tooltip={isLegacyData ? LEGACY_TOOLTIP : undefined}
           />
-          {hasEvents ? (
+          {showEventValue ? (
             <EngagementCard
               label="Completion Rate"
               value={completionRate}
@@ -225,19 +241,17 @@ export function KpiCards({ responses, events, eventsLoading }: KpiCardsProps) {
           ) : (
             <EngagementCard
               label="Legacy Completion Rate"
-              value={(() => {
-                const full = responses.filter(r => r.q1 && r.q2 && r.q3).length;
-                return completed > 0 ? `${Math.round((full / completed) * 100)}%` : "—";
-              })()}
+              value={legacyCompRate}
               sub="All-Q responses ÷ total responses"
               tooltip="Calculated from completed response records, not survey event tracking. Switches to Completed ÷ Q1 Answered automatically once event data is available."
             />
           )}
           <EngagementCard
             label="Response Rate"
-            value={hasEvents ? responseRate : "—"}
+            value={showEventValue ? responseRate : "—"}
             sub="Completed ÷ Renders"
-            highlight
+            highlight={showEventValue}
+            tooltip={isLegacyData ? LEGACY_TOOLTIP : undefined}
           />
           <EngagementCard
             label="Avg Response Time"
@@ -247,11 +261,20 @@ export function KpiCards({ responses, events, eventsLoading }: KpiCardsProps) {
         </div>
       </div>
 
-      {/* ── FUNNEL ────────────────────────────────────────────────────── */}
+      {/* ── RESPONSE FUNNEL ───────────────────────────────────────────── */}
       <div>
-        <SectionLabel>Survey Funnel</SectionLabel>
+        <SectionLabel>Response Funnel</SectionLabel>
         <div className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm">
-          {!hasEvents && !eventsLoading ? (
+          {isLegacyData ? (
+            <div className="py-2">
+              <ZeroNotice message="Funnel data is not available for responses collected before event tracking was introduced." />
+              {completed > 0 && (
+                <div className="mt-3">
+                  <FunnelStep label="Completed Responses" count={completed} isLast />
+                </div>
+              )}
+            </div>
+          ) : !hasEvents && !eventsLoading ? (
             <div className="py-2">
               <ZeroNotice message="Funnel data will appear once event tracking records its first Survey Render." />
               {completed > 0 && (
@@ -262,31 +285,11 @@ export function KpiCards({ responses, events, eventsLoading }: KpiCardsProps) {
             </div>
           ) : (
             <div className="max-w-sm mx-auto space-y-0">
-              <FunnelStep
-                label="Survey Renders"
-                count={renders}
-                dropPct={pct(starts, renders)}
-              />
-              <FunnelStep
-                label="Q1 Answered"
-                count={starts}
-                dropPct={pct(q2Reached, starts)}
-              />
-              <FunnelStep
-                label="Question 2 Reached"
-                count={q2Reached}
-                dropPct={pct(q3Reached, q2Reached)}
-              />
-              <FunnelStep
-                label="Question 3 Reached"
-                count={q3Reached}
-                dropPct={pct(funnelCompleted, q3Reached)}
-              />
-              <FunnelStep
-                label="Completed Responses"
-                count={funnelCompleted}
-                isLast
-              />
+              <FunnelStep label="Survey Renders"       count={renders}         dropPct={pct(starts,         renders)}    />
+              <FunnelStep label="Q1 Answered"          count={starts}          dropPct={pct(q2Reached,      starts)}     />
+              <FunnelStep label="Question 2 Reached"   count={q2Reached}       dropPct={pct(q3Reached,      q2Reached)}  />
+              <FunnelStep label="Question 3 Reached"   count={q3Reached}       dropPct={pct(funnelCompleted, q3Reached)} />
+              <FunnelStep label="Completed Responses"  count={funnelCompleted} isLast />
             </div>
           )}
         </div>

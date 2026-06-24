@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState, useCallback } from "react";
 import {
   AreaChart, Area, BarChart, Bar, Cell,
   XAxis, YAxis, CartesianGrid,
@@ -179,11 +179,23 @@ function QChart({
   );
 }
 
+// ─── Chart metric types ───────────────────────────────────────────────────────
+
+export type ChartMetric =
+  | "responses"
+  | "completed"
+  | "completion_rate";
+
+export const CHART_METRICS: { key: ChartMetric; label: string }[] = [
+  { key: "responses",       label: "Responses"           },
+  { key: "completed",       label: "Completed Responses" },
+  { key: "completion_rate", label: "Completion Rate"     },
+];
+
 // ─── Dimension bar chart ──────────────────────────────────────────────────────
-// color prop is the bar fill for each breakdown dimension.
 
 function DimChart({
-  label, responses, field, color, activeValue, onFilter,
+  label, responses, field, color, activeValue, onFilter, metric = "responses",
 }: {
   label: string;
   responses: SurveyResponse[];
@@ -191,22 +203,34 @@ function DimChart({
   color: string;
   activeValue: string;
   onFilter: (value: string) => void;
+  metric?: ChartMetric;
 }) {
   const data = useMemo(() => {
-    const m: Record<string, number> = {};
+    const totals:    Record<string, number> = {};
+    const completed: Record<string, number> = {};
     for (const r of responses) {
       const v = (r[field] as string) || "Unknown";
-      m[v] = (m[v] ?? 0) + 1;
+      totals[v]    = (totals[v]    ?? 0) + 1;
+      if (r.q1 && r.q2 && r.q3) completed[v] = (completed[v] ?? 0) + 1;
     }
-    return Object.entries(m)
+    return Object.entries(totals)
       .sort((a, b) => b[1] - a[1])
       .slice(0, 10)
-      .map(([fullName, value]) => ({
-        name: fullName.length > 16 ? fullName.slice(0, 15) + "…" : fullName,
-        fullName,
-        value,
-      }));
-  }, [responses, field]);
+      .map(([fullName, total]) => {
+        const done  = completed[fullName] ?? 0;
+        const value = metric === "completion_rate"
+          ? (total > 0 ? Math.round((done / total) * 100) : 0)
+          : metric === "completed"
+          ? done
+          : total;
+        return {
+          name: fullName.length > 16 ? fullName.slice(0, 15) + "…" : fullName,
+          fullName,
+          value,
+        };
+      })
+      .sort((a, b) => b.value - a.value);
+  }, [responses, field, metric]);
 
   if (!data.length) return null;
 
@@ -234,7 +258,15 @@ function DimChart({
               axisLine={false}
               tickLine={false}
             />
-            <RTooltip contentStyle={{ fontSize: 11 }} formatter={(v) => [v, "Responses"]} />
+            <RTooltip
+              contentStyle={{ fontSize: 11 }}
+              formatter={(v) => [
+                metric === "completion_rate" ? `${v}%` : v,
+                metric === "completion_rate" ? "Completion Rate"
+                  : metric === "completed"   ? "Completed"
+                  : "Responses",
+              ]}
+            />
             <Bar dataKey="value" radius={[0, 4, 4, 0]} cursor="pointer"
               label={{ position: "right", fontSize: 9, fill: "#9ca3af" }}>
               {data.map((d) => (
@@ -358,18 +390,24 @@ const DIM_ROWS: {
   color: string;
 }[][] = [
   [
-    { field: "country",   label: "By Country",   filterKey: "country",   color: EMERALD },
-    { field: "publisher", label: "By Publisher", filterKey: "publisher", color: INDIGO  },
-    { field: "placement", label: "By Placement", filterKey: "placement", color: GOLD    },
+    { field: "country",    label: "By Country",    filterKey: "country",   color: EMERALD },
+    { field: "publisher",  label: "By Publisher",  filterKey: "publisher", color: INDIGO  },
+    { field: "placement",  label: "By Placement",  filterKey: "placement", color: GOLD    },
   ],
   [
     { field: "club",        label: "By Club",        filterKey: "club",        color: TEAL   },
     { field: "competition", label: "By Competition", filterKey: "competition", color: SLATE  },
     { field: "fan_segment", label: "By Fan Segment", filterKey: "fan_segment", color: PURPLE },
   ],
+  // Creative Lab groupings — creative_id and device enable A/B and cross-device analysis
+  [
+    { field: "creative_id", label: "By Creative",  filterKey: "placement", color: INDIGO  },
+    { field: "device",      label: "By Device",    filterKey: "device",    color: TEAL    },
+    { field: "browser",     label: "By Browser",   filterKey: "browser",   color: SLATE   },
+  ],
 ];
 
-const DIM_TITLES = ["Geographic & Publisher", "Club, Competition & Audience"];
+const DIM_TITLES = ["Geographic & Publisher", "Club, Competition & Audience", "Creative & Device"];
 
 // ─── Main ChartGrid ───────────────────────────────────────────────────────────
 
@@ -384,14 +422,12 @@ export function ChartGrid({
   onFilter: (field: keyof DashFilters, value: string) => void;
   surveyLabels?: SurveyLabels | null;
 }) {
+  const [metric, setMetric] = useState<ChartMetric>("responses");
+
   if (!responses.length) return null;
 
-  // Q1/Q2/Q3 only make sense when scoped to a single survey.
-  // When no campaign/survey/group is selected, different surveys' answers are
-  // mixed under the same Q1 key — which produces meaningless aggregates.
   const hasScope = !!(filters.campaign_id || filters.survey_id || filters.group_id);
 
-  // Build dynamic Q labels from survey if available, fall back to defaults
   const qLabels = Q_LABELS.map((q, i) => {
     const sq = surveyLabels?.questions[i];
     return {
@@ -405,22 +441,22 @@ export function ChartGrid({
     <div className="space-y-4">
       <ResponsesOverTime responses={responses} />
 
-      {/* Question results — only shown when a campaign/survey/group is selected */}
+      {/* Question results */}
       {hasScope ? (
-      <HScrollRow title="Question Results" cols={3} minCardW={320}>
-        {qLabels.map(({ field, label, color, optionMap }) => (
-          <QChart
-            key={field}
-            label={label}
-            color={color}
-            responses={responses}
-            field={field}
-            activeValue={filters[field]}
-            onFilter={(v) => onFilter(field, v)}
-            optionMap={optionMap}
-          />
-        ))}
-      </HScrollRow>
+        <HScrollRow title="Question Results" cols={3} minCardW={320}>
+          {qLabels.map(({ field, label, color, optionMap }) => (
+            <QChart
+              key={field}
+              label={label}
+              color={color}
+              responses={responses}
+              field={field}
+              activeValue={filters[field]}
+              onFilter={(v) => onFilter(field, v)}
+              optionMap={optionMap}
+            />
+          ))}
+        </HScrollRow>
       ) : (
         <div className="bg-white border border-gray-100 rounded-xl px-5 py-4 shadow-sm">
           <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Question Results</p>
@@ -431,21 +467,49 @@ export function ChartGrid({
         </div>
       )}
 
-      {DIM_ROWS.map((row, ri) => (
-        <HScrollRow key={ri} title={DIM_TITLES[ri]} cols={3} minCardW={300}>
-          {row.map(({ field, label, filterKey, color }) => (
-            <DimChart
-              key={field as string}
-              label={label}
-              color={color}
-              responses={responses}
-              field={field}
-              activeValue={filters[filterKey]}
-              onFilter={(v) => onFilter(filterKey, v)}
-            />
+      {/* Distribution charts with metric selector */}
+      <div>
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+            Distribution Charts
+          </p>
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-gray-400 mr-1">Metric:</span>
+            {CHART_METRICS.map(m => (
+              <button
+                key={m.key}
+                onClick={() => setMetric(m.key)}
+                className="text-xs px-2.5 py-1 rounded-lg font-medium transition-colors"
+                style={{
+                  background: metric === m.key ? "#0B1929" : "#F3F4F6",
+                  color:      metric === m.key ? "#D7B87A" : "#6B7280",
+                }}
+              >
+                {m.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          {DIM_ROWS.map((row, ri) => (
+            <HScrollRow key={ri} title={DIM_TITLES[ri]} cols={3} minCardW={300}>
+              {row.map(({ field, label, filterKey, color }) => (
+                <DimChart
+                  key={field as string}
+                  label={label}
+                  color={color}
+                  responses={responses}
+                  field={field}
+                  metric={metric}
+                  activeValue={filters[filterKey] ?? ""}
+                  onFilter={(v) => onFilter(filterKey, v)}
+                />
+              ))}
+            </HScrollRow>
           ))}
-        </HScrollRow>
-      ))}
+        </div>
+      </div>
     </div>
   );
 }

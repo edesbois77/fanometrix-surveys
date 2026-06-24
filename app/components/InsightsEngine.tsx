@@ -2,17 +2,20 @@
 
 import { useMemo } from "react";
 import type { SurveyResponse } from "@/lib/types";
+import type { DashFilters } from "@/app/dashboard/components/DashboardFilters";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 type Confidence = "High" | "Medium" | "Low";
 
 type Insight = {
-  icon: string;
-  title: string;
-  description: string;
-  confidence: Confidence;
-  positive?: boolean;
+  icon:         string;
+  title:        string;
+  description:  string;
+  confidence:   Confidence;
+  positive?:    boolean;
+  filterField?: keyof DashFilters;
+  filterValue?: string;
 };
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -59,6 +62,8 @@ function geographic(data: SurveyResponse[]): Insight | null {
       ? `${top} generated ${pct}% of responses, leading ${runnerUp[0]} by ${lead} percentage points.`
       : `${top} generated ${pct}% of all responses.`,
     confidence: confidence(data.length, pct, 40, 25),
+    filterField: "country",
+    filterValue: top,
   };
 }
 
@@ -70,7 +75,7 @@ function device(data: SurveyResponse[]): Insight | null {
   const pct = Math.round(topN / data.length * 100);
   if (pct < 50) return null;
 
-  const label = top.charAt(0).toUpperCase() + top.slice(1);
+  const label  = top.charAt(0).toUpperCase() + top.slice(1);
   const second = rows[1];
   return {
     icon: "📱",
@@ -79,6 +84,8 @@ function device(data: SurveyResponse[]): Insight | null {
       ? `${label} represented ${pct}% of responses, with ${second[0]} at ${Math.round(second[1] / data.length * 100)}%.`
       : `${label} represented ${pct}% of responses.`,
     confidence: confidence(data.length, pct, 65, 55),
+    filterField: "device",
+    filterValue: top,
   };
 }
 
@@ -105,6 +112,8 @@ function publisher(data: SurveyResponse[]): Insight | null {
     description: `${best.p} delivered the highest completion rate at ${pct}% across ${best.t.toLocaleString()} responses.`,
     confidence: conf,
     positive: true,
+    filterField: "publisher",
+    filterValue: best.p,
   };
 }
 
@@ -189,26 +198,62 @@ const BORDER: Record<Confidence, string> = {
   Low:    "border-l-gray-300",
 };
 
-function InsightCard({ insight }: { insight: Insight }) {
+function InsightCard({
+  insight,
+  onFilter,
+}: {
+  insight: Insight;
+  onFilter?: (field: keyof DashFilters, value: string) => void;
+}) {
+  const clickable = !!(insight.filterField && insight.filterValue && onFilter);
+
+  function handleClick() {
+    if (clickable) onFilter!(insight.filterField!, insight.filterValue!);
+  }
+
   return (
-    <div className={`bg-white border border-gray-100 border-l-4 ${BORDER[insight.confidence]} rounded-xl p-4 shadow-sm flex flex-col gap-2`}>
+    <div
+      role={clickable ? "button" : undefined}
+      tabIndex={clickable ? 0 : undefined}
+      onClick={clickable ? handleClick : undefined}
+      onKeyDown={clickable ? (e) => e.key === "Enter" && handleClick() : undefined}
+      className={`bg-white border border-gray-100 border-l-4 ${BORDER[insight.confidence]} rounded-xl p-4 shadow-sm flex flex-col gap-2 transition-all ${
+        clickable ? "cursor-pointer hover:shadow-md hover:-translate-y-px hover:border-gray-200" : ""
+      }`}
+    >
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-1.5">
           <span className="text-base leading-none">{insight.icon}</span>
           <p className="text-xs font-semibold text-gray-700">{insight.title}</p>
         </div>
-        <span className={`text-xs px-2 py-0.5 rounded-full font-medium border flex-shrink-0 ${CONF_STYLES[insight.confidence]}`}>
-          {insight.confidence}
-        </span>
+        <div className="flex items-center gap-1.5 flex-shrink-0">
+          <span className={`text-xs px-2 py-0.5 rounded-full font-medium border ${CONF_STYLES[insight.confidence]}`}>
+            {insight.confidence}
+          </span>
+          {clickable && (
+            <span className="text-xs text-gray-400" title="Click to apply filter">⊕</span>
+          )}
+        </div>
       </div>
       <p className="text-xs text-gray-600 leading-relaxed">{insight.description}</p>
+      {clickable && (
+        <p className="text-xs mt-0.5" style={{ color: "#D7B87A" }}>
+          Filter by {insight.filterField} →
+        </p>
+      )}
     </div>
   );
 }
 
 // ─── Public component ─────────────────────────────────────────────────────────
 
-export function InsightsEngine({ responses }: { responses: SurveyResponse[] }) {
+export function InsightsEngine({
+  responses,
+  onFilter,
+}: {
+  responses: SurveyResponse[];
+  onFilter?: (field: keyof DashFilters, value: string) => void;
+}) {
   const insights = useMemo(() => generate(responses), [responses]);
   if (!insights.length) return null;
 
@@ -217,11 +262,11 @@ export function InsightsEngine({ responses }: { responses: SurveyResponse[] }) {
       <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
         Insights
         <span className="ml-2 text-gray-300 font-normal normal-case tracking-normal">
-          — updates as filters change
+          — updates as filters change{onFilter ? " · click a card to filter" : ""}
         </span>
       </h2>
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-        {insights.map(i => <InsightCard key={i.title} insight={i} />)}
+        {insights.map(i => <InsightCard key={i.title} insight={i} onFilter={onFilter} />)}
       </div>
     </div>
   );

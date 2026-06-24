@@ -89,8 +89,10 @@ export type SurveyResponse = {
   campaign_id: string;
   survey_id: string | null;
   question_set_id: string | null;
-  publisher: string | null;
-  placement: string | null;
+  publisher:    string | null;
+  placement:    string | null;
+  placement_id: string | null;
+  creative_id:  string | null;
   club: string | null;
   competition: string | null;
   q1: string | null;

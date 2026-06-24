@@ -37,6 +37,7 @@ const BRAND_AGENCY_RESTRICTED = [
 
 // Routes only admins may access
 const ADMIN_ONLY_PREFIXES = [
+  "/analysis",
   "/survey-templates",
   "/campaigns",
   "/campaign-groups",

@@ -6,9 +6,9 @@ import Papa from "papaparse";
 import type { SurveyResponse } from "@/lib/types";
 import { AdminShell } from "@/app/components/AdminShell";
 import { KpiCards } from "./components/KpiCards";
-import { ResponseExplorer } from "./components/Explorer";
 import { ChartGrid, type SurveyLabels } from "./components/ChartGrid";
 import { InsightsEngine } from "@/app/components/InsightsEngine";
+import { PerformanceHighlights } from "./components/PerformanceHighlights";
 import {
   DashboardFilters,
   EMPTY_DASH_FILTERS,
@@ -385,19 +385,19 @@ export default function DashboardPage() {
               </div>
             ) : (
               <>
-                {/* Insights */}
-                <InsightsEngine responses={filtered} />
+                {/* Performance Highlights */}
+                <PerformanceHighlights responses={filtered} />
 
-              {/* Charts */}
+                {/* Insights */}
+                <InsightsEngine responses={filtered} onFilter={onChartFilter} />
+
+                {/* Charts */}
                 <ChartGrid
                   responses={filtered}
                   filters={filters}
                   onFilter={onChartFilter}
                   surveyLabels={surveyLabels}
                 />
-
-                {/* Response Explorer (independent filters) */}
-                <ResponseExplorer responses={responses} />
               </>
             )}
           </>

@@ -40,6 +40,16 @@ export const NAV_ITEMS: NavItemConfig[] = [
     section: "platform",
   },
   {
+    href: "/analysis",
+    label: "Analysis",
+    icon: "◈",
+    description: "Drill into response data with filters, grouping, search and export.",
+    cta: "Open Analysis",
+    roles: ["admin"],
+    navGroup: "surveys",
+    section: "platform",
+  },
+  {
     href: "/survey-templates",
     label: "Surveys",
     icon: "◫",
