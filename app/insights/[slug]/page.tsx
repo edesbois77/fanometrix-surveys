@@ -226,7 +226,7 @@ function ChartRow({
         <span className={`text-sm leading-snug ${isHero ? "text-white font-semibold" : "text-white/60 font-normal"}`}>
           {item.label}
         </span>
-        <div ref={numRef} className={`stat-entrance flex-shrink-0 tabular-nums font-bold leading-none
+        <div ref={numRef} className={`flex-shrink-0 tabular-nums font-bold leading-none
           ${isHero ? "text-4xl md:text-5xl text-[#D7B87A]" : "text-xl text-white/50"}`}
           style={{ transitionDelay: `${delay}ms` }}>
           {animated ? display : `${item.value}%`}
@@ -259,7 +259,7 @@ function ChartRow({
 function StatBlock({ b }: { b: Extract<InsightBlock, { type: "stat" }> }) {
   const { display, ref } = useCountUp(b.value);
   return (
-    <div ref={ref} className="stat-entrance bg-white px-6 md:px-16 lg:px-24 py-16 md:py-20">
+    <div ref={ref} className="bg-white px-6 md:px-16 lg:px-24 py-16 md:py-20">
       <div className={`${MAX_W} mx-auto`}>
         <div className="flex flex-col md:flex-row md:items-end gap-6 md:gap-14">
           <span className="text-7xl md:text-[8rem] lg:text-[10rem] font-bold text-[#0B1929] leading-none tracking-tighter tabular-nums">
@@ -292,7 +292,7 @@ function StatRowBlock({ b }: { b: Extract<InsightBlock, { type: "stat_row" }> })
 function StatRowCell({ stat }: { stat: { value: string; label: string; context?: string } }) {
   const { display, ref } = useCountUp(stat.value);
   return (
-    <div ref={ref} className="stat-entrance px-6 py-8 first:pl-0 last:pr-0">
+    <div ref={ref} className="px-6 py-8 first:pl-0 last:pr-0">
       <p className="text-4xl md:text-5xl font-bold text-white tabular-nums mb-2">{display}</p>
       <p className="text-[#D7B87A] text-sm font-semibold leading-snug">{stat.label}</p>
       {stat.context && <p className="text-white/40 text-xs mt-1 leading-relaxed">{stat.context}</p>}
