@@ -7,7 +7,7 @@ const APP_ORIGIN       = process.env.NEXT_PUBLIC_APP_URL       ?? "https://fanom
 
 // Paths served exclusively on surveys.fanometrix.com
 const SURVEYS_ALLOWED_PREFIXES = [
-  "/embed", "/privacy", "/api/embed", "/api/submit", "/api/reporting",
+  "/embed", "/privacy", "/api/embed", "/api/submit", "/api/reporting", "/api/events",
 ];
 
 // Exact paths that require no authentication (platform / app domain)
@@ -25,7 +25,7 @@ const PUBLIC_PATHS = new Set([
 ]);
 
 // API paths that must remain public (auth endpoints, embed submissions, external Looker/reporting)
-const PUBLIC_API_PREFIXES = ["/api/auth", "/api/submit", "/api/reporting", "/api/embed", "/api/access-requests", "/api/publisher", "/api/dashboard"];
+const PUBLIC_API_PREFIXES = ["/api/auth", "/api/submit", "/api/reporting", "/api/embed", "/api/access-requests", "/api/publisher", "/api/dashboard", "/api/events"];
 
 // Routes restricted to brand/agency (not accessible at this stage — redirect to /insights)
 const BRAND_AGENCY_RESTRICTED = [
