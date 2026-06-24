@@ -142,7 +142,7 @@ function ChapterBreak({ number, title, description }: { number: string; title: s
   const ref = useReveal(0.15);
   const ruleRef = useReveal(0.15);
   return (
-    <div ref={ref} className={`report-reveal ${PAD} pt-24 pb-10`}>
+    <div ref={ref} className={`report-reveal ${PAD} pt-20 pb-4`}>
       <div className={W}>
         <p className="text-[10px] font-bold tracking-[0.35em] uppercase mb-5" style={{ color: GOLD }}>{number}</p>
         <div ref={ruleRef} className="gold-rule w-full mb-7" />
@@ -162,7 +162,7 @@ function InsightBlock({
   const ref = useReveal(0.08);
   const { display: statDisplay, ref: statRef } = useCountUp(stat ?? "");
   return (
-    <div ref={ref} className={`report-reveal bg-white ${PAD} pt-12 md:pt-16 pb-8`}>
+    <div ref={ref} className={`report-reveal bg-white ${PAD} pt-8 md:pt-10 pb-8`}>
       <div className={W}>
         {chapter && <GoldLabel>{chapter}</GoldLabel>}
         <h2 className="text-3xl md:text-5xl font-bold leading-tight tracking-tight mb-10 max-w-3xl" style={{ color: NAVY }}>{headline}</h2>
@@ -345,7 +345,7 @@ function AccessPyramid() {
   const widths = ["32%","48%","64%","80%","100%"];
 
   return (
-    <div ref={ref} className={`bg-white ${PAD} py-16 md:py-20`}>
+    <div ref={ref} className={`bg-white ${PAD} pt-8 pb-16 md:pb-20`}>
       <div className={W}>
         <div className="text-center mb-12">
           <p className="text-[10px] font-bold uppercase tracking-[0.3em] mb-3 flex items-center justify-center gap-3" style={{ color: GOLD }}>
