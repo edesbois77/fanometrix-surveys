@@ -232,12 +232,12 @@ function MarketProfile({
           <p className="text-[10px] font-bold tracking-[0.35em] uppercase mb-4 flex items-center gap-3" style={{ color: GOLD }}>
             <span className="w-6 h-px inline-block" style={{ background: GOLD }} />Market
           </p>
-          <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-6 mb-6">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6 mb-6">
             <h2 className="text-4xl md:text-6xl font-bold text-white leading-none tracking-tight">{flag} {market}</h2>
             {stat && (
-              <div ref={statRef} className="text-right flex-shrink-0">
+              <div ref={statRef} className="text-right flex-shrink-0 max-w-[200px]">
                 <p className="text-4xl md:text-6xl font-bold tabular-nums leading-none" style={{ color: GOLD }}>{statDisplay}</p>
-                {statLabel && <p className="text-xs uppercase tracking-widest mt-1" style={{ color: "rgba(255,255,255,0.45)" }}>{statLabel}</p>}
+                {statLabel && <p className="text-xs uppercase tracking-widest mt-2 leading-relaxed" style={{ color: "rgba(255,255,255,0.45)" }}>{statLabel}</p>}
               </div>
             )}
           </div>
@@ -255,7 +255,7 @@ function MarketProfile({
       </div>
       <div className={`bg-white ${PAD} py-12`}>
         <div className={W}>
-          <p className="text-base text-gray-500 leading-[1.8] mb-10 max-w-2xl">{narrative}</p>
+          <p className="text-base text-gray-500 leading-[1.8] mb-10">{narrative}</p>
           <p className="text-[9px] font-bold text-gray-400 uppercase tracking-[0.25em] mb-5">Key Findings</p>
           <div className="space-y-3 mb-10">
             {findings.map((f, i) => (
