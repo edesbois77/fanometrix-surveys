@@ -1,7 +1,7 @@
 "use client";
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Football as an Access Engine — static report page
+// Football as an Access Engine - static report page
 // Content is hard-coded here for fast editing. Access is verified via the
 // existing /api/insights endpoint so permissions stay in sync with the DB.
 // To edit content: change JSX directly in this file.
@@ -119,8 +119,8 @@ function ExecSummary() {
         <GoldLabel>Executive Summary</GoldLabel>
         <h2 className="text-2xl md:text-3xl font-bold mb-5 leading-snug max-w-2xl" style={{ color: NAVY }}>What this report tells you</h2>
         <div className="text-gray-500 text-base md:text-lg leading-relaxed mb-10 font-light space-y-4">
-          <p>This report draws on Fanometrix fan survey data — collected across LiveScore and Football365 publisher audiences, representing approximately 1,800 football fans predominantly from the UK with additional Germany and Sweden representation — alongside desk research across five markets.</p>
-          <p>The consistent signal across both data sources and the wider desk research is this: fans value experiences over exposure, participation over interruption, and utility over visibility. Sponsorship is most effective when it creates tangible fan value — through access, community investment, better football experiences and content that unlocks something real.</p>
+          <p>This report draws on Fanometrix fan survey data - collected across LiveScore and Football365 publisher audiences, representing approximately 1,800 football fans predominantly from the UK with additional Germany and Sweden representation - alongside desk research across five markets.</p>
+          <p>The consistent signal across both data sources and the wider desk research is this: fans value experiences over exposure, participation over interruption, and utility over visibility. Sponsorship is most effective when it creates tangible fan value - through access, community investment, better football experiences and content that unlocks something real.</p>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {points.map((pt, i) => (
@@ -482,13 +482,13 @@ function Report({ scrolled }: { scrolled: boolean }) {
             <p>Early Fanometrix testing and supporting market analysis suggest that fans are quick to distinguish between brands that appear around football and brands that actively contribute to it.</p>
             <p>Grassroots and community investment performs strongly because it feels additive. It supports the places where football starts, strengthens the local game and creates a benefit that sits beyond matchday advertising.</p>
             <div className="border-l-[3px] pl-5 py-1 my-2" style={{ borderColor: GOLD }}>
-              <p className="text-[9px] font-bold uppercase tracking-[0.25em] mb-1.5" style={{ color: GOLD }}>Survey Signal — Directional</p>
-              <p className="text-sm leading-relaxed" style={{ color: "#4B5563" }}>Across approximately 1,800 football fans surveyed through LiveScore and Football365 publisher audiences, grassroots and community investment ranked first as the indicator of genuine brand commitment — ahead of match access, rewards, fan events and branded content. The Football365 sub-samples directionally confirm the pattern seen in the larger LiveScore data.</p>
+              <p className="text-[9px] font-bold uppercase tracking-[0.25em] mb-1.5" style={{ color: GOLD }}>Survey Signal - Directional</p>
+              <p className="text-sm leading-relaxed" style={{ color: "#4B5563" }}>Across approximately 1,800 football fans surveyed through LiveScore and Football365 publisher audiences, grassroots and community investment ranked first as the indicator of genuine brand commitment - ahead of match access, rewards, fan events and branded content. The Football365 sub-samples directionally confirm the pattern seen in the larger LiveScore data.</p>
             </div>
-            <p>This matters for Carlsberg because UEFA EURO 2028 will create large-scale visibility. Visibility creates reach; it does not create the contribution story fans are looking for. A clear, funded grassroots commitment — delivered through partners, content and community programmes — turns that visibility into something fans can understand, respect and share.</p>
+            <p>This matters for Carlsberg because UEFA EURO 2028 will create large-scale visibility. Visibility creates reach; it does not create the contribution story fans are looking for. A clear, funded grassroots commitment - delivered through partners, content and community programmes - turns that visibility into something fans can understand, respect and share.</p>
           </>
         }
-        implication="Grassroots investment gives Carlsberg a credible way to demonstrate contribution before, during and after the tournament — not just during broadcast windows."
+        implication="Grassroots investment gives Carlsberg a credible way to demonstrate contribution before, during and after the tournament - not just during broadcast windows."
         recommendation="Create a visible grassroots commitment linked to EURO 2028, with clear funding, local delivery partners and measurable community impact in each market."
       />
 
@@ -498,9 +498,9 @@ function Report({ scrolled }: { scrolled: boolean }) {
       <ComparisonTable />
       <InsightBlock
         headline="One global idea needs five local expressions of value"
-        narrative={`The five markets in this report have fundamentally different relationships with football — and therefore different expectations of what a brand like Carlsberg should deliver.\n\nIn the UK, access means removing friction from the football experience fans already have. In Germany, it means protecting and supporting football culture. In Sweden, it means enabling participation and local football. In India, it means bringing global football closer while helping local football grow. In China, it means digital-first access to players, content and premium football moments.\n\nThe implication is not that Carlsberg needs five unrelated campaigns. It needs one global organising idea with local expressions of value — each designed around what access actually means in that market.`}
+        narrative={`The five markets in this report have fundamentally different relationships with football - and therefore different expectations of what a brand like Carlsberg should deliver.\n\nIn the UK, access means removing friction from the football experience fans already have. In Germany, it means protecting and supporting football culture. In Sweden, it means enabling participation and local football. In India, it means bringing global football closer while helping local football grow. In China, it means digital-first access to players, content and premium football moments.\n\nThe implication is not that Carlsberg needs five unrelated campaigns. It needs one global organising idea with local expressions of value - each designed around what access actually means in that market.`}
         implication="A single activation executed identically across all five markets will underperform in most of them. The strategic opportunity is in the local translation, not the global blueprint."
-        recommendation="Build five market strategies under a single strategic framework — the Access Pyramid — but with local execution, local partners and local measurement."
+        recommendation="Build five market strategies under a single strategic framework - the Access Pyramid below - but with local execution, local partners and local measurement."
       />
       <Divider />
 
@@ -513,13 +513,13 @@ function Report({ scrolled }: { scrolled: boolean }) {
           <>
             <p>Rewards are useful, but they are usually transactional. Experiences create memory. A discount can be offered by almost any brand; access to a player, a training session, a matchday moment or behind-the-scenes content can only be created by a brand with real football rights and relationships.</p>
             <div className="border-l-[3px] pl-5 py-1 my-2" style={{ borderColor: GOLD }}>
-              <p className="text-[9px] font-bold uppercase tracking-[0.25em] mb-1.5" style={{ color: GOLD }}>Survey Signal — Directional</p>
-              <p className="text-sm leading-relaxed" style={{ color: "#4B5563" }}>Across the Fanometrix fan panel, access to matches and experiences ranked second overall as a form of brand value — ahead of rewards, fan events and content. This does not mean content is ineffective. It means content is most valued when it unlocks access, community or participation rather than functioning as advertising alone.</p>
+              <p className="text-[9px] font-bold uppercase tracking-[0.25em] mb-1.5" style={{ color: GOLD }}>Survey Signal - Directional</p>
+              <p className="text-sm leading-relaxed" style={{ color: "#4B5563" }}>Across the Fanometrix fan panel, access to matches and experiences ranked second overall as a form of brand value - ahead of rewards, fan events and content. This does not mean content is ineffective. It means content is most valued when it unlocks access, community or participation rather than functioning as advertising alone.</p>
             </div>
-            <p>Brands like EE (improving matchday connectivity), adidas (fan-facing community campaigns) and ISL clubs (creator and social-led local engagement) demonstrate that content and media remain powerful — when they deliver something fans actually want. The question for Carlsberg is not whether to use content and media, but what the content and media should unlock.</p>
+            <p>Brands like EE (improving matchday connectivity), adidas (fan-facing community campaigns), DHL (deliverying dreams) and ISL clubs (creator and social-led local engagement) demonstrate that content and media remain powerful - when they deliver something fans actually want. The question for Carlsberg is not whether to use content and media, but what the content and media should unlock.</p>
           </>
         }
-        implication="Carlsberg should use UEFA access to create moments fans could not otherwise reach — and use content, media and creator partnerships to distribute and amplify those moments at scale."
+        implication="Carlsberg should use UEFA access to create moments fans could not otherwise reach - and use content, media and creator partnerships to distribute and amplify those moments at scale."
         recommendation="Build a market-specific experience programme around access to matches, players, football culture and behind-the-scenes moments. Use content and creator partnerships as the distribution layer."
       />
       <Divider />
@@ -529,15 +529,15 @@ function Report({ scrolled }: { scrolled: boolean }) {
         description="Fans can see a sponsor without feeling positively about it." />
       <InsightBlock
         headline="The sponsorship challenge is not being noticed. It is being relevant."
-        narrative={`Sponsorship visibility at scale remains valuable. Tournament assets, broadcast presence, publisher placements, social content and media create awareness across large audiences — and that awareness is the foundation everything else builds on. The question is what sits on top of that foundation.\n\nFans are more likely to feel positively about brands that improve their experience, support the game or create access they could not otherwise reach. The issue is not whether advertising and media work — they do. The issue is whether the brand has a contribution story that gives that media a reason to resonate.\n\nFor Carlsberg, the goal for EURO 2028 is not to choose between visibility and contribution. It is to ensure both are working together — so that the media creates awareness, and the contribution gives fans a reason to remember the brand positively.`}
-        implication="Visibility creates recognition. Contribution creates relevance. The Football Collective media network can deliver both — if the brand story is built to earn genuine fan value."
+        narrative={`Sponsorship visibility at scale remains valuable. Tournament assets, broadcast presence, publisher placements, social content and media create awareness across large audiences - and that awareness is the foundation everything else builds on. The question is what sits on top of that foundation.\n\nFans are more likely to feel positively about brands that improve their experience, support the game or create access they could not otherwise reach. The issue is not whether advertising and media work - they do. The issue is whether the brand has a contribution story that gives that media a reason to resonate.\n\nFor Carlsberg, the goal for EURO 2028 is not to choose between visibility and contribution. It is to ensure both are working together - so that the media creates awareness, and the contribution gives fans a reason to remember the brand positively.`}
+        implication="Visibility creates recognition. Contribution creates relevance. The Football Collective media network can deliver both - if the brand story is built to earn genuine fan value."
         recommendation="Build a 'what Carlsberg gave to football' narrative that runs alongside the visibility programme. Use publisher partnerships, creator content and fan experiences as the channels that make the contribution tangible."
       />
       <Divider />
 
       {/* ── Access Pyramid ── */}
       <ChapterBreak number="STRATEGIC FRAMEWORK" title="The Access Pyramid"
-        description="Not all access is equal. As brands move up the pyramid, their sponsorship becomes more valuable — to fans, to communities, and to football itself." />
+        description="Not all access is equal. As brands move up the pyramid, their sponsorship becomes more valuable - to fans, to communities, and to football itself." />
       <AccessPyramid />
       <InsightBlock
         chapter="STRATEGIC IMPLICATION"
@@ -555,28 +555,28 @@ function Report({ scrolled }: { scrolled: boolean }) {
       <MarketProfile flag="🇬🇧" market="United Kingdom" headline="ACCESS MEANS REMOVING FRICTION FROM FOOTBALL"
         stat="35%" statLabel="of UK adults regularly follow football"
         signals={[{ label: "Friction Index", value: "HIGH" }, { label: "Matchday costs", value: "↑ Rising" }, { label: "Streaming", value: "#1 Pain Point" }]}
-        narrative="In the UK, football fandom is a deep cultural habit, not a casual interest. The relationship fans have with the sport is already strong — the opportunity for Carlsberg is not to add to it, but to make it easier. UK fans are increasingly frustrated by cost, fragmentation and the growing sense that football is being commercialised in ways that don't benefit them. Brands that improve the practical experience of being a football fan — simpler access, better value, less friction — earn genuine goodwill."
+        narrative="In the UK, football fandom is a deep cultural habit, not a casual interest. The relationship fans have with the sport is already strong - the opportunity for Carlsberg is not to add to it, but to make it easier. UK fans are increasingly frustrated by cost, fragmentation and the growing sense that football is being commercialised in ways that don't benefit them. Brands that improve the practical experience of being a football fan - simpler access, better value, less friction - earn genuine goodwill."
         findings={[
           "Matchday costs and accessibility remain a persistent concern across football audiences",
           "Streaming fragmentation means fans regularly pay multiple subscriptions to follow the sport they love",
           "Transactional benefits are valued, but only when they reduce effort rather than create it",
           "Industry analysis suggests UK fans are among the most discerning audiences when it comes to evaluating brand motives in football",
         ]}
-        opportunity="Carlsberg's long-standing association with football creates space to own the friction-removal narrative. Activation that makes the football experience more accessible — better viewing, simpler ticketing, lower-cost matchday moments — turns brand presence into something fans notice and appreciate."
+        opportunity="Carlsberg's long-standing association with football creates space to own the friction-removal narrative. Activation that makes the football experience more accessible - better viewing, simpler ticketing, lower-cost matchday moments - turns brand presence into something fans notice and appreciate."
         recommendation="Identify one specific friction point in the UK football experience and make removing it a visible, branded commitment. Make the improvement clearly attributable to Carlsberg."
       />
 
       <MarketProfile flag="🇩🇪" market="Germany" headline="ACCESS MEANS PROTECTING AND SUPPORTING FOOTBALL CULTURE"
         stat="61%" statLabel="of the German population follows football"
         signals={[{ label: "Community Trust", value: "VERY HIGH" }, { label: "Grassroots", value: "Top Priority" }, { label: "50+1 principle", value: "Deeply Held" }]}
-        narrative="Germany's football culture is built around community ownership, local clubs and the principle that the sport belongs to the fans who follow it. The 50+1 rule is not just a regulation — it represents a set of values that shape how fans in Germany evaluate brands that enter their sport. Commercial activity that feels extractive or purely self-serving tends to attract resistance. Brands that visibly support local clubs, youth development and fan culture earn a different kind of reception."
+        narrative="Germany's football culture is built around community ownership, local clubs and the principle that the sport belongs to the fans who follow it. The 50+1 rule is not just a regulation - it represents a set of values that shape how fans in Germany evaluate brands that enter their sport. Commercial activity that feels extractive or purely self-serving tends to attract resistance. Brands that visibly support local clubs, youth development and fan culture earn a different kind of reception."
         findings={[
           "Local club partnerships appear to generate stronger fan approval than national tournament association in this market",
           "Youth football and grassroots programmes are directionally the most valued form of brand investment",
-          "Authenticity signals — local language, local partnerships, local talent — matter more than scale",
+          "Authenticity signals - local language, local partnerships, local talent - matter more than scale",
           "Market analysis suggests German fans are among the most attentive to brand intent within football",
         ]}
-        opportunity="Germany is the market where grassroots investment most directly appears to translate into brand equity. A visible commitment to supporting local clubs or youth development — made before and during the tournament — would give Carlsberg a differentiated position in a market where most sponsors look the same."
+        opportunity="Germany is the market where grassroots investment most directly appears to translate into brand equity. A visible commitment to supporting local clubs or youth development - made before and during the tournament - would give Carlsberg a differentiated position in a market where most sponsors look the same."
         recommendation="Partner with local football clubs or community programmes, not just the tournament. Make the community investment visible at the local level, not only in national marketing."
       />
 
@@ -590,17 +590,17 @@ function Report({ scrolled }: { scrolled: boolean }) {
           "Investment in women's football is viewed positively and perceived as a signal of genuine commitment to the sport",
           "The strongest brand opportunity appears to be enabling access at the local level, not amplifying visibility at the elite level",
         ]}
-        opportunity="Sweden is a market where the opportunity appears to be in community depth, not broadcast reach. Carlsberg can build meaningful brand equity by funding local football access — with a smaller investment creating a stronger signal than a larger national campaign."
+        opportunity="Sweden is a market where the opportunity appears to be in community depth, not broadcast reach. Carlsberg can build meaningful brand equity by funding local football access - with a smaller investment creating a stronger signal than a larger national campaign."
         recommendation="Fund local football infrastructure visibly. Partner with Swedish Football Association grassroots programmes and make the community impact measurable and storytellable."
       />
 
       <MarketProfile flag="🇮🇳" market="India" headline="ACCESS MEANS LOCAL RELEVANCE AT SCALE"
-        stat="305M" statLabel="football audience — and growing"
+        stat="305M" statLabel="football audience - and growing"
         signals={[{ label: "Growth trajectory", value: "VERY HIGH" }, { label: "Youth audience", value: "Under 30" }, { label: "Platform", value: "Social-first" }]}
-        narrative="India is structurally different from every other market in this report. It is a growth market for football — with a large, young, digitally native audience that is building its relationship with the sport in real time. What makes this market particularly important for Carlsberg is that the brands that invest early in local football culture are likely to define the category as the audience matures. EURO 2028 will drive interest, but it needs to land with local relevance to convert attention into affinity."
+        narrative="India is structurally different from every other market in this report. It is a growth market for football - with a large, young, digitally native audience that is building its relationship with the sport in real time. What makes this market particularly important for Carlsberg is that the brands that invest early in local football culture are likely to define the category as the audience matures. EURO 2028 will drive interest, but it needs to land with local relevance to convert attention into affinity."
         findings={[
           "India's football audience is predominantly under 30, highly engaged on social platforms and growing rapidly",
-          "ISL clubs are creating genuine local fan communities in major cities — a signal that local identity matters",
+          "ISL clubs are creating genuine local fan communities in major cities - a signal that local identity matters",
           "Language-specific content significantly outperforms English-language content in reach and engagement",
           "The strongest opportunity appears to be investment in local talent pathways and creator-led storytelling, not tournament broadcast visibility alone",
         ]}
@@ -609,13 +609,13 @@ function Report({ scrolled }: { scrolled: boolean }) {
       />
 
       <MarketProfile flag="🇨🇳" market="China" headline="ACCESS MEANS A BRIDGE BETWEEN DIGITAL FANDOM AND REAL EXPERIENCE"
-        stat="289M" statLabel="football fans — the world's largest single fan base"
+        stat="289M" statLabel="football fans - the world's largest single fan base"
         signals={[{ label: "Digital fandom", value: "VERY HIGH" }, { label: "Player access", value: "Top Demand" }, { label: "Platform", value: "WeChat/Weibo" }]}
-        narrative="China's football market is defined by scale and digital intensity. The audience is vast, deeply engaged with football's biggest players and moments, but largely experiencing the sport through screens and social platforms rather than live attendance. What this audience appears to value most is the feeling of access — closeness to players, exclusive content, and moments that bridge the gap between following a sport digitally and experiencing it directly. This is where a brand with UEFA rights has a meaningful and distinctive advantage."
+        narrative="China's football market is defined by scale and digital intensity. The audience is vast, deeply engaged with football's biggest players and moments, but largely experiencing the sport through screens and social platforms rather than live attendance. What this audience appears to value most is the feeling of access - closeness to players, exclusive content, and moments that bridge the gap between following a sport digitally and experiencing it directly. This is where a brand with UEFA rights has a meaningful and distinctive advantage."
         findings={[
           "Player-led content appears to significantly outperform club or competition-led content on Chinese platforms",
           "Behind-the-scenes and exclusive access content is the category most associated with high brand value in this market",
-          "WeChat and Weibo are the primary channels for football content consumption — platform-native formats significantly outperform repurposed Western content",
+          "WeChat and Weibo are the primary channels for football content consumption - platform-native formats significantly outperform repurposed Western content",
           "Physical fan moments, when made available, create strong social amplification in this market",
         ]}
         opportunity="China is the market where Carlsberg's UEFA EURO 2028 rights create the clearest premium. Player-access activation, platform-native content and exclusive behind-the-scenes moments can unlock a level of fan engagement that straightforward tournament advertising cannot reach."
@@ -639,11 +639,11 @@ function Report({ scrolled }: { scrolled: boolean }) {
       <Divider />
       <Recommendation number={4}
         headline="Use media, content and creators to make the contribution visible"
-        body="Sponsorship, publisher partnerships, creator programmes and social content are not in competition with the contribution story — they are how the contribution story travels. Publisher audiences, football creators and fan communities are the channels through which Carlsberg's investment in access and grassroots football reaches the people it is designed to benefit." />
+        body="Sponsorship, publisher partnerships, creator programmes and social content are not in competition with the contribution story - they are how the contribution story travels. Publisher audiences, football creators and fan communities are the channels through which Carlsberg's investment in access and grassroots football reaches the people it is designed to benefit." />
       <Divider />
       <Recommendation number={5}
         headline="Measure fan value alongside media delivery"
-        body="Track whether the partnership improves fan perception, brand trust, access, participation and community impact — not just reach, impressions and awareness. The Football Collective can provide both the media delivery and the fan research infrastructure to measure what is actually changing. Define targets before the tournament begins." />
+        body="Track whether the partnership improves fan perception, brand trust, access, participation and community impact - not just reach, impressions and awareness. The Football Collective can provide both the media delivery and the fan research infrastructure to measure what is actually changing. Define targets before the tournament begins." />
 
       <PullQuote
         quote="The brands that win in football will not only be the most visible. They will be the brands fans believe made football better."
