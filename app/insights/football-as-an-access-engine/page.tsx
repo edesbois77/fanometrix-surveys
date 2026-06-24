@@ -119,7 +119,9 @@ function ExecSummary() {
         <GoldLabel>Executive Summary</GoldLabel>
         <h2 className="text-2xl md:text-3xl font-bold mb-5 leading-snug max-w-2xl" style={{ color: NAVY }}>What this report tells you</h2>
         <p className="text-gray-500 text-base md:text-lg leading-relaxed mb-10 max-w-2xl font-light">
-          This report combines early Fanometrix testing, Football365 audience polling, publisher network intelligence and industry analysis across the United Kingdom, Germany, Sweden, India and China. It is designed as a strategic intelligence piece, not a nationally representative research study. The consistent pattern is clear: fans respond most positively when brands use football sponsorship to create tangible value — through access, participation, community investment and better football experiences.
+          This report draws on Fanometrix fan survey data — collected across LiveScore and Football365 publisher audiences, representing approximately 1,800 football fans predominantly from the UK with additional Germany and Sweden representation — alongside desk research across five markets. The LiveScore sample (~1,339 responses) provides the primary evidence base. Football365 results (33–72 responses per question) are treated as directional validation: they help confirm the pattern but do not drive conclusions independently.
+
+          The consistent signal across both data sources and the wider desk research is this: fans value experiences over exposure, participation over interruption, and utility over visibility. Sponsorship is most effective when it creates tangible fan value — through access, community investment, better football experiences and content that unlocks something real.
         </p>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {points.map((pt, i) => (
@@ -436,10 +438,12 @@ function Methodology() {
       <div className={W}>
         <p className="text-[9px] font-bold text-gray-400 uppercase tracking-[0.25em] mb-4">Methodology & Next Steps</p>
         <p className="text-sm text-gray-500 leading-relaxed max-w-2xl mb-5">
-          This report was developed as a fast-turnaround strategic intelligence exercise to support early planning around Carlsberg, UEFA and EURO 2028. It combines early Fanometrix survey testing, Football365 audience polling, publisher network intelligence and desk research across the United Kingdom, Germany, Sweden, India and China. Survey inputs should be treated as directional rather than nationally representative.
+          This report was developed as a fast-turnaround strategic intelligence exercise to support early planning around Carlsberg, UEFA and EURO 2028. Fan survey data was collected across Fanometrix publisher network audiences — primarily LiveScore (~1,339 responses, primary evidence base) and Football365 (33–72 responses per question, used as directional validation). Respondents are predominantly UK-based football fans, with additional representation from Germany and Sweden. Football365 sub-samples are small enough that they should be read as confirming the LiveScore pattern rather than driving independent conclusions.
+
+          Desk research covers the United Kingdom, Germany, Sweden, India and China, drawing on publicly available data from UEFA, Nielsen Sports, Statista, local football associations and regional media organisations. All survey findings should be treated as directional indicators rather than nationally representative market data.
         </p>
         <p className="text-sm text-gray-500 leading-relaxed max-w-2xl">
-          A future Fanometrix programme would be structured over a longer period and could combine planned partner inventory, larger sample sizes, market-specific survey deployment, social and community conversation analysis, publisher behavioural signals and ongoing fan tracking. This would allow Carlsberg and Dentsu to move from directional intelligence to a continuous football fan learning engine across the full sponsorship planning cycle.
+          A future Fanometrix programme would be structured over a longer period and could combine planned partner inventory, larger sample sizes, market-specific survey deployment, social listening, publisher behavioural signals and ongoing fan tracking. This would allow Carlsberg and Dentsu to move from directional intelligence to a continuous football fan learning engine — combining media delivery, fan research and campaign measurement across the full EURO 2028 planning cycle.
         </p>
       </div>
     </div>
@@ -479,10 +483,10 @@ function Report({ scrolled }: { scrolled: boolean }) {
             <p>Early Fanometrix testing and supporting market analysis suggest that fans are quick to distinguish between brands that appear around football and brands that actively contribute to it.</p>
             <p>Grassroots and community investment performs strongly because it feels additive. It supports the places where football starts, strengthens the local game and creates a benefit that sits beyond matchday advertising.</p>
             <div className="border-l-[3px] pl-5 py-1 my-2" style={{ borderColor: GOLD }}>
-              <p className="text-[9px] font-bold uppercase tracking-[0.25em] mb-1.5" style={{ color: GOLD }}>Directional Signal</p>
-              <p className="text-sm leading-relaxed" style={{ color: "#4B5563" }}>In Football365 audience polling, grassroots and local community support ranked ahead of rewards, content and fan events as a signal of genuine brand commitment to football.</p>
+              <p className="text-[9px] font-bold uppercase tracking-[0.25em] mb-1.5" style={{ color: GOLD }}>Survey Signal — Directional</p>
+              <p className="text-sm leading-relaxed" style={{ color: "#4B5563" }}>Across approximately 1,800 football fans surveyed through LiveScore and Football365 publisher audiences, grassroots and community investment ranked first as the indicator of genuine brand commitment — ahead of match access, rewards, fan events and branded content. The Football365 sub-samples (33–72 responses per question) directionally confirm the pattern seen in the larger LiveScore data.</p>
             </div>
-            <p>This matters for Carlsberg because UEFA EURO 2028 will create huge visibility, but visibility alone will not explain what the brand gave back. A clear grassroots commitment gives the sponsorship a contribution story fans can understand and remember.</p>
+            <p>This matters for Carlsberg because UEFA EURO 2028 will create large-scale visibility. Visibility creates reach; it does not create the contribution story fans are looking for. A clear, funded grassroots commitment — delivered through partners, content and community programmes — turns that visibility into something fans can understand, respect and share.</p>
           </>
         }
         implication="Grassroots investment gives Carlsberg a credible way to demonstrate contribution before, during and after the tournament — not just during broadcast windows."
@@ -505,19 +509,19 @@ function Report({ scrolled }: { scrolled: boolean }) {
       <ChapterBreak number="INSIGHT 03" title="Experiences Beat Rewards"
         description="Fans value what they cannot buy for themselves over what brands offer as a discount." />
       <InsightBlock
-        headline="Carlsberg has UEFA rights. Use them to create unrepeatable moments."
+        headline="Carlsberg has UEFA rights. Use them to create moments fans cannot reach alone."
         narrative={
           <>
-            <p>Rewards are useful, but they are usually transactional. Experiences create memory. A discount can be offered by almost any brand; access to a player, a training session, a matchday moment or a behind-the-scenes football experience can only be created by a brand with real football rights and relationships.</p>
+            <p>Rewards are useful, but they are usually transactional. Experiences create memory. A discount can be offered by almost any brand; access to a player, a training session, a matchday moment or behind-the-scenes content can only be created by a brand with real football rights and relationships.</p>
             <div className="border-l-[3px] pl-5 py-1 my-2" style={{ borderColor: GOLD }}>
-              <p className="text-[9px] font-bold uppercase tracking-[0.25em] mb-1.5" style={{ color: GOLD }}>Directional Polling Signal</p>
-              <p className="text-sm leading-relaxed" style={{ color: "#4B5563" }}>Football365 audience polling showed access to matches and experiences ranking ahead of discounts, content and fan events as a form of brand value — second only to grassroots and community investment.</p>
+              <p className="text-[9px] font-bold uppercase tracking-[0.25em] mb-1.5" style={{ color: GOLD }}>Survey Signal — Directional</p>
+              <p className="text-sm leading-relaxed" style={{ color: "#4B5563" }}>Across the Fanometrix fan panel, access to matches and experiences ranked second overall as a form of brand value — ahead of rewards, fan events and content. This does not mean content is ineffective. It means content is most valued when it unlocks access, community or participation rather than functioning as advertising alone.</p>
             </div>
-            <p>For Carlsberg, UEFA EURO 2028 provides the platform. The strategic question is what kind of access the brand creates for fans — and whether it is genuinely distinctive or simply the same hospitality and giveaway mechanics every other sponsor deploys.</p>
+            <p>Brands like EE (improving matchday connectivity), adidas (fan-facing community campaigns) and ISL clubs (creator and social-led local engagement) demonstrate that content and media remain powerful — when they deliver something fans actually want. The question for Carlsberg is not whether to use content and media, but what the content and media should unlock.</p>
           </>
         }
-        implication="Carlsberg should use UEFA access to create moments fans could not otherwise buy or reach — not replicate what any brand could offer."
-        recommendation="Build a market-specific experience programme around access to matches, players, football culture and behind-the-scenes moments that only Carlsberg can unlock."
+        implication="Carlsberg should use UEFA access to create moments fans could not otherwise reach — and use content, media and creator partnerships to distribute and amplify those moments at scale."
+        recommendation="Build a market-specific experience programme around access to matches, players, football culture and behind-the-scenes moments. Use content and creator partnerships as the distribution layer."
       />
       <Divider />
 
@@ -525,10 +529,10 @@ function Report({ scrolled }: { scrolled: boolean }) {
       <ChapterBreak number="INSIGHT 04" title="Awareness Is Not Affection"
         description="Fans can see a sponsor without feeling positively about it." />
       <InsightBlock
-        headline="The sponsorship challenge is not being noticed. It is being valued."
-        narrative={`Football sponsors rarely struggle to be seen. Tournament assets, broadcast presence, social content and media placements create awareness at scale. The harder task is converting that awareness into positive feeling.\n\nThat conversion increasingly depends on contribution. Fans are more likely to remember brands that improve their experience, support the game or create access they could not otherwise reach.\n\nFor Carlsberg, the question is therefore not only where the brand appears during EURO 2028. It is what fans can point to and say Carlsberg made better.`}
-        implication="Visibility creates recognition. Contribution creates goodwill. The goal for EURO 2028 is to earn both."
-        recommendation="Build a clear 'what Carlsberg gave to football' narrative that sits alongside the visibility plan and makes the contribution as prominent as the logo."
+        headline="The sponsorship challenge is not being noticed. It is being relevant."
+        narrative={`Sponsorship visibility at scale remains valuable. Tournament assets, broadcast presence, publisher placements, social content and media create awareness across large audiences — and that awareness is the foundation everything else builds on. The question is what sits on top of that foundation.\n\nFans are more likely to feel positively about brands that improve their experience, support the game or create access they could not otherwise reach. The issue is not whether advertising and media work — they do. The issue is whether the brand has a contribution story that gives that media a reason to resonate.\n\nFor Carlsberg, the goal for EURO 2028 is not to choose between visibility and contribution. It is to ensure both are working together — so that the media creates awareness, and the contribution gives fans a reason to remember the brand positively.`}
+        implication="Visibility creates recognition. Contribution creates relevance. The Football Collective media network can deliver both — if the brand story is built to earn genuine fan value."
+        recommendation="Build a 'what Carlsberg gave to football' narrative that runs alongside the visibility programme. Use publisher partnerships, creator content and fan experiences as the channels that make the contribution tangible."
       />
       <Divider />
 
@@ -635,12 +639,12 @@ function Report({ scrolled }: { scrolled: boolean }) {
         body="Develop one global organising idea, but adapt the value delivered in each market. What works in Germany will not automatically work in India or China. The Access Pyramid provides the framework; local insight should inform the execution." />
       <Divider />
       <Recommendation number={4}
-        headline="Make the contribution story as visible as the sponsorship"
-        body="Do not rely on logo presence alone. Build a clear narrative around what Carlsberg gave back to football and make it easy for fans, media and partners to understand. The contribution story should travel alongside the visibility programme, not follow it." />
+        headline="Use media, content and creators to make the contribution visible"
+        body="Sponsorship, publisher partnerships, creator programmes and social content are not in competition with the contribution story — they are how the contribution story travels. Publisher audiences, football creators and fan communities are the channels through which Carlsberg's investment in access and grassroots football reaches the people it is designed to benefit." />
       <Divider />
       <Recommendation number={5}
-        headline="Measure fan value, not just media delivery"
-        body="Track whether the partnership improves fan perception, brand trust, access, participation and community impact — not just reach, impressions and awareness. Define a Carlsberg EURO 2028 Fan Value Index and set targets before the tournament begins." />
+        headline="Measure fan value alongside media delivery"
+        body="Track whether the partnership improves fan perception, brand trust, access, participation and community impact — not just reach, impressions and awareness. The Football Collective can provide both the media delivery and the fan research infrastructure to measure what is actually changing. Define targets before the tournament begins." />
 
       <PullQuote
         quote="The brands that win in football will not only be the most visible. They will be the brands fans believe made football better."
