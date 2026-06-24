@@ -46,6 +46,7 @@ const ADMIN_ONLY_PREFIXES = [
   "/user-management",
   "/publishers",
   "/embed-test",
+  "/admin-insights",
   "/api/users",
   "/api/publishers",
   "/api/admin",

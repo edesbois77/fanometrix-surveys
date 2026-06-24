@@ -21,6 +21,11 @@ type User = {
   username: string;
   role: "admin" | "brand" | "agency" | "publisher";
   organisation_name: string;
+  associated_agency: string | null;
+  associated_brand: string | null;
+  associated_publisher: string | null;
+  associated_projects: string[];
+  associated_markets: string[];
   allowed_campaign_ids: string[];
   allowed_publisher_ids: string[];
   is_active: boolean;
@@ -269,6 +274,11 @@ type FormState = {
   force_password_change: boolean;
   role:                  User["role"];
   organisation_name:     string;
+  associated_agency:     string;
+  associated_brand:      string;
+  associated_publisher:  string;
+  associated_projects:   string[];
+  associated_markets:    string[];
   allowed_campaign_ids:  string[];
   allowed_publisher_ids: string[];
   is_active:             boolean;
@@ -281,6 +291,11 @@ const EMPTY_FORM: FormState = {
   force_password_change: true,
   role:                  "brand",
   organisation_name:     "",
+  associated_agency:     "",
+  associated_brand:      "",
+  associated_publisher:  "",
+  associated_projects:   [],
+  associated_markets:    [],
   allowed_campaign_ids:  [],
   allowed_publisher_ids: [],
   is_active:             true,
@@ -410,6 +425,11 @@ export default function UserManagementPage() {
       force_password_change: u.force_password_change,
       role:                  u.role,
       organisation_name:     u.organisation_name,
+      associated_agency:     u.associated_agency    ?? "",
+      associated_brand:      u.associated_brand     ?? "",
+      associated_publisher:  u.associated_publisher ?? "",
+      associated_projects:   u.associated_projects  ?? [],
+      associated_markets:    u.associated_markets   ?? [],
       allowed_campaign_ids:  u.allowed_campaign_ids  ?? [],
       allowed_publisher_ids: u.allowed_publisher_ids ?? [],
       is_active:             u.is_active,
@@ -455,6 +475,11 @@ export default function UserManagementPage() {
       username:              cleanUsername,
       role:                  form.role,
       organisation_name:     form.organisation_name,
+      associated_agency:     form.associated_agency.trim()    || null,
+      associated_brand:      form.associated_brand.trim()     || null,
+      associated_publisher:  form.associated_publisher.trim() || null,
+      associated_projects:   form.associated_projects,
+      associated_markets:    form.associated_markets,
       // Publishers use Publisher Access only — clear any campaign IDs stored historically
       allowed_campaign_ids:  form.role === "publisher" ? [] : form.allowed_campaign_ids,
       allowed_publisher_ids: form.allowed_publisher_ids,
@@ -735,6 +760,55 @@ export default function UserManagementPage() {
                   placeholder="e.g. Carlsberg" className={INPUT} />
               </Field>
 
+              <hr className="border-gray-100" />
+
+              {/* Audience association fields — drive insight access control */}
+              <div>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
+                  Audience Associations
+                </p>
+                <p className="text-xs text-gray-400 mb-3 leading-relaxed">
+                  These optional fields control which restricted insights this user can see.
+                  An insight tagged &ldquo;Dentsu&rdquo; will appear for any user whose Associated Agency is Dentsu.
+                </p>
+                <div className="space-y-3">
+                  <Field label="Associated Agency">
+                    <input type="text" value={form.associated_agency}
+                      onChange={e => setForm(f => ({ ...f, associated_agency: e.target.value }))}
+                      placeholder="e.g. Dentsu" className={INPUT} />
+                  </Field>
+
+                  <Field label="Associated Brand / Client">
+                    <input type="text" value={form.associated_brand}
+                      onChange={e => setForm(f => ({ ...f, associated_brand: e.target.value }))}
+                      placeholder="e.g. Carlsberg" className={INPUT} />
+                  </Field>
+
+                  <Field label="Associated Publisher">
+                    <input type="text" value={form.associated_publisher}
+                      onChange={e => setForm(f => ({ ...f, associated_publisher: e.target.value }))}
+                      placeholder="e.g. Football365" className={INPUT} />
+                  </Field>
+
+                  <Field label="Associated Projects">
+                    <SimpleTagInput
+                      values={form.associated_projects}
+                      onChange={v => setForm(f => ({ ...f, associated_projects: v }))}
+                      placeholder="Type a project and press Enter…"
+                    />
+                    <p className="text-xs text-gray-400 mt-1">e.g. UEFA EURO 2028</p>
+                  </Field>
+
+                  <Field label="Associated Markets">
+                    <SimpleTagInput
+                      values={form.associated_markets}
+                      onChange={v => setForm(f => ({ ...f, associated_markets: v }))}
+                      placeholder="Type a market and press Enter…"
+                    />
+                    <p className="text-xs text-gray-400 mt-1">e.g. UK, Germany, Sweden</p>
+                  </Field>
+                </div>
+              </div>
 
               <hr className="border-gray-100" />
 
@@ -850,6 +924,57 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
         {label}
       </label>
       {children}
+    </div>
+  );
+}
+
+function SimpleTagInput({
+  values,
+  onChange,
+  placeholder = "Type and press Enter…",
+}: {
+  values: string[];
+  onChange: (v: string[]) => void;
+  placeholder?: string;
+}) {
+  const [text, setText] = useState("");
+
+  function add() {
+    const t = text.trim();
+    if (t && !values.includes(t)) onChange([...values, t]);
+    setText("");
+  }
+
+  function remove(v: string) {
+    onChange(values.filter(x => x !== v));
+  }
+
+  return (
+    <div>
+      {values.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 mb-2">
+          {values.map(v => (
+            <span key={v} className="inline-flex items-center gap-1 text-xs bg-[#0B1929]/8 text-[#0B1929] border border-[#0B1929]/15 px-2.5 py-1 rounded-full">
+              {v}
+              <button type="button" onClick={() => remove(v)} className="text-gray-400 hover:text-gray-700 leading-none">×</button>
+            </span>
+          ))}
+        </div>
+      )}
+      <div className="flex gap-2">
+        <input
+          type="text"
+          value={text}
+          onChange={e => setText(e.target.value)}
+          onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); add(); } }}
+          placeholder={placeholder}
+          className={INPUT}
+        />
+        <button type="button" onClick={add}
+          className="px-3 py-2 text-xs border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors whitespace-nowrap">
+          Add
+        </button>
+      </div>
     </div>
   );
 }

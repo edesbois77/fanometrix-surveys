@@ -3,7 +3,7 @@ import bcrypt from "bcryptjs";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { requireSession } from "@/lib/auth";
 
-const USER_SELECT = "id,username,role,organisation_name,allowed_campaign_ids,allowed_publisher_ids,is_active,force_password_change,created_at,updated_at,last_seen_at";
+const USER_SELECT = "id,username,role,organisation_name,associated_agency,associated_brand,associated_publisher,associated_projects,associated_markets,allowed_campaign_ids,allowed_publisher_ids,is_active,force_password_change,created_at,updated_at,last_seen_at";
 
 export async function GET(req: NextRequest) {
   try {
@@ -38,6 +38,8 @@ export async function POST(req: NextRequest) {
   const {
     username, password, role,
     organisation_name,
+    associated_agency, associated_brand, associated_publisher,
+    associated_projects, associated_markets,
     allowed_campaign_ids, allowed_publisher_ids,
     is_active, force_password_change,
   } = body as {
@@ -45,7 +47,11 @@ export async function POST(req: NextRequest) {
     password: string;
     role: string;
     organisation_name?: string;
-
+    associated_agency?: string | null;
+    associated_brand?: string | null;
+    associated_publisher?: string | null;
+    associated_projects?: string[];
+    associated_markets?: string[];
     allowed_campaign_ids?: string[];
     allowed_publisher_ids?: string[];
     is_active?: boolean;
@@ -74,13 +80,18 @@ export async function POST(req: NextRequest) {
   const { data, error } = await supabaseAdmin
     .from("users")
     .insert({
-      username:             cleanUsername,
+      username:              cleanUsername,
       hashed_password,
       role,
-      organisation_name:    organisation_name    ?? "",
-      allowed_campaign_ids: allowed_campaign_ids  ?? [],
+      organisation_name:     organisation_name     ?? "",
+      associated_agency:     associated_agency     ?? null,
+      associated_brand:      associated_brand      ?? null,
+      associated_publisher:  associated_publisher  ?? null,
+      associated_projects:   associated_projects   ?? [],
+      associated_markets:    associated_markets    ?? [],
+      allowed_campaign_ids:  allowed_campaign_ids  ?? [],
       allowed_publisher_ids: allowed_publisher_ids ?? [],
-      is_active:            is_active            ?? true,
+      is_active:             is_active             ?? true,
       force_password_change: force_password_change ?? true,
     })
     .select(USER_SELECT)

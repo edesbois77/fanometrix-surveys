@@ -204,6 +204,16 @@ export const NAV_ITEMS: NavItemConfig[] = [
     navGroup: "developer",
   },
   {
+    href: "/admin-insights",
+    label: "Insights",
+    icon: "◈",
+    description: "Create and manage insight content — reports, analyses and intelligence with audience access control.",
+    cta: "Manage Insights",
+    section: "developer-tool",
+    roles: ["admin"],
+    navGroup: "developer",
+  },
+  {
     href: "/user-management",
     label: "User Management",
     icon: "◉",
@@ -281,9 +291,9 @@ export const NAV_ITEMS: NavItemConfig[] = [
     href: "/insights",
     label: "Insights",
     icon: "◈",
-    description: "AI-assisted insights and audience summaries from your campaign results.",
+    description: "Reports, market analyses and intelligence published for your organisation.",
     cta: "View Insights",
-    roles: ["brand"],
+    roles: ["brand", "agency", "publisher"],
     navGroup: "home",
   },
 

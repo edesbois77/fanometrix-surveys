@@ -3,7 +3,7 @@ import bcrypt from "bcryptjs";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { requireSession } from "@/lib/auth";
 
-const USER_SELECT = "id,username,role,organisation_name,allowed_campaign_ids,allowed_publisher_ids,is_active,force_password_change,created_at,updated_at,last_seen_at";
+const USER_SELECT = "id,username,role,organisation_name,associated_agency,associated_brand,associated_publisher,associated_projects,associated_markets,allowed_campaign_ids,allowed_publisher_ids,is_active,force_password_change,created_at,updated_at,last_seen_at";
 
 export async function PUT(
   req: NextRequest,
@@ -38,13 +38,19 @@ export async function PUT(
     update.username = cleanUsername;
   }
 
-  if (body.role)                            update.role              = body.role;
-  if (body.organisation_name  !== undefined) update.organisation_name  = body.organisation_name;
+  if (body.role)                             update.role                = body.role;
+  if (body.organisation_name  !== undefined) update.organisation_name   = body.organisation_name;
 
-  if (body.allowed_campaign_ids  !== undefined) update.allowed_campaign_ids  = body.allowed_campaign_ids;
-  if (body.allowed_publisher_ids !== undefined) update.allowed_publisher_ids = body.allowed_publisher_ids;
-  if (body.is_active          !== undefined) update.is_active          = body.is_active;
-  if (body.force_password_change !== undefined) update.force_password_change = body.force_password_change;
+  if (body.associated_agency    !== undefined) update.associated_agency    = body.associated_agency;
+  if (body.associated_brand     !== undefined) update.associated_brand     = body.associated_brand;
+  if (body.associated_publisher !== undefined) update.associated_publisher = body.associated_publisher;
+  if (body.associated_projects  !== undefined) update.associated_projects  = body.associated_projects;
+  if (body.associated_markets   !== undefined) update.associated_markets   = body.associated_markets;
+
+  if (body.allowed_campaign_ids   !== undefined) update.allowed_campaign_ids   = body.allowed_campaign_ids;
+  if (body.allowed_publisher_ids  !== undefined) update.allowed_publisher_ids  = body.allowed_publisher_ids;
+  if (body.is_active              !== undefined) update.is_active              = body.is_active;
+  if (body.force_password_change  !== undefined) update.force_password_change  = body.force_password_change;
 
   if (body.password && typeof body.password === "string" && body.password.length > 0) {
     update.hashed_password = await bcrypt.hash(body.password as string, 10);
