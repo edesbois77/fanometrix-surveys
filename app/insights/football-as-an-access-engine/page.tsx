@@ -422,6 +422,148 @@ function DownloadSection() {
   );
 }
 
+// ─── Static MPU replica ───────────────────────────────────────────────────────
+
+const MPU_NAVY  = "#0B1929";
+const MPU_GOLD  = "#D7B87A";
+const MPU_W     = 300;
+const MPU_H     = 250;
+
+function SurveyMPU({ lang, question, options }: {
+  lang: string;
+  question: string;
+  options: string[];
+}) {
+  return (
+    <div className="flex flex-col items-center gap-3">
+      <p className="text-[10px] font-bold uppercase tracking-[0.2em]" style={{ color: MPU_GOLD }}>{lang}</p>
+      <div style={{
+        width: MPU_W, height: MPU_H, overflow: "hidden", borderRadius: 10,
+        display: "flex", flexDirection: "column", boxSizing: "border-box",
+        boxShadow: "0 8px 32px rgba(0,0,0,0.45), 0 0 0 1px rgba(255,255,255,0.06)",
+        fontFamily: "system-ui, -apple-system, sans-serif",
+      }}>
+        {/* Header */}
+        <div style={{
+          height: 46, minHeight: 46, background: MPU_NAVY,
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          padding: "0 12px", flexShrink: 0, boxSizing: "border-box",
+        }}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/Fanometrix_Logo.png" alt="Fanometrix" style={{ height: 15, objectFit: "contain", objectPosition: "left" }} />
+          <span style={{ color: MPU_GOLD, fontSize: 10, fontWeight: 600, letterSpacing: "0.03em" }}>1 of 3</span>
+        </div>
+
+        {/* Gold progress bar — 33% */}
+        <div style={{ height: 3, minHeight: 3, background: "rgba(215,184,122,0.2)", flexShrink: 0 }}>
+          <div style={{ height: "100%", width: "33%", background: MPU_GOLD }} />
+        </div>
+
+        {/* Body */}
+        <div style={{
+          flex: 1, background: "#fff", padding: "10px 12px 0",
+          display: "flex", flexDirection: "column", minHeight: 0,
+          overflow: "hidden", boxSizing: "border-box",
+        }}>
+          {/* Question */}
+          <div style={{ height: 33, minHeight: 33, overflow: "hidden", flexShrink: 0, marginBottom: 7 }}>
+            <p style={{ color: MPU_NAVY, fontSize: 11, fontWeight: 700, lineHeight: 1.35, margin: 0 }}>
+              {question}
+            </p>
+          </div>
+          {/* Options */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            {options.map((opt, i) => (
+              <div key={i} style={{
+                display: "flex", alignItems: "center", gap: 7,
+                padding: "5px 9px", borderRadius: 7, background: "#FAFAFA",
+                boxShadow: "0 1px 3px rgba(0,0,0,0.08), 0 0 0 1px rgba(0,0,0,0.06)",
+                flexShrink: 0, boxSizing: "border-box",
+              }}>
+                <div style={{
+                  width: 12, height: 12, borderRadius: "50%", flexShrink: 0,
+                  border: `1.5px solid rgba(11,25,41,0.25)`, boxSizing: "border-box",
+                }} />
+                <span style={{ color: MPU_NAVY, fontSize: 10, fontWeight: 500, lineHeight: 1.3 }}>{opt}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div style={{
+          height: 22, minHeight: 22, background: MPU_NAVY,
+          display: "flex", alignItems: "center", padding: "0 10px",
+          flexShrink: 0, boxSizing: "border-box",
+        }}>
+          <span style={{ color: "rgba(255,255,255,0.35)", fontSize: 9 }}>Powered by Fanometrix</span>
+          <span style={{ color: "#8C9DB5", fontSize: 9, margin: "0 4px" }}>•</span>
+          <span style={{ color: MPU_GOLD, fontSize: 9 }}>Privacy</span>
+        </div>
+      </div>
+      <p className="text-[9px] uppercase tracking-widest" style={{ color: "rgba(255,255,255,0.25)" }}>Illustrative example</p>
+    </div>
+  );
+}
+
+function HowWeAskedFans() {
+  const ref = useReveal();
+
+  const surveys = [
+    {
+      lang: "English",
+      question: "Which of the following would make you feel that a brand is genuinely giving back to football fans?",
+      options: [
+        "Supporting grassroots and local communities",
+        "Access to matches and experiences",
+        "Rewards and discounts",
+        "Fan events and watch parties",
+        "Exclusive content and insights",
+      ],
+    },
+    {
+      lang: "Deutsch",
+      question: "Was würde Sie glauben lassen, dass eine Marke Fußballfans wirklich etwas zurückgibt?",
+      options: [
+        "Förderung des Breitenfußballs und lokaler Gemeinschaften",
+        "Zugang zu Spielen und Erlebnissen",
+        "Belohnungen und Rabatte",
+        "Fan-Events und Public Viewings",
+        "Exklusive Inhalte und Einblicke",
+      ],
+    },
+    {
+      lang: "Svenska",
+      question: "Vilket av följande skulle få dig att känna att ett varumärke ger tillbaka till fotbollsfans?",
+      options: [
+        "Stöd till gräsrotsfotboll och lokala gemenskaper",
+        "Tillgång till matcher och upplevelser",
+        "Belöningar och rabatter",
+        "Fanevenemang och publika visningar",
+        "Exklusivt innehåll och insikter",
+      ],
+    },
+  ];
+
+  return (
+    <div ref={ref} className={`report-reveal ${PAD} py-16 md:py-20`} style={{ background: MPU_NAVY }}>
+      <div className={W}>
+        <GoldLabel>Research Methodology</GoldLabel>
+        <h2 className="text-2xl md:text-3xl font-bold text-white mb-5 leading-tight">How We Asked Fans</h2>
+        <p className="text-sm leading-relaxed mb-12 max-w-2xl" style={{ color: "rgba(255,255,255,0.6)" }}>
+          Fanometrix surveyed more than 1,800 football fans across the UK, Germany and Sweden using in-feed survey placements across football media environments. The examples below show the survey creative as it appeared to fans — embedded in-context within publisher environments rather than presented as a standalone research instrument.
+        </p>
+
+        <div className="flex flex-col md:flex-row gap-10 md:gap-8 items-start justify-center">
+          {surveys.map((s) => (
+            <SurveyMPU key={s.lang} lang={s.lang} question={s.question} options={s.options} />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function Methodology() {
   const ref = useReveal();
   return (
@@ -638,6 +780,7 @@ function Report({ scrolled }: { scrolled: boolean }) {
         body="Track whether the partnership improves fan perception, brand trust, access, participation and community impact - not just reach, impressions and awareness. The Football Collective can provide both the media delivery and the fan research infrastructure to measure what is actually changing. Define targets before the tournament begins." />
 
       {/* <DownloadSection /> */}
+      <HowWeAskedFans />
       <Methodology />
 
       {/* Footer */}
