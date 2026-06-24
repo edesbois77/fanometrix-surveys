@@ -100,7 +100,13 @@ function Hero() {
         <p className="text-lg md:text-xl max-w-xl leading-relaxed font-light tracking-wide" style={{ color: "rgba(255,255,255,0.55)" }}>
           Understanding what football fans value and how Carlsberg can turn UEFA EURO 2028 into a platform for access, participation and community impact.
         </p>
-        <div className="w-14 h-[3px] mt-10" style={{ background: GOLD }} />
+        <div className="w-14 h-[3px] mt-10 mb-10" style={{ background: GOLD }} />
+        <div className="flex items-center gap-8">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/DentsuLogo.webp" alt="Dentsu" className="h-7 w-auto object-contain opacity-80" />
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/CarlsbergLogo.webp" alt="Carlsberg" className="h-7 w-auto object-contain opacity-80" />
+        </div>
       </div>
     </section>
   );
