@@ -419,15 +419,15 @@ function DownloadSection() {
 function Methodology() {
   const ref = useReveal();
   return (
-    <div ref={ref} className={`report-reveal bg-gray-50 border-t border-gray-200 ${PAD} py-14`}>
+    <div ref={ref} className={`report-reveal ${PAD} py-14`} style={{ background: NAVY }}>
       <div className={W}>
-        <p className="text-[9px] font-bold text-gray-400 uppercase tracking-[0.25em] mb-4">Methodology & Next Steps</p>
-        <p className="text-sm text-gray-500 leading-relaxed max-w-2xl mb-5">
+        <p className="text-[9px] font-bold uppercase tracking-[0.25em] mb-4" style={{ color: `${GOLD}99` }}>Methodology & Next Steps</p>
+        <p className="text-sm leading-relaxed mb-5" style={{ color: "rgba(255,255,255,0.5)" }}>
           This report was developed as a fast-turnaround strategic intelligence exercise to support early planning around Carlsberg, UEFA and EURO 2028. Fan survey data was collected across Fanometrix publisher network audiences - LiveScore and Football365. Respondents are predominantly UK-based football fans, with additional representation from Germany and Sweden. Football365 sub-samples are small enough that they should be read as confirming the LiveScore pattern rather than driving independent conclusions.
 
           Desk research covers the United Kingdom, Germany, Sweden, India and China, drawing on publicly available data from UEFA, Nielsen Sports, Statista, local football associations and regional media organisations. All survey findings should be treated as directional indicators rather than nationally representative market data.
         </p>
-        <p className="text-sm text-gray-500 leading-relaxed max-w-2xl">
+        <p className="text-sm leading-relaxed" style={{ color: "rgba(255,255,255,0.5)" }}>
           A future Fanometrix programme would be structured over a longer period and could combine planned partner inventory, larger sample sizes, market-specific survey deployment, social listening, publisher behavioural signals and ongoing fan tracking. This would allow Carlsberg and Dentsu to move from directional intelligence to a continuous football fan learning engine - combining media delivery, fan research and campaign measurement across the full EURO 2028 planning cycle.
         </p>
       </div>
@@ -631,7 +631,7 @@ function Report({ scrolled }: { scrolled: boolean }) {
         headline="Measure fan value alongside media delivery"
         body="Track whether the partnership improves fan perception, brand trust, access, participation and community impact - not just reach, impressions and awareness. The Football Collective can provide both the media delivery and the fan research infrastructure to measure what is actually changing. Define targets before the tournament begins." />
 
-      <DownloadSection />
+      {/* <DownloadSection /> */}
       <Methodology />
 
       {/* Footer */}
