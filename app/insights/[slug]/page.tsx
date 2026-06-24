@@ -108,21 +108,21 @@ function HeroBlock({ b }: { b: Extract<InsightBlock, { type: "hero" }> }) {
 function ExecSummaryBlock({ b }: { b: Extract<InsightBlock, { type: "exec_summary" }> }) {
   const ref = useReveal();
   return (
-    <div ref={ref} className="report-reveal bg-[#0B1929] px-6 md:px-16 lg:px-24 py-16 md:py-20">
+    <div ref={ref} className="report-reveal bg-white px-6 md:px-16 lg:px-24 py-16 md:py-20">
       <div className={`${MAX_W} mx-auto`}>
         <p className="text-[#D7B87A] text-[10px] font-bold tracking-[0.3em] uppercase mb-6 flex items-center gap-3">
           <span className="w-6 h-px bg-[#D7B87A]" />Executive Summary
         </p>
         {b.headline && (
-          <h2 className="text-2xl md:text-3xl font-bold text-white mb-5 leading-snug max-w-2xl">{b.headline}</h2>
+          <h2 className="text-2xl md:text-3xl font-bold text-[#0B1929] mb-5 leading-snug max-w-2xl">{b.headline}</h2>
         )}
-        <p className="text-white/60 text-base md:text-lg leading-relaxed mb-10 max-w-2xl font-light">{b.narrative}</p>
+        <p className="text-gray-500 text-base md:text-lg leading-relaxed mb-10 max-w-2xl font-light">{b.narrative}</p>
         {b.points && b.points.length > 0 && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {b.points.map((pt, i) => (
-              <div key={i} className="flex gap-4 items-start border border-white/[0.08] rounded-xl px-5 py-4 hover:border-white/20 transition-colors">
+              <div key={i} className="flex gap-4 items-start border border-gray-200 rounded-xl px-5 py-4 hover:border-gray-300 transition-colors">
                 <span className="text-[#D7B87A] font-bold text-xs mt-0.5 flex-shrink-0 tabular-nums">{String(i + 1).padStart(2, "0")}</span>
-                <p className="text-white/75 text-sm leading-relaxed">{pt}</p>
+                <p className="text-gray-600 text-sm leading-relaxed">{pt}</p>
               </div>
             ))}
           </div>
