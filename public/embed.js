@@ -6,11 +6,11 @@
 
   var params = new URLSearchParams();
   var attrs = [
-    "campaign", "survey", "publisher", "placement",
-    "club", "competition", "country", "segment",
+    "campaign", "survey", "publisher", "placement", "placement_id",
+    "creative_id", "club", "competition", "country", "segment",
   ];
   attrs.forEach(function (attr) {
-    var val = script.getAttribute("data-" + attr);
+    var val = script.getAttribute("data-" + attr.replace(/_/g, "-"));
     if (val) params.set(attr, val);
   });
 

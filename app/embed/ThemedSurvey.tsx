@@ -161,6 +161,8 @@ export interface ThemedSurveyProps {
   surveyId:       string | null;
   publisher:      string | null;
   placement:      string | null;
+  placementId:    string | null;
+  creativeId:     string | null;
   club:           string | null;
   competition:    string | null;
   country:        string | null;
@@ -171,6 +173,7 @@ export interface ThemedSurveyProps {
   countryCode:    string | null;
   market:         string | null;
   surveyLanguage: string;
+  sessionId:      string;
 }
 
 // ── Answer text formatter ─────────────────────────────────────────────────────
@@ -430,26 +433,70 @@ export function ThemedSurvey(props: ThemedSurveyProps) {
   const isVisibleRef    = useRef(false);
   const advancingRef    = useRef(false);
   const startRef        = useRef(Date.now());
+  const hasRendered     = useRef(false);
+  const hasStarted      = useRef(false);
+  const hasCompleted    = useRef(false);
 
   const q = props.questions[step];
 
-  // IntersectionObserver — start timer when in view
+  function sendEvent(eventType: string) {
+    if (props.isPreview) return;
+    fetch("/api/events", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      keepalive: true,
+      body: JSON.stringify({
+        session_id:   props.sessionId,
+        event_type:   eventType,
+        campaign_id:  props.campaignId  || null,
+        publisher:    props.publisher   || null,
+        placement:    props.placement   || null,
+        placement_id: props.placementId || null,
+        creative_id:  props.creativeId  || null,
+        country:      props.country     || null,
+        device:       props.device      || null,
+        browser:      props.browser     || null,
+      }),
+    }).catch(() => {/* non-fatal */});
+  }
+
+  // IntersectionObserver — start timer when in view, fire SURVEY_RENDER once
   useEffect(() => {
     const el = containerRef.current;
     if (!el || typeof IntersectionObserver === "undefined") return;
     const obs = new IntersectionObserver(([e]) => {
       isVisibleRef.current = e.isIntersecting;
-      if (e.isIntersecting && !document.hidden) setIsRunning(true);
-      else setIsRunning(false);
+      if (e.isIntersecting && !document.hidden) {
+        setIsRunning(true);
+        if (!hasRendered.current) {
+          hasRendered.current = true;
+          sendEvent("SURVEY_RENDER");
+        }
+      } else {
+        setIsRunning(false);
+      }
     }, { threshold: 0.1 });
     obs.observe(el);
     return () => obs.disconnect();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
-    const fn = () => { if (document.hidden) setIsRunning(false); else if (isVisibleRef.current) setIsRunning(true); };
+    const fn = () => {
+      if (document.hidden) {
+        setIsRunning(false);
+        if (hasStarted.current && !hasCompleted.current) sendEvent("SURVEY_EXIT");
+      } else if (isVisibleRef.current) {
+        setIsRunning(true);
+      }
+    };
     document.addEventListener("visibilitychange", fn);
-    return () => document.removeEventListener("visibilitychange", fn);
+    window.addEventListener("beforeunload", fn);
+    return () => {
+      document.removeEventListener("visibilitychange", fn);
+      window.removeEventListener("beforeunload", fn);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -486,6 +533,12 @@ export function ThemedSurvey(props: ThemedSurveyProps) {
     const newAnswers = { ...answers, [q.id]: option.id };
     setAnswers(newAnswers);
 
+    // SURVEY_START: first answer
+    if (!hasStarted.current) {
+      hasStarted.current = true;
+      sendEvent("SURVEY_START");
+    }
+
     setSelectedIdx(gridIdx);
     setPhase("selecting");
     setPulse(true);
@@ -506,6 +559,8 @@ export function ThemedSurvey(props: ThemedSurveyProps) {
               survey_id:                 props.surveyId,
               publisher:                 props.publisher,
               placement:                 props.placement,
+              placement_id:              props.placementId,
+              creative_id:               props.creativeId,
               club:                      props.club,
               competition:               props.competition,
               q1:                        newAnswers[allQ[0]?.id] ?? null,
@@ -522,10 +577,14 @@ export function ThemedSurvey(props: ThemedSurveyProps) {
               survey_language:           props.surveyLanguage,
             }),
           }).catch(() => {/* non-fatal */});
+          hasCompleted.current = true;
+          sendEvent("SURVEY_COMPLETED");
         }
         setPhase("thankyou");
       } else {
         const next = step + 1;
+        if (next === 1) sendEvent("QUESTION_2_REACHED");
+        if (next === 2) sendEvent("QUESTION_3_REACHED");
         setDone(d => d + 1);
         setStep(next);
         setSelectedIdx(null);

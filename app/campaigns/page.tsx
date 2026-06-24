@@ -1112,9 +1112,10 @@ export default function CampaignsPage() {
                           thankYouBody="Your anonymous feedback helps improve the football experience for fans everywhere."
                           isPreview={true}
                           campaignId="preview" surveyId={null} publisher={null} placement={null}
+                          placementId={null} creativeId={null}
                           club={null} competition={null} country={null} segment={null}
                           device={null} browser={null} groupId={null} countryCode={null}
-                          market={null} surveyLanguage="en"
+                          market={null} surveyLanguage="en" sessionId=""
                         />
                       </div>
                     </div>

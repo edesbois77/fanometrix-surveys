@@ -15,6 +15,7 @@ import {
   type DashFilters,
   type DatePreset,
 } from "./components/DashboardFilters";
+import type { EventCounts } from "./components/KpiCards";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -89,12 +90,14 @@ function applyFilters(
 // ─── Page ────────────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
-  const [responses,  setResponses]  = useState<SurveyResponse[]>([]);
+  const [responses,     setResponses]     = useState<SurveyResponse[]>([]);
   const [campaigns,     setCampaigns]     = useState<CampaignInfo[]>([]);
   const [loading,       setLoading]       = useState(true);
   const [error,         setError]         = useState("");
   const [surveyLabels,  setSurveyLabels]  = useState<SurveyLabels | null>(null);
   const [groupOptions,  setGroupOptions]  = useState<GroupOption[]>([]);
+  const [eventCounts,   setEventCounts]   = useState<EventCounts | null>(null);
+  const [eventsLoading, setEventsLoading] = useState(false);
 
   // Filter state — persisted in localStorage
   const [filters,     setFilters]     = useState<DashFilters>(() => loadLS("dash_filters", EMPTY_DASH_FILTERS));
@@ -132,6 +135,30 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  // Fetch event counts — re-runs when filters or date bounds change
+  useEffect(() => {
+    const p = new URLSearchParams();
+    if (filters.campaign_id) p.set("campaign_id", filters.campaign_id);
+    if (filters.publisher)   p.set("publisher",   filters.publisher);
+    if (filters.placement)   p.set("placement",   filters.placement);
+    if (filters.country)     p.set("country",     filters.country);
+    if (filters.device)      p.set("device",      filters.device);
+    if (filters.browser)     p.set("browser",     filters.browser);
+    const activeCamp = campaigns.find(c => c.campaign_id === filters.campaign_id) ?? null;
+    const bounds = getDateBounds(datePreset, dateFrom, dateTo, activeCamp);
+    if (bounds) {
+      p.set("date_from", bounds.from);
+      p.set("date_to",   bounds.to);
+    }
+    setEventsLoading(true);
+    fetch(`/api/dashboard/events?${p.toString()}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => setEventCounts(data ?? null))
+      .catch(() => setEventCounts(null))
+      .finally(() => setEventsLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters.campaign_id, filters.publisher, filters.placement, filters.country, filters.device, filters.browser, datePreset, dateFrom, dateTo, campaigns]);
 
   // Derive filtered dataset
   const activeCampaign = useMemo(
@@ -313,7 +340,11 @@ export default function DashboardPage() {
             />
 
             {/* KPI cards */}
-            <KpiCards responses={filtered} />
+            <KpiCards
+              responses={filtered}
+              events={eventCounts}
+              eventsLoading={eventsLoading}
+            />
 
             {responses.length === 0 ? (
               <p className="text-gray-400 text-center mt-10 text-sm">

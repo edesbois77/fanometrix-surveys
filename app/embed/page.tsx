@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, Suspense } from "react";
+import { useState, useEffect, useRef, useCallback, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { ThemedSurvey } from "./ThemedSurvey";
 
@@ -399,28 +399,27 @@ type Question    = { id: string; text: string; options: EmbedOption[] };
 function EmbedSurvey() {
   const params = useSearchParams();
 
-  const campaign      = params.get("campaign")    ?? "default";
-  const groupSlug     = params.get("group")       ?? null;
-  const urlLang       = params.get("lang");                                      // null if not in URL
-  const surveyId      = params.get("survey")      ?? null;
-  const isPreview     = params.get("preview")     === "1";                       // admin deployment preview
-  const questionSetId = params.get("qset")        ?? null;
-  const publisher     = params.get("publisher")   ?? null;
-  const placement     = params.get("placement")   ?? null;
-  const club          = params.get("club")        ?? null;
-  const competition   = params.get("competition") ?? null;
-  const countryParam  = params.get("country")     ?? "";                         // raw ISO code, e.g. "GB"
-  const country       = resolveCountry(countryParam);                            // normalised display name
-  const marketParam   = params.get("market")      ?? null;                       // optional market name
-  const segment       = params.get("segment")     ?? null;
+  const campaign      = params.get("campaign")     ?? "default";
+  const groupSlug     = params.get("group")        ?? null;
+  const urlLang       = params.get("lang");
+  const surveyId      = params.get("survey")       ?? null;
+  const isPreview     = params.get("preview")      === "1";
+  const questionSetId = params.get("qset")         ?? null;
+  const publisher     = params.get("publisher")    ?? null;
+  const placement     = params.get("placement")    ?? null;
+  const placementId   = params.get("placement_id") ?? null;
+  const creativeId    = params.get("creative_id")  ?? null;
+  const club          = params.get("club")         ?? null;
+  const competition   = params.get("competition")  ?? null;
+  const countryParam  = params.get("country")      ?? "";
+  const country       = resolveCountry(countryParam);
+  const marketParam   = params.get("market")       ?? null;
+  const segment       = params.get("segment")      ?? null;
 
   const [device,  setDevice]  = useState<string | null>(null);
   const [browser, setBrowser] = useState<string | null>(null);
   const startRef = useRef<number>(Date.now());
 
-  // Start empty when a campaign or group is in the URL — prevents the hardcoded
-  // fallback questions flashing before the API response arrives.
-  // Only use QUESTIONS as initial state for pure standalone/test embeds (no campaign, no group).
   const [questions,      setQuestions]      = useState<Question[]>(
     (!groupSlug && (!campaign || campaign === "default")) ? QUESTIONS : []
   );
@@ -428,32 +427,88 @@ function EmbedSurvey() {
   const [thankYouBody,   setThankYouBody]   = useState("Your anonymous feedback helps improve the football experience for fans everywhere.");
   const [errorMsg,       setErrorMsg]       = useState("Something went wrong — tap an answer to try again.");
 
-  // In group mode the campaign_id comes from the API (so responses link to the
-  // specific campaign served, not just the group slug).
   const [resolvedCampaignId, setResolvedCampaignId] = useState<string>(campaign);
   const [groupReady,         setGroupReady]         = useState(!groupSlug);
   const [creativeTheme,      setCreativeTheme]      = useState<string | null>(null);
-  // Group-resolved context — populated after the group API responds
   const [resolvedGroupId,      setResolvedGroupId]      = useState<string | null>(null);
   const [resolvedSurveyLang,   setResolvedSurveyLang]   = useState<string>(urlLang ?? "en");
   const [resolvedCountryCode,  setResolvedCountryCode]  = useState<string | null>(countryParam || null);
   const [resolvedMarket,       setResolvedMarket]       = useState<string | null>(marketParam);
 
+  // ─── Event tracking state ────────────────────────────────────────────────
+  const sessionId       = useRef<string>("");
+  const hasRendered     = useRef(false);
+  const hasStarted      = useRef(false);
+  const hasCompleted    = useRef(false);
+  const deviceRef       = useRef<string | null>(null);
+  const browserRef      = useRef<string | null>(null);
+  const campaignIdRef   = useRef<string>(campaign);
+
+  // Keep campaignIdRef in sync for use in event closures
+  useEffect(() => { campaignIdRef.current = resolvedCampaignId; }, [resolvedCampaignId]);
+  useEffect(() => { deviceRef.current  = device;  }, [device]);
+  useEffect(() => { browserRef.current = browser; }, [browser]);
+
+  const sendEvent = useCallback((eventType: string) => {
+    if (isPreview) return;
+    fetch("/api/events", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      keepalive: true,
+      body: JSON.stringify({
+        session_id:   sessionId.current,
+        event_type:   eventType,
+        campaign_id:  campaignIdRef.current || null,
+        publisher:    publisher     || null,
+        placement:    placement     || null,
+        placement_id: placementId   || null,
+        creative_id:  creativeId    || null,
+        country:      country       || null,
+        device:       deviceRef.current  || null,
+        browser:      browserRef.current || null,
+      }),
+    }).catch(() => {/* non-fatal */});
+  }, [isPreview, publisher, placement, placementId, creativeId, country]);
+
   useEffect(() => {
+    sessionId.current = crypto.randomUUID();
     setDevice(detectDevice());
     setBrowser(detectBrowser());
     startRef.current = Date.now();
   }, []);
 
+  // SURVEY_RENDER: fire once when questions are loaded and component is mounted
+  useEffect(() => {
+    if (questions.length > 0 && !hasRendered.current) {
+      hasRendered.current = true;
+      sendEvent("SURVEY_RENDER");
+    }
+  }, [questions.length, sendEvent]);
+
+  // SURVEY_EXIT: fire when page becomes hidden if started but not completed
+  useEffect(() => {
+    const handleExit = () => {
+      if (hasStarted.current && !hasCompleted.current) {
+        sendEvent("SURVEY_EXIT");
+      }
+    };
+    const handleVisibility = () => { if (document.hidden) handleExit(); };
+    document.addEventListener("visibilitychange", handleVisibility);
+    window.addEventListener("beforeunload", handleExit);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibility);
+      window.removeEventListener("beforeunload", handleExit);
+    };
+  }, [sendEvent]);
+
   // Group mode: resolve which campaign to serve and fetch its questions
   useEffect(() => {
     if (!groupSlug) return;
-    // Build group API URL with all available filter params
     const gParams = new URLSearchParams({ slug: groupSlug });
     if (countryParam)  gParams.set("country",   countryParam);
     if (marketParam)   gParams.set("market",     marketParam);
     if (publisher)     gParams.set("publisher",  publisher);
-    if (urlLang)       gParams.set("lang",       urlLang);       // explicit lang override
+    if (urlLang)       gParams.set("lang",       urlLang);
 
     fetch(`/api/embed/group?${gParams.toString()}`)
       .then(r => r.ok ? r.json() : null)
@@ -475,8 +530,7 @@ function EmbedSurvey() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [groupSlug]);
 
-  // Campaign mode: campaign= is present — ALWAYS takes priority over survey=
-  // Fetches via /api/embed/campaign (no char-count validation, live check only)
+  // Campaign mode
   const hasCampaignSlug = !groupSlug && !!campaign && campaign !== "default";
   useEffect(() => {
     if (!hasCampaignSlug) return;
@@ -498,8 +552,7 @@ function EmbedSurvey() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [campaign, hasCampaignSlug]);
 
-  // Survey-only mode: fallback when NO campaign= present — uses survey UUID directly
-  // Only used for standalone survey embeds (no campaign context)
+  // Survey-only mode
   useEffect(() => {
     if (groupSlug || hasCampaignSlug || !surveyId) return;
     const surveyApiUrl = `/api/embed/survey?id=${surveyId}&lang=${encodeURIComponent(urlLang ?? "en")}${isPreview ? "&preview=1" : ""}`;
@@ -541,15 +594,24 @@ function EmbedSurvey() {
     setAnswers(newAnswers);
     setAdvancing(true);
 
+    // SURVEY_START: first answer ever
+    if (!hasStarted.current) {
+      hasStarted.current = true;
+      sendEvent("SURVEY_START");
+    }
+
     setTimeout(async () => {
       if (!isLast) {
-        setStep((s) => s + 1);
+        const nextStep = step + 1;
+        if (nextStep === 1) sendEvent("QUESTION_2_REACHED");
+        if (nextStep === 2) sendEvent("QUESTION_3_REACHED");
+        setStep(nextStep);
         setAdvancing(false);
         return;
       }
 
-      // Preview mode — skip submission and go straight to thank-you screen
       if (isPreview) {
+        hasCompleted.current = true;
         setStatus("success");
         setAdvancing(false);
         return;
@@ -558,8 +620,6 @@ function EmbedSurvey() {
       setStatus("submitting");
       const duration = Math.round((Date.now() - startRef.current) / 1000);
 
-      // Map answers by question index (not hardcoded q1/q2/q3 keys) so
-      // surveys with non-standard question IDs still submit correctly.
       const q1ans = newAnswers[questions[0]?.id] ?? null;
       const q2ans = newAnswers[questions[1]?.id] ?? null;
       const q3ans = newAnswers[questions[2]?.id] ?? null;
@@ -574,6 +634,8 @@ function EmbedSurvey() {
             question_set_id:           questionSetId,
             publisher,
             placement,
+            placement_id:              placementId,
+            creative_id:               creativeId,
             club,
             competition,
             q1:                        q1ans,
@@ -584,7 +646,6 @@ function EmbedSurvey() {
             device,
             browser,
             response_duration_seconds: duration,
-            // Group + market context
             group_id:                  resolvedGroupId,
             country_code:              resolvedCountryCode,
             market:                    resolvedMarket,
@@ -592,6 +653,8 @@ function EmbedSurvey() {
           }),
         });
         if (res.ok) {
+          hasCompleted.current = true;
+          sendEvent("SURVEY_COMPLETED");
           setStatus("success");
         } else {
           const json = await res.json().catch(() => ({}));
@@ -609,14 +672,11 @@ function EmbedSurvey() {
     }, 350);
   }
 
-  // Group mode: don't render until the group API has resolved.
-  // If no eligible campaign exists, render transparent (publisher sees nothing).
-  // Render transparent until questions have loaded — prevents any flash of default content
   if ((groupSlug && !groupReady) || questions.length === 0) {
     return <div style={{ width: 300, height: 250, background: "transparent" }} />;
   }
 
-  // Themed creative — render instead of default when campaign has a creative_theme set
+  // Themed creative
   if (creativeTheme) {
     return (
       <ThemedSurvey
@@ -629,6 +689,8 @@ function EmbedSurvey() {
         surveyId={surveyId}
         publisher={publisher}
         placement={placement}
+        placementId={placementId}
+        creativeId={creativeId}
         club={club}
         competition={competition}
         country={country}
@@ -639,6 +701,7 @@ function EmbedSurvey() {
         countryCode={resolvedCountryCode}
         market={resolvedMarket}
         surveyLanguage={resolvedSurveyLang}
+        sessionId={sessionId.current}
       />
     );
   }
@@ -703,7 +766,7 @@ function EmbedSurvey() {
             </p>
           </div>
 
-          {/* Thank-you footer — "Powered by Fanometrix • Privacy" */}
+          {/* Thank-you footer */}
           <div
             style={{
               height: 22,
@@ -804,7 +867,7 @@ function EmbedSurvey() {
               )}
             </div>
 
-            {/* Answer options — top-anchored */}
+            {/* Answer options */}
             <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
               {q.options.map((opt) => {
                 const isSel = answers[q.id] === opt.id;
@@ -860,7 +923,7 @@ function EmbedSurvey() {
             </div>
           </div>
 
-          {/* Privacy footer — shield, higher contrast */}
+          {/* Privacy footer */}
           <div
             style={{
               height: 22,
