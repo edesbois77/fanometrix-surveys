@@ -409,131 +409,79 @@ function ThankYou({ title, body, theme }: { title: string; body: string; theme: 
 }
 
 // ── Themed privacy overlay ────────────────────────────────────────────────────
-// Self-contained, theme-matched privacy modal — replaces the generic white modal.
+// Matches the design approved in Creative Lab (PrivacyOverlay.tsx).
+// Single screen — no pagination.
 
-const PRIVACY_CONTENT = [
-  {
-    title: "About Fanometrix",
-    body:  "Fanometrix runs short anonymous football fan surveys on behalf of clubs, competitions and media partners.",
-    bullets: null as null | { text: string; highlight?: boolean }[],
-  },
-  {
-    title: "What we collect",
-    body: null,
-    bullets: [
-      { text: "Multiple-choice survey answers only" },
-      { text: "Country, country level only, via ad server" },
-      { text: "Device type and browser" },
-      { text: "Time taken to complete" },
-      { text: "No names, emails, IPs or cookies, ever", highlight: true },
-    ],
-  },
-  {
-    title: "",
-    body: null,
-    bullets: null,
-  },
+const PRIVACY_ITEMS = [
+  "No personal information collected",
+  "No email addresses collected",
+  "No cookies required",
+  "No individual identifiers stored",
 ];
 
-function ThemedPrivacyOverlay({
-  slide, theme, onClose, onNav,
-}: {
-  slide: number; theme: EmbedTheme;
-  onClose: () => void; onNav: (dir: -1 | 1) => void;
-}) {
-  const s      = PRIVACY_CONTENT[slide];
-  const isLast = slide === PRIVACY_CONTENT.length - 1;
+function ThemedPrivacyOverlay({ theme, onClose }: { theme: EmbedTheme; onClose: () => void }) {
+  // Derive overlay colours from the existing EmbedTheme fields
+  const bg        = theme.canvas;
+  const titleCol  = theme.accent;
+  const textCol   = "rgba(255,255,255,0.7)";
+  const border    = theme.gridLine;
+  const closeBg   = theme.hoverBg;
+  const accent    = theme.accent;
 
   return (
-    <div style={{
-      position: "absolute", inset: 0, zIndex: 20,
-      background: theme.canvas,
-      display: "flex", flexDirection: "column", overflow: "hidden", boxSizing: "border-box",
-    }}>
+    <div
+      role="dialog"
+      aria-label="Privacy information"
+      aria-modal="true"
+      style={{
+        position: "absolute", inset: 0, zIndex: 30,
+        background: bg,
+        display: "flex", flexDirection: "column", boxSizing: "border-box",
+        borderRadius: 12, overflow: "hidden",
+        animation: "tgFadeIn 0.18s ease",
+      }}
+    >
+      <style>{`@keyframes tgFadeIn{from{opacity:0}to{opacity:1}}`}</style>
+
       {/* Header */}
-      <div style={{
-        height: 40, minHeight: 40, flexShrink: 0,
-        background: theme.header.bg,
-        display: "flex", alignItems: "center", justifyContent: "space-between",
-        padding: "0 12px", boxSizing: "border-box",
-      }}>
-        <span style={{ color: theme.header.text, fontSize: 11, fontWeight: 700, letterSpacing: "0.05em", fontFamily: FONT_A }}>
+      <div style={{ height: 42, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 16px", borderBottom: `1px solid ${border}` }}>
+        <span style={{ color: titleCol, fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", fontFamily: FONT_Q }}>
           Privacy
         </span>
-        <button onClick={onClose} aria-label="Close privacy"
-          style={{ background: "none", border: "none", cursor: "pointer", color: theme.header.text, fontSize: 15, lineHeight: 1, padding: "3px 4px", opacity: 0.7 }}>
-          ✕
+        <button
+          onClick={onClose}
+          aria-label="Close privacy and return to survey"
+          style={{ background: closeBg, border: `1px solid ${accent}44`, borderRadius: 12, cursor: "pointer", color: accent, fontSize: 9, fontWeight: 700, padding: "3px 10px", lineHeight: 1.4, letterSpacing: "0.04em", fontFamily: FONT_A }}
+        >
+          ✕ Back
         </button>
       </div>
 
-      {/* Slide content */}
-      <div style={{ flex: 1, minHeight: 0, overflow: "hidden", display: "flex", flexDirection: "column" }}>
-        {slide === 2 ? (
-          /* Slide 3 — centred anonymity assurance */
-          <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "10px 20px", textAlign: "center", gap: 8 }}>
-            <div style={{ fontSize: 26, lineHeight: 1 }}>🛡️</div>
-            <p style={{ color: theme.accent, fontSize: 11, fontWeight: 700, lineHeight: 1.3, margin: 0 }}>
-              Your responses cannot identify you
-            </p>
-            <p style={{ color: theme.text, fontSize: 9.5, lineHeight: 1.5, margin: 0, opacity: 0.7 }}>
-              Responses are analysed in aggregate and cannot be linked back to individuals.
-            </p>
-            <p style={{ color: theme.text, fontSize: 9, margin: 0, opacity: 0.5 }}>
-              Questions?{" "}
-              <a href="mailto:privacy@fanometrix.com" style={{ color: theme.accent, textDecoration: "none", fontWeight: 600 }}>
-                privacy@fanometrix.com
-              </a>
-            </p>
-            <a href="/en/privacy" target="_blank" rel="noopener"
-              style={{ display: "inline-block", marginTop: 4, background: theme.header.bg, color: theme.header.text, fontSize: 9.5, fontWeight: 700, padding: "5px 16px", borderRadius: 20, textDecoration: "none", letterSpacing: "0.02em", fontFamily: FONT_A }}>
-              Privacy Policy →
-            </a>
+      {/* Body */}
+      <div style={{ flex: 1, padding: "12px 16px 8px", overflow: "hidden", display: "flex", flexDirection: "column", gap: 8 }}>
+        <p style={{ color: titleCol, fontSize: 10.5, fontWeight: 700, margin: 0, lineHeight: 1.3, fontFamily: FONT_Q }}>
+          Your responses are anonymous.
+        </p>
+        {PRIVACY_ITEMS.map(item => (
+          <div key={item} style={{ display: "flex", gap: 7, alignItems: "flex-start" }}>
+            <span style={{ color: accent, fontSize: 7, marginTop: 2.5, flexShrink: 0 }}>●</span>
+            <span style={{ color: textCol, fontSize: 9.5, lineHeight: 1.4, fontFamily: FONT_A, fontWeight: 400 }}>
+              {item}
+            </span>
           </div>
-        ) : (
-          /* Slides 1 & 2 */
-          <div style={{ flex: 1, padding: "10px 14px 6px", overflow: "hidden", display: "flex", flexDirection: "column", gap: 7 }}>
-            <p style={{ color: theme.accent, fontSize: 11.5, fontWeight: 700, margin: 0, flexShrink: 0, fontFamily: FONT_Q }}>
-              {s.title}
-            </p>
-            {s.body && (
-              <p style={{ color: theme.text, fontSize: 9.5, lineHeight: 1.5, margin: 0, opacity: 0.8 }}>
-                {s.body}
-              </p>
-            )}
-            {s.bullets && (
-              <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 5 }}>
-                {s.bullets.map(b => (
-                  <li key={b.text} style={{ display: "flex", gap: 6, alignItems: "flex-start" }}>
-                    <span style={{ color: theme.accent, fontSize: 8, marginTop: 2, flexShrink: 0 }}>●</span>
-                    <span style={{ color: b.highlight ? theme.accent : theme.text, fontSize: 9.5, lineHeight: 1.4, fontWeight: b.highlight ? 700 : 400, opacity: b.highlight ? 1 : 0.8 }}>
-                      {b.text}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        )}
+        ))}
       </div>
 
-      {/* Nav footer */}
-      <div style={{
-        height: 36, minHeight: 36, flexShrink: 0,
-        display: "flex", alignItems: "center", justifyContent: "space-between",
-        padding: "0 8px", boxSizing: "border-box",
-        borderTop: `1px solid ${theme.gridLine}`,
-      }}>
-        <button onClick={() => onNav(-1)} disabled={slide === 0} aria-label="Previous"
-          style={{ background: "none", border: "none", cursor: slide === 0 ? "default" : "pointer", color: slide === 0 ? `${theme.text}30` : theme.accent, fontSize: 20, lineHeight: 1, padding: "2px 8px", fontWeight: 700 }}>
-          ‹
-        </button>
-        <span style={{ color: theme.text, fontSize: 9.5, fontWeight: 500, opacity: 0.5, fontFamily: FONT_A }}>
-          {slide + 1} of {PRIVACY_CONTENT.length}
-        </span>
-        <button onClick={() => onNav(1)} disabled={isLast} aria-label="Next"
-          style={{ background: "none", border: "none", cursor: isLast ? "default" : "pointer", color: isLast ? `${theme.text}30` : theme.accent, fontSize: 20, lineHeight: 1, padding: "2px 8px", fontWeight: 700 }}>
-          ›
-        </button>
+      {/* Footer */}
+      <div style={{ padding: "8px 16px 12px", flexShrink: 0, borderTop: `1px solid ${border}` }}>
+        <a
+          href="/en/privacy"
+          target="_blank"
+          rel="noopener"
+          style={{ display: "block", textAlign: "center", color: accent, fontSize: 9.5, fontWeight: 700, padding: "7px", borderRadius: 6, textDecoration: "none", background: closeBg, border: `1px solid ${accent}44`, letterSpacing: "0.03em", fontFamily: FONT_A }}
+        >
+          Read Full Privacy Policy →
+        </a>
       </div>
     </div>
   );
@@ -558,8 +506,7 @@ export function ThemedSurvey(props: ThemedSurveyProps) {
   const [isRunning, setIsRunning] = useState(false);
   const [expired,   setExpired]   = useState(false);
 
-  const [showPrivacy,  setShowPrivacy]  = useState(false);
-  const [privacySlide, setPrivacySlide] = useState(0);
+  const [showPrivacy, setShowPrivacy] = useState(false);
 
   const containerRef    = useRef<HTMLDivElement>(null);
   const intervalRef     = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -747,12 +694,7 @@ export function ThemedSurvey(props: ThemedSurveyProps) {
 
       {/* Themed privacy overlay — rendered above everything else */}
       {showPrivacy && (
-        <ThemedPrivacyOverlay
-          slide={privacySlide}
-          theme={theme}
-          onClose={() => setShowPrivacy(false)}
-          onNav={(dir) => setPrivacySlide(s => Math.max(0, Math.min(PRIVACY_CONTENT.length - 1, s + dir)))}
-        />
+        <ThemedPrivacyOverlay theme={theme} onClose={() => setShowPrivacy(false)} />
       )}
 
       {phase === "thankyou" && <ThankYou title={props.thankYouTitle} body={props.thankYouBody} theme={theme} />}
@@ -798,7 +740,7 @@ export function ThemedSurvey(props: ThemedSurveyProps) {
       {/* Privacy — centred, same position as original */}
       {phase !== "thankyou" && (
         <button
-          onClick={() => { setPrivacySlide(0); setShowPrivacy(true); }}
+          onClick={() => setShowPrivacy(true)}
           style={{
             position:"absolute", bottom:5, left:"50%", transform:"translateX(-50%)",
             background:theme.quad, border:"none", cursor:"pointer",
