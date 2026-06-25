@@ -677,48 +677,33 @@ function EmbedSurvey() {
     return <div style={{ width: 300, height: 250, background: "transparent" }} />;
   }
 
-  // Themed creative — wrap in a relative container so the shared PrivacyModal can overlay it
+  // Themed creative — privacy is handled internally by ThemedSurvey using theme colors
   if (creativeTheme) {
     return (
-      <div style={{ width: 300, height: 250, position: "relative", overflow: "hidden" }}>
-        {showPrivacy && (
-          <PrivacyModal
-            slide={privacySlide}
-            lang={urlLang ?? "en"}
-            onClose={() => setShowPrivacy(false)}
-            onNav={(dir) =>
-              setPrivacySlide((s) =>
-                Math.max(0, Math.min(PRIVACY_SLIDES.length - 1, s + dir))
-              )
-            }
-          />
-        )}
-        <ThemedSurvey
-          themeId={creativeTheme}
-          questions={questions}
-          thankYouTitle={thankYouTitle}
-          thankYouBody={thankYouBody}
-          isPreview={isPreview}
-          campaignId={resolvedCampaignId}
-          surveyId={surveyId}
-          publisher={publisher}
-          placement={placement}
-          placementId={placementId}
-          creativeId={creativeId}
-          club={club}
-          competition={competition}
-          country={country}
-          segment={segment}
-          device={device}
-          browser={browser}
-          groupId={resolvedGroupId}
-          countryCode={resolvedCountryCode}
-          market={resolvedMarket}
-          surveyLanguage={resolvedSurveyLang}
-          sessionId={sessionId.current}
-          onPrivacy={openPrivacy}
-        />
-      </div>
+      <ThemedSurvey
+        themeId={creativeTheme}
+        questions={questions}
+        thankYouTitle={thankYouTitle}
+        thankYouBody={thankYouBody}
+        isPreview={isPreview}
+        campaignId={resolvedCampaignId}
+        surveyId={surveyId}
+        publisher={publisher}
+        placement={placement}
+        placementId={placementId}
+        creativeId={creativeId}
+        club={club}
+        competition={competition}
+        country={country}
+        segment={segment}
+        device={device}
+        browser={browser}
+        groupId={resolvedGroupId}
+        countryCode={resolvedCountryCode}
+        market={resolvedMarket}
+        surveyLanguage={resolvedSurveyLang}
+        sessionId={sessionId.current}
+      />
     );
   }
 
