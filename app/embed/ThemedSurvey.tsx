@@ -174,6 +174,7 @@ export interface ThemedSurveyProps {
   market:         string | null;
   surveyLanguage: string;
   sessionId:      string;
+  onPrivacy?:     () => void;
 }
 
 // ── Answer text formatter ─────────────────────────────────────────────────────
@@ -654,7 +655,7 @@ export function ThemedSurvey(props: ThemedSurveyProps) {
       {/* Privacy — centred, same position as original */}
       {phase !== "thankyou" && (
         <button
-          onClick={() => {/* privacy handled by outer EmbedSurvey in future */}}
+          onClick={() => props.onPrivacy?.()}
           style={{
             position:"absolute", bottom:5, left:"50%", transform:"translateX(-50%)",
             background:theme.quad, border:"none", cursor:"pointer",
