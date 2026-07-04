@@ -28,6 +28,33 @@
   transform: translateY(0);
 }
 
+/* ── Logo ticker (Trusted By, public homepage) ────────────────────────────── */
+@keyframes marquee-scroll {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+.marquee-track {
+  animation: marquee-scroll 136s linear infinite;
+  animation-delay: -68s;
+}
+.marquee-mask {
+  -webkit-mask-image: linear-gradient(to right, transparent 0%, black 10%, black 90%, transparent 100%);
+  mask-image: linear-gradient(to right, transparent 0%, black 10%, black 90%, transparent 100%);
+}
+.marquee-mask:hover .marquee-track {
+  animation-play-state: paused;
+}
+@media (prefers-reduced-motion: reduce) {
+  .marquee-track {
+    animation: none;
+  }
+}
+
+/* ── Hide scrollbar (Built For mobile carousel) ───────────────────────────── */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
 /* ── Scroll indicator animation (public homepage) ─────────────────────────── */
 /* Matches The Football Collective scroll indicator exactly.                    */
 /* Revert: delete this block to remove the animation.                          */
@@ -145,6 +172,10 @@
 
   /* Let dark sections start on a new page if they don't fit */
   section { break-before: auto; }
+}
+
+html {
+  scroll-behavior: smooth;
 }
 
 :root {
