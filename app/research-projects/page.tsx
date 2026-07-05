@@ -6,6 +6,7 @@ import { AdminShell } from "@/app/components/AdminShell";
 import { useSession } from "@/app/components/SessionProvider";
 import { MultiSelect } from "@/app/components/MultiSelect";
 import { CreativeDesignPicker } from "@/app/components/CreativeDesignPicker";
+import { CreativeDesignPreview } from "@/app/components/CreativeDesignPreview";
 import { STATUS_META, type CampaignStatus } from "@/lib/campaign-status";
 import {
   STUDY_TYPES, STUDY_TYPE_LABELS, studyTypeLabel,
@@ -942,6 +943,7 @@ export default function ResearchProjectsPage() {
                   <p className="text-xs text-gray-400 leading-relaxed">
                     Leave unset to use the standard production creative.
                   </p>
+                  <CreativeDesignPreview designId={editing.creative_design} />
                 </DrawerSection>
               )}
 
