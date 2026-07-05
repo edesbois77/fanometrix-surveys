@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
-import { countryCodeWarning, languageCodeWarning, MARKET_REFERENCE_PAIRS, isValidCountryCode } from "@/lib/locales";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { countryCodeWarning, languageCodeWarning, MARKET_REFERENCE_PAIRS, isValidCountryCode, expectedSurveyLanguage } from "@/lib/locales";
 import { SUPPORTED_LANGUAGES } from "@/lib/survey-locale";
 import Link from "next/link";
 import Papa from "papaparse";
@@ -445,6 +445,25 @@ export default function CampaignsPage() {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editing.brand_name, editing.research_theme, editing.country_code, editing.publisher, editing.year, drawerOpen]);
+
+  // Auto-select Survey Language to match Country Code — but only when the
+  // user actually changes Country Code during this drawer session, never
+  // silently overwriting a language an existing campaign already has when
+  // the drawer is first opened (survey_language is deliberately independent
+  // of country_code — see lib/locales.ts — so it must stay editable).
+  const countryLangBaseline = useRef<string | null>(null);
+  useEffect(() => {
+    if (drawerOpen) countryLangBaseline.current = editing.id ? (editing.country_code ?? null) : null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [drawerOpen, editing.id]);
+  useEffect(() => {
+    if (!drawerOpen) return;
+    if (editing.country_code === countryLangBaseline.current) return;
+    countryLangBaseline.current = editing.country_code ?? null;
+    if (!editing.country_code) return;
+    setEditing(e => ({ ...e, survey_language: expectedSurveyLanguage(e.country_code!) }));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editing.country_code, drawerOpen]);
 
   function autoId() {
     setEditing(e => {
