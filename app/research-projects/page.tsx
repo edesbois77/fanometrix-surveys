@@ -69,6 +69,7 @@ type Deployment = {
 
 type GenerateResult = {
   created: Array<{ publisher: string; country: string; campaign_id: string }>;
+  restored: Array<{ publisher: string; country: string; campaign_id: string }>;
   skipped_existing: Array<{ publisher: string; country: string }>;
   failed: Array<{ publisher: string; country: string; reason: string }>;
 };
@@ -394,7 +395,9 @@ export default function ResearchProjectsPage() {
     setGenerating(g => ({ ...g, [p.id]: false }));
     if (!res.ok) { showToast(json.error ?? "Failed to generate deployments.", false); return; }
     setGenerateResults(r => ({ ...r, [p.id]: json.data }));
-    showToast(`${json.data.created.length} deployment(s) created.`);
+    const parts = [`${json.data.created.length} created`];
+    if (json.data.restored.length > 0) parts.push(`${json.data.restored.length} restored`);
+    showToast(parts.join(", ") + ".");
     setRefreshTokens(t => ({ ...t, [p.id]: (t[p.id] ?? 0) + 1 }));
     if (expandedId !== p.id) setExpandedId(p.id);
     load();
@@ -555,6 +558,9 @@ export default function ResearchProjectsPage() {
                     {result && (
                       <div className="text-xs space-y-1 bg-gray-50 border border-gray-100 rounded-lg p-3">
                         <p className="text-green-700">✓ {result.created.length} created</p>
+                        {result.restored.length > 0 && (
+                          <p className="text-green-700">↺ {result.restored.length} restored (previously deleted)</p>
+                        )}
                         {result.skipped_existing.length > 0 && (
                           <p className="text-gray-400">– {result.skipped_existing.length} already existed</p>
                         )}

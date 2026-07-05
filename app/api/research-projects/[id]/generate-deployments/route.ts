@@ -73,28 +73,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     );
   }
 
-  const { data: existing } = await supabaseAdmin
-    .from("campaigns")
-    .select("publisher, country_code")
-    .eq("research_project_id", id)
-    .is("deleted_at", null);
-
-  const existingPairs = new Set((existing ?? []).map(c => `${c.publisher}::${c.country_code}`));
-
   const allCombos: Combo[] = [];
   for (const publisher of publishers) {
     for (const countryCode of countryCodes) {
       allCombos.push({ publisher, countryCode });
-    }
-  }
-
-  const skippedExisting: Combo[] = [];
-  const toCreate: Combo[] = [];
-  for (const combo of allCombos) {
-    if (existingPairs.has(`${combo.publisher}::${combo.countryCode}`)) {
-      skippedExisting.push(combo);
-    } else {
-      toCreate.push(combo);
     }
   }
 
@@ -103,15 +85,66 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const year = project.year || "";
   const nowIso = new Date().toISOString();
 
+  // Compute each combo's slug up front, then look up ALL campaigns with a
+  // matching slug regardless of deleted_at — a soft-deleted campaign still
+  // occupies its campaign_id (unique constraint), so re-generating after a
+  // delete must restore that row rather than try to insert a duplicate.
+  const slugByCombo = allCombos.map(combo => {
+    const country = countryByCode(combo.countryCode)!;
+    return {
+      combo,
+      country,
+      campaignName: generateCampaignName(brandOrTopic, theme, country.name, combo.publisher, year),
+      campaignSlug: generateCampaignSlug(brandOrTopic, theme, country.name, combo.publisher, year),
+    };
+  });
+
+  const { data: clashes } = await supabaseAdmin
+    .from("campaigns")
+    .select("id, campaign_id, deleted_at, research_project_id")
+    .in("campaign_id", slugByCombo.map(s => s.campaignSlug));
+
+  const clashBySlug = new Map((clashes ?? []).map(c => [c.campaign_id, c]));
+
   const created: Array<{ publisher: string; country: string; campaign_id: string }> = [];
+  const restored: Array<{ publisher: string; country: string; campaign_id: string }> = [];
+  const skippedExisting: Combo[] = [];
   const failed: Array<{ publisher: string; country: string; reason: string }> = [];
 
-  // Insert one at a time so a single slug collision doesn't roll back the whole batch.
-  for (const combo of toCreate) {
-    const country = countryByCode(combo.countryCode)!;
-    const campaignName = generateCampaignName(brandOrTopic, theme, country.name, combo.publisher, year);
-    const campaignSlug = generateCampaignSlug(brandOrTopic, theme, country.name, combo.publisher, year);
+  for (const { combo, country, campaignName, campaignSlug } of slugByCombo) {
+    const clash = clashBySlug.get(campaignSlug);
 
+    if (clash && !clash.deleted_at) {
+      // Already exists and active — this is the normal idempotent "nothing to do" case.
+      skippedExisting.push(combo);
+      continue;
+    }
+
+    if (clash && clash.deleted_at && clash.research_project_id === project.id) {
+      // Our own deployment was deleted — restore it rather than fail on the unique constraint.
+      const { error } = await supabaseAdmin
+        .from("campaigns")
+        .update({
+          deleted_at: null, deleted_by: null, delete_reason: null,
+          status: project.status, status_updated_at: nowIso, updated_at: nowIso,
+        })
+        .eq("id", clash.id);
+      if (error) {
+        failed.push({ publisher: combo.publisher, country: country.name, reason: error.message });
+      } else {
+        restored.push({ publisher: combo.publisher, country: country.name, campaign_id: campaignSlug });
+      }
+      continue;
+    }
+
+    if (clash && clash.deleted_at) {
+      // Slug is held by a deleted campaign that isn't ours to restore (e.g. moved
+      // between projects, or a coincidental manual campaign) — don't repurpose it.
+      failed.push({ publisher: combo.publisher, country: country.name, reason: "Campaign ID already exists (deleted, different context)" });
+      continue;
+    }
+
+    // No clash — genuinely new deployment.
     const { error } = await supabaseAdmin
       .from("campaigns")
       .insert([{
@@ -155,6 +188,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   return NextResponse.json({
     data: {
       created,
+      restored,
       skipped_existing: skippedExisting.map(c => ({
         publisher: c.publisher,
         country: countryByCode(c.countryCode)?.name ?? c.countryCode,
