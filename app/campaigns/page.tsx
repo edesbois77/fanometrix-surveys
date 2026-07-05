@@ -255,6 +255,9 @@ export default function CampaignsPage() {
   const [usageFilter,  setUsageFilter]  = useState<"all" | "no_responses" | "has_responses" | "target_reached" | "end_reached">("all");
   const [dateFilter,   setDateFilter]   = useState<"all" | "today" | "7days" | "30days">("all");
   const [sortBy,       setSortBy]       = useState<"recent" | "oldest" | "az" | "status">("recent");
+  const [countryFilter,   setCountryFilter]   = useState<string>("all");
+  const [publisherFilter, setPublisherFilter] = useState<string>("all");
+  const [brandFilter,     setBrandFilter]     = useState<string>("all");
 
   // Preview modal
   const [previewCampaign, setPreviewCampaign] = useState<Campaign | null>(null);
@@ -317,6 +320,24 @@ export default function CampaignsPage() {
   const archivedCampaigns = useMemo(() =>
     campaigns.filter(c => c.effective_status === "archived"), [campaigns]);
 
+  // Option lists for the Country/Publisher/Brand filters — derived from all
+  // non-deleted campaigns so the dropdowns stay stable across tab switches.
+  const countryOptions = useMemo(() => {
+    const byCode = new Map<string, string>();
+    for (const c of campaigns) {
+      if (c.country_code && !byCode.has(c.country_code)) byCode.set(c.country_code, c.market || c.country_code);
+    }
+    return Array.from(byCode.entries()).sort((a, b) => a[1].localeCompare(b[1]));
+  }, [campaigns]);
+
+  const publisherOptions = useMemo(() =>
+    Array.from(new Set(campaigns.map(c => c.publisher).filter((p): p is string => !!p))).sort((a, b) => a.localeCompare(b)),
+    [campaigns]);
+
+  const brandOptions = useMemo(() =>
+    Array.from(new Set(campaigns.map(c => c.brand_name).filter((b): b is string => !!b))).sort((a, b) => a.localeCompare(b)),
+    [campaigns]);
+
   const displayed = useMemo(() => {
     let list: Campaign[] =
       activeTab === "active"   ? activeCampaigns   :
@@ -351,6 +372,11 @@ export default function CampaignsPage() {
       list = list.filter(c => new Date(c.created_at) >= cut);
     }
 
+    // Country / Publisher / Brand filters
+    if (countryFilter !== "all")   list = list.filter(c => c.country_code === countryFilter);
+    if (publisherFilter !== "all") list = list.filter(c => c.publisher === publisherFilter);
+    if (brandFilter !== "all")     list = list.filter(c => c.brand_name === brandFilter);
+
     // Search
     if (search.trim()) {
       const q = search.toLowerCase();
@@ -372,7 +398,7 @@ export default function CampaignsPage() {
       case "status":  return [...list].sort((a, b) => STATUS_ORDER[a.effective_status] - STATUS_ORDER[b.effective_status]);
       default:        return list;
     }
-  }, [campaigns, deletedCampaigns, activeTab, statusFilter, usageFilter, dateFilter, sortBy, search, activeCampaigns, closedCampaigns, archivedCampaigns]);
+  }, [campaigns, deletedCampaigns, activeTab, statusFilter, usageFilter, dateFilter, countryFilter, publisherFilter, brandFilter, sortBy, search, activeCampaigns, closedCampaigns, archivedCampaigns]);
 
   const selectedProject = useMemo(
     () => researchProjects.find(p => p.id === editing.research_project_id) ?? null,
@@ -739,6 +765,30 @@ export default function CampaignsPage() {
             <option value="30days">Last 30 days</option>
           </select>
 
+          <select value={countryFilter} onChange={e => setCountryFilter(e.target.value)}
+            className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A] text-gray-600">
+            <option value="all">All Countries</option>
+            {countryOptions.map(([code, label]) => (
+              <option key={code} value={code}>{label}</option>
+            ))}
+          </select>
+
+          <select value={publisherFilter} onChange={e => setPublisherFilter(e.target.value)}
+            className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A] text-gray-600">
+            <option value="all">All Publishers</option>
+            {publisherOptions.map(p => (
+              <option key={p} value={p}>{p}</option>
+            ))}
+          </select>
+
+          <select value={brandFilter} onChange={e => setBrandFilter(e.target.value)}
+            className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A] text-gray-600">
+            <option value="all">All Brands</option>
+            {brandOptions.map(b => (
+              <option key={b} value={b}>{b}</option>
+            ))}
+          </select>
+
           <select value={sortBy} onChange={e => setSortBy(e.target.value as typeof sortBy)}
             className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A] text-gray-600">
             <option value="recent">Most recent</option>
@@ -763,6 +813,7 @@ export default function CampaignsPage() {
                 setActiveTab(key);
                 setStatusFilter("all"); setUsageFilter("all");
                 setDateFilter("all"); setSearch("");
+                setCountryFilter("all"); setPublisherFilter("all"); setBrandFilter("all");
                 clearSelection();
               }}
               className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
