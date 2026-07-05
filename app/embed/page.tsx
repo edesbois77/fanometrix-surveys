@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-import { ThemedSurvey } from "./ThemedSurvey";
+import { ThemedSurvey, type EmbedTheme } from "./ThemedSurvey";
 import { ClassicSurvey } from "./ClassicSurvey";
 import { DESIGN_LAYOUTS } from "@/lib/creative-designs";
 
@@ -112,6 +112,7 @@ function EmbedSurvey() {
   const [resolvedCampaignId, setResolvedCampaignId] = useState<string>(campaign);
   const [groupReady,         setGroupReady]         = useState(!groupSlug);
   const [creativeDesign,     setCreativeDesign]     = useState<string | null>(null);
+  const [customTheme,        setCustomTheme]        = useState<EmbedTheme | null>(null);
   const [resolvedGroupId,      setResolvedGroupId]      = useState<string | null>(null);
   const [resolvedSurveyLang,   setResolvedSurveyLang]   = useState<string>(urlLang ?? "en");
   const [resolvedCountryCode,  setResolvedCountryCode]  = useState<string | null>(countryParam || null);
@@ -146,6 +147,7 @@ function EmbedSurvey() {
           setResolvedCountryCode(data.country_code ?? (countryParam || null));
           setResolvedMarket(data.market ?? marketParam);
           setCreativeDesign(data.creative_design ?? null);
+          setCustomTheme(data.custom_theme ?? null);
         }
         setGroupReady(!!data?.campaign_id);
       })
@@ -169,6 +171,7 @@ function EmbedSurvey() {
           setThankYouBody(data.thank_you_body   ?? thankYouBody);
           setResolvedSurveyLang(data.survey_language ?? urlLang ?? "en");
           setCreativeDesign(data.creative_design ?? null);
+          setCustomTheme(data.custom_theme ?? null);
         }
       })
       .catch(() => {/* keep fallback questions */});
@@ -198,13 +201,16 @@ function EmbedSurvey() {
 
   // Layout registry: unknown/missing design id (including every campaign
   // with creative_design left null today) resolves to "classic" — zero
-  // behavior change for anything live before this feature shipped.
-  const layout = creativeDesign ? (DESIGN_LAYOUTS[creativeDesign] ?? "classic") : "classic";
+  // behavior change for anything live before this feature shipped. A
+  // resolved customTheme means the design is a dynamically-authored one
+  // from the Creative Gallery, which is always Timer layout.
+  const layout = customTheme ? "timer" : (creativeDesign ? (DESIGN_LAYOUTS[creativeDesign] ?? "classic") : "classic");
 
   if (layout === "timer") {
     return (
       <ThemedSurvey
         themeId={creativeDesign!}
+        customTheme={customTheme ?? undefined}
         questions={questions}
         thankYouTitle={thankYouTitle}
         thankYouBody={thankYouBody}

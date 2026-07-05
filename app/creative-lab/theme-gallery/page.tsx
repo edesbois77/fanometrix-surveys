@@ -6,6 +6,7 @@ import { VariantB, type SurveyEvent as EventB } from "./VariantB";
 import { QuadrantSurvey } from "../quadrant-mode/QuadrantSurvey";
 import { THEMES, type Theme, type SurveyQuestion } from "./themes";
 import { CustomThemeBuilder } from "./CustomThemeBuilder";
+import { CreativeGalleryBuilder } from "./CreativeGalleryBuilder";
 import { type TypographyMode } from "./typography";
 
 const DEFAULT_QUESTIONS: SurveyQuestion[] = [
@@ -17,7 +18,7 @@ const DEFAULT_QUESTIONS: SurveyQuestion[] = [
 type Variant    = "A" | "B";
 const DESIGN_LABEL = "Design — Timer (300×250)";
 type Device     = "desktop" | "mobile";
-type Tab        = "gallery" | "sidebyside" | "analytics" | "archive" | "original" | "custom";
+type Tab        = "gallery" | "sidebyside" | "analytics" | "archive" | "original" | "custom" | "myDesigns";
 type SurveyEvent = EventA | EventB;
 
 const PAGE_BG   = "#07101A";
@@ -763,6 +764,7 @@ export default function ThemeGalleryPage() {
 
   const TABS: { id: Tab; label: string }[] = [
     { id: "gallery",    label: "Gallery" },
+    { id: "myDesigns",  label: "Creative Gallery" },
     { id: "custom",     label: "Custom Builder" },
     { id: "sidebyside", label: "Theme Preview" },
     { id: "original",   label: "Design — Original" },
@@ -879,6 +881,10 @@ export default function ThemeGalleryPage() {
           questions={questions}
           dark={dark}
         />
+      )}
+
+      {activeTab === "myDesigns" && (
+        <CreativeGalleryBuilder dark={dark} />
       )}
 
       {activeTab === "custom" && (

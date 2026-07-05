@@ -21,6 +21,9 @@ import { supabase } from "@/lib/supabase";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { validateSurvey } from "@/lib/survey-validation";
 import { resolveQuestion, resolveText, type LangCode, type LocalisedQuestion, type LocalisedText } from "@/lib/survey-locale";
+import { DESIGN_LAYOUTS } from "@/lib/creative-designs";
+import { buildEmbedThemeFromState, type BuilderState } from "@/lib/creative-theme-builder";
+import type { EmbedTheme } from "@/app/embed/ThemedSurvey";
 
 export async function GET(req: NextRequest) {
   const slug      = req.nextUrl.searchParams.get("slug");
@@ -211,13 +214,27 @@ export async function GET(req: NextRequest) {
 
   const questions = (survey?.questions ?? []).map(q => resolveQuestion(q, lang));
 
+  const resolvedDesign = effectiveCreativeDesign(campaign);
+  let customTheme: EmbedTheme | null = null;
+  if (resolvedDesign && !DESIGN_LAYOUTS[resolvedDesign]) {
+    const { data: dynamicDesign } = await supabaseAdmin
+      .from("creative_designs")
+      .select("builder_state")
+      .eq("slug", resolvedDesign)
+      .single();
+    if (dynamicDesign?.builder_state) {
+      customTheme = buildEmbedThemeFromState(dynamicDesign.builder_state as BuilderState);
+    }
+  }
+
   return NextResponse.json({
     campaign_id:     campaign.campaign_id,
     group_id:        slug,
     survey_language: lang,
     country_code:    campaign.country_code ?? null,
     market:          campaign.market ?? null,
-    creative_design:  effectiveCreativeDesign(campaign),
+    creative_design:  resolvedDesign,
+    custom_theme:    customTheme,
     questions,
     thank_you_title: resolveText(survey?.thank_you_title ?? {}, lang) || "Thank you!",
     thank_you_body:  resolveText(survey?.thank_you_body ?? {}, lang) || "Your anonymous feedback helps improve the football experience for fans everywhere.",

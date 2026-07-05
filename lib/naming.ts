@@ -10,7 +10,7 @@
  * Slug rules: lowercase, spaces→underscores, strip special chars, max 80 chars.
  */
 
-function toSlugPart(s: string): string {
+export function toSlugPart(s: string): string {
   return s
     .toLowerCase()
     .trim()

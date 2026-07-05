@@ -7,6 +7,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { resolveQuestion, resolveText, type LangCode, type LocalisedQuestion, type LocalisedText } from "@/lib/survey-locale";
+import { DESIGN_LAYOUTS } from "@/lib/creative-designs";
+import { buildEmbedThemeFromState, type BuilderState } from "@/lib/creative-theme-builder";
+import type { EmbedTheme } from "@/app/embed/ThemedSurvey";
 
 const NO_CACHE = {
   "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
@@ -78,10 +81,26 @@ export async function GET(req: NextRequest) {
   const lang = ((urlLang ?? campaign.survey_language ?? "en") as LangCode);
   const questions = ((survey.questions ?? []) as LocalisedQuestion[]).map(q => resolveQuestion(q, lang));
 
+  // If the resolved design isn't one of the static built-ins, it's a
+  // dynamically-authored one from the Creative Gallery — derive its full
+  // render palette from its stored builder_state.
+  let customTheme: EmbedTheme | null = null;
+  if (effectiveCreativeDesign && !DESIGN_LAYOUTS[effectiveCreativeDesign]) {
+    const { data: dynamicDesign } = await supabaseAdmin
+      .from("creative_designs")
+      .select("builder_state")
+      .eq("slug", effectiveCreativeDesign)
+      .single();
+    if (dynamicDesign?.builder_state) {
+      customTheme = buildEmbedThemeFromState(dynamicDesign.builder_state as BuilderState);
+    }
+  }
+
   return NextResponse.json({
     campaign_id:     campaign.campaign_id,
     survey_language: lang,
     creative_design:  effectiveCreativeDesign,
+    custom_theme:    customTheme,
     questions,
     thank_you_title: resolveText((survey.thank_you_title as LocalisedText | null) ?? {}, lang) || "Thank you!",
     thank_you_body:  resolveText((survey.thank_you_body as LocalisedText | null) ?? {}, lang) || "Your anonymous feedback helps improve the football experience for fans everywhere.",

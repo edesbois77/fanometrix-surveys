@@ -8,7 +8,7 @@ import { useState, useRef, useEffect, useLayoutEffect } from "react";
 
 // ── Compact theme definitions (8 themes, independent of creative-lab) ─────────
 
-interface EmbedTheme {
+export interface EmbedTheme {
   canvas: string; quad: string; gridLine: string;
   outerBorder: string; outerShadow: string;
   text: string; accent: string;
@@ -152,6 +152,10 @@ type EmbedQuestion = { id: string; text: string; options: EmbedOption[] };
 
 export interface ThemedSurveyProps {
   themeId:        string;
+  // When set, used instead of the EMBED_THEMES[themeId] lookup — the render
+  // path for a dynamically-authored design (see lib/creative-theme-builder.ts).
+  // The 8 built-in ids are unaffected and never pass this.
+  customTheme?:   EmbedTheme;
   questions:      EmbedQuestion[];
   thankYouTitle:  string;
   thankYouBody:   string;
@@ -490,7 +494,7 @@ function ThemedPrivacyOverlay({ theme, onClose }: { theme: EmbedTheme; onClose: 
 // ── Main export ───────────────────────────────────────────────────────────────
 
 export function ThemedSurvey(props: ThemedSurveyProps) {
-  const theme = EMBED_THEMES[props.themeId] ?? FALLBACK_THEME;
+  const theme = props.customTheme ?? EMBED_THEMES[props.themeId] ?? FALLBACK_THEME;
   const total = props.questions.length;
 
   const [step,        setStep]        = useState(0);
