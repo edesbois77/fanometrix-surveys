@@ -950,7 +950,11 @@ export default function CampaignsPage() {
                             <p className="font-semibold text-gray-900 group-hover:text-[#0B1929] truncate">
                               {c.brand_name} · {c.campaign_name}
                             </p>
-                            <p className="text-xs font-mono text-gray-400 mt-0.5">{c.campaign_id}</p>
+                            {c.campaign_description ? (
+                              <p className="text-xs text-gray-400 mt-0.5 truncate">{c.campaign_description}</p>
+                            ) : (
+                              <p className="text-xs font-mono text-gray-400 mt-0.5">{c.campaign_id}</p>
+                            )}
                           </div>
                           <StatusBadge status={c.effective_status ?? c.status as CampaignStatus} />
                         </div>

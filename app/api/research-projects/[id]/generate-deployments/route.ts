@@ -122,13 +122,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     if (clash && clash.deleted_at && clash.research_project_id === project.id) {
       // Our own deployment was deleted — restore it rather than fail on the unique constraint.
-      // Also fixes survey_language up to the country's expected language in case it was
-      // generated before that was set correctly (see the insert branch below).
+      // Also refreshes survey_language and description to the project's current values, in
+      // case they were wrong/blank when this row was first generated (see the insert branch
+      // below) or the project's description has since changed.
       const { error } = await supabaseAdmin
         .from("campaigns")
         .update({
           deleted_at: null, deleted_by: null, delete_reason: null,
           survey_language: expectedSurveyLanguage(combo.countryCode),
+          campaign_description: project.description || null,
           status: project.status, status_updated_at: nowIso, updated_at: nowIso,
         })
         .eq("id", clash.id);
@@ -157,7 +159,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         // Brand for non-brand studies, so fall back to Topic, then empty
         // string, matching the naming convention's own brandOrTopic logic.
         brand_name: brandOrTopic,
-        campaign_description: null,
+        // Seeded from the project's own description — a one-time copy, not
+        // live-inherited, so each deployment can be edited individually
+        // afterward without affecting its siblings.
+        campaign_description: project.description || null,
         publisher: combo.publisher,
         country_code: combo.countryCode,
         market: country.name,
