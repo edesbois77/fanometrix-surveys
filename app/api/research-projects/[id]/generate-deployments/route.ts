@@ -3,6 +3,8 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 import { requireSession } from "@/lib/auth";
 import { generateCampaignName, generateCampaignSlug, studyTypeLabel } from "@/lib/naming";
 import { countryByCode } from "@/lib/countries";
+import { getCompletedLanguages, type LangCode } from "@/lib/survey-locale";
+import { expectedSurveyLanguage, LANGUAGE_DISPLAY_NAMES } from "@/lib/locales";
 
 type Combo = { publisher: string; countryCode: string };
 
@@ -45,6 +47,26 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const unknownCodes = countryCodes.filter(c => !countryByCode(c));
   if (unknownCodes.length > 0) {
     return NextResponse.json({ error: `Unrecognised country code(s): ${unknownCodes.join(", ")}` }, { status: 400 });
+  }
+
+  // Hard block on survey/language mismatch — mirrors the client-side check.
+  // A country whose expected language isn't one Fanometrix can author
+  // surveys in yet (e.g. Italian) is always reported as missing.
+  const { data: projectSurvey } = await supabaseAdmin
+    .from("surveys")
+    .select("questions")
+    .eq("id", project.survey_id)
+    .single();
+  const completedLangs = getCompletedLanguages(projectSurvey?.questions ?? []);
+  const missingLanguages = countryCodes
+    .map(code => ({ code, lang: expectedSurveyLanguage(code) }))
+    .filter(({ lang }) => !completedLangs.includes(lang as LangCode));
+  if (missingLanguages.length > 0) {
+    const detail = missingLanguages.map(({ code, lang }) => `${code} → ${LANGUAGE_DISPLAY_NAMES[lang] ?? lang}`).join(", ");
+    return NextResponse.json(
+      { error: `Survey language mismatch — the project survey has no translation for: ${detail}. Fix the survey or remove these countries before generating.` },
+      { status: 400 }
+    );
   }
 
   const { data: existing } = await supabaseAdmin

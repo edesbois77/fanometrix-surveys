@@ -105,17 +105,36 @@ export const COUNTRY_TO_LANGUAGE: Record<string, string> = {
 };
 
 /**
- * The survey language a given country is expected to have a complete
- * translation for, downgraded to "en" when the country's natural language
- * isn't one Fanometrix surveys can actually be authored in
- * (SUPPORTED_LANGUAGE_CODES). Used to validate that a Research Project's
- * chosen survey covers every deployment country — never used to auto-set
- * survey_language on a campaign.
+ * The survey language a given country is genuinely expected to have a
+ * complete translation for. Only defaults to "en" when the country isn't
+ * in COUNTRY_TO_LANGUAGE at all — a known country's real language is always
+ * returned as-is, even if Fanometrix surveys can't yet be authored in it
+ * (e.g. "it" for Italy). That's the point: a country needing a language the
+ * survey has no way of ever containing is a genuine mismatch, not something
+ * to silently wave through as "assume English is fine". Used to validate
+ * that a Research Project's chosen survey covers every deployment country —
+ * never used to auto-set survey_language on a campaign.
  */
 export function expectedSurveyLanguage(countryCode: string): string {
-  const lang = COUNTRY_TO_LANGUAGE[countryCode.toUpperCase()];
-  return lang && SUPPORTED_LANGUAGE_CODES.has(lang) ? lang : "en";
+  return COUNTRY_TO_LANGUAGE[countryCode.toUpperCase()] ?? "en";
 }
+
+/** Human-readable display names for language codes, including ones Fanometrix can't author surveys in yet. */
+export const LANGUAGE_DISPLAY_NAMES: Record<string, string> = {
+  en:      "English",
+  de:      "German",
+  sv:      "Swedish",
+  "zh-CN": "Chinese Simplified",
+  fr:      "French",
+  es:      "Spanish",
+  pt:      "Portuguese",
+  nl:      "Dutch",
+  pl:      "Polish",
+  it:      "Italian",
+  ar:      "Arabic",
+  ja:      "Japanese",
+  ko:      "Korean",
+};
 
 // ── Reference pairs shown in the campaign form ────────────────────────────────
 export const MARKET_REFERENCE_PAIRS = [

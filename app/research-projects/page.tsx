@@ -12,8 +12,8 @@ import {
 } from "@/lib/naming";
 import { countryOptions, countryByCode } from "@/lib/countries";
 import { isSurveyValidForReady } from "@/lib/survey-validation";
-import { getCompletedLanguages, SUPPORTED_LANGUAGES, type LocalisedQuestion, type LangCode } from "@/lib/survey-locale";
-import { expectedSurveyLanguage } from "@/lib/locales";
+import { getCompletedLanguages, type LocalisedQuestion, type LangCode } from "@/lib/survey-locale";
+import { expectedSurveyLanguage, LANGUAGE_DISPLAY_NAMES } from "@/lib/locales";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type ResearchProject = {
@@ -121,10 +121,10 @@ function deploymentLanguageWarning(d: Deployment, surveys: Survey[]): string | n
   if (!d.effective_survey_id || !d.country_code) return null;
   const survey = surveys.find(s => s.id === d.effective_survey_id);
   if (!survey) return null;
-  const lang = expectedSurveyLanguage(d.country_code) as LangCode;
+  const lang = expectedSurveyLanguage(d.country_code);
   const completed = getCompletedLanguages(survey.questions ?? []);
-  if (completed.includes(lang)) return null;
-  const label = SUPPORTED_LANGUAGES.find(l => l.code === lang)?.label ?? lang;
+  if (completed.includes(lang as LangCode)) return null;
+  const label = LANGUAGE_DISPLAY_NAMES[lang] ?? lang;
   return `Missing ${label} survey localisation for ${d.country_code}`;
 }
 
@@ -264,17 +264,19 @@ export default function ResearchProjectsPage() {
     [surveys]);
 
   // Countries whose expected survey language isn't fully translated in the selected survey.
+  // A country whose expected language isn't one Fanometrix can even author surveys in yet
+  // (e.g. Italian) is always reported as missing — there's no way it could be complete.
   function missingLanguageCountries(surveyId: string | null | undefined, countryCodes: string[] | undefined) {
     const survey = surveys.find(s => s.id === surveyId);
     if (!survey || !countryCodes?.length) return [];
     const completed = getCompletedLanguages(survey.questions ?? []);
     return countryCodes
-      .map(code => ({ code, lang: expectedSurveyLanguage(code) as LangCode }))
-      .filter(({ lang }) => !completed.includes(lang));
+      .map(code => ({ code, lang: expectedSurveyLanguage(code) }))
+      .filter(({ lang }) => !completed.includes(lang as LangCode));
   }
 
-  function languageLabel(code: LangCode) {
-    return SUPPORTED_LANGUAGES.find(l => l.code === code)?.label ?? code;
+  function languageLabel(code: string) {
+    return LANGUAGE_DISPLAY_NAMES[code] ?? code;
   }
 
   const editingMismatches = useMemo(
@@ -375,13 +377,14 @@ export default function ResearchProjectsPage() {
   }
 
   async function handleGenerate(p: ResearchProject) {
+    // Hard block — mirrors the server-side check in generate-deployments.
+    // The button is disabled in this state too; this only matters if the
+    // underlying data changed since the card last rendered.
     const mismatches = missingLanguageCountries(p.survey_id, p.country_codes);
     if (mismatches.length > 0) {
-      const lines = mismatches.map(({ code, lang }) => `${code} → ${languageLabel(lang)} version required`).join("\n");
-      const confirmed = confirm(
-        `Survey language mismatch detected.\n\nThe project survey does not contain language versions for all selected deployment countries:\n\n${lines}\n\nDeployments will still be generated using the project survey (falling back to English where translations are missing). Continue anyway?`
-      );
-      if (!confirmed) return;
+      const lines = mismatches.map(({ code, lang }) => `${code} → ${languageLabel(lang)} version required`).join(", ");
+      showToast(`Cannot generate — survey language mismatch (${lines}). Fix in Edit first.`, false);
+      return;
     }
 
     setGenerating(g => ({ ...g, [p.id]: true }));
@@ -450,11 +453,14 @@ export default function ResearchProjectsPage() {
           {displayed.map(p => {
             const expanded = expandedId === p.id;
             const possibleCombos = p.publishers.length * p.country_codes.length;
-            const canGenerate = p.publishers.length > 0 && p.country_codes.length > 0 && !!p.survey_id;
+            const projectMismatches = missingLanguageCountries(p.survey_id, p.country_codes);
+            const canGenerate = p.publishers.length > 0 && p.country_codes.length > 0 && !!p.survey_id && projectMismatches.length === 0;
             const generateBlockedReasons = [
               p.publishers.length === 0 && "add publishers",
               p.country_codes.length === 0 && "add countries",
               !p.survey_id && "select a survey",
+              p.survey_id && projectMismatches.length > 0 &&
+                `fix survey language mismatch (${projectMismatches.map(({ code, lang }) => `${code} → ${languageLabel(lang)}`).join(", ")})`,
             ].filter(Boolean) as string[];
             const result = generateResults[p.id];
             const isGenerating = generating[p.id] ?? false;
@@ -490,6 +496,12 @@ export default function ResearchProjectsPage() {
                   {!p.survey_id && (
                     <p className="text-xs font-semibold text-red-600 mt-2 flex items-center gap-1">
                       🚩 No survey selected — deployments cannot be generated until one is set.
+                    </p>
+                  )}
+
+                  {p.survey_id && projectMismatches.length > 0 && (
+                    <p className="text-xs font-semibold text-red-600 mt-2 flex items-center gap-1">
+                      🚩 Survey language mismatch ({projectMismatches.map(({ code, lang }) => `${code} → ${languageLabel(lang)}`).join(", ")}) — deployments cannot be generated until fixed.
                     </p>
                   )}
 
@@ -712,18 +724,18 @@ export default function ResearchProjectsPage() {
                   This is the primary survey inherited by every generated deployment, unless an individual deployment overrides it.
                 </p>
                 {editingMismatches.length > 0 && (
-                  <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5 mt-2 space-y-1">
-                    <p className="text-xs font-semibold text-amber-800">⚠ Survey language mismatch detected</p>
-                    <p className="text-xs text-amber-700">
+                  <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2.5 mt-2 space-y-1">
+                    <p className="text-xs font-semibold text-red-700">🚩 Survey language mismatch detected</p>
+                    <p className="text-xs text-red-700">
                       The selected survey does not contain language versions for all selected deployment countries.
                     </p>
-                    <ul className="text-xs text-amber-700 list-disc list-inside">
+                    <ul className="text-xs text-red-700 list-disc list-inside">
                       {editingMismatches.map(({ code, lang }) => (
                         <li key={code}>{code} → {languageLabel(lang)} version required</li>
                       ))}
                     </ul>
-                    <p className="text-xs text-amber-600">
-                      You can still save this project. Add the missing translation to the survey, or override the survey for the affected deployments after generating them.
+                    <p className="text-xs text-red-600">
+                      You can still save this project, but Generate Deployments will be blocked until this is fixed — either add the missing translation to the survey, or remove the affected countries.
                     </p>
                   </div>
                 )}
