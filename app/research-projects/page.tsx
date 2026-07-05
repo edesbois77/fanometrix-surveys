@@ -283,6 +283,19 @@ export default function ResearchProjectsPage() {
   }, [projects]);
   const tagOptions = useMemo(() => existingTags.map(t => ({ value: t, label: t })), [existingTags]);
 
+  // Most-reused tags across all projects — surfaced as one-click suggestions so
+  // similar studies converge on the same tag instead of near-duplicate variants
+  // (e.g. "wwc" / "womens world cup" / "Women's World Cup").
+  const popularTags = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const p of projects) for (const t of p.tags ?? []) counts.set(t, (counts.get(t) ?? 0) + 1);
+    return Array.from(counts.entries())
+      .filter(([, count]) => count > 1)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 8)
+      .map(([tag]) => tag);
+  }, [projects]);
+
   // Surveys selectable as a project's inherited survey — same readiness gate as the Campaigns drawer.
   // Most recently created first, so the newest survey is always easiest to find.
   const selectableSurveys = useMemo(() => surveys
@@ -315,6 +328,17 @@ export default function ResearchProjectsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [editing.survey_id, editing.country_codes, surveys]
   );
+
+  const editingCanGenerate =
+    (editing.publishers?.length ?? 0) > 0 && (editing.country_codes?.length ?? 0) > 0 &&
+    !!editing.survey_id && editingMismatches.length === 0;
+  const editingBlockedReasons = [
+    (editing.publishers?.length ?? 0) === 0 && "add publishers",
+    (editing.country_codes?.length ?? 0) === 0 && "add countries",
+    !editing.survey_id && "select a survey",
+    editing.survey_id && editingMismatches.length > 0 &&
+      `fix survey language mismatch (${editingMismatches.map(({ code, lang }) => `${code} → ${languageLabel(lang)}`).join(", ")})`,
+  ].filter(Boolean) as string[];
 
   const displayed = useMemo(() => {
     if (!search.trim()) return projects;
@@ -370,12 +394,13 @@ export default function ResearchProjectsPage() {
     });
   }
 
-  async function handleSave() {
-    if (!editing.project_name?.trim()) { setError("Project name is required."); return; }
-    if (!editing.project_id?.trim()) { setError("Project ID is required."); return; }
-    if (!editing.study_type) { setError("Study type is required."); return; }
+  /** Validates and persists the drawer's current state. Returns the saved row, or null on failure (with `error` set). */
+  async function saveProject(): Promise<ResearchProject | null> {
+    if (!editing.project_name?.trim()) { setError("Project name is required."); return null; }
+    if (!editing.project_id?.trim()) { setError("Project ID is required."); return null; }
+    if (!editing.study_type) { setError("Study type is required."); return null; }
     if (editing.start_date && editing.end_date && editing.start_date > editing.end_date) {
-      setError("Start date cannot be after end date."); return;
+      setError("Start date cannot be after end date."); return null;
     }
     setError(""); setSaving(true);
 
@@ -385,10 +410,25 @@ export default function ResearchProjectsPage() {
     const json = await res.json();
     setSaving(false);
 
-    if (!res.ok) { setError(json.error ?? "Failed to save."); return; }
+    if (!res.ok) { setError(json.error ?? "Failed to save."); return null; }
+    return json.data as ResearchProject;
+  }
+
+  async function handleSave() {
+    const wasNew = !editing.id;
+    const saved = await saveProject();
+    if (!saved) return;
     setDrawerOpen(false);
-    showToast(editing.id ? "Research project updated." : "Research project created.");
+    showToast(wasNew ? "Research project created." : "Research project updated.");
     load();
+  }
+
+  async function handleSaveAndGenerate() {
+    const saved = await saveProject();
+    if (!saved) return;
+    setDrawerOpen(false);
+    load();
+    await handleGenerate(saved);
   }
 
   async function handleDelete(p: ResearchProject, force = false) {
@@ -631,41 +671,46 @@ export default function ResearchProjectsPage() {
             <div className="flex-1 overflow-y-auto p-6 space-y-5">
 
               <DrawerSection step={1} title="Study Details" subtitle="What this project is and how it's classified.">
-                <div className="bg-gray-50 border border-gray-100 rounded-lg p-3 space-y-3">
-                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Name Builder</p>
-                  <div className="grid grid-cols-2 gap-3">
-                    <Field label="Brand (optional)">
-                      <input value={editing.brand_name ?? ""} onChange={e => setEditing(x => ({ ...x, brand_name: e.target.value }))}
-                        className={INP} placeholder="Carlsberg" />
-                    </Field>
-                    <Field label="Topic">
-                      <input value={editing.topic ?? ""} onChange={e => setEditing(x => ({ ...x, topic: e.target.value }))}
-                        className={INP} placeholder="Women's World Cup" />
-                    </Field>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <Field label="Year">
-                      <input value={editing.year ?? ""} onChange={e => setEditing(x => ({ ...x, year: e.target.value }))}
-                        className={INP} placeholder={String(new Date().getFullYear())} maxLength={9} />
-                    </Field>
-                    <div className="flex items-end">
-                      <button type="button" onClick={autoId}
-                        className="w-full text-xs font-semibold px-3 py-2 rounded-lg border-2 border-[#D7B87A] text-[#0B1929] hover:bg-[#FBF5E8] transition-colors">
-                        Auto Generate Name &amp; Slug
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
                 <Field label="Project Name *">
                   <input value={editing.project_name ?? ""} onChange={e => setEditing(x => ({ ...x, project_name: e.target.value }))}
                     className={INP} placeholder="Carlsberg | Fan Understanding | 2026" />
                 </Field>
 
-                <Field label="Project ID *">
-                  <input value={editing.project_id ?? ""} onChange={e => setEditing(x => ({ ...x, project_id: e.target.value }))}
-                    className={`${INP} font-mono`} placeholder="carlsberg_fan_understanding_2026" />
-                </Field>
+                <details className="group bg-gray-50 border border-gray-100 rounded-lg" open={!editing.id}>
+                  <summary className="cursor-pointer select-none list-none px-3 py-2 flex items-center gap-1.5 text-xs font-semibold text-gray-500">
+                    <span className="transition-transform group-open:rotate-90">›</span>
+                    Advanced Naming Options
+                    <span className="font-normal text-gray-400 normal-case">— brand, topic, year, and slug</span>
+                  </summary>
+                  <div className="px-3 pb-3 space-y-3">
+                    <div className="grid grid-cols-2 gap-3">
+                      <Field label="Brand (optional)">
+                        <input value={editing.brand_name ?? ""} onChange={e => setEditing(x => ({ ...x, brand_name: e.target.value }))}
+                          className={INP} placeholder="Carlsberg" />
+                      </Field>
+                      <Field label="Topic">
+                        <input value={editing.topic ?? ""} onChange={e => setEditing(x => ({ ...x, topic: e.target.value }))}
+                          className={INP} placeholder="Women's World Cup" />
+                      </Field>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <Field label="Year">
+                        <input value={editing.year ?? ""} onChange={e => setEditing(x => ({ ...x, year: e.target.value }))}
+                          className={INP} placeholder={String(new Date().getFullYear())} maxLength={9} />
+                      </Field>
+                      <div className="flex items-end">
+                        <button type="button" onClick={autoId}
+                          className="w-full text-xs font-semibold px-3 py-2 rounded-lg border-2 border-[#D7B87A] text-[#0B1929] hover:bg-[#FBF5E8] transition-colors">
+                          Auto Generate Name &amp; Slug
+                        </button>
+                      </div>
+                    </div>
+                    <Field label="Project ID *">
+                      <input value={editing.project_id ?? ""} onChange={e => setEditing(x => ({ ...x, project_id: e.target.value }))}
+                        className={`${INP} font-mono`} placeholder="carlsberg_fan_understanding_2026" />
+                    </Field>
+                  </div>
+                </details>
 
                 <Field label="Study Type *">
                   <select value={editing.study_type ?? "fan_understanding"} onChange={e => setEditing(x => ({ ...x, study_type: e.target.value }))}
@@ -677,6 +722,21 @@ export default function ResearchProjectsPage() {
                 </Field>
 
                 <Field label="Tags">
+                  {popularTags.filter(t => !(editing.tags ?? []).includes(t)).length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mb-2">
+                      <span className="text-xs text-gray-400 mr-0.5 mt-1">Reuse:</span>
+                      {popularTags.filter(t => !(editing.tags ?? []).includes(t)).map(t => (
+                        <button
+                          key={t}
+                          type="button"
+                          onClick={() => setEditing(x => ({ ...x, tags: [...(x.tags ?? []), t] }))}
+                          className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-600 px-2.5 py-1 rounded-full transition-colors"
+                        >
+                          + {t}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                   <MultiSelect
                     options={tagOptions}
                     selected={editing.tags ?? []}
@@ -721,9 +781,53 @@ export default function ResearchProjectsPage() {
                   />
                 </Field>
                 {(editing.publishers?.length ?? 0) > 0 && (editing.country_codes?.length ?? 0) > 0 && (
-                  <p className="text-xs font-semibold text-[#0B1929] bg-white border border-[#D7B87A]/40 rounded-lg px-3 py-2">
-                    {editing.publishers!.length} publisher{editing.publishers!.length !== 1 ? "s" : ""} × {editing.country_codes!.length} countr{editing.country_codes!.length === 1 ? "y" : "ies"} = up to {editing.publishers!.length * editing.country_codes!.length} deployments once generated.
-                  </p>
+                  <>
+                    <div className="bg-white border border-[#D7B87A] rounded-lg px-3 py-3 flex items-center justify-center gap-3">
+                      <div className="text-center">
+                        <p className="text-2xl font-bold text-[#0B1929]">{editing.publishers!.length}</p>
+                        <p className="text-xs text-gray-500">Publisher{editing.publishers!.length !== 1 ? "s" : ""}</p>
+                      </div>
+                      <span className="text-xl text-gray-300">×</span>
+                      <div className="text-center">
+                        <p className="text-2xl font-bold text-[#0B1929]">{editing.country_codes!.length}</p>
+                        <p className="text-xs text-gray-500">Countr{editing.country_codes!.length === 1 ? "y" : "ies"}</p>
+                      </div>
+                      <span className="text-xl text-gray-300">=</span>
+                      <div className="text-center">
+                        <p className="text-2xl font-bold text-[#0B1929]">{editing.publishers!.length * editing.country_codes!.length}</p>
+                        <p className="text-xs font-semibold text-[#0B1929]">Deployments</p>
+                      </div>
+                    </div>
+
+                    <details className="group">
+                      <summary className="cursor-pointer select-none list-none text-xs font-semibold text-[#0B1929] flex items-center gap-1.5">
+                        <span className="transition-transform group-open:rotate-90">›</span>
+                        Preview deployment matrix
+                      </summary>
+                      <div className="mt-2 overflow-x-auto border border-gray-200 rounded-lg">
+                        <table className="w-full text-xs">
+                          <thead>
+                            <tr className="bg-gray-50">
+                              <th className="text-left px-3 py-2 font-semibold text-gray-500 whitespace-nowrap">Publisher</th>
+                              {editing.country_codes!.map(code => (
+                                <th key={code} className="px-2 py-2 font-semibold text-gray-500 whitespace-nowrap">{code}</th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {editing.publishers!.map(pub => (
+                              <tr key={pub} className="border-t border-gray-100">
+                                <td className="px-3 py-1.5 font-medium text-gray-700 whitespace-nowrap">{pub}</td>
+                                {editing.country_codes!.map(code => (
+                                  <td key={code} className="text-center text-[#0B1929]">✓</td>
+                                ))}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </details>
+                  </>
                 )}
               </DrawerSection>
 
@@ -733,7 +837,7 @@ export default function ResearchProjectsPage() {
                 subtitle="The survey inherited by every generated deployment, validated against the countries selected above."
                 prominent
               >
-                <Field label="Select A Survey">
+                <Field label="Project Survey">
                   {selectableSurveys.length === 0 ? (
                     <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5">
                       <p className="text-xs text-amber-700">
@@ -829,9 +933,14 @@ export default function ResearchProjectsPage() {
             <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-3">
               <button onClick={() => setDrawerOpen(false)} className="text-sm text-gray-500 px-4 py-2">Cancel</button>
               <button onClick={handleSave} disabled={saving}
-                className="text-sm font-semibold px-5 py-2 rounded-lg disabled:opacity-60"
-                style={{ background: "#D7B87A", color: "#0B1929" }}>
+                className="text-sm font-semibold px-4 py-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-60 transition-colors">
                 {saving ? "Saving…" : "Save Project"}
+              </button>
+              <button onClick={handleSaveAndGenerate} disabled={saving || !editingCanGenerate}
+                title={editingCanGenerate ? "" : `First: ${editingBlockedReasons.join(", ")}`}
+                className="text-sm font-semibold px-5 py-2 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed"
+                style={{ background: "#0B1929", color: "#D7B87A" }}>
+                {saving ? "Saving…" : "Save & Generate Deployments"}
               </button>
             </div>
           </div>
