@@ -487,6 +487,12 @@ export default function ResearchProjectsPage() {
                     <Stat label="Responses" value={p.target_responses ? `${p.total_responses.toLocaleString()} / ${p.target_responses.toLocaleString()}` : p.total_responses.toLocaleString()} />
                   </div>
 
+                  {!p.survey_id && (
+                    <p className="text-xs font-semibold text-red-600 mt-2 flex items-center gap-1">
+                      🚩 No survey selected — deployments cannot be generated until one is set.
+                    </p>
+                  )}
+
                   {(p.start_date || p.end_date) && (
                     <p className="text-xs text-gray-400 mt-1.5">{formatDate(p.start_date)} → {p.end_date ? formatDate(p.end_date) : "ongoing"}</p>
                   )}
