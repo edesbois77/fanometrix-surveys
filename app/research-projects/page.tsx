@@ -474,7 +474,9 @@ export default function ResearchProjectsPage() {
                   <div className="flex items-start justify-between gap-3 mb-1">
                     <div className="min-w-0 flex-1">
                       <p className="font-semibold text-gray-900 truncate">{p.project_name}</p>
-                      <p className="text-xs font-mono text-gray-400 mt-0.5">{p.project_id}</p>
+                      {p.description && (
+                        <p className="text-xs text-gray-400 mt-0.5 truncate">{p.description}</p>
+                      )}
                     </div>
                     <StatusBadge status={p.status as CampaignStatus} />
                   </div>
