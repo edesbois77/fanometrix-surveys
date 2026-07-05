@@ -47,6 +47,7 @@ type Survey = {
   name: string;
   status: string;
   is_template: boolean;
+  created_at: string;
   questions?: LocalisedQuestion[];
   thank_you_title?: string;
   thank_you_body?: string;
@@ -252,11 +253,15 @@ export default function ResearchProjectsPage() {
   const tagOptions = useMemo(() => existingTags.map(t => ({ value: t, label: t })), [existingTags]);
 
   // Surveys selectable as a project's inherited survey — same readiness gate as the Campaigns drawer.
-  const selectableSurveys = useMemo(() => surveys.filter(s => {
-    if (s.status === "draft") return true;
-    if (s.status === "ready") return isSurveyValidForReady(s);
-    return false;
-  }), [surveys]);
+  // Most recently created first, so the newest survey is always easiest to find.
+  const selectableSurveys = useMemo(() => surveys
+    .filter(s => {
+      if (s.status === "draft") return true;
+      if (s.status === "ready") return isSurveyValidForReady(s);
+      return false;
+    })
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()),
+    [surveys]);
 
   // Countries whose expected survey language isn't fully translated in the selected survey.
   function missingLanguageCountries(surveyId: string | null | undefined, countryCodes: string[] | undefined) {
@@ -673,7 +678,7 @@ export default function ResearchProjectsPage() {
                 <p className="text-xs text-red-500 -mt-2">End date must be on or after the start date.</p>
               )}
 
-              <Field label="Project Survey Template">
+              <Field label="Select A Survey">
                 {selectableSurveys.length === 0 ? (
                   <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5">
                     <p className="text-xs text-amber-700">
