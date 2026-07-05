@@ -28,12 +28,12 @@ type ResearchProject = {
   target_responses: number | null;
   archive_after_days: number | null;
   status: string;
+  publishers: string[];
+  country_codes: string[];
   deleted_at: string | null;
   deleted_by: string | null;
   created_at: string;
   deployment_count: number;
-  publisher_count: number;
-  country_count: number;
   total_responses: number;
   completion_pct: number | null;
 };
@@ -74,6 +74,7 @@ const BLANK: Partial<ResearchProject> = {
   topic: "", tags: [], description: "", year: String(new Date().getFullYear()),
   start_date: null, end_date: null, survey_id: null,
   target_responses: null, archive_after_days: null, status: "draft",
+  publishers: [], country_codes: [],
 };
 
 function StatusBadge({ status }: { status: CampaignStatus }) {
@@ -101,23 +102,19 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-// ─── Deployment accordion panel ────────────────────────────────────────────────
-function DeploymentsPanel({
-  project, isAdmin, publisherOptions, onToast,
-}: {
-  project: ResearchProject;
-  isAdmin: boolean;
-  publisherOptions: { value: string; label: string }[];
-  onToast: (msg: string, ok?: boolean) => void;
-}) {
+function Stat({ label, value }: { label: string; value: string | number }) {
+  return (
+    <span className="text-xs text-gray-500">
+      {label}: <span className="font-semibold text-gray-800">{value}</span>
+    </span>
+  );
+}
+
+// ─── Read-only deployments list (expand panel) ─────────────────────────────────
+function DeploymentsList({ project, refreshToken }: { project: ResearchProject; refreshToken: number }) {
   const [deployments, setDeployments] = useState<Deployment[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
-
-  const [selectedPublishers, setSelectedPublishers] = useState<string[]>([]);
-  const [selectedCountries, setSelectedCountries] = useState<string[]>([]);
-  const [generating, setGenerating] = useState(false);
-  const [result, setResult] = useState<GenerateResult | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -127,126 +124,47 @@ function DeploymentsPanel({
     setLoading(false);
   }, [project.id]);
 
-  useEffect(() => { load(); }, [load]);
-
-  async function handleGenerate() {
-    if (selectedPublishers.length === 0 || selectedCountries.length === 0) return;
-    setGenerating(true);
-    setResult(null);
-    const res = await fetch(`/api/research-projects/${project.id}/generate-deployments`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ publishers: selectedPublishers, country_codes: selectedCountries }),
-    });
-    const json = await res.json();
-    setGenerating(false);
-    if (!res.ok) { onToast(json.error ?? "Failed to generate deployments.", false); return; }
-    setResult(json.data);
-    onToast(`${json.data.created.length} deployment(s) created.`);
-    load();
-  }
+  useEffect(() => { load(); }, [load, refreshToken]);
 
   return (
-    <div className="border-t border-gray-100 bg-gray-50 px-5 py-4 space-y-4">
-      {isAdmin && (
-        <div className="bg-white border border-gray-100 rounded-xl p-4 space-y-3">
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Generate Deployments</p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <Field label="Publishers">
-              <MultiSelect
-                options={publisherOptions}
-                selected={selectedPublishers}
-                onChange={setSelectedPublishers}
-                placeholder="Select publishers…"
-                strict
-                unmatchedMessage={s => `"${s}" is not a recognised publisher.`}
-              />
-            </Field>
-            <Field label="Countries">
-              <MultiSelect
-                options={countryOptions()}
-                selected={selectedCountries}
-                onChange={setSelectedCountries}
-                placeholder="Select countries…"
-                strict
-                unmatchedMessage={s => `"${s}" is not a recognised country.`}
-              />
-            </Field>
-          </div>
-          {selectedPublishers.length > 0 && selectedCountries.length > 0 && (
-            <p className="text-xs text-gray-400">
-              {selectedPublishers.length} publisher(s) × {selectedCountries.length} countr{selectedCountries.length === 1 ? "y" : "ies"} = up to {selectedPublishers.length * selectedCountries.length} deployment(s). Existing combinations are skipped automatically.
-            </p>
-          )}
-          <button
-            onClick={handleGenerate}
-            disabled={generating || selectedPublishers.length === 0 || selectedCountries.length === 0}
-            className="text-xs font-semibold px-4 py-2 rounded-lg disabled:opacity-50"
-            style={{ background: "#0B1929", color: "#D7B87A" }}
-          >
-            {generating ? "Generating…" : "Generate Deployments"}
-          </button>
-
-          {result && (
-            <div className="text-xs space-y-1 pt-1">
-              <p className="text-green-700">✓ {result.created.length} created</p>
-              {result.skipped_existing.length > 0 && (
-                <p className="text-gray-400">– {result.skipped_existing.length} already existed</p>
-              )}
-              {result.failed.length > 0 && (
-                <div className="text-red-500">
-                  <p>✕ {result.failed.length} failed:</p>
-                  <ul className="list-disc list-inside">
-                    {result.failed.map((f, i) => (
-                      <li key={i}>{f.publisher} / {f.country}: {f.reason}</li>
-                    ))}
-                  </ul>
+    <div className="border-t border-gray-100 bg-gray-50 px-5 py-4">
+      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+        Deployments {deployments ? `(${deployments.length})` : ""}
+      </p>
+      {loading && <p className="text-xs text-gray-400">Loading…</p>}
+      {!loading && deployments && deployments.length === 0 && (
+        <p className="text-xs text-gray-400">No deployments yet. Use "Generate Deployments" above to create them.</p>
+      )}
+      {!loading && deployments && deployments.length > 0 && (
+        <div className="space-y-2">
+          {deployments.slice(0, visibleCount).map(d => (
+            <div key={d.id} className="bg-white border border-gray-100 rounded-lg px-3 py-2.5 flex items-center justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium text-gray-800 truncate">{d.campaign_name}</p>
+                <p className="text-xs font-mono text-gray-400">{d.campaign_id}</p>
+                <div className="flex flex-wrap gap-1.5 mt-1">
+                  {d.country_code && <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">{d.country_code}</span>}
+                  {d.publisher && <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">{d.publisher}</span>}
                 </div>
-              )}
+              </div>
+              <div className="text-right flex-shrink-0">
+                <StatusBadge status={(d.effective_status ?? d.status) as CampaignStatus} />
+                <p className="text-xs text-gray-400 mt-1">
+                  {d.response_count.toLocaleString()}{d.effective_target_responses ? ` / ${d.effective_target_responses.toLocaleString()}` : ""} responses
+                </p>
+              </div>
             </div>
+          ))}
+          {deployments.length > visibleCount && (
+            <button
+              onClick={() => setVisibleCount(v => v + PAGE_SIZE)}
+              className="text-xs text-[#0B1929] font-medium underline"
+            >
+              Load more ({deployments.length - visibleCount} remaining)
+            </button>
           )}
         </div>
       )}
-
-      <div>
-        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-          Deployments {deployments ? `(${deployments.length})` : ""}
-        </p>
-        {loading && <p className="text-xs text-gray-400">Loading…</p>}
-        {!loading && deployments && deployments.length === 0 && (
-          <p className="text-xs text-gray-400">No deployments yet.</p>
-        )}
-        {!loading && deployments && deployments.length > 0 && (
-          <div className="space-y-2">
-            {deployments.slice(0, visibleCount).map(d => (
-              <div key={d.id} className="bg-white border border-gray-100 rounded-lg px-3 py-2.5 flex items-center justify-between gap-3">
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium text-gray-800 truncate">{d.campaign_name}</p>
-                  <p className="text-xs font-mono text-gray-400">{d.campaign_id}</p>
-                  <div className="flex flex-wrap gap-1.5 mt-1">
-                    {d.publisher && <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">{d.publisher}</span>}
-                    {d.country_code && <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">{countryByCode(d.country_code)?.name ?? d.country_code}</span>}
-                  </div>
-                </div>
-                <div className="text-right flex-shrink-0">
-                  <StatusBadge status={(d.effective_status ?? d.status) as CampaignStatus} />
-                  <p className="text-xs text-gray-400 mt-1">
-                    {d.response_count.toLocaleString()}{d.effective_target_responses ? ` / ${d.effective_target_responses.toLocaleString()}` : ""} responses
-                  </p>
-                </div>
-              </div>
-            ))}
-            {deployments.length > visibleCount && (
-              <button
-                onClick={() => setVisibleCount(v => v + PAGE_SIZE)}
-                className="text-xs text-[#0B1929] font-medium underline"
-              >
-                Load more ({deployments.length - visibleCount} remaining)
-              </button>
-            )}
-          </div>
-        )}
-      </div>
     </div>
   );
 }
@@ -262,6 +180,10 @@ export default function ResearchProjectsPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  const [generating, setGenerating] = useState<Record<string, boolean>>({});
+  const [generateResults, setGenerateResults] = useState<Record<string, GenerateResult>>({});
+  const [refreshTokens, setRefreshTokens] = useState<Record<string, number>>({});
 
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editing, setEditing] = useState<Partial<ResearchProject>>(BLANK);
@@ -318,8 +240,8 @@ export default function ResearchProjectsPage() {
   }
 
   function openEdit(p: ResearchProject) {
-    const { deployment_count: _dc, publisher_count: _pc, country_count: _cc,
-            total_responses: _tr, completion_pct: _cp, deleted_at: _da, deleted_by: _db,
+    const { deployment_count: _dc, total_responses: _tr, completion_pct: _cp,
+            deleted_at: _da, deleted_by: _db,
             ...rest } = p;
     setEditing({ ...rest });
     setError("");
@@ -390,6 +312,20 @@ export default function ResearchProjectsPage() {
     load();
   }
 
+  async function handleGenerate(p: ResearchProject) {
+    setGenerating(g => ({ ...g, [p.id]: true }));
+    setGenerateResults(r => { const n = { ...r }; delete n[p.id]; return n; });
+    const res = await fetch(`/api/research-projects/${p.id}/generate-deployments`, { method: "POST" });
+    const json = await res.json();
+    setGenerating(g => ({ ...g, [p.id]: false }));
+    if (!res.ok) { showToast(json.error ?? "Failed to generate deployments.", false); return; }
+    setGenerateResults(r => ({ ...r, [p.id]: json.data }));
+    showToast(`${json.data.created.length} deployment(s) created.`);
+    setRefreshTokens(t => ({ ...t, [p.id]: (t[p.id] ?? 0) + 1 }));
+    if (expandedId !== p.id) setExpandedId(p.id);
+    load();
+  }
+
   return (
     <AdminShell>
       <div className="p-4 md:p-6 max-w-5xl mx-auto">
@@ -413,7 +349,7 @@ export default function ResearchProjectsPage() {
           <div className="bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 flex gap-2.5 items-start">
             <span className="text-gray-400 flex-shrink-0 text-sm mt-0.5">ℹ</span>
             <p className="text-sm text-gray-500 leading-relaxed">
-              A Research Project groups deployment campaigns across publishers and countries for one study, so you can generate them in bulk instead of creating each one by hand.
+              Select the publishers and countries for a study, then click <strong>Generate Deployments</strong> to create every publisher × country campaign automatically — instead of creating each one by hand.
             </p>
           </div>
         </div>
@@ -442,6 +378,11 @@ export default function ResearchProjectsPage() {
         <div className="space-y-3">
           {displayed.map(p => {
             const expanded = expandedId === p.id;
+            const possibleCombos = p.publishers.length * p.country_codes.length;
+            const canGenerate = p.publishers.length > 0 && p.country_codes.length > 0;
+            const result = generateResults[p.id];
+            const isGenerating = generating[p.id] ?? false;
+
             return (
               <div key={p.id} className="bg-white border border-gray-100 rounded-xl shadow-sm overflow-hidden">
                 <button
@@ -463,19 +404,21 @@ export default function ResearchProjectsPage() {
                     ))}
                   </div>
 
-                  <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2.5 text-xs text-gray-500">
-                    <span>{p.publisher_count} publisher{p.publisher_count !== 1 ? "s" : ""}</span>
-                    <span>{p.country_count} countr{p.country_count !== 1 ? "ies" : "y"}</span>
-                    <span>{p.deployment_count} deployment{p.deployment_count !== 1 ? "s" : ""}</span>
-                    {(p.start_date || p.end_date) && (
-                      <span>{formatDate(p.start_date)} → {p.end_date ? formatDate(p.end_date) : "ongoing"}</span>
-                    )}
+                  <div className="flex flex-wrap gap-x-4 gap-y-1 mt-3">
+                    <Stat label="Publishers" value={p.publishers.length} />
+                    <Stat label="Countries" value={p.country_codes.length} />
+                    <Stat label="Deployments" value={possibleCombos > 0 ? `${p.deployment_count} / ${possibleCombos}` : p.deployment_count} />
+                    <Stat label="Responses" value={p.target_responses ? `${p.total_responses.toLocaleString()} / ${p.target_responses.toLocaleString()}` : p.total_responses.toLocaleString()} />
                   </div>
+
+                  {(p.start_date || p.end_date) && (
+                    <p className="text-xs text-gray-400 mt-1.5">{formatDate(p.start_date)} → {p.end_date ? formatDate(p.end_date) : "ongoing"}</p>
+                  )}
 
                   {p.target_responses !== null && (
                     <div className="mt-2.5 space-y-1.5 max-w-sm">
                       <div className="flex items-center justify-between text-xs">
-                        <span className="text-gray-500">{p.total_responses.toLocaleString()} / {p.target_responses.toLocaleString()} responses</span>
+                        <span className="text-gray-400">completion</span>
                         <span className="font-semibold text-gray-700">{p.completion_pct ?? 0}%</span>
                       </div>
                       <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
@@ -487,20 +430,55 @@ export default function ResearchProjectsPage() {
                 </button>
 
                 {isAdmin && (
-                  <div className="px-5 pb-4 flex gap-1.5">
-                    <button onClick={() => openEdit(p)}
-                      className="text-xs border border-gray-200 text-gray-600 hover:bg-gray-50 px-3 py-1.5 rounded-lg transition-colors">
-                      Edit
-                    </button>
-                    <button onClick={() => handleDelete(p)}
-                      className="text-xs border border-red-100 text-red-400 hover:bg-red-50 px-3 py-1.5 rounded-lg transition-colors">
-                      Delete
-                    </button>
+                  <div className="px-5 pb-4 space-y-3">
+                    <div className="flex flex-wrap gap-1.5 items-center">
+                      <button
+                        onClick={() => handleGenerate(p)}
+                        disabled={!canGenerate || isGenerating}
+                        title={canGenerate ? "" : "Add publishers and countries in Edit first"}
+                        className="text-xs font-semibold px-3 py-1.5 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed"
+                        style={{ background: "#0B1929", color: "#D7B87A" }}
+                      >
+                        {isGenerating ? "Generating…" : "Generate Deployments"}
+                      </button>
+                      <button onClick={() => openEdit(p)}
+                        className="text-xs border border-gray-200 text-gray-600 hover:bg-gray-50 px-3 py-1.5 rounded-lg transition-colors">
+                        Edit
+                      </button>
+                      <button onClick={() => handleDelete(p)}
+                        className="text-xs border border-red-100 text-red-400 hover:bg-red-50 px-3 py-1.5 rounded-lg transition-colors">
+                        Delete
+                      </button>
+                      {canGenerate && p.deployment_count < possibleCombos && (
+                        <span className="text-xs text-amber-600">
+                          {possibleCombos - p.deployment_count} deployment{possibleCombos - p.deployment_count !== 1 ? "s" : ""} pending
+                        </span>
+                      )}
+                    </div>
+
+                    {result && (
+                      <div className="text-xs space-y-1 bg-gray-50 border border-gray-100 rounded-lg p-3">
+                        <p className="text-green-700">✓ {result.created.length} created</p>
+                        {result.skipped_existing.length > 0 && (
+                          <p className="text-gray-400">– {result.skipped_existing.length} already existed</p>
+                        )}
+                        {result.failed.length > 0 && (
+                          <div className="text-red-500">
+                            <p>✕ {result.failed.length} failed:</p>
+                            <ul className="list-disc list-inside">
+                              {result.failed.map((f, i) => (
+                                <li key={i}>{f.publisher} / {f.country}: {f.reason}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
 
                 {expanded && (
-                  <DeploymentsPanel project={p} isAdmin={isAdmin} publisherOptions={publisherOptions} onToast={showToast} />
+                  <DeploymentsList project={p} refreshToken={refreshTokens[p.id] ?? 0} />
                 )}
               </div>
             );
@@ -578,6 +556,39 @@ export default function ResearchProjectsPage() {
                 <input value={editing.description ?? ""} onChange={e => setEditing(x => ({ ...x, description: e.target.value }))}
                   className={INP} placeholder="Optional" />
               </Field>
+
+              {/* ── Deployment matrix: the core of Research Projects ── */}
+              <div className="bg-gray-50 border border-gray-100 rounded-xl p-4 space-y-3">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Deployment Matrix</p>
+                <p className="text-xs text-gray-400 -mt-1">
+                  Every publisher × country combination becomes one deployment campaign when you click "Generate Deployments".
+                </p>
+                <Field label="Publishers">
+                  <MultiSelect
+                    options={publisherOptions}
+                    selected={editing.publishers ?? []}
+                    onChange={v => setEditing(x => ({ ...x, publishers: v }))}
+                    placeholder="Select publishers…"
+                    strict
+                    unmatchedMessage={s => `"${s}" is not a recognised publisher — add it in Administration → Publishers first.`}
+                  />
+                </Field>
+                <Field label="Countries">
+                  <MultiSelect
+                    options={countryOptions()}
+                    selected={editing.country_codes ?? []}
+                    onChange={v => setEditing(x => ({ ...x, country_codes: v }))}
+                    placeholder="Select countries…"
+                    strict
+                    unmatchedMessage={s => `"${s}" is not a recognised country.`}
+                  />
+                </Field>
+                {(editing.publishers?.length ?? 0) > 0 && (editing.country_codes?.length ?? 0) > 0 && (
+                  <p className="text-xs text-gray-500">
+                    {editing.publishers!.length} publisher{editing.publishers!.length !== 1 ? "s" : ""} × {editing.country_codes!.length} countr{editing.country_codes!.length === 1 ? "y" : "ies"} = up to {editing.publishers!.length * editing.country_codes!.length} deployments once generated.
+                  </p>
+                )}
+              </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Start Date">

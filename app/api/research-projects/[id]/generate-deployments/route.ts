@@ -14,21 +14,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   }
 
   const { id } = await params;
-  const body = await req.json();
-  const publishers = (body.publishers ?? []) as string[];
-  const countryCodes = (body.country_codes ?? []) as string[];
-
-  if (!Array.isArray(publishers) || publishers.length === 0) {
-    return NextResponse.json({ error: "At least one publisher is required." }, { status: 400 });
-  }
-  if (!Array.isArray(countryCodes) || countryCodes.length === 0) {
-    return NextResponse.json({ error: "At least one country is required." }, { status: 400 });
-  }
-
-  const unknownCodes = countryCodes.filter(c => !countryByCode(c));
-  if (unknownCodes.length > 0) {
-    return NextResponse.json({ error: `Unrecognised country code(s): ${unknownCodes.join(", ")}` }, { status: 400 });
-  }
 
   const { data: project, error: projectError } = await supabaseAdmin
     .from("research_projects")
@@ -39,6 +24,24 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   if (projectError || !project) {
     return NextResponse.json({ error: "Research project not found." }, { status: 404 });
+  }
+
+  // Publishers/countries are the project's own saved target matrix — set via
+  // the project drawer, not passed in per-request — so this action is a
+  // simple, repeatable "catch up the deployments" click.
+  const publishers = (project.publishers ?? []) as string[];
+  const countryCodes = (project.country_codes ?? []) as string[];
+
+  if (publishers.length === 0) {
+    return NextResponse.json({ error: "Add at least one publisher to this project before generating deployments." }, { status: 400 });
+  }
+  if (countryCodes.length === 0) {
+    return NextResponse.json({ error: "Add at least one country to this project before generating deployments." }, { status: 400 });
+  }
+
+  const unknownCodes = countryCodes.filter(c => !countryByCode(c));
+  if (unknownCodes.length > 0) {
+    return NextResponse.json({ error: `Unrecognised country code(s): ${unknownCodes.join(", ")}` }, { status: 400 });
   }
 
   const { data: existing } = await supabaseAdmin
