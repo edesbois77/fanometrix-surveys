@@ -12,7 +12,7 @@ import {
 } from "@/lib/naming";
 import { countryOptions, countryByCode } from "@/lib/countries";
 import { isSurveyValidForReady } from "@/lib/survey-validation";
-import { getCompletedLanguages, type LocalisedQuestion, type LangCode } from "@/lib/survey-locale";
+import { getCompletedLanguages, type LocalisedQuestion, type LocalisedText, type LangCode } from "@/lib/survey-locale";
 import { expectedSurveyLanguage, LANGUAGE_DISPLAY_NAMES } from "@/lib/locales";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -49,8 +49,8 @@ type Survey = {
   is_template: boolean;
   created_at: string;
   questions?: LocalisedQuestion[];
-  thank_you_title?: string;
-  thank_you_body?: string;
+  thank_you_title?: LocalisedText;
+  thank_you_body?: LocalisedText;
 };
 
 type Deployment = {
@@ -122,7 +122,7 @@ function deploymentLanguageWarning(d: Deployment, surveys: Survey[]): string | n
   const survey = surveys.find(s => s.id === d.effective_survey_id);
   if (!survey) return null;
   const lang = expectedSurveyLanguage(d.country_code);
-  const completed = getCompletedLanguages(survey.questions ?? []);
+  const completed = getCompletedLanguages({ questions: survey.questions ?? [], thank_you_title: survey.thank_you_title, thank_you_body: survey.thank_you_body });
   if (completed.includes(lang as LangCode)) return null;
   const label = LANGUAGE_DISPLAY_NAMES[lang] ?? lang;
   return `Missing ${label} survey localisation for ${d.country_code}`;
@@ -269,7 +269,7 @@ export default function ResearchProjectsPage() {
   function missingLanguageCountries(surveyId: string | null | undefined, countryCodes: string[] | undefined) {
     const survey = surveys.find(s => s.id === surveyId);
     if (!survey || !countryCodes?.length) return [];
-    const completed = getCompletedLanguages(survey.questions ?? []);
+    const completed = getCompletedLanguages({ questions: survey.questions ?? [], thank_you_title: survey.thank_you_title, thank_you_body: survey.thank_you_body });
     return countryCodes
       .map(code => ({ code, lang: expectedSurveyLanguage(code) }))
       .filter(({ lang }) => !completed.includes(lang as LangCode));

@@ -10,7 +10,8 @@
  * Supports BOTH the legacy flat shape { text: string, options: string[] }
  * and the new localised shape { text: {en: string}, options: [{id, text: {en: string}}] }.
  * In the localised shape, only the English ("en") text is validated — translations
- * are optional and have no character-limit enforcement here.
+ * are optional and have no character-limit enforcement here. thank_you_title/body
+ * follow the same rule: either a plain string or a {en: string, ...} object.
  */
 
 export const SURVEY_LIMITS = {
@@ -30,8 +31,8 @@ type AnyQuestion = {
 export type SurveyForValidation = {
   name?:            string | null;
   questions?:       AnyQuestion[] | null;
-  thank_you_title?: string | null;
-  thank_you_body?:  string | null;
+  thank_you_title?: string | Record<string, string> | null;
+  thank_you_body?:  string | Record<string, string> | null;
 };
 
 /** Extract the English validation text from either question shape */
@@ -46,6 +47,13 @@ function optText(o: string | { text: string | Record<string, string> }): string 
   const t = o.text;
   if (typeof t === "string") return t;
   return (t as Record<string, string>)["en"] ?? "";
+}
+
+/** Extract the English text from either the legacy flat string or localised object shape */
+function localisedText(v: string | Record<string, string> | null | undefined): string {
+  if (!v) return "";
+  if (typeof v === "string") return v;
+  return v["en"] ?? "";
 }
 
 /**
@@ -94,10 +102,10 @@ export function validateSurvey(survey: SurveyForValidation): string[] {
     }
   }
 
-  if ((survey.thank_you_title?.length ?? 0) > MAX_TY_TITLE) {
+  if (localisedText(survey.thank_you_title).length > MAX_TY_TITLE) {
     errors.push(`Thank-you title exceeds ${MAX_TY_TITLE} characters.`);
   }
-  if ((survey.thank_you_body?.length ?? 0) > MAX_TY_BODY) {
+  if (localisedText(survey.thank_you_body).length > MAX_TY_BODY) {
     errors.push(`Thank-you message exceeds ${MAX_TY_BODY} characters.`);
   }
 

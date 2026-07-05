@@ -20,7 +20,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { validateSurvey } from "@/lib/survey-validation";
-import { resolveQuestion, type LangCode, type LocalisedQuestion } from "@/lib/survey-locale";
+import { resolveQuestion, resolveText, type LangCode, type LocalisedQuestion, type LocalisedText } from "@/lib/survey-locale";
 
 export async function GET(req: NextRequest) {
   const slug      = req.nextUrl.searchParams.get("slug");
@@ -120,7 +120,7 @@ export async function GET(req: NextRequest) {
   const surveyIdsNeeded = Array.from(new Set(
     campaigns.map(effectiveSurveyId).filter((id): id is string => !!id)
   ));
-  type SurveyRow = { id: string; name: string; questions: unknown[]; thank_you_title: string; thank_you_body: string };
+  type SurveyRow = { id: string; name: string; questions: unknown[]; thank_you_title: LocalisedText; thank_you_body: LocalisedText };
   const surveysById: Record<string, SurveyRow> = {};
   if (surveyIdsNeeded.length > 0) {
     const { data: surveys } = await supabase
@@ -198,8 +198,8 @@ export async function GET(req: NextRequest) {
   const resolvedSurvey = surveysById[effectiveSurveyId(campaign) ?? ""] ?? null;
   const survey = resolvedSurvey as unknown as {
     questions: LocalisedQuestion[];
-    thank_you_title: string;
-    thank_you_body: string;
+    thank_you_title: LocalisedText;
+    thank_you_body: LocalisedText;
   } | null;
 
   // Language priority: explicit URL param > campaign survey_language > en
@@ -215,7 +215,7 @@ export async function GET(req: NextRequest) {
     market:          campaign.market ?? null,
     creative_theme:  (campaign as Record<string, unknown>).creative_theme ?? null,
     questions,
-    thank_you_title: survey?.thank_you_title ?? "Thank you!",
-    thank_you_body:  survey?.thank_you_body  ?? "Your anonymous feedback helps improve the football experience for fans everywhere.",
+    thank_you_title: resolveText(survey?.thank_you_title ?? {}, lang) || "Thank you!",
+    thank_you_body:  resolveText(survey?.thank_you_body ?? {}, lang) || "Your anonymous feedback helps improve the football experience for fans everywhere.",
   });
 }

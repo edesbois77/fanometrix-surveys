@@ -54,10 +54,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   // surveys in yet (e.g. Italian) is always reported as missing.
   const { data: projectSurvey } = await supabaseAdmin
     .from("surveys")
-    .select("questions")
+    .select("questions, thank_you_title, thank_you_body")
     .eq("id", project.survey_id)
     .single();
-  const completedLangs = getCompletedLanguages(projectSurvey?.questions ?? []);
+  const completedLangs = getCompletedLanguages({
+    questions: projectSurvey?.questions ?? [],
+    thank_you_title: projectSurvey?.thank_you_title,
+    thank_you_body: projectSurvey?.thank_you_body,
+  });
   const missingLanguages = countryCodes
     .map(code => ({ code, lang: expectedSurveyLanguage(code) }))
     .filter(({ lang }) => !completedLangs.includes(lang as LangCode));

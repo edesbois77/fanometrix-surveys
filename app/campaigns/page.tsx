@@ -23,8 +23,8 @@ type Survey = {
   status: string;
   // Needed to run MPU validation before showing in campaign dropdown
   questions?:       Array<{ text: string; options: string[] }>;
-  thank_you_title?: string;
-  thank_you_body?:  string;
+  thank_you_title?: string | Record<string, string>;
+  thank_you_body?:  string | Record<string, string>;
 };
 
 type Campaign = {

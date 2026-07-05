@@ -4,12 +4,43 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireSession } from "@/lib/auth";
 
-// Map Fanometrix language codes → DeepL target language codes
+// Map Fanometrix language codes → DeepL target language codes.
+// Keep in sync with lib/survey-locale.ts SUPPORTED_LANGUAGES' autoTranslatable
+// flag — a language marked autoTranslatable:true must have an entry here.
+// Hindi, Bengali and Urdu are intentionally absent: DeepL doesn't support
+// them, so those languages are marked autoTranslatable:false and translated
+// manually in the builder instead.
 const DEEPL_LANG: Record<string, string> = {
+  en:      "EN-GB",
   de:      "DE",
   sv:      "SV",
   "zh-CN": "ZH",   // DeepL uses ZH for Chinese Simplified
-  en:      "EN-GB",
+  es:      "ES",
+  fr:      "FR",
+  ar:      "AR",
+  pt:      "PT-PT",
+  ru:      "RU",
+  it:      "IT",
+  nl:      "NL",
+  pl:      "PL",
+  ja:      "JA",
+  ko:      "KO",
+  tr:      "TR",
+  da:      "DA",
+  nb:      "NB",
+  fi:      "FI",
+  el:      "EL",
+  cs:      "CS",
+  hu:      "HU",
+  ro:      "RO",
+  sk:      "SK",
+  sl:      "SL",
+  bg:      "BG",
+  uk:      "UK",
+  id:      "ID",
+  lt:      "LT",
+  lv:      "LV",
+  et:      "ET",
 };
 
 export async function POST(req: NextRequest) {

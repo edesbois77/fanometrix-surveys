@@ -6,7 +6,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { supabaseAdmin } from "@/lib/supabase-admin";
-import { resolveQuestion, type LangCode, type LocalisedQuestion } from "@/lib/survey-locale";
+import { resolveQuestion, resolveText, type LangCode, type LocalisedQuestion, type LocalisedText } from "@/lib/survey-locale";
 
 const NO_CACHE = {
   "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
@@ -81,7 +81,7 @@ export async function GET(req: NextRequest) {
     survey_language: lang,
     creative_theme:  campaign.creative_theme ?? null,
     questions,
-    thank_you_title: survey.thank_you_title ?? "Thank you!",
-    thank_you_body:  survey.thank_you_body  ?? "Your anonymous feedback helps improve the football experience for fans everywhere.",
+    thank_you_title: resolveText((survey.thank_you_title as LocalisedText | null) ?? {}, lang) || "Thank you!",
+    thank_you_body:  resolveText((survey.thank_you_body as LocalisedText | null) ?? {}, lang) || "Your anonymous feedback helps improve the football experience for fans everywhere.",
   }, { headers: NO_CACHE });
 }

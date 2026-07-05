@@ -5,8 +5,8 @@ import Papa from "papaparse";
 import { AdminShell } from "@/app/components/AdminShell";
 import { validateSurvey, SURVEY_LIMITS } from "@/lib/survey-validation";
 import {
-  SUPPORTED_LANGUAGES, resolveQuestion,
-  type LangCode, type LocalisedQuestion, type LocalisedOption,
+  SUPPORTED_LANGUAGES, resolveQuestion, resolveText, findLanguageMatches, getCompletedLanguages,
+  type LangCode, type LocalisedQuestion, type LocalisedOption, type LocalisedText, type LanguageOption,
 } from "@/lib/survey-locale";
 import { generateSurveyName } from "@/lib/naming";
 
@@ -28,6 +28,66 @@ function CharCount({ len, max }: { len: number; max: number }) {
   );
 }
 
+// Search-to-add language picker — type a country name (e.g. "France", "Italy")
+// or a language name/code, pick a match, and it's added as a new tab. Top-ten
+// world languages surface first when they match the query.
+function AddLanguageButton({ enabledLanguages, onAdd }: {
+  enabledLanguages: string[];
+  onAdd: (lang: LanguageOption) => void;
+}) {
+  const [open,   setOpen]   = useState(false);
+  const [query,  setQuery]  = useState("");
+  const matches = findLanguageMatches(query, enabledLanguages);
+
+  function pick(lang: LanguageOption) {
+    onAdd(lang);
+    setQuery("");
+    setOpen(false);
+  }
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className="text-xs px-2.5 py-1 rounded-lg border border-dashed border-gray-300 text-gray-500 hover:border-[#D7B87A] hover:text-[#0B1929] transition-colors"
+      >
+        + Add Language
+      </button>
+      {open && (
+        <div className="absolute z-30 top-full left-0 mt-1 w-64 bg-white border border-gray-200 rounded-lg shadow-lg p-2">
+          <input
+            autoFocus
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            placeholder="Type a country or language…"
+            className="w-full border border-gray-200 rounded-md px-2.5 py-1.5 text-sm focus:outline-none focus:border-[#D7B87A]"
+          />
+          {query.trim() && (
+            <div className="mt-1 max-h-48 overflow-y-auto">
+              {matches.length === 0 ? (
+                <p className="px-2 py-2 text-xs text-gray-400">No matching language found.</p>
+              ) : (
+                matches.map(lang => (
+                  <button
+                    key={lang.code}
+                    type="button"
+                    onClick={() => pick(lang)}
+                    className="w-full text-left px-2 py-1.5 text-sm text-gray-700 hover:bg-gray-50 rounded-md transition-colors flex items-center justify-between"
+                  >
+                    <span>{lang.label} <span className="text-gray-400">· {lang.nativeLabel}</span></span>
+                    {!lang.autoTranslatable && <span className="text-[10px] text-gray-400">manual</span>}
+                  </button>
+                ))
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 type Question = LocalisedQuestion;   // re-export alias used throughout this file
 
@@ -39,8 +99,9 @@ type Survey = {
   research_theme: string | null;
   version_number: number;
   questions: Question[];
-  thank_you_title: string;
-  thank_you_body: string;
+  thank_you_title: LocalisedText;
+  thank_you_body: LocalisedText;
+  enabled_languages: string[];
   status: "draft" | "ready" | "archived" | "deleted";
   is_template: boolean;
   created_at: string;
@@ -65,8 +126,9 @@ type EditFields = {
   research_theme: string;
   version_number: number;
   questions:      Question[];
-  thank_you_title: string;
-  thank_you_body:  string;
+  thank_you_title: LocalisedText;
+  thank_you_body:  LocalisedText;
+  enabled_languages: string[];
   status:          "draft" | "ready";
   is_template:     boolean;
 };
@@ -155,11 +217,12 @@ function MPUPreviewModal({ survey, onClose }: { survey: Survey; onClose: () => v
   const [done,        setDone]        = useState(false);
   const [previewLang, setPreviewLang] = useState<LangCode>("en");
 
-  // Which languages have at least some content (for the language switcher)
+  // Which of the survey's enabled languages have at least some content (for the language switcher)
   const availableLangs = SUPPORTED_LANGUAGES.filter(l =>
-    l.code === "en" ||
-    (survey.questions ?? []).some(q =>
-      (q.text as Record<string, string>)[l.code]?.trim()
+    (survey.enabled_languages ?? ["en"]).includes(l.code) && (
+      l.code === "en" ||
+      (survey.questions ?? []).some(q => (q.text as Record<string, string>)[l.code]?.trim()) ||
+      !!(survey.thank_you_title as Record<string, string> | undefined)?.[l.code]?.trim()
     )
   );
 
@@ -214,8 +277,8 @@ function MPUPreviewModal({ survey, onClose }: { survey: Survey; onClose: () => v
             </div>
             <div style={{ flex: 1, background: NAVY, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "12px 20px", textAlign: "center", gap: 8, minHeight: 0 }}>
               <div style={{ fontSize: 30, lineHeight: 1 }}>🎉</div>
-              <p style={{ color: "#fff", fontSize: 14, fontWeight: 700, margin: 0 }}>{survey.thank_you_title || "Thank you!"}</p>
-              <p style={{ color: "rgba(255,255,255,0.75)", fontSize: 10.5, margin: 0, lineHeight: 1.4 }}>{survey.thank_you_body || "Your anonymous feedback helps improve the football experience for fans everywhere."}</p>
+              <p style={{ color: "#fff", fontSize: 14, fontWeight: 700, margin: 0 }}>{resolveText(survey.thank_you_title ?? {}, previewLang) || "Thank you!"}</p>
+              <p style={{ color: "rgba(255,255,255,0.75)", fontSize: 10.5, margin: 0, lineHeight: 1.4 }}>{resolveText(survey.thank_you_body ?? {}, previewLang) || "Your anonymous feedback helps improve the football experience for fans everywhere."}</p>
             </div>
             <div style={{ height: 22, minHeight: 22, display: "flex", alignItems: "center", justifyContent: "center", background: NAVY, borderTop: "1px solid rgba(255,255,255,0.10)", flexShrink: 0 }}>
               <span style={{ color: "#8C9DB5", fontSize: 9 }}>Powered by Fanometrix • <span style={{ color: GOLD }}>Privacy</span></span>
@@ -401,8 +464,9 @@ const BLANK_Q = (): Question => ({
 const BLANK_FIELDS: EditFields = {
   name: "", description: "", brand_name: "", research_theme: "", version_number: 1,
   questions: [BLANK_Q()],
-  thank_you_title: "Thank you!",
-  thank_you_body: "Your response has been recorded.",
+  thank_you_title: { en: "Thank you!" },
+  thank_you_body: { en: "Your response has been recorded." },
+  enabled_languages: ["en"],
   status: "draft", is_template: false,
 };
 
@@ -444,13 +508,16 @@ export default function SurveysPage() {
   }
 
   // ── Auto-translate all questions from English into editorLang ──────────────
-  async function handleTranslate() {
-    if (editorLang === "en" || translating) return;
+  // silent=true suppresses the "no English text" toast — used when auto-triggered
+  // right after adding a language, where having nothing to translate yet is normal.
+  async function handleTranslate(targetLang: LangCode = editorLang, silent = false) {
+    if (targetLang === "en" || translating) return;
     setTranslating(true);
 
     // Build a flat list of all EN texts to translate, tracking the structure
-    // so we can reassemble: [q0_text, q0_opt0, q0_opt1, ..., q1_text, q1_opt0, ...]
-    const structure: { qIdx: number; type: "question" | "option"; oIdx?: number }[] = [];
+    // so we can reassemble: [q0_text, q0_opt0, q0_opt1, ..., thankYouTitle, thankYouBody]
+    type Slot = { type: "question" | "option" | "thankYouTitle" | "thankYouBody"; qIdx?: number; oIdx?: number };
+    const structure: Slot[] = [];
     const texts: string[] = [];
 
     fields.questions.forEach((q, qi) => {
@@ -467,9 +534,17 @@ export default function SurveysPage() {
         }
       });
     });
+    if ((fields.thank_you_title.en ?? "").trim()) {
+      structure.push({ type: "thankYouTitle" });
+      texts.push(fields.thank_you_title.en!);
+    }
+    if ((fields.thank_you_body.en ?? "").trim()) {
+      structure.push({ type: "thankYouBody" });
+      texts.push(fields.thank_you_body.en!);
+    }
 
     if (!texts.length) {
-      showToast("No English text to translate. Fill in the EN tab first.", false);
+      if (!silent) showToast("No English text to translate. Fill in the EN tab first.", false);
       setTranslating(false);
       return;
     }
@@ -477,7 +552,7 @@ export default function SurveysPage() {
     const res  = await fetch("/api/translate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ texts, targetLang: editorLang }),
+      body: JSON.stringify({ texts, targetLang }),
     });
     const json = await res.json();
 
@@ -496,16 +571,22 @@ export default function SurveysPage() {
         text:    { ...q.text },
         options: q.options.map(o => ({ ...o, text: { ...o.text } })),
       }));
+      let thankYouTitle = f.thank_you_title;
+      let thankYouBody  = f.thank_you_body;
       structure.forEach((s, i) => {
         const translated = translations[i];
         if (!translated) return;
-        if (s.type === "question") {
-          qs[s.qIdx].text[editorLang] = translated;
-        } else if (s.type === "option" && s.oIdx !== undefined) {
-          qs[s.qIdx].options[s.oIdx].text[editorLang] = translated;
+        if (s.type === "question" && s.qIdx !== undefined) {
+          qs[s.qIdx].text[targetLang] = translated;
+        } else if (s.type === "option" && s.qIdx !== undefined && s.oIdx !== undefined) {
+          qs[s.qIdx].options[s.oIdx].text[targetLang] = translated;
+        } else if (s.type === "thankYouTitle") {
+          thankYouTitle = { ...thankYouTitle, [targetLang]: translated };
+        } else if (s.type === "thankYouBody") {
+          thankYouBody = { ...thankYouBody, [targetLang]: translated };
         }
       });
-      return { ...f, questions: qs };
+      return { ...f, questions: qs, thank_you_title: thankYouTitle, thank_you_body: thankYouBody };
     });
 
     // Warn about any translated fields that exceed MPU character limits
@@ -514,9 +595,11 @@ export default function SurveysPage() {
       const t = translations[i] ?? "";
       if (s.type === "question" && t.length > MAX_Q_CHARS)  overLimit++;
       if (s.type === "option"   && t.length > MAX_OPT_CHARS) overLimit++;
+      if (s.type === "thankYouTitle" && t.length > MAX_TY_TITLE) overLimit++;
+      if (s.type === "thankYouBody"  && t.length > MAX_TY_BODY) overLimit++;
     });
 
-    const langLabel = SUPPORTED_LANGUAGES.find(l => l.code === editorLang)?.label ?? editorLang;
+    const langLabel = SUPPORTED_LANGUAGES.find(l => l.code === targetLang)?.label ?? targetLang;
     if (overLimit > 0) {
       showToast(
         `Translated into ${langLabel} — but ${overLimit} field${overLimit !== 1 ? "s" : ""} exceed the character limit. Review fields highlighted in red before saving.`,
@@ -608,8 +691,9 @@ export default function SurveysPage() {
       research_theme: s.research_theme ?? "",
       version_number: s.version_number ?? 1,
       questions:      s.questions,
-      thank_you_title: s.thank_you_title,
-      thank_you_body:  s.thank_you_body,
+      thank_you_title: s.thank_you_title ?? { en: "Thank you!" },
+      thank_you_body:  s.thank_you_body ?? { en: "Your response has been recorded." },
+      enabled_languages: s.enabled_languages?.length ? s.enabled_languages : ["en"],
       status: (s.status === "draft" || s.status === "ready") ? s.status : "draft",
       is_template: s.is_template,
     });
@@ -709,6 +793,25 @@ export default function SurveysPage() {
       ),
     }));
   }
+  function setThankYouText(field: "thank_you_title" | "thank_you_body", lang: LangCode, text: string) {
+    setFields(f => ({ ...f, [field]: { ...f[field], [lang]: text } }));
+  }
+
+  // ── Language management ─────────────────────────────────────────────────────
+  function addLanguage(lang: LanguageOption) {
+    setFields(f => f.enabled_languages.includes(lang.code) ? f : { ...f, enabled_languages: [...f.enabled_languages, lang.code] });
+    setEditorLang(lang.code as LangCode);
+    if (lang.autoTranslatable) {
+      handleTranslate(lang.code as LangCode, /* silent */ true);
+    } else {
+      showToast(`${lang.label} added — Fanometrix can't auto-translate this language yet, so it needs to be filled in manually.`);
+    }
+  }
+  function removeLanguage(code: string) {
+    if (code === "en") return; // English can never be removed — it's the required fallback
+    setFields(f => ({ ...f, enabled_languages: f.enabled_languages.filter(l => l !== code) }));
+    if (editorLang === code) setEditorLang("en");
+  }
   function addQuestion() {
     if (fields.questions.length >= MAX_QUESTIONS) return;
     setFields(f => ({ ...f, questions: [...f.questions, BLANK_Q()] }));
@@ -756,8 +859,9 @@ export default function SurveysPage() {
       research_theme: s.research_theme ?? "",
       version_number: s.version_number ?? 1,
       questions:      s.questions,
-      thank_you_title: s.thank_you_title,
-      thank_you_body:  s.thank_you_body,
+      thank_you_title: s.thank_you_title ?? { en: "Thank you!" },
+      thank_you_body:  s.thank_you_body ?? { en: "Your response has been recorded." },
+      enabled_languages: s.enabled_languages?.length ? s.enabled_languages : ["en"],
       status:          "draft",
       is_template:     s.is_template,
     };
@@ -1046,19 +1150,14 @@ export default function SurveysPage() {
                   {/* Language coverage badges */}
                   {(() => {
                     const qs = s.questions as LocalisedQuestion[];
+                    const enabled = SUPPORTED_LANGUAGES.filter(l => (s.enabled_languages ?? ["en"]).includes(l.code));
+                    const completedLangs = getCompletedLanguages({ questions: qs, thank_you_title: s.thank_you_title, thank_you_body: s.thank_you_body });
                     return (
                       <div className="flex gap-1.5 mt-3 flex-wrap">
-                        {SUPPORTED_LANGUAGES.map(lang => {
-                          const isEN    = lang.code === "en";
-                          const complete = qs.length > 0 && (
-                            isEN
-                              ? qs.every(q => (q.text as Record<string, string>)["en"]?.trim())
-                              : qs.every(q =>
-                                  (q.text as Record<string, string>)[lang.code]?.trim() &&
-                                  q.options.every(o => (o.text as Record<string, string>)[lang.code]?.trim())
-                                )
-                          );
-                          const partial = !isEN && !complete && qs.some(q =>
+                        {enabled.map(lang => {
+                          const isEN     = lang.code === "en";
+                          const complete = qs.length > 0 && completedLangs.includes(lang.code);
+                          const partial  = !isEN && !complete && qs.some(q =>
                             (q.text as Record<string, string>)[lang.code]?.trim()
                           );
                           if (!complete && !partial) return null;
@@ -1333,45 +1432,65 @@ export default function SurveysPage() {
                 </p>
 
                 {/* Language selector tabs */}
-                <div className="flex gap-1 mb-3 flex-wrap items-center">
-                  {SUPPORTED_LANGUAGES.map(lang => {
-                    const isActive   = editorLang === lang.code;
-                    const isEN       = lang.code === "en";
-                    const isComplete = !isEN && fields.questions.length > 0 &&
-                      fields.questions.every(q =>
-                        (q.text[lang.code] ?? "").trim() &&
-                        q.options.every(o => (o.text[lang.code] ?? "").trim())
+                <div className="flex gap-1 mb-2 flex-wrap items-center">
+                  {(() => {
+                    const completedLangs = getCompletedLanguages({
+                      questions: fields.questions,
+                      thank_you_title: fields.thank_you_title,
+                      thank_you_body: fields.thank_you_body,
+                    });
+                    return fields.enabled_languages.map(code => {
+                      const lang = SUPPORTED_LANGUAGES.find(l => l.code === code);
+                      if (!lang) return null;
+                      const isActive   = editorLang === code;
+                      const isEN       = code === "en";
+                      const isComplete = !isEN && completedLangs.includes(code as LangCode);
+                      const hasAny = !isEN && fields.questions.some(q => (q.text[code as LangCode] ?? "").trim());
+                      return (
+                        <span key={code} className="inline-flex items-center">
+                          <button
+                            type="button"
+                            onClick={() => setEditorLang(code as LangCode)}
+                            className={`text-xs pl-2.5 pr-1.5 py-1 rounded-lg border font-medium transition-colors flex items-center gap-1.5 ${
+                              isActive
+                                ? "bg-[#0B1929] text-[#D7B87A] border-[#0B1929]"
+                                : "bg-white text-gray-500 border-gray-200 hover:border-[#D7B87A]"
+                            } ${isEN ? "pr-2.5" : ""}`}
+                          >
+                            {lang.label}{isEN ? " *" : ""}
+                            {isComplete && <span className="w-1.5 h-1.5 rounded-full bg-green-500 flex-shrink-0" />}
+                            {hasAny && !isComplete && <span className="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0" />}
+                            {!isEN && (
+                              <span
+                                role="button"
+                                onClick={e => { e.stopPropagation(); removeLanguage(code); }}
+                                className={`leading-none ml-0.5 ${isActive ? "text-[#D7B87A]/70 hover:text-[#D7B87A]" : "text-gray-300 hover:text-gray-500"}`}
+                                title={`Remove ${lang.label}`}
+                              >
+                                ×
+                              </span>
+                            )}
+                          </button>
+                        </span>
                       );
-                    const hasAny = !isEN && fields.questions.some(q =>
-                      (q.text[lang.code] ?? "").trim()
-                    );
-                    return (
+                    });
+                  })()}
+                  <AddLanguageButton enabledLanguages={fields.enabled_languages} onAdd={addLanguage} />
+                  {editorLang !== "en" && (() => {
+                    const lang = SUPPORTED_LANGUAGES.find(l => l.code === editorLang);
+                    return lang?.autoTranslatable ? (
                       <button
-                        key={lang.code}
                         type="button"
-                        onClick={() => setEditorLang(lang.code)}
-                        className={`text-xs px-2.5 py-1 rounded-lg border font-medium transition-colors flex items-center gap-1.5 ${
-                          isActive
-                            ? "bg-[#0B1929] text-[#D7B87A] border-[#0B1929]"
-                            : "bg-white text-gray-500 border-gray-200 hover:border-[#D7B87A]"
-                        }`}
+                        onClick={() => handleTranslate()}
+                        disabled={translating}
+                        className="ml-auto text-xs font-semibold px-3 py-1 rounded-lg border-2 border-[#D7B87A] text-[#0B1929] hover:bg-[#FBF5E8] disabled:opacity-50 transition-colors"
                       >
-                        {lang.label}{isEN ? " *" : ""}
-                        {isComplete && <span className="w-1.5 h-1.5 rounded-full bg-green-500 flex-shrink-0" />}
-                        {hasAny && !isComplete && <span className="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0" />}
+                        {translating ? "Translating…" : "✦ Translate from English"}
                       </button>
+                    ) : (
+                      <span className="ml-auto text-xs text-gray-400">Automatic translation isn't available for this language yet.</span>
                     );
-                  })}
-                  {editorLang !== "en" && (
-                    <button
-                      type="button"
-                      onClick={handleTranslate}
-                      disabled={translating}
-                      className="ml-auto text-xs font-semibold px-3 py-1 rounded-lg border-2 border-[#D7B87A] text-[#0B1929] hover:bg-[#FBF5E8] disabled:opacity-50 transition-colors"
-                    >
-                      {translating ? "Translating…" : "✦ Translate from English"}
-                    </button>
-                  )}
+                  })()}
                 </div>
                 {editorLang !== "en" && !translating && (
                   <p className="text-xs text-gray-400 mb-3">
@@ -1460,39 +1579,49 @@ export default function SurveysPage() {
 
               {/* Thank you screen */}
               <div className="border border-gray-100 rounded-xl p-4 space-y-3 bg-gray-50">
-                <p className="text-xs font-semibold text-gray-600">Thank You Screen</p>
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-semibold text-gray-600">Thank You Screen</p>
+                  <p className="text-xs text-gray-400">
+                    Editing: {SUPPORTED_LANGUAGES.find(l => l.code === editorLang)?.label ?? editorLang}
+                  </p>
+                </div>
                 <div>
                   <input
-                    value={fields.thank_you_title}
+                    value={fields.thank_you_title[editorLang] ?? ""}
                     maxLength={MAX_TY_TITLE + 5}
-                    onChange={e => setFields(f => ({ ...f, thank_you_title: e.target.value }))}
+                    onChange={e => setThankYouText("thank_you_title", editorLang, e.target.value)}
                     className={`w-full border rounded-lg px-3 py-1.5 text-sm focus:outline-none bg-white ${
-                      fields.thank_you_title.length > MAX_TY_TITLE
+                      (fields.thank_you_title[editorLang] ?? "").length > MAX_TY_TITLE
                         ? "border-red-300 focus:border-red-400"
                         : "border-gray-200 focus:border-[#D7B87A]"
                     }`}
                     placeholder="Thank you title"
                   />
                   <div className="flex justify-end mt-0.5">
-                    <CharCount len={fields.thank_you_title.length} max={MAX_TY_TITLE} />
+                    <CharCount len={(fields.thank_you_title[editorLang] ?? "").length} max={MAX_TY_TITLE} />
                   </div>
                 </div>
                 <div>
                   <input
-                    value={fields.thank_you_body}
+                    value={fields.thank_you_body[editorLang] ?? ""}
                     maxLength={MAX_TY_BODY + 10}
-                    onChange={e => setFields(f => ({ ...f, thank_you_body: e.target.value }))}
+                    onChange={e => setThankYouText("thank_you_body", editorLang, e.target.value)}
                     className={`w-full border rounded-lg px-3 py-1.5 text-sm focus:outline-none bg-white ${
-                      fields.thank_you_body.length > MAX_TY_BODY
+                      (fields.thank_you_body[editorLang] ?? "").length > MAX_TY_BODY
                         ? "border-red-300 focus:border-red-400"
                         : "border-gray-200 focus:border-[#D7B87A]"
                     }`}
                     placeholder="Thank you message"
                   />
                   <div className="flex justify-end mt-0.5">
-                    <CharCount len={fields.thank_you_body.length} max={MAX_TY_BODY} />
+                    <CharCount len={(fields.thank_you_body[editorLang] ?? "").length} max={MAX_TY_BODY} />
                   </div>
                 </div>
+                {editorLang !== "en" && (
+                  <p className="text-xs text-gray-400">
+                    Optional — leave blank to show English as fallback.
+                  </p>
+                )}
               </div>
 
               {formError && <p className="text-red-500 text-xs">{formError}</p>}
