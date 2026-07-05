@@ -49,7 +49,7 @@ type Campaign = {
   is_auto_transition: boolean;
   response_count: number;
   target_responses: number | null;
-  archive_after_days: number;
+  archive_after_days: number | null;
   manual_status_override: string | null;
   created_at: string;
   // Soft delete
@@ -58,6 +58,21 @@ type Campaign = {
   delete_reason: string | null;
   // Creative theme (optional — null = default production creative)
   creative_theme: string | null;
+  // Research Project link — NULL fields below mean "inherited from project"
+  research_project_id: string | null;
+  tags: string[] | null;
+};
+
+type ResearchProjectSummary = {
+  id: string;
+  project_id: string;
+  project_name: string;
+  survey_id: string | null;
+  start_date: string | null;
+  end_date: string | null;
+  target_responses: number | null;
+  archive_after_days: number | null;
+  tags: string[];
 };
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
@@ -153,6 +168,7 @@ const BLANK: Partial<Campaign> = {
   campaign_description: "", start_date: null, end_date: null,
   survey_id: null, publisher: "", research_theme: null, year: String(new Date().getFullYear()), country_code: null, market: null, survey_language: "en", status: "draft",
   target_responses: null, archive_after_days: 90, creative_theme: null,
+  research_project_id: null, tags: null,
 };
 
 // ─── Creative theme options ───────────────────────────────────────────────────
@@ -228,6 +244,7 @@ export default function CampaignsPage() {
   const [deletedCampaigns, setDeletedCampaigns] = useState<Campaign[]>([]);
   const [surveys,          setSurveys]          = useState<Survey[]>([]);
   const [publishers,       setPublishers]       = useState<string[]>([]);
+  const [researchProjects, setResearchProjects] = useState<ResearchProjectSummary[]>([]);
   const [loading,          setLoading]          = useState(true);
   const [loadingDeleted,   setLoadingDeleted]   = useState(false);
 
@@ -258,15 +275,17 @@ export default function CampaignsPage() {
   // ── Load ──────────────────────────────────────────────────────────────────
   const load = useCallback(async () => {
     setLoading(true);
-    const [camRes, surRes, pubRes] = await Promise.all([
+    const [camRes, surRes, pubRes, projRes] = await Promise.all([
       fetch("/api/campaigns"),
       fetch("/api/surveys"),
       fetch("/api/publishers"),
+      fetch("/api/research-projects"),
     ]);
     setCampaigns((await camRes.json()).data ?? []);
     setSurveys((await surRes.json()).data ?? []);
     const pubData = (await pubRes.json()).data ?? [];
     setPublishers(pubData.map((p: { name: string }) => p.name));
+    setResearchProjects((await projRes.json()).data ?? []);
     setLoading(false);
   }, []);
 
@@ -350,6 +369,11 @@ export default function CampaignsPage() {
       default:        return list;
     }
   }, [campaigns, deletedCampaigns, activeTab, statusFilter, usageFilter, dateFilter, sortBy, search, activeCampaigns, closedCampaigns, archivedCampaigns]);
+
+  const selectedProject = useMemo(
+    () => researchProjects.find(p => p.id === editing.research_project_id) ?? null,
+    [researchProjects, editing.research_project_id]
+  );
 
   // ── Drawer helpers ─────────────────────────────────────────────────────────
   function openCreate() {
@@ -883,56 +907,154 @@ export default function CampaignsPage() {
                   className={INP} placeholder="Optional" />
               </Field>
 
+              <Field label="Research Project">
+                <select value={editing.research_project_id ?? ""} onChange={e => setEditing(x => ({ ...x, research_project_id: e.target.value || null }))}
+                  className={INP}>
+                  <option value="">No project — standalone campaign</option>
+                  {researchProjects.map(p => (
+                    <option key={p.id} value={p.id}>{p.project_name}</option>
+                  ))}
+                </select>
+                {selectedProject && (
+                  <p className="text-xs text-gray-400 mt-1.5 leading-relaxed">
+                    Survey, dates, target responses, archive settings and tags left blank below are inherited from this project.
+                  </p>
+                )}
+              </Field>
+
               <div className="grid grid-cols-2 gap-3">
-                <Field label="Start Date">
-                  <input type="date" value={editing.start_date ?? ""} onChange={e => setEditing(x => ({ ...x, start_date: e.target.value || null }))}
-                    className={INP} />
-                </Field>
-                <Field label="End Date">
-                  <input type="date" value={editing.end_date ?? ""} min={editing.start_date ?? undefined}
-                    onChange={e => setEditing(x => ({ ...x, end_date: e.target.value || null }))}
-                    className={INP} />
-                </Field>
+                {selectedProject ? (
+                  <InheritableField
+                    label="Start Date"
+                    inherited={editing.start_date == null}
+                    resolvedDisplay={formatDate(selectedProject.start_date)}
+                    onOverride={() => setEditing(x => ({ ...x, start_date: selectedProject.start_date ?? "" }))}
+                    onRevert={() => setEditing(x => ({ ...x, start_date: null }))}
+                  >
+                    <input type="date" value={editing.start_date ?? ""} onChange={e => setEditing(x => ({ ...x, start_date: e.target.value || null }))}
+                      className={INP} />
+                  </InheritableField>
+                ) : (
+                  <Field label="Start Date">
+                    <input type="date" value={editing.start_date ?? ""} onChange={e => setEditing(x => ({ ...x, start_date: e.target.value || null }))}
+                      className={INP} />
+                  </Field>
+                )}
+                {selectedProject ? (
+                  <InheritableField
+                    label="End Date"
+                    inherited={editing.end_date == null}
+                    resolvedDisplay={formatDate(selectedProject.end_date)}
+                    onOverride={() => setEditing(x => ({ ...x, end_date: selectedProject.end_date ?? "" }))}
+                    onRevert={() => setEditing(x => ({ ...x, end_date: null }))}
+                  >
+                    <input type="date" value={editing.end_date ?? ""} min={editing.start_date ?? undefined}
+                      onChange={e => setEditing(x => ({ ...x, end_date: e.target.value || null }))}
+                      className={INP} />
+                  </InheritableField>
+                ) : (
+                  <Field label="End Date">
+                    <input type="date" value={editing.end_date ?? ""} min={editing.start_date ?? undefined}
+                      onChange={e => setEditing(x => ({ ...x, end_date: e.target.value || null }))}
+                      className={INP} />
+                  </Field>
+                )}
               </div>
               {editing.start_date && editing.end_date && editing.start_date > editing.end_date && (
                 <p className="text-xs text-red-500 -mt-2">End date must be on or after the start date.</p>
               )}
 
               <div className="grid grid-cols-2 gap-3">
-                <Field label="Target Responses">
-                  <input type="number" min={1}
-                    value={editing.target_responses ?? ""}
-                    onChange={e => setEditing(x => ({ ...x, target_responses: e.target.value ? Number(e.target.value) : null }))}
-                    className={INP} placeholder="e.g. 10000 (optional)" />
-                </Field>
-                <Field label="Archive After (days)">
-                  <input type="number" min={1}
-                    value={editing.archive_after_days ?? 90}
-                    onChange={e => setEditing(x => ({ ...x, archive_after_days: Number(e.target.value) || 90 }))}
-                    className={INP} placeholder="90" />
-                </Field>
+                {selectedProject ? (
+                  <InheritableField
+                    label="Target Responses"
+                    inherited={editing.target_responses == null}
+                    resolvedDisplay={selectedProject.target_responses?.toLocaleString() ?? "—"}
+                    onOverride={() => setEditing(x => ({ ...x, target_responses: selectedProject.target_responses ?? null }))}
+                    onRevert={() => setEditing(x => ({ ...x, target_responses: null }))}
+                  >
+                    <input type="number" min={1}
+                      value={editing.target_responses ?? ""}
+                      onChange={e => setEditing(x => ({ ...x, target_responses: e.target.value ? Number(e.target.value) : null }))}
+                      className={INP} placeholder="e.g. 10000" />
+                  </InheritableField>
+                ) : (
+                  <Field label="Target Responses">
+                    <input type="number" min={1}
+                      value={editing.target_responses ?? ""}
+                      onChange={e => setEditing(x => ({ ...x, target_responses: e.target.value ? Number(e.target.value) : null }))}
+                      className={INP} placeholder="e.g. 10000 (optional)" />
+                  </Field>
+                )}
+                {selectedProject ? (
+                  <InheritableField
+                    label="Archive After (days)"
+                    inherited={editing.archive_after_days == null}
+                    resolvedDisplay={selectedProject.archive_after_days != null ? String(selectedProject.archive_after_days) : "—"}
+                    onOverride={() => setEditing(x => ({ ...x, archive_after_days: selectedProject.archive_after_days ?? 90 }))}
+                    onRevert={() => setEditing(x => ({ ...x, archive_after_days: null }))}
+                  >
+                    <input type="number" min={1}
+                      value={editing.archive_after_days ?? ""}
+                      onChange={e => setEditing(x => ({ ...x, archive_after_days: e.target.value ? Number(e.target.value) : null }))}
+                      className={INP} placeholder="90" />
+                  </InheritableField>
+                ) : (
+                  <Field label="Archive After (days)">
+                    <input type="number" min={1}
+                      value={editing.archive_after_days ?? 90}
+                      onChange={e => setEditing(x => ({ ...x, archive_after_days: Number(e.target.value) || 90 }))}
+                      className={INP} placeholder="90" />
+                  </Field>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-3">
-                <Field label="Survey">
-                  <select value={editing.survey_id ?? ""} onChange={e => setEditing(x => ({ ...x, survey_id: e.target.value || null }))}
-                    className={INP}>
-                    <option value="">None selected</option>
-                    {surveys
-                      .filter(s => {
-                        // Draft surveys: always show (for setup workflow)
-                        if (s.status === "draft") return true;
-                        // Ready surveys: only show if they pass MPU validation
-                        if (s.status === "ready") return isSurveyValidForReady(s);
-                        return false;
-                      })
-                      .map(s => (
-                        <option key={s.id} value={s.id}>
-                          {s.name}{s.status === "draft" ? " (Draft)" : ""}
-                        </option>
-                      ))}
-                  </select>
-                </Field>
+                {selectedProject ? (
+                  <InheritableField
+                    label="Survey"
+                    inherited={editing.survey_id == null}
+                    resolvedDisplay={surveys.find(s => s.id === selectedProject.survey_id)?.name ?? "—"}
+                    onOverride={() => setEditing(x => ({ ...x, survey_id: selectedProject.survey_id ?? null }))}
+                    onRevert={() => setEditing(x => ({ ...x, survey_id: null }))}
+                  >
+                    <select value={editing.survey_id ?? ""} onChange={e => setEditing(x => ({ ...x, survey_id: e.target.value || null }))}
+                      className={INP}>
+                      <option value="">None selected</option>
+                      {surveys
+                        .filter(s => {
+                          if (s.status === "draft") return true;
+                          if (s.status === "ready") return isSurveyValidForReady(s);
+                          return false;
+                        })
+                        .map(s => (
+                          <option key={s.id} value={s.id}>
+                            {s.name}{s.status === "draft" ? " (Draft)" : ""}
+                          </option>
+                        ))}
+                    </select>
+                  </InheritableField>
+                ) : (
+                  <Field label="Survey">
+                    <select value={editing.survey_id ?? ""} onChange={e => setEditing(x => ({ ...x, survey_id: e.target.value || null }))}
+                      className={INP}>
+                      <option value="">None selected</option>
+                      {surveys
+                        .filter(s => {
+                          // Draft surveys: always show (for setup workflow)
+                          if (s.status === "draft") return true;
+                          // Ready surveys: only show if they pass MPU validation
+                          if (s.status === "ready") return isSurveyValidForReady(s);
+                          return false;
+                        })
+                        .map(s => (
+                          <option key={s.id} value={s.id}>
+                            {s.name}{s.status === "draft" ? " (Draft)" : ""}
+                          </option>
+                        ))}
+                    </select>
+                  </Field>
+                )}
                 <Field label="Status">
                   <select value={editing.status ?? "draft"} onChange={e => setEditing(x => ({ ...x, status: e.target.value }))}
                     className={INP}>
@@ -1162,6 +1284,36 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
     <div>
       <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block mb-1.5">{label}</label>
       {children}
+    </div>
+  );
+}
+
+/** A field that can be inherited (null) from a linked Research Project, or overridden (non-null). */
+function InheritableField({
+  label, inherited, resolvedDisplay, onOverride, onRevert, children,
+}: {
+  label: string;
+  inherited: boolean;
+  resolvedDisplay: string;
+  onOverride: () => void;
+  onRevert: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1.5">
+        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{label}</label>
+        {inherited ? (
+          <button type="button" onClick={onOverride} className="text-xs text-[#0B1929] underline">Override</button>
+        ) : (
+          <button type="button" onClick={onRevert} className="text-xs text-gray-400 underline">Revert to inherited</button>
+        )}
+      </div>
+      {inherited ? (
+        <p className="text-sm text-gray-500 bg-gray-50 border border-gray-100 rounded-lg px-3 py-2">
+          Inherited: {resolvedDisplay}
+        </p>
+      ) : children}
     </div>
   );
 }

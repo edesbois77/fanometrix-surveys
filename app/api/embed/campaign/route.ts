@@ -5,6 +5,7 @@
 // DOES enforce: campaign must be live, survey must be status=ready (not deleted/archived/draft).
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { supabaseAdmin } from "@/lib/supabase-admin";
 import { resolveQuestion, type LangCode, type LocalisedQuestion } from "@/lib/survey-locale";
 
 const NO_CACHE = {
@@ -24,7 +25,7 @@ export async function GET(req: NextRequest) {
 
   const { data: campaign, error } = await supabase
     .from("campaigns")
-    .select("campaign_id, status, survey_language, creative_theme, surveys(id, status, questions, thank_you_title, thank_you_body)")
+    .select("campaign_id, status, survey_language, creative_theme, survey_id, research_project_id")
     .eq("campaign_id", campaignId)
     .is("deleted_at", null)
     .single();
@@ -37,13 +38,29 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Campaign is not live" }, { status: 404, headers: NO_CACHE });
   }
 
-  const survey = (Array.isArray(campaign.surveys) ? campaign.surveys[0] : campaign.surveys) as {
-    id: string;
-    status: string;
-    questions: LocalisedQuestion[];
-    thank_you_title: string;
-    thank_you_body: string;
-  } | null;
+  // Resolve the effective survey: the campaign's own survey, or — if left
+  // blank to inherit — the linked Research Project's default survey template.
+  // research_projects is service-role-only (RLS denies anon), so this lookup
+  // uses supabaseAdmin even though the rest of this public route uses the anon client.
+  let effectiveSurveyId = campaign.survey_id as string | null;
+  if (!effectiveSurveyId && campaign.research_project_id) {
+    const { data: project } = await supabaseAdmin
+      .from("research_projects")
+      .select("survey_id")
+      .eq("id", campaign.research_project_id)
+      .single();
+    effectiveSurveyId = project?.survey_id ?? null;
+  }
+
+  if (!effectiveSurveyId) {
+    return NextResponse.json({ error: "No survey attached to this campaign" }, { status: 404, headers: NO_CACHE });
+  }
+
+  const { data: survey } = await supabase
+    .from("surveys")
+    .select("id, status, questions, thank_you_title, thank_you_body")
+    .eq("id", effectiveSurveyId)
+    .single();
 
   if (!survey) {
     return NextResponse.json({ error: "No survey attached to this campaign" }, { status: 404, headers: NO_CACHE });
@@ -57,7 +74,7 @@ export async function GET(req: NextRequest) {
 
   // Language priority: explicit URL param > campaign survey_language > en
   const lang = ((urlLang ?? campaign.survey_language ?? "en") as LangCode);
-  const questions = (survey.questions ?? []).map(q => resolveQuestion(q, lang));
+  const questions = ((survey.questions ?? []) as LocalisedQuestion[]).map(q => resolveQuestion(q, lang));
 
   return NextResponse.json({
     campaign_id:     campaign.campaign_id,

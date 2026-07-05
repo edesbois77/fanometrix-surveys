@@ -18,6 +18,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { supabaseAdmin } from "@/lib/supabase-admin";
 import { validateSurvey } from "@/lib/survey-validation";
 import { resolveQuestion, type LangCode, type LocalisedQuestion } from "@/lib/survey-locale";
 
@@ -81,12 +82,13 @@ export async function GET(req: NextRequest) {
     country_code: string | null;
     market: string | null;
     survey_language: string | null;
-    surveys: { questions: unknown[]; thank_you_title: string; thank_you_body: string } | null;
+    survey_id: string | null;
+    research_project_id: string | null;
   };
 
   const { data: campaigns } = await supabase
     .from("campaigns")
-    .select("id, campaign_id, status, start_date, end_date, target_responses, deleted_at, publisher, country_code, market, survey_language, creative_theme, surveys(questions, thank_you_title, thank_you_body)")
+    .select("id, campaign_id, status, start_date, end_date, target_responses, deleted_at, publisher, country_code, market, survey_language, creative_theme, survey_id, research_project_id")
     .in("id", campaignUuids) as { data: CampaignRow[] | null };
 
   if (!campaigns?.length) {
@@ -95,6 +97,38 @@ export async function GET(req: NextRequest) {
 
   const responsesBySlug: Record<string, number> = {};
   for (const s of statsData ?? []) responsesBySlug[s.campaign_id] = Number(s.response_count ?? 0);
+
+  // Resolve each campaign's effective survey — its own survey_id, or (if left
+  // blank to inherit) the linked Research Project's default survey template.
+  // research_projects is service-role-only, so this lookup uses supabaseAdmin
+  // even though the rest of this public route uses the anon client.
+  const projectIdsNeeded = Array.from(new Set(
+    campaigns.filter(c => !c.survey_id && c.research_project_id).map(c => c.research_project_id as string)
+  ));
+  const projectSurveyById: Record<string, string | null> = {};
+  if (projectIdsNeeded.length > 0) {
+    const { data: projects } = await supabaseAdmin
+      .from("research_projects")
+      .select("id, survey_id")
+      .in("id", projectIdsNeeded);
+    for (const p of projects ?? []) projectSurveyById[p.id] = p.survey_id;
+  }
+
+  const effectiveSurveyId = (c: CampaignRow): string | null =>
+    c.survey_id ?? (c.research_project_id ? projectSurveyById[c.research_project_id] ?? null : null);
+
+  const surveyIdsNeeded = Array.from(new Set(
+    campaigns.map(effectiveSurveyId).filter((id): id is string => !!id)
+  ));
+  type SurveyRow = { id: string; name: string; questions: unknown[]; thank_you_title: string; thank_you_body: string };
+  const surveysById: Record<string, SurveyRow> = {};
+  if (surveyIdsNeeded.length > 0) {
+    const { data: surveys } = await supabase
+      .from("surveys")
+      .select("id, name, questions, thank_you_title, thank_you_body")
+      .in("id", surveyIdsNeeded);
+    for (const s of (surveys ?? []) as SurveyRow[]) surveysById[s.id] = s;
+  }
 
   // 4. Filter to eligible campaigns — apply all conditions in order
   const eligible = members.filter(m => {
@@ -129,8 +163,8 @@ export async function GET(req: NextRequest) {
     const rc = responsesBySlug[c.campaign_id] ?? 0;
     if (c.target_responses !== null && rc >= c.target_responses) return false;
 
-    // Survey must exist and pass MPU validation
-    const survey = c.surveys as { questions?: unknown[]; thank_you_title?: string; thank_you_body?: string } | null;
+    // Survey must exist (own or inherited from the linked Research Project) and pass MPU validation
+    const survey = surveysById[effectiveSurveyId(c) ?? ""] ?? null;
     if (!survey || !(survey.questions as unknown[])?.length) return false;
     if (validateSurvey(survey as Parameters<typeof validateSurvey>[0]).length > 0) return false;
 
@@ -161,7 +195,8 @@ export async function GET(req: NextRequest) {
   }
 
   const campaign = campaigns.find(c => c.id === chosen.campaign_id)!;
-  const survey   = campaign.surveys as unknown as {
+  const resolvedSurvey = surveysById[effectiveSurveyId(campaign) ?? ""] ?? null;
+  const survey = resolvedSurvey as unknown as {
     questions: LocalisedQuestion[];
     thank_you_title: string;
     thank_you_body: string;

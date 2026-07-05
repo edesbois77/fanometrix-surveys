@@ -35,6 +35,11 @@ const BRAND_AGENCY_RESTRICTED = [
   "/publisher-performance",
 ];
 
+// Routes visible to admin/brand/agency but not publisher (organisational/strategic layer)
+const PUBLISHER_RESTRICTED = [
+  "/research-projects",
+];
+
 // Routes only admins may access
 const ADMIN_ONLY_PREFIXES = [
   "/analysis",
@@ -173,6 +178,11 @@ export async function middleware(req: NextRequest) {
   const isAdminOnly = ADMIN_ONLY_PREFIXES.some((p) => pathname.startsWith(p));
   if (isAdminOnly && session.role !== "admin") {
     return NextResponse.redirect(new URL("/access-denied", req.url));
+  }
+
+  // Publisher: block admin/brand/agency-facing organisational routes
+  if (session.role === "publisher" && PUBLISHER_RESTRICTED.some((p) => pathname.startsWith(p))) {
+    return NextResponse.redirect(new URL("/home", req.url));
   }
 
   return NextResponse.next();

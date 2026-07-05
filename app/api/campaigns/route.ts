@@ -17,6 +17,7 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = new URL(req.url);
   const viewDeleted = searchParams.get("view") === "deleted";
+  const researchProjectId = searchParams.get("research_project_id");
 
   // ── Deleted view (admin only, no auto-transitions) ─────────────────────────
   if (viewDeleted) {
@@ -24,12 +25,15 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
+    let deletedQuery = supabaseAdmin
+      .from("campaigns")
+      .select("*, surveys(name)")
+      .not("deleted_at", "is", null)
+      .order("deleted_at", { ascending: false });
+    if (researchProjectId) deletedQuery = deletedQuery.eq("research_project_id", researchProjectId);
+
     const [{ data: campaigns, error }, { data: statsData }] = await Promise.all([
-      supabaseAdmin
-        .from("campaigns")
-        .select("*, surveys(name)")
-        .not("deleted_at", "is", null)
-        .order("deleted_at", { ascending: false }),
+      deletedQuery,
       supabaseAdmin.from("vw_campaign_stats").select("campaign_id, response_count"),
     ]);
 
@@ -57,6 +61,8 @@ export async function GET(req: NextRequest) {
     .select("*, surveys(name)")
     .order("created_at", { ascending: false });
 
+  if (researchProjectId) query = query.eq("research_project_id", researchProjectId);
+
   if (session.role === "brand" || session.role === "agency") {
     const ids = session.allowedCampaignIds;
     if (ids.length === 0) return NextResponse.json({ data: [] });
@@ -77,13 +83,54 @@ export async function GET(req: NextRequest) {
   const statsMap: Record<string, number> = {};
   for (const s of statsData ?? []) statsMap[s.campaign_id] = Number(s.response_count ?? 0);
 
+  // Batch-fetch linked research projects to resolve inherited-vs-overridden fields.
+  const projectIds = Array.from(
+    new Set((campaigns ?? []).map(c => c.research_project_id).filter(Boolean))
+  ) as string[];
+
+  const projectsById: Record<string, {
+    survey_id: string | null;
+    start_date: string | null;
+    end_date: string | null;
+    target_responses: number | null;
+    archive_after_days: number | null;
+    tags: string[] | null;
+  }> = {};
+
+  if (projectIds.length > 0) {
+    const { data: projects } = await supabaseAdmin
+      .from("research_projects")
+      .select("id, survey_id, start_date, end_date, target_responses, archive_after_days, tags")
+      .in("id", projectIds);
+    for (const p of projects ?? []) projectsById[p.id] = p;
+  }
+
   const now = new Date();
 
   const enriched = await Promise.all(
     (campaigns ?? []).map(async (c) => {
       const responseCount = statsMap[c.campaign_id] ?? 0;
-      const detail = computeStatusWithReason(c as CampaignForStatus, responseCount, now);
+      const project = c.research_project_id ? projectsById[c.research_project_id] : undefined;
+
+      const effectiveArchiveAfterDays = c.archive_after_days ?? project?.archive_after_days ?? null;
+      const forStatus: CampaignForStatus = { ...(c as CampaignForStatus), archive_after_days: effectiveArchiveAfterDays };
+      const detail = computeStatusWithReason(forStatus, responseCount, now);
       const { effective, reason, isAutoTransition } = detail;
+
+      const effective_survey_id = c.survey_id ?? project?.survey_id ?? null;
+      const effective_start_date = c.start_date ?? project?.start_date ?? null;
+      const effective_end_date = c.end_date ?? project?.end_date ?? null;
+      const effective_target_responses = c.target_responses ?? project?.target_responses ?? null;
+      const effective_tags = (c.tags && c.tags.length > 0) ? c.tags : (project?.tags ?? []);
+
+      const inherited = project ? {
+        survey_id:          c.survey_id == null,
+        start_date:         c.start_date == null,
+        end_date:           c.end_date == null,
+        target_responses:   c.target_responses == null,
+        archive_after_days: c.archive_after_days == null,
+        tags:               !c.tags || c.tags.length === 0,
+      } : null;
 
       if (
         isAutoTransition &&
@@ -123,6 +170,13 @@ export async function GET(req: NextRequest) {
         status_reason:      reason,
         is_auto_transition: isAutoTransition,
         response_count:     responseCount,
+        effective_survey_id,
+        effective_start_date,
+        effective_end_date,
+        effective_target_responses,
+        effective_archive_after_days: effectiveArchiveAfterDays,
+        effective_tags,
+        inherited,
       };
     })
   );

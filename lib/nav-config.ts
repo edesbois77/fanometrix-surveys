@@ -3,7 +3,7 @@
  *
  * Left sidebar structure (admin):
  *   HOME            → Home, Dashboard
- *   SURVEYS         → Surveys, Campaigns, Campaign Groups, Deployment
+ *   SURVEYS         → Surveys, Research Projects, Campaigns, Campaign Groups, Deployment
  *   SOCIAL LISTENING→ Dashboard, Searches, Mentions, Reports, Settings
  *   DEVELOPER       → alphabetical list of admin tools
  */
@@ -57,6 +57,16 @@ export const NAV_ITEMS: NavItemConfig[] = [
     cta: "Manage Surveys",
     section: "platform",
     roles: ["admin"],
+    navGroup: "surveys",
+  },
+  {
+    href: "/research-projects",
+    label: "Research Projects",
+    icon: "▧",
+    description: "Group deployment campaigns across publishers and countries for one study, and generate them in bulk.",
+    cta: "View Research Projects",
+    section: "platform",
+    roles: ["admin", "brand", "agency"],
     navGroup: "surveys",
   },
   {

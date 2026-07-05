@@ -27,7 +27,22 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   }
 
   const responseCount = Number(statsData?.response_count ?? 0);
-  const effective = computeEffectiveStatus(data as CampaignForStatus, responseCount);
+
+  // Resolve archive_after_days from the linked research project if inherited (NULL).
+  let effectiveArchiveAfterDays = data.archive_after_days ?? null;
+  if (data.research_project_id && effectiveArchiveAfterDays == null) {
+    const { data: project } = await supabaseAdmin
+      .from("research_projects")
+      .select("archive_after_days")
+      .eq("id", data.research_project_id)
+      .single();
+    effectiveArchiveAfterDays = project?.archive_after_days ?? null;
+  }
+
+  const effective = computeEffectiveStatus(
+    { ...(data as CampaignForStatus), archive_after_days: effectiveArchiveAfterDays },
+    responseCount
+  );
 
   return NextResponse.json({ data: { ...data, effective_status: effective, response_count: responseCount } });
 }
