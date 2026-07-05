@@ -122,10 +122,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     if (clash && clash.deleted_at && clash.research_project_id === project.id) {
       // Our own deployment was deleted — restore it rather than fail on the unique constraint.
+      // Also fixes survey_language up to the country's expected language in case it was
+      // generated before that was set correctly (see the insert branch below).
       const { error } = await supabaseAdmin
         .from("campaigns")
         .update({
           deleted_at: null, deleted_by: null, delete_reason: null,
+          survey_language: expectedSurveyLanguage(combo.countryCode),
           status: project.status, status_updated_at: nowIso, updated_at: nowIso,
         })
         .eq("id", clash.id);
@@ -158,6 +161,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         publisher: combo.publisher,
         country_code: combo.countryCode,
         market: country.name,
+        // Defaults to the country's expected language (e.g. DE → de) — the
+        // language-mismatch check above already guarantees the project survey
+        // has that translation, so this is never a silent fallback to English.
+        survey_language: expectedSurveyLanguage(combo.countryCode),
         research_theme: theme,
         year,
         research_project_id: project.id,

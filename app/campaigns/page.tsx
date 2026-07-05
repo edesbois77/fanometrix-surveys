@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { countryCodeWarning, languageCodeWarning, MARKET_REFERENCE_PAIRS, isValidCountryCode } from "@/lib/locales";
+import { SUPPORTED_LANGUAGES } from "@/lib/survey-locale";
 import Link from "next/link";
 import Papa from "papaparse";
 import { AdminShell } from "@/app/components/AdminShell";
@@ -1338,10 +1339,9 @@ export default function CampaignsPage() {
                     onChange={e => setEditing(x => ({ ...x, survey_language: e.target.value }))}
                     className={INP}
                   >
-                    <option value="en">English (en)</option>
-                    <option value="de">German / Deutsch (de)</option>
-                    <option value="sv">Swedish / Svenska (sv)</option>
-                    <option value="zh-CN">Chinese Simplified / 中文 (zh-CN)</option>
+                    {SUPPORTED_LANGUAGES.map(lang => (
+                      <option key={lang.code} value={lang.code}>{lang.label} / {lang.nativeLabel} ({lang.code})</option>
+                    ))}
                   </select>
                   {(() => {
                     const warn = languageCodeWarning(editing.survey_language ?? "");
