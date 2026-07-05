@@ -95,12 +95,13 @@ export async function GET(req: NextRequest) {
     target_responses: number | null;
     archive_after_days: number | null;
     tags: string[] | null;
+    creative_design: string | null;
   }> = {};
 
   if (projectIds.length > 0) {
     const { data: projects } = await supabaseAdmin
       .from("research_projects")
-      .select("id, survey_id, start_date, end_date, target_responses, archive_after_days, tags")
+      .select("id, survey_id, start_date, end_date, target_responses, archive_after_days, tags, creative_design")
       .in("id", projectIds);
     for (const p of projects ?? []) projectsById[p.id] = p;
   }
@@ -122,6 +123,7 @@ export async function GET(req: NextRequest) {
       const effective_end_date = c.end_date ?? project?.end_date ?? null;
       const effective_target_responses = c.target_responses ?? project?.target_responses ?? null;
       const effective_tags = (c.tags && c.tags.length > 0) ? c.tags : (project?.tags ?? []);
+      const effective_creative_design = c.creative_design ?? project?.creative_design ?? null;
 
       const inherited = project ? {
         survey_id:          c.survey_id == null,
@@ -130,6 +132,7 @@ export async function GET(req: NextRequest) {
         target_responses:   c.target_responses == null,
         archive_after_days: c.archive_after_days == null,
         tags:               !c.tags || c.tags.length === 0,
+        creative_design:     c.creative_design == null,
       } : null;
 
       if (
@@ -176,6 +179,7 @@ export async function GET(req: NextRequest) {
         effective_target_responses,
         effective_archive_after_days: effectiveArchiveAfterDays,
         effective_tags,
+        effective_creative_design,
         inherited,
       };
     })
@@ -205,7 +209,7 @@ export async function POST(req: NextRequest) {
     // Research Project override UI) — never real columns on campaigns.
     effective_survey_id: _esi, effective_start_date: _esd, effective_end_date: _eed,
     effective_target_responses: _etr, effective_archive_after_days: _ead,
-    effective_tags: _et, inherited: _inh,
+    effective_tags: _et, effective_creative_design: _ecd, inherited: _inh,
     ...safe
   } = body;
 

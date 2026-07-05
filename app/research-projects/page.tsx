@@ -5,6 +5,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { AdminShell } from "@/app/components/AdminShell";
 import { useSession } from "@/app/components/SessionProvider";
 import { MultiSelect } from "@/app/components/MultiSelect";
+import { CreativeDesignPicker } from "@/app/components/CreativeDesignPicker";
 import { STATUS_META, type CampaignStatus } from "@/lib/campaign-status";
 import {
   STUDY_TYPES, STUDY_TYPE_LABELS, studyTypeLabel,
@@ -31,6 +32,7 @@ type ResearchProject = {
   survey_id: string | null;
   target_responses: number | null;
   archive_after_days: number | null;
+  creative_design: string | null;
   status: string;
   publishers: string[];
   country_codes: string[];
@@ -80,7 +82,7 @@ const BLANK: Partial<ResearchProject> = {
   project_id: "", project_name: "", brand_name: "", study_type: "fan_understanding",
   topic: "", tags: [], description: "", year: String(new Date().getFullYear()),
   start_date: null, end_date: null, survey_id: null,
-  target_responses: null, archive_after_days: null, status: "draft",
+  target_responses: null, archive_after_days: null, creative_design: null, status: "draft",
   publishers: [], country_codes: [],
 };
 
@@ -926,6 +928,22 @@ export default function ResearchProjectsPage() {
                   </p>
                 </Field>
               </DrawerSection>
+
+              {isAdmin && (
+                <DrawerSection
+                  step={5}
+                  title="Creative Configuration"
+                  subtitle="Default design applied to every generated deployment — each can still override individually."
+                >
+                  <CreativeDesignPicker
+                    value={editing.creative_design ?? null}
+                    onChange={v => setEditing(x => ({ ...x, creative_design: v }))}
+                  />
+                  <p className="text-xs text-gray-400 leading-relaxed">
+                    Leave unset to use the standard production creative.
+                  </p>
+                </DrawerSection>
+              )}
 
               {error && <p className="text-red-500 text-xs">{error}</p>}
             </div>

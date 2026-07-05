@@ -28,15 +28,19 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   const responseCount = Number(statsData?.response_count ?? 0);
 
-  // Resolve archive_after_days from the linked research project if inherited (NULL).
+  // Resolve archive_after_days and creative_design from the linked research
+  // project if inherited (NULL) — mirrors the same resolution the list route
+  // (/api/campaigns) already does, so a single-campaign fetch is consistent.
   let effectiveArchiveAfterDays = data.archive_after_days ?? null;
-  if (data.research_project_id && effectiveArchiveAfterDays == null) {
+  let effectiveCreativeDesign = data.creative_design ?? null;
+  if (data.research_project_id && (effectiveArchiveAfterDays == null || effectiveCreativeDesign == null)) {
     const { data: project } = await supabaseAdmin
       .from("research_projects")
-      .select("archive_after_days")
+      .select("archive_after_days, creative_design")
       .eq("id", data.research_project_id)
       .single();
-    effectiveArchiveAfterDays = project?.archive_after_days ?? null;
+    effectiveArchiveAfterDays ??= project?.archive_after_days ?? null;
+    effectiveCreativeDesign ??= project?.creative_design ?? null;
   }
 
   const effective = computeEffectiveStatus(
@@ -44,7 +48,15 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     responseCount
   );
 
-  return NextResponse.json({ data: { ...data, effective_status: effective, response_count: responseCount } });
+  return NextResponse.json({
+    data: {
+      ...data,
+      effective_status: effective,
+      response_count: responseCount,
+      effective_creative_design: effectiveCreativeDesign,
+      inherited: { creative_design: data.creative_design == null },
+    },
+  });
 }
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -81,7 +93,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     // Research Project override UI) — never real columns on campaigns.
     effective_survey_id: _esi, effective_start_date: _esd, effective_end_date: _eed,
     effective_target_responses: _etr, effective_archive_after_days: _ead,
-    effective_tags: _et, inherited: _inh,
+    effective_tags: _et, effective_creative_design: _ecd, inherited: _inh,
     ...safeBody
   } = body;
 

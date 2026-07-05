@@ -8,6 +8,8 @@ import Papa from "papaparse";
 import { AdminShell } from "@/app/components/AdminShell";
 import { useSession } from "@/app/components/SessionProvider";
 import { ThemedSurvey } from "@/app/embed/ThemedSurvey";
+import { ClassicSurvey } from "@/app/embed/ClassicSurvey";
+import { CreativeDesignPicker } from "@/app/components/CreativeDesignPicker";
 import { isSurveyValidForReady } from "@/lib/survey-validation";
 import {
   availableActions,
@@ -57,8 +59,9 @@ type Campaign = {
   deleted_at: string | null;
   deleted_by: string | null;
   delete_reason: string | null;
-  // Creative theme (optional — null = default production creative)
-  creative_theme: string | null;
+  // Creative design (optional — null = inherit from project, or the
+  // classic default creative if neither is set)
+  creative_design: string | null;
   // Research Project link — NULL fields below mean "inherited from project"
   research_project_id: string | null;
   tags: string[] | null;
@@ -70,6 +73,7 @@ type Campaign = {
   effective_target_responses?: number | null;
   effective_archive_after_days?: number | null;
   effective_tags?: string[];
+  effective_creative_design?: string | null;
   inherited?: {
     survey_id: boolean;
     start_date: boolean;
@@ -77,6 +81,7 @@ type Campaign = {
     target_responses: boolean;
     archive_after_days: boolean;
     tags: boolean;
+    creative_design: boolean;
   } | null;
 };
 
@@ -90,10 +95,12 @@ type ResearchProjectSummary = {
   target_responses: number | null;
   archive_after_days: number | null;
   tags: string[];
+  creative_design: string | null;
 };
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
 import { generateCampaignName, generateCampaignSlug } from "@/lib/naming";
+import { CREATIVE_DESIGNS, designById } from "@/lib/creative-designs";
 
 function generateCampaignId(brand: string, name: string): string {
   const year = new Date().getFullYear();
@@ -184,21 +191,9 @@ const BLANK: Partial<Campaign> = {
   campaign_id: "", brand_name: "", campaign_name: "",
   campaign_description: "", start_date: null, end_date: null,
   survey_id: null, publisher: "", research_theme: null, year: String(new Date().getFullYear()), country_code: null, market: null, survey_language: "en", status: "draft",
-  target_responses: null, archive_after_days: 90, creative_theme: null,
+  target_responses: null, archive_after_days: 90, creative_design: null,
   research_project_id: null, tags: null,
 };
-
-// ─── Creative theme options ───────────────────────────────────────────────────
-const CREATIVE_THEMES: { id: string; name: string; gradient: string; text: string }[] = [
-  { id: "fanometrix",       name: "Fanometrix Premium", gradient: "linear-gradient(135deg,#D7B87A,#A8864A)", text: "#041B33" },
-  { id: "electric-football",name: "Electric Football",  gradient: "linear-gradient(180deg,#00F5A0,#00C2FF)", text: "#061A2F" },
-  { id: "fan-energy",       name: "Fan Energy",         gradient: "linear-gradient(180deg,#FF4FA3,#A855F7)", text: "#fff"    },
-  { id: "electric-purple",  name: "Electric Purple",    gradient: "linear-gradient(180deg,#D946EF,#7C3AED)", text: "#fff"    },
-  { id: "sky-pulse",        name: "Sky Pulse",          gradient: "linear-gradient(180deg,#7DD3FC,#3B82F6)", text: "#071625" },
-  { id: "ocean",            name: "Ocean",              gradient: "linear-gradient(180deg,#7DD3FC,#2563EB)", text: "#081421" },
-  { id: "lime-energy",      name: "Lime Energy",        gradient: "linear-gradient(180deg,#F8F32B,#A3D92F)", text: "#10120B" },
-  { id: "stadium-green",    name: "Stadium Green",      gradient: "linear-gradient(180deg,#64DD17,#0B5D1E)", text: "#fff"    },
-];
 
 const PREVIEW_QUESTIONS = [
   { id: "p1", text: "Why do you watch football?",     options: [{ id:1, text:"Entertainment\n& Escape" }, { id:2, text:"Friends\n& Family" },   { id:3, text:"Inspiration\n& Ambition" }, { id:4, text:"Identity &\nCommunity" }] },
@@ -211,7 +206,7 @@ function CampaignPreviewModal({ campaign, onClose }: { campaign: Campaign; onClo
   function onBackdrop(e: React.MouseEvent<HTMLDivElement>) {
     if (e.target === e.currentTarget) onClose();
   }
-  const themeName = CREATIVE_THEMES.find(t => t.id === campaign.creative_theme)?.name;
+  const themeName = designById(campaign.effective_creative_design ?? campaign.creative_design)?.name;
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
@@ -437,7 +432,7 @@ export default function CampaignsPage() {
             // must never round-trip back into a save payload.
             effective_survey_id: _esi, effective_start_date: _esd, effective_end_date: _eed,
             effective_target_responses: _etr, effective_archive_after_days: _ead,
-            effective_tags: _et, inherited: _inh,
+            effective_tags: _et, effective_creative_design: _ecd, inherited: _inh,
             ...rest } = c;
     setEditing({ ...rest });
     setError("");
@@ -1424,73 +1419,85 @@ export default function CampaignsPage() {
                 </details>
               </div>
 
-              {/* ── Creative Theme — admin only ── */}
+              {/* ── Creative Design — admin only ── */}
               {isAdmin && (
                 <div className="border border-gray-100 rounded-xl p-4 space-y-3">
                   <div className="flex items-center justify-between">
-                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Creative Theme</p>
-                    <div className="flex items-center gap-3">
-                      <a href="/creative-lab/theme-gallery" target="_blank" rel="noopener"
-                        className="text-xs font-medium underline"
-                        style={{ color: "#D7B87A" }}>
-                        Browse all designs →
-                      </a>
-                      {editing.creative_theme && (
-                        <button type="button" onClick={() => setEditing(x => ({ ...x, creative_theme: null }))}
-                          className="text-xs text-gray-400 hover:text-gray-600 underline">
-                          Remove
-                        </button>
-                      )}
-                    </div>
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Creative Design</p>
+                    <a href="/creative-lab/theme-gallery" target="_blank" rel="noopener"
+                      className="text-xs font-medium underline"
+                      style={{ color: "#D7B87A" }}>
+                      Browse all designs →
+                    </a>
                   </div>
-                  <p className="text-xs text-gray-400 leading-relaxed">
-                    Select a visual theme for this campaign&apos;s survey MPU. Leave unset to use the standard production creative.
-                  </p>
 
-                  {/* Swatch grid */}
-                  <div className="grid grid-cols-2 gap-2">
-                    {CREATIVE_THEMES.map(t => {
-                      const active = editing.creative_theme === t.id;
-                      return (
-                        <button
-                          key={t.id} type="button"
-                          onClick={() => setEditing(x => ({ ...x, creative_theme: active ? null : t.id }))}
-                          className="flex items-center gap-2.5 p-2.5 rounded-lg border text-left transition-all"
-                          style={{ borderColor: active ? "#D7B87A" : "#E5E7EB", background: active ? "#FBF5E8" : "#fff" }}
-                        >
-                          <div style={{ width:28, height:28, borderRadius:6, flexShrink:0, background:t.gradient, border:"1px solid rgba(0,0,0,0.08)" }} />
-                          <span className="text-xs font-medium leading-tight" style={{ color: active ? "#0B1929" : "#374151" }}>
-                            {t.name}
-                          </span>
-                          {active && <span className="ml-auto text-[#D7B87A] text-xs font-bold flex-shrink-0">✓</span>}
-                        </button>
-                      );
-                    })}
-                  </div>
+                  {selectedProject ? (
+                    <InheritableField
+                      label="Design"
+                      inherited={editing.creative_design == null}
+                      resolvedDisplay={designById(selectedProject.creative_design)?.name ?? "Fanometrix Default"}
+                      onOverride={() => setEditing(x => ({ ...x, creative_design: selectedProject.creative_design ?? null }))}
+                      onRevert={() => setEditing(x => ({ ...x, creative_design: null }))}
+                    >
+                      <CreativeDesignPicker
+                        value={editing.creative_design ?? null}
+                        onChange={v => setEditing(x => ({ ...x, creative_design: v }))}
+                      />
+                    </InheritableField>
+                  ) : (
+                    <>
+                      <p className="text-xs text-gray-400 leading-relaxed">
+                        Select a design for this campaign&apos;s survey MPU. Leave unset to use the standard production creative.
+                      </p>
+                      <CreativeDesignPicker
+                        value={editing.creative_design ?? null}
+                        onChange={v => setEditing(x => ({ ...x, creative_design: v }))}
+                      />
+                    </>
+                  )}
 
                   {/* Live preview */}
-                  {editing.creative_theme && (
-                    <div className="space-y-2 pt-1">
-                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                        Preview — {CREATIVE_THEMES.find(t => t.id === editing.creative_theme)?.name}
-                      </p>
-                      <div className="flex justify-center py-2">
-                        <ThemedSurvey
-                          key={editing.creative_theme}
-                          themeId={editing.creative_theme}
-                          questions={PREVIEW_QUESTIONS}
-                          thankYouTitle="Thank You"
-                          thankYouBody="Your anonymous feedback helps improve the football experience for fans everywhere."
-                          isPreview={true}
-                          campaignId="preview" surveyId={null} publisher={null} placement={null}
-                          placementId={null} creativeId={null}
-                          club={null} competition={null} country={null} segment={null}
-                          device={null} browser={null} groupId={null} countryCode={null}
-                          market={null} surveyLanguage="en" sessionId=""
-                        />
+                  {editing.creative_design && (() => {
+                    const design = designById(editing.creative_design);
+                    if (!design) return null;
+                    return (
+                      <div className="space-y-2 pt-1">
+                        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                          Preview — {design.name}
+                        </p>
+                        <div className="flex justify-center py-2">
+                          {design.layout === "timer" ? (
+                            <ThemedSurvey
+                              key={design.id}
+                              themeId={design.id}
+                              questions={PREVIEW_QUESTIONS}
+                              thankYouTitle="Thank You"
+                              thankYouBody="Your anonymous feedback helps improve the football experience for fans everywhere."
+                              isPreview={true}
+                              campaignId="preview" surveyId={null} publisher={null} placement={null}
+                              placementId={null} creativeId={null}
+                              club={null} competition={null} country={null} segment={null}
+                              device={null} browser={null} groupId={null} countryCode={null}
+                              market={null} surveyLanguage="en" sessionId=""
+                            />
+                          ) : (
+                            <ClassicSurvey
+                              key={design.id}
+                              questions={PREVIEW_QUESTIONS}
+                              thankYouTitle="Thank You"
+                              thankYouBody="Your anonymous feedback helps improve the football experience for fans everywhere."
+                              isPreview={true}
+                              campaignId="preview" surveyId={null} questionSetId={null} publisher={null} placement={null}
+                              placementId={null} creativeId={null}
+                              club={null} competition={null} country={null} segment={null}
+                              device={null} browser={null} groupId={null} countryCode={null}
+                              market={null} surveyLanguage="en" sessionId="" urlLang={null}
+                            />
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    );
+                  })()}
                 </div>
               )}
 

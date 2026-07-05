@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
 
   const { data: campaign, error } = await supabase
     .from("campaigns")
-    .select("campaign_id, status, survey_language, creative_theme, survey_id, research_project_id")
+    .select("campaign_id, status, survey_language, creative_design, survey_id, research_project_id")
     .eq("campaign_id", campaignId)
     .is("deleted_at", null)
     .single();
@@ -38,18 +38,20 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Campaign is not live" }, { status: 404, headers: NO_CACHE });
   }
 
-  // Resolve the effective survey: the campaign's own survey, or — if left
-  // blank to inherit — the linked Research Project's default survey template.
+  // Resolve inherited fields (survey, creative design) from the linked Research
+  // Project whenever the campaign has left them blank to inherit.
   // research_projects is service-role-only (RLS denies anon), so this lookup
   // uses supabaseAdmin even though the rest of this public route uses the anon client.
   let effectiveSurveyId = campaign.survey_id as string | null;
-  if (!effectiveSurveyId && campaign.research_project_id) {
+  let effectiveCreativeDesign = campaign.creative_design as string | null;
+  if (campaign.research_project_id && (!effectiveSurveyId || !effectiveCreativeDesign)) {
     const { data: project } = await supabaseAdmin
       .from("research_projects")
-      .select("survey_id")
+      .select("survey_id, creative_design")
       .eq("id", campaign.research_project_id)
       .single();
-    effectiveSurveyId = project?.survey_id ?? null;
+    effectiveSurveyId ??= project?.survey_id ?? null;
+    effectiveCreativeDesign ??= project?.creative_design ?? null;
   }
 
   if (!effectiveSurveyId) {
@@ -79,7 +81,7 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     campaign_id:     campaign.campaign_id,
     survey_language: lang,
-    creative_theme:  campaign.creative_theme ?? null,
+    creative_design:  effectiveCreativeDesign,
     questions,
     thank_you_title: resolveText((survey.thank_you_title as LocalisedText | null) ?? {}, lang) || "Thank you!",
     thank_you_body:  resolveText((survey.thank_you_body as LocalisedText | null) ?? {}, lang) || "Your anonymous feedback helps improve the football experience for fans everywhere.",

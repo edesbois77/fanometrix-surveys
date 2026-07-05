@@ -82,13 +82,14 @@ export async function GET(req: NextRequest) {
     country_code: string | null;
     market: string | null;
     survey_language: string | null;
+    creative_design: string | null;
     survey_id: string | null;
     research_project_id: string | null;
   };
 
   const { data: campaigns } = await supabase
     .from("campaigns")
-    .select("id, campaign_id, status, start_date, end_date, target_responses, deleted_at, publisher, country_code, market, survey_language, creative_theme, survey_id, research_project_id")
+    .select("id, campaign_id, status, start_date, end_date, target_responses, deleted_at, publisher, country_code, market, survey_language, creative_design, survey_id, research_project_id")
     .in("id", campaignUuids) as { data: CampaignRow[] | null };
 
   if (!campaigns?.length) {
@@ -98,24 +99,27 @@ export async function GET(req: NextRequest) {
   const responsesBySlug: Record<string, number> = {};
   for (const s of statsData ?? []) responsesBySlug[s.campaign_id] = Number(s.response_count ?? 0);
 
-  // Resolve each campaign's effective survey — its own survey_id, or (if left
-  // blank to inherit) the linked Research Project's default survey template.
-  // research_projects is service-role-only, so this lookup uses supabaseAdmin
-  // even though the rest of this public route uses the anon client.
+  // Resolve each campaign's effective survey and creative design — its own
+  // values, or (if left blank to inherit) the linked Research Project's
+  // defaults. research_projects is service-role-only, so this lookup uses
+  // supabaseAdmin even though the rest of this public route uses the anon client.
   const projectIdsNeeded = Array.from(new Set(
-    campaigns.filter(c => !c.survey_id && c.research_project_id).map(c => c.research_project_id as string)
+    campaigns.filter(c => (!c.survey_id || !c.creative_design) && c.research_project_id).map(c => c.research_project_id as string)
   ));
-  const projectSurveyById: Record<string, string | null> = {};
+  const projectDefaultsById: Record<string, { survey_id: string | null; creative_design: string | null }> = {};
   if (projectIdsNeeded.length > 0) {
     const { data: projects } = await supabaseAdmin
       .from("research_projects")
-      .select("id, survey_id")
+      .select("id, survey_id, creative_design")
       .in("id", projectIdsNeeded);
-    for (const p of projects ?? []) projectSurveyById[p.id] = p.survey_id;
+    for (const p of projects ?? []) projectDefaultsById[p.id] = p;
   }
 
   const effectiveSurveyId = (c: CampaignRow): string | null =>
-    c.survey_id ?? (c.research_project_id ? projectSurveyById[c.research_project_id] ?? null : null);
+    c.survey_id ?? (c.research_project_id ? projectDefaultsById[c.research_project_id]?.survey_id ?? null : null);
+
+  const effectiveCreativeDesign = (c: CampaignRow): string | null =>
+    c.creative_design ?? (c.research_project_id ? projectDefaultsById[c.research_project_id]?.creative_design ?? null : null);
 
   const surveyIdsNeeded = Array.from(new Set(
     campaigns.map(effectiveSurveyId).filter((id): id is string => !!id)
@@ -213,7 +217,7 @@ export async function GET(req: NextRequest) {
     survey_language: lang,
     country_code:    campaign.country_code ?? null,
     market:          campaign.market ?? null,
-    creative_theme:  (campaign as Record<string, unknown>).creative_theme ?? null,
+    creative_design:  effectiveCreativeDesign(campaign),
     questions,
     thank_you_title: resolveText(survey?.thank_you_title ?? {}, lang) || "Thank you!",
     thank_you_body:  resolveText(survey?.thank_you_body ?? {}, lang) || "Your anonymous feedback helps improve the football experience for fans everywhere.",
