@@ -450,7 +450,12 @@ export default function ResearchProjectsPage() {
           {displayed.map(p => {
             const expanded = expandedId === p.id;
             const possibleCombos = p.publishers.length * p.country_codes.length;
-            const canGenerate = p.publishers.length > 0 && p.country_codes.length > 0;
+            const canGenerate = p.publishers.length > 0 && p.country_codes.length > 0 && !!p.survey_id;
+            const generateBlockedReasons = [
+              p.publishers.length === 0 && "add publishers",
+              p.country_codes.length === 0 && "add countries",
+              !p.survey_id && "select a survey",
+            ].filter(Boolean) as string[];
             const result = generateResults[p.id];
             const isGenerating = generating[p.id] ?? false;
 
@@ -506,7 +511,7 @@ export default function ResearchProjectsPage() {
                       <button
                         onClick={() => handleGenerate(p)}
                         disabled={!canGenerate || isGenerating}
-                        title={canGenerate ? "" : "Add publishers and countries in Edit first"}
+                        title={canGenerate ? "" : `In Edit: ${generateBlockedReasons.join(", ")}`}
                         className="text-xs font-semibold px-3 py-1.5 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed"
                         style={{ background: "#0B1929", color: "#D7B87A" }}
                       >

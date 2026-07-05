@@ -38,6 +38,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (countryCodes.length === 0) {
     return NextResponse.json({ error: "Add at least one country to this project before generating deployments." }, { status: 400 });
   }
+  if (!project.survey_id) {
+    return NextResponse.json({ error: "Select a survey for this project before generating deployments." }, { status: 400 });
+  }
 
   const unknownCodes = countryCodes.filter(c => !countryByCode(c));
   if (unknownCodes.length > 0) {
@@ -88,7 +91,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       .insert([{
         campaign_id: campaignSlug,
         campaign_name: campaignName,
-        brand_name: project.brand_name ?? null,
+        // campaigns.brand_name is NOT NULL — Research Projects allow a blank
+        // Brand for non-brand studies, so fall back to Topic, then empty
+        // string, matching the naming convention's own brandOrTopic logic.
+        brand_name: brandOrTopic,
         campaign_description: null,
         publisher: combo.publisher,
         country_code: combo.countryCode,
