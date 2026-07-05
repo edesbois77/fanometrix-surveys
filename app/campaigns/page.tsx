@@ -62,6 +62,22 @@ type Campaign = {
   // Research Project link — NULL fields below mean "inherited from project"
   research_project_id: string | null;
   tags: string[] | null;
+  // API-only enrichment (resolved inheritance) — never real columns, must
+  // never be sent back on save. See the strip list in openEdit() below.
+  effective_survey_id?: string | null;
+  effective_start_date?: string | null;
+  effective_end_date?: string | null;
+  effective_target_responses?: number | null;
+  effective_archive_after_days?: number | null;
+  effective_tags?: string[];
+  inherited?: {
+    survey_id: boolean;
+    start_date: boolean;
+    end_date: boolean;
+    target_responses: boolean;
+    archive_after_days: boolean;
+    tags: boolean;
+  } | null;
 };
 
 type ResearchProjectSummary = {
@@ -417,6 +433,11 @@ export default function CampaignsPage() {
     const { surveys: _s, effective_status: _es, status_reason: _sr,
             is_auto_transition: _iat, response_count: _rc,
             deleted_at: _da, deleted_by: _db, delete_reason: _dr,
+            // API-only resolved-inheritance fields — never real columns,
+            // must never round-trip back into a save payload.
+            effective_survey_id: _esi, effective_start_date: _esd, effective_end_date: _eed,
+            effective_target_responses: _etr, effective_archive_after_days: _ead,
+            effective_tags: _et, inherited: _inh,
             ...rest } = c;
     setEditing({ ...rest });
     setError("");
