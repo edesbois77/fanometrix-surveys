@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { AdminShell } from "@/app/components/AdminShell";
 import { useSession } from "@/app/components/SessionProvider";
@@ -10,6 +11,9 @@ import {
   generateProjectName, generateProjectSlug,
 } from "@/lib/naming";
 import { countryOptions, countryByCode } from "@/lib/countries";
+import { isSurveyValidForReady } from "@/lib/survey-validation";
+import { getCompletedLanguages, SUPPORTED_LANGUAGES, type LocalisedQuestion, type LangCode } from "@/lib/survey-locale";
+import { expectedSurveyLanguage } from "@/lib/locales";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type ResearchProject = {
@@ -43,7 +47,7 @@ type Survey = {
   name: string;
   status: string;
   is_template: boolean;
-  questions?: Array<{ text: string; options: string[] }>;
+  questions?: LocalisedQuestion[];
   thank_you_title?: string;
   thank_you_body?: string;
 };
@@ -59,6 +63,7 @@ type Deployment = {
   effective_status: CampaignStatus;
   response_count: number;
   effective_target_responses: number | null;
+  effective_survey_id: string | null;
 };
 
 type GenerateResult = {
@@ -110,8 +115,20 @@ function Stat({ label, value }: { label: string; value: string | number }) {
   );
 }
 
+/** Null when the deployment's effective survey fully covers its country's expected language. */
+function deploymentLanguageWarning(d: Deployment, surveys: Survey[]): string | null {
+  if (!d.effective_survey_id || !d.country_code) return null;
+  const survey = surveys.find(s => s.id === d.effective_survey_id);
+  if (!survey) return null;
+  const lang = expectedSurveyLanguage(d.country_code) as LangCode;
+  const completed = getCompletedLanguages(survey.questions ?? []);
+  if (completed.includes(lang)) return null;
+  const label = SUPPORTED_LANGUAGES.find(l => l.code === lang)?.label ?? lang;
+  return `Missing ${label} survey localisation for ${d.country_code}`;
+}
+
 // ─── Read-only deployments list (expand panel) ─────────────────────────────────
-function DeploymentsList({ project, refreshToken }: { project: ResearchProject; refreshToken: number }) {
+function DeploymentsList({ project, surveys, refreshToken }: { project: ResearchProject; surveys: Survey[]; refreshToken: number }) {
   const [deployments, setDeployments] = useState<Deployment[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
@@ -137,24 +154,37 @@ function DeploymentsList({ project, refreshToken }: { project: ResearchProject; 
       )}
       {!loading && deployments && deployments.length > 0 && (
         <div className="space-y-2">
-          {deployments.slice(0, visibleCount).map(d => (
-            <div key={d.id} className="bg-white border border-gray-100 rounded-lg px-3 py-2.5 flex items-center justify-between gap-3">
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium text-gray-800 truncate">{d.campaign_name}</p>
-                <p className="text-xs font-mono text-gray-400">{d.campaign_id}</p>
-                <div className="flex flex-wrap gap-1.5 mt-1">
-                  {d.country_code && <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">{d.country_code}</span>}
-                  {d.publisher && <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">{d.publisher}</span>}
+          {deployments.slice(0, visibleCount).map(d => {
+            const languageWarning = deploymentLanguageWarning(d, surveys);
+            return (
+              <div key={d.id} className="bg-white border border-gray-100 rounded-lg px-3 py-2.5 flex items-center justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-gray-800 truncate">{d.campaign_name}</p>
+                  <p className="text-xs font-mono text-gray-400">{d.campaign_id}</p>
+                  <div className="flex flex-wrap gap-1.5 mt-1">
+                    {d.country_code && <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">{d.country_code}</span>}
+                    {d.publisher && <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">{d.publisher}</span>}
+                  </div>
+                  {languageWarning && (
+                    <p className="text-xs text-amber-600 mt-1" title="Add the missing translation to the survey in Surveys, or override this deployment's survey in Campaigns.">
+                      ⚠ {languageWarning}
+                    </p>
+                  )}
+                </div>
+                <div className="text-right flex-shrink-0">
+                  <StatusBadge status={(d.effective_status ?? d.status) as CampaignStatus} />
+                  <p className="text-xs text-gray-400 mt-1">
+                    {d.response_count.toLocaleString()}{d.effective_target_responses ? ` / ${d.effective_target_responses.toLocaleString()}` : ""} responses
+                  </p>
+                  {languageWarning && (
+                    <Link href="/campaigns" className="text-xs underline text-amber-700 block mt-1">
+                      Override survey →
+                    </Link>
+                  )}
                 </div>
               </div>
-              <div className="text-right flex-shrink-0">
-                <StatusBadge status={(d.effective_status ?? d.status) as CampaignStatus} />
-                <p className="text-xs text-gray-400 mt-1">
-                  {d.response_count.toLocaleString()}{d.effective_target_responses ? ` / ${d.effective_target_responses.toLocaleString()}` : ""} responses
-                </p>
-              </div>
-            </div>
-          ))}
+            );
+          })}
           {deployments.length > visibleCount && (
             <button
               onClick={() => setVisibleCount(v => v + PAGE_SIZE)}
@@ -220,6 +250,33 @@ export default function ResearchProjectsPage() {
     return Array.from(set).sort();
   }, [projects]);
   const tagOptions = useMemo(() => existingTags.map(t => ({ value: t, label: t })), [existingTags]);
+
+  // Surveys selectable as a project's inherited survey — same readiness gate as the Campaigns drawer.
+  const selectableSurveys = useMemo(() => surveys.filter(s => {
+    if (s.status === "draft") return true;
+    if (s.status === "ready") return isSurveyValidForReady(s);
+    return false;
+  }), [surveys]);
+
+  // Countries whose expected survey language isn't fully translated in the selected survey.
+  function missingLanguageCountries(surveyId: string | null | undefined, countryCodes: string[] | undefined) {
+    const survey = surveys.find(s => s.id === surveyId);
+    if (!survey || !countryCodes?.length) return [];
+    const completed = getCompletedLanguages(survey.questions ?? []);
+    return countryCodes
+      .map(code => ({ code, lang: expectedSurveyLanguage(code) as LangCode }))
+      .filter(({ lang }) => !completed.includes(lang));
+  }
+
+  function languageLabel(code: LangCode) {
+    return SUPPORTED_LANGUAGES.find(l => l.code === code)?.label ?? code;
+  }
+
+  const editingMismatches = useMemo(
+    () => missingLanguageCountries(editing.survey_id, editing.country_codes),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [editing.survey_id, editing.country_codes, surveys]
+  );
 
   const displayed = useMemo(() => {
     if (!search.trim()) return projects;
@@ -313,6 +370,15 @@ export default function ResearchProjectsPage() {
   }
 
   async function handleGenerate(p: ResearchProject) {
+    const mismatches = missingLanguageCountries(p.survey_id, p.country_codes);
+    if (mismatches.length > 0) {
+      const lines = mismatches.map(({ code, lang }) => `${code} → ${languageLabel(lang)} version required`).join("\n");
+      const confirmed = confirm(
+        `Survey language mismatch detected.\n\nThe project survey does not contain language versions for all selected deployment countries:\n\n${lines}\n\nDeployments will still be generated using the project survey (falling back to English where translations are missing). Continue anyway?`
+      );
+      if (!confirmed) return;
+    }
+
     setGenerating(g => ({ ...g, [p.id]: true }));
     setGenerateResults(r => { const n = { ...r }; delete n[p.id]; return n; });
     const res = await fetch(`/api/research-projects/${p.id}/generate-deployments`, { method: "POST" });
@@ -478,7 +544,7 @@ export default function ResearchProjectsPage() {
                 )}
 
                 {expanded && (
-                  <DeploymentsList project={p} refreshToken={refreshTokens[p.id] ?? 0} />
+                  <DeploymentsList project={p} surveys={surveys} refreshToken={refreshTokens[p.id] ?? 0} />
                 )}
               </div>
             );
@@ -547,8 +613,10 @@ export default function ResearchProjectsPage() {
                   options={tagOptions}
                   selected={editing.tags ?? []}
                   onChange={v => setEditing(x => ({ ...x, tags: v }))}
-                  placeholder="Add tags…"
-                  helperText="Freeform — type a new tag and press Enter to add it."
+                  placeholder="Search or create a tag…"
+                  helperText="Type to see matching tags used on other projects, or create a new one. Tags become available to every future project once created."
+                  allowCreate
+                  createLabel={t => `+ Create tag: "${t}"`}
                 />
               </Field>
 
@@ -605,17 +673,44 @@ export default function ResearchProjectsPage() {
                 <p className="text-xs text-red-500 -mt-2">End date must be on or after the start date.</p>
               )}
 
-              <Field label="Default Survey Template">
-                <select value={editing.survey_id ?? ""} onChange={e => setEditing(x => ({ ...x, survey_id: e.target.value || null }))}
-                  className={INP}>
-                  <option value="">None selected</option>
-                  {surveys.filter(s => s.is_template).map(s => (
-                    <option key={s.id} value={s.id}>{s.name}</option>
-                  ))}
-                </select>
+              <Field label="Project Survey Template">
+                {selectableSurveys.length === 0 ? (
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5">
+                    <p className="text-xs text-amber-700">
+                      No surveys are available to select yet.
+                    </p>
+                    <Link href="/survey-templates" target="_blank" className="text-xs font-medium underline text-amber-800">
+                      Create one in Surveys →
+                    </Link>
+                  </div>
+                ) : (
+                  <select value={editing.survey_id ?? ""} onChange={e => setEditing(x => ({ ...x, survey_id: e.target.value || null }))}
+                    className={INP}>
+                    <option value="">None selected</option>
+                    {selectableSurveys.map(s => (
+                      <option key={s.id} value={s.id}>{s.name}</option>
+                    ))}
+                  </select>
+                )}
                 <p className="text-xs text-gray-400 mt-1.5 leading-relaxed">
-                  Deployments without their own survey override will use this template.
+                  This is the primary survey inherited by every generated deployment, unless an individual deployment overrides it.
                 </p>
+                {editingMismatches.length > 0 && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5 mt-2 space-y-1">
+                    <p className="text-xs font-semibold text-amber-800">⚠ Survey language mismatch detected</p>
+                    <p className="text-xs text-amber-700">
+                      The selected survey does not contain language versions for all selected deployment countries.
+                    </p>
+                    <ul className="text-xs text-amber-700 list-disc list-inside">
+                      {editingMismatches.map(({ code, lang }) => (
+                        <li key={code}>{code} → {languageLabel(lang)} version required</li>
+                      ))}
+                    </ul>
+                    <p className="text-xs text-amber-600">
+                      You can still save this project. Add the missing translation to the survey, or override the survey for the affected deployments after generating them.
+                    </p>
+                  </div>
+                )}
               </Field>
 
               <div className="grid grid-cols-2 gap-3">

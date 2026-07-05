@@ -85,7 +85,7 @@ const LANGUAGE_TO_COUNTRY: Record<string, string> = {
 };
 
 // Country code → survey language (for reference display only — never auto-derive)
-const COUNTRY_TO_LANGUAGE: Record<string, string> = {
+export const COUNTRY_TO_LANGUAGE: Record<string, string> = {
   GB: "en",
   US: "en",
   AU: "en",
@@ -103,6 +103,19 @@ const COUNTRY_TO_LANGUAGE: Record<string, string> = {
   IN: "en",   // India — English is the survey language used
   SA: "ar",
 };
+
+/**
+ * The survey language a given country is expected to have a complete
+ * translation for, downgraded to "en" when the country's natural language
+ * isn't one Fanometrix surveys can actually be authored in
+ * (SUPPORTED_LANGUAGE_CODES). Used to validate that a Research Project's
+ * chosen survey covers every deployment country — never used to auto-set
+ * survey_language on a campaign.
+ */
+export function expectedSurveyLanguage(countryCode: string): string {
+  const lang = COUNTRY_TO_LANGUAGE[countryCode.toUpperCase()];
+  return lang && SUPPORTED_LANGUAGE_CODES.has(lang) ? lang : "en";
+}
 
 // ── Reference pairs shown in the campaign form ────────────────────────────────
 export const MARKET_REFERENCE_PAIRS = [

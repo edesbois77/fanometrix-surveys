@@ -16,6 +16,8 @@ export function MultiSelect({
   strict = false,
   onUnmatchedText,
   unmatchedMessage,
+  allowCreate = false,
+  createLabel,
 }: {
   options: MultiSelectOption[];
   selected: string[];
@@ -28,6 +30,10 @@ export function MultiSelect({
   onUnmatchedText?: (hasUnmatched: boolean) => void;
   /** Customise the strict-mode error message shown under the input */
   unmatchedMessage?: (search: string) => string;
+  /** When true, typed text with no exact match can be added as a brand-new value (e.g. freeform tags) */
+  allowCreate?: boolean;
+  /** Customise the "create new" button label — defaults to a generic tag-creation label */
+  createLabel?: (text: string) => string;
 }) {
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState(false);
@@ -50,8 +56,15 @@ export function MultiSelect({
          o.label.toLowerCase().includes(search.toLowerCase())
   );
 
-  // Notify parent whether there is unmatched text pending
-  const hasUnmatched = strict && search.trim().length > 0 && remaining.length === 0;
+  const trimmed = search.trim();
+  const alreadyExists =
+    options.some(o => o.value.toLowerCase() === trimmed.toLowerCase()) ||
+    selected.some(v => v.toLowerCase() === trimmed.toLowerCase());
+  const canCreate = allowCreate && trimmed.length > 0 && !alreadyExists;
+
+  // Notify parent whether there is unmatched text pending (strict mode only —
+  // allowCreate mode treats unmatched text as a valid pending creation, not an error)
+  const hasUnmatched = strict && !allowCreate && trimmed.length > 0 && remaining.length === 0;
   useEffect(() => {
     onUnmatchedText?.(hasUnmatched);
   }, [hasUnmatched, onUnmatchedText]);
@@ -71,6 +84,7 @@ export function MultiSelect({
     if (e.key === "Enter") {
       e.preventDefault(); // always stop outer form submitting
       if (remaining.length > 0) add(remaining[0].value); // select first match
+      else if (canCreate) add(trimmed); // no match — create the typed value
     }
     if (e.key === "Escape") { setOpen(false); setSearch(""); onUnmatchedText?.(false); }
   }
@@ -116,20 +130,29 @@ export function MultiSelect({
         )}
         {open && !hasUnmatched && (
           <div ref={dropRef} className="absolute z-20 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-44 overflow-y-auto">
-            {remaining.length === 0 ? (
+            {remaining.length === 0 && !canCreate && (
               <p className="px-3 py-2.5 text-xs text-gray-400">
                 {search ? "No matches found" : "All selected"}
               </p>
-            ) : (
-              remaining.map(o => (
-                <button
-                  key={o.value} type="button"
-                  onMouseDown={e => { e.preventDefault(); add(o.value); }}
-                  className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-                >
-                  {o.label}
-                </button>
-              ))
+            )}
+            {remaining.map(o => (
+              <button
+                key={o.value} type="button"
+                onMouseDown={e => { e.preventDefault(); add(o.value); }}
+                className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                {o.label}
+              </button>
+            ))}
+            {canCreate && (
+              <button
+                type="button"
+                onMouseDown={e => { e.preventDefault(); add(trimmed); }}
+                className="w-full text-left px-3 py-2 text-sm font-medium hover:bg-gray-50 transition-colors border-t border-gray-100"
+                style={{ color: "#0B1929" }}
+              >
+                {createLabel ? createLabel(trimmed) : `+ Create "${trimmed}"`}
+              </button>
             )}
           </div>
         )}
