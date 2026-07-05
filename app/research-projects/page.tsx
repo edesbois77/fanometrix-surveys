@@ -109,6 +109,36 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
+/**
+ * A numbered step in the drawer's guided workflow. `prominent` marks the two
+ * sections that are the actual point of Research Projects (Deployment Matrix,
+ * Survey Configuration) so they read as more than "just another form field".
+ */
+function DrawerSection({
+  step, title, subtitle, prominent = false, children,
+}: { step: number; title: string; subtitle?: string; prominent?: boolean; children: React.ReactNode }) {
+  return (
+    <div className={`rounded-xl border overflow-hidden ${prominent ? "border-[#D7B87A] bg-[#FBF5E8]/50" : "border-gray-100 bg-white"}`}>
+      <div className="px-4 pt-4 pb-2 flex items-start gap-2.5">
+        <span
+          className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold mt-0.5 ${
+            prominent ? "bg-[#0B1929] text-[#D7B87A]" : "bg-gray-100 text-gray-500"
+          }`}
+        >
+          {step}
+        </span>
+        <div className="min-w-0">
+          <h3 className={`text-sm font-bold ${prominent ? "text-[#0B1929]" : "text-gray-800"}`}>{title}</h3>
+          {subtitle && <p className="text-xs text-gray-400 mt-0.5 leading-relaxed">{subtitle}</p>}
+        </div>
+      </div>
+      <div className="px-4 pb-4 pt-2 space-y-3">
+        {children}
+      </div>
+    </div>
+  );
+}
+
 function Stat({ label, value }: { label: string; value: string | number }) {
   return (
     <span className="text-xs text-gray-500">
@@ -598,75 +628,78 @@ export default function ResearchProjectsPage() {
               <button onClick={() => setDrawerOpen(false)} className="text-gray-400 hover:text-gray-600 text-xl">×</button>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-6 space-y-4">
-              <div className="bg-gray-50 border border-gray-100 rounded-xl p-4 space-y-3">
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Name Builder</p>
-                <div className="grid grid-cols-2 gap-3">
-                  <Field label="Brand (optional)">
-                    <input value={editing.brand_name ?? ""} onChange={e => setEditing(x => ({ ...x, brand_name: e.target.value }))}
-                      className={INP} placeholder="Carlsberg" />
-                  </Field>
-                  <Field label="Topic">
-                    <input value={editing.topic ?? ""} onChange={e => setEditing(x => ({ ...x, topic: e.target.value }))}
-                      className={INP} placeholder="Women's World Cup" />
-                  </Field>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <Field label="Year">
-                    <input value={editing.year ?? ""} onChange={e => setEditing(x => ({ ...x, year: e.target.value }))}
-                      className={INP} placeholder={String(new Date().getFullYear())} maxLength={9} />
-                  </Field>
-                  <div className="flex items-end">
-                    <button type="button" onClick={autoId}
-                      className="w-full text-xs font-semibold px-3 py-2 rounded-lg border-2 border-[#D7B87A] text-[#0B1929] hover:bg-[#FBF5E8] transition-colors">
-                      Auto Generate Name &amp; Slug
-                    </button>
+            <div className="flex-1 overflow-y-auto p-6 space-y-5">
+
+              <DrawerSection step={1} title="Study Details" subtitle="What this project is and how it's classified.">
+                <div className="bg-gray-50 border border-gray-100 rounded-lg p-3 space-y-3">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Name Builder</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Field label="Brand (optional)">
+                      <input value={editing.brand_name ?? ""} onChange={e => setEditing(x => ({ ...x, brand_name: e.target.value }))}
+                        className={INP} placeholder="Carlsberg" />
+                    </Field>
+                    <Field label="Topic">
+                      <input value={editing.topic ?? ""} onChange={e => setEditing(x => ({ ...x, topic: e.target.value }))}
+                        className={INP} placeholder="Women's World Cup" />
+                    </Field>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Field label="Year">
+                      <input value={editing.year ?? ""} onChange={e => setEditing(x => ({ ...x, year: e.target.value }))}
+                        className={INP} placeholder={String(new Date().getFullYear())} maxLength={9} />
+                    </Field>
+                    <div className="flex items-end">
+                      <button type="button" onClick={autoId}
+                        className="w-full text-xs font-semibold px-3 py-2 rounded-lg border-2 border-[#D7B87A] text-[#0B1929] hover:bg-[#FBF5E8] transition-colors">
+                        Auto Generate Name &amp; Slug
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              <Field label="Project Name *">
-                <input value={editing.project_name ?? ""} onChange={e => setEditing(x => ({ ...x, project_name: e.target.value }))}
-                  className={INP} placeholder="Carlsberg | Fan Understanding | 2026" />
-              </Field>
+                <Field label="Project Name *">
+                  <input value={editing.project_name ?? ""} onChange={e => setEditing(x => ({ ...x, project_name: e.target.value }))}
+                    className={INP} placeholder="Carlsberg | Fan Understanding | 2026" />
+                </Field>
 
-              <Field label="Project ID *">
-                <input value={editing.project_id ?? ""} onChange={e => setEditing(x => ({ ...x, project_id: e.target.value }))}
-                  className={`${INP} font-mono`} placeholder="carlsberg_fan_understanding_2026" />
-              </Field>
+                <Field label="Project ID *">
+                  <input value={editing.project_id ?? ""} onChange={e => setEditing(x => ({ ...x, project_id: e.target.value }))}
+                    className={`${INP} font-mono`} placeholder="carlsberg_fan_understanding_2026" />
+                </Field>
 
-              <Field label="Study Type *">
-                <select value={editing.study_type ?? "fan_understanding"} onChange={e => setEditing(x => ({ ...x, study_type: e.target.value }))}
-                  className={INP}>
-                  {STUDY_TYPES.map(t => (
-                    <option key={t} value={t}>{STUDY_TYPE_LABELS[t]}</option>
-                  ))}
-                </select>
-              </Field>
+                <Field label="Study Type *">
+                  <select value={editing.study_type ?? "fan_understanding"} onChange={e => setEditing(x => ({ ...x, study_type: e.target.value }))}
+                    className={INP}>
+                    {STUDY_TYPES.map(t => (
+                      <option key={t} value={t}>{STUDY_TYPE_LABELS[t]}</option>
+                    ))}
+                  </select>
+                </Field>
 
-              <Field label="Tags">
-                <MultiSelect
-                  options={tagOptions}
-                  selected={editing.tags ?? []}
-                  onChange={v => setEditing(x => ({ ...x, tags: v }))}
-                  placeholder="Search or create a tag…"
-                  helperText="Type to see matching tags used on other projects, or create a new one. Tags become available to every future project once created."
-                  allowCreate
-                  createLabel={t => `+ Create tag: "${t}"`}
-                />
-              </Field>
+                <Field label="Tags">
+                  <MultiSelect
+                    options={tagOptions}
+                    selected={editing.tags ?? []}
+                    onChange={v => setEditing(x => ({ ...x, tags: v }))}
+                    placeholder="Search or create a tag…"
+                    helperText="Type to see matching tags used on other projects, or create a new one. Tags become available to every future project once created."
+                    allowCreate
+                    createLabel={t => `+ Create tag: "${t}"`}
+                  />
+                </Field>
 
-              <Field label="Description">
-                <input value={editing.description ?? ""} onChange={e => setEditing(x => ({ ...x, description: e.target.value }))}
-                  className={INP} placeholder="Optional" />
-              </Field>
+                <Field label="Description">
+                  <input value={editing.description ?? ""} onChange={e => setEditing(x => ({ ...x, description: e.target.value }))}
+                    className={INP} placeholder="Optional" />
+                </Field>
+              </DrawerSection>
 
-              {/* ── Deployment matrix: the core of Research Projects ── */}
-              <div className="bg-gray-50 border border-gray-100 rounded-xl p-4 space-y-3">
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Deployment Matrix</p>
-                <p className="text-xs text-gray-400 -mt-1">
-                  Every publisher × country combination becomes one deployment campaign when you click "Generate Deployments".
-                </p>
+              <DrawerSection
+                step={2}
+                title="Deployment Matrix"
+                subtitle={'Every publisher × country combination becomes one deployment campaign when you click "Generate Deployments".'}
+                prominent
+              >
                 <Field label="Publishers">
                   <MultiSelect
                     options={publisherOptions}
@@ -688,51 +721,44 @@ export default function ResearchProjectsPage() {
                   />
                 </Field>
                 {(editing.publishers?.length ?? 0) > 0 && (editing.country_codes?.length ?? 0) > 0 && (
-                  <p className="text-xs text-gray-500">
+                  <p className="text-xs font-semibold text-[#0B1929] bg-white border border-[#D7B87A]/40 rounded-lg px-3 py-2">
                     {editing.publishers!.length} publisher{editing.publishers!.length !== 1 ? "s" : ""} × {editing.country_codes!.length} countr{editing.country_codes!.length === 1 ? "y" : "ies"} = up to {editing.publishers!.length * editing.country_codes!.length} deployments once generated.
                   </p>
                 )}
-              </div>
+              </DrawerSection>
 
-              <div className="grid grid-cols-2 gap-3">
-                <Field label="Start Date">
-                  <input type="date" value={editing.start_date ?? ""} onChange={e => setEditing(x => ({ ...x, start_date: e.target.value || null }))}
-                    className={INP} />
+              <DrawerSection
+                step={3}
+                title="Survey Configuration"
+                subtitle="The survey inherited by every generated deployment, validated against the countries selected above."
+                prominent
+              >
+                <Field label="Select A Survey">
+                  {selectableSurveys.length === 0 ? (
+                    <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5">
+                      <p className="text-xs text-amber-700">
+                        No surveys are available to select yet.
+                      </p>
+                      <Link href="/survey-templates" target="_blank" className="text-xs font-medium underline text-amber-800">
+                        Create one in Surveys →
+                      </Link>
+                    </div>
+                  ) : (
+                    <select value={editing.survey_id ?? ""} onChange={e => setEditing(x => ({ ...x, survey_id: e.target.value || null }))}
+                      className={INP}>
+                      <option value="">None selected</option>
+                      {selectableSurveys.map(s => (
+                        <option key={s.id} value={s.id}>{s.name}</option>
+                      ))}
+                    </select>
+                  )}
+                  <p className="text-xs text-gray-400 mt-1.5 leading-relaxed">
+                    This is the primary survey inherited by every generated deployment, unless an individual deployment overrides it.
+                  </p>
                 </Field>
-                <Field label="End Date">
-                  <input type="date" value={editing.end_date ?? ""} min={editing.start_date ?? undefined}
-                    onChange={e => setEditing(x => ({ ...x, end_date: e.target.value || null }))}
-                    className={INP} />
-                </Field>
-              </div>
-              {editing.start_date && editing.end_date && editing.start_date > editing.end_date && (
-                <p className="text-xs text-red-500 -mt-2">End date must be on or after the start date.</p>
-              )}
 
-              <Field label="Select A Survey">
-                {selectableSurveys.length === 0 ? (
-                  <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5">
-                    <p className="text-xs text-amber-700">
-                      No surveys are available to select yet.
-                    </p>
-                    <Link href="/survey-templates" target="_blank" className="text-xs font-medium underline text-amber-800">
-                      Create one in Surveys →
-                    </Link>
-                  </div>
-                ) : (
-                  <select value={editing.survey_id ?? ""} onChange={e => setEditing(x => ({ ...x, survey_id: e.target.value || null }))}
-                    className={INP}>
-                    <option value="">None selected</option>
-                    {selectableSurveys.map(s => (
-                      <option key={s.id} value={s.id}>{s.name}</option>
-                    ))}
-                  </select>
-                )}
-                <p className="text-xs text-gray-400 mt-1.5 leading-relaxed">
-                  This is the primary survey inherited by every generated deployment, unless an individual deployment overrides it.
-                </p>
-                {editingMismatches.length > 0 && (
-                  <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2.5 mt-2 space-y-1">
+                {editingMismatches.length > 0 ? (
+                  <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2.5 space-y-1">
                     <p className="text-xs font-semibold text-red-700">🚩 Survey language mismatch detected</p>
                     <p className="text-xs text-red-700">
                       The selected survey does not contain language versions for all selected deployment countries.
@@ -746,35 +772,56 @@ export default function ResearchProjectsPage() {
                       You can still save this project, but Generate Deployments will be blocked until this is fixed — either add the missing translation to the survey, or remove the affected countries.
                     </p>
                   </div>
+                ) : editing.survey_id && (editing.country_codes?.length ?? 0) > 0 ? (
+                  <p className="text-xs font-semibold text-green-700 bg-white border border-green-200 rounded-lg px-3 py-2">
+                    ✓ This survey covers every selected country's expected language.
+                  </p>
+                ) : null}
+              </DrawerSection>
+
+              <DrawerSection step={4} title="Campaign Settings" subtitle="Defaults applied to every generated deployment — each can still be overridden individually afterward.">
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="Start Date">
+                    <input type="date" value={editing.start_date ?? ""} onChange={e => setEditing(x => ({ ...x, start_date: e.target.value || null }))}
+                      className={INP} />
+                  </Field>
+                  <Field label="End Date">
+                    <input type="date" value={editing.end_date ?? ""} min={editing.start_date ?? undefined}
+                      onChange={e => setEditing(x => ({ ...x, end_date: e.target.value || null }))}
+                      className={INP} />
+                  </Field>
+                </div>
+                {editing.start_date && editing.end_date && editing.start_date > editing.end_date && (
+                  <p className="text-xs text-red-500 -mt-1">End date must be on or after the start date.</p>
                 )}
-              </Field>
 
-              <div className="grid grid-cols-2 gap-3">
-                <Field label="Target Responses">
-                  <input type="number" min={1}
-                    value={editing.target_responses ?? ""}
-                    onChange={e => setEditing(x => ({ ...x, target_responses: e.target.value ? Number(e.target.value) : null }))}
-                    className={INP} placeholder="e.g. 10000 (optional)" />
-                </Field>
-                <Field label="Archive After (days)">
-                  <input type="number" min={1}
-                    value={editing.archive_after_days ?? ""}
-                    onChange={e => setEditing(x => ({ ...x, archive_after_days: e.target.value ? Number(e.target.value) : null }))}
-                    className={INP} placeholder="90 (optional)" />
-                </Field>
-              </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="Target Responses">
+                    <input type="number" min={1}
+                      value={editing.target_responses ?? ""}
+                      onChange={e => setEditing(x => ({ ...x, target_responses: e.target.value ? Number(e.target.value) : null }))}
+                      className={INP} placeholder="e.g. 10000 (optional)" />
+                  </Field>
+                  <Field label="Archive After (days)">
+                    <input type="number" min={1}
+                      value={editing.archive_after_days ?? ""}
+                      onChange={e => setEditing(x => ({ ...x, archive_after_days: e.target.value ? Number(e.target.value) : null }))}
+                      className={INP} placeholder="90 (optional)" />
+                  </Field>
+                </div>
 
-              <Field label="Status">
-                <select value={editing.status ?? "draft"} onChange={e => setEditing(x => ({ ...x, status: e.target.value }))}
-                  className={INP}>
-                  {(["draft", "scheduled", "live", "paused", "closed", "archived"] as const).map(s => (
-                    <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>
-                  ))}
-                </select>
-                <p className="text-xs text-gray-400 mt-1.5 leading-relaxed">
-                  New deployments start in this status when generated. Existing deployments manage their own status independently afterward.
-                </p>
-              </Field>
+                <Field label="Status">
+                  <select value={editing.status ?? "draft"} onChange={e => setEditing(x => ({ ...x, status: e.target.value }))}
+                    className={INP}>
+                    {(["draft", "scheduled", "live", "paused", "closed", "archived"] as const).map(s => (
+                      <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-gray-400 mt-1.5 leading-relaxed">
+                    New deployments start in this status when generated. Existing deployments manage their own status independently afterward.
+                  </p>
+                </Field>
+              </DrawerSection>
 
               {error && <p className="text-red-500 text-xs">{error}</p>}
             </div>
