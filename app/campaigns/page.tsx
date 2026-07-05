@@ -267,6 +267,10 @@ export default function CampaignsPage() {
   const [error,      setError]      = useState("");
   const [toast,      setToast]      = useState<{ msg: string; ok: boolean } | null>(null);
 
+  // Bulk selection
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkWorking,  setBulkWorking] = useState(false);
+
   function showToast(msg: string, ok = true) {
     setToast({ msg, ok });
     setTimeout(() => setToast(null), 4000);
@@ -492,6 +496,105 @@ export default function CampaignsPage() {
     load();
   }
 
+  // ── Bulk selection ──────────────────────────────────────────────────────────
+  function toggleSelect(id: string) {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAll(ids: string[]) {
+    setSelectedIds(prev => {
+      const allSelected = ids.length > 0 && ids.every(id => prev.has(id));
+      return allSelected ? new Set() : new Set(ids);
+    });
+  }
+
+  function clearSelection() {
+    setSelectedIds(new Set());
+  }
+
+  async function handleBulkDelete() {
+    const targets = displayed.filter(c => selectedIds.has(c.id));
+    if (!targets.length) return;
+    const blocked = targets.filter(c => c.effective_status === "live" || c.effective_status === "paused" || c.status === "live" || c.status === "paused");
+    const eligible = targets.filter(c => !blocked.includes(c));
+    if (!eligible.length) {
+      showToast("None of the selected campaigns can be deleted — live and paused campaigns must be paused or closed first.", false);
+      return;
+    }
+    const msg = blocked.length > 0
+      ? `Move ${eligible.length} campaign(s) to deleted items? ${blocked.length} live/paused campaign(s) in your selection will be skipped.`
+      : `Move ${eligible.length} campaign(s) to deleted items? They can be restored later.`;
+    if (!confirm(msg)) return;
+
+    setBulkWorking(true);
+    let succeeded = 0, failed = 0;
+    for (const c of eligible) {
+      const res = await fetch(`/api/campaigns/${c.id}`, { method: "DELETE" });
+      if (res.ok) succeeded++; else failed++;
+    }
+    setBulkWorking(false);
+
+    const parts = [`${succeeded} deleted`];
+    if (blocked.length > 0) parts.push(`${blocked.length} skipped (live/paused)`);
+    if (failed > 0) parts.push(`${failed} failed`);
+    showToast(parts.join(", "), failed === 0);
+    clearSelection();
+    load();
+  }
+
+  async function handleBulkAction(action: CampaignAction) {
+    const targets = displayed.filter(c => selectedIds.has(c.id) && availableActions(c.effective_status ?? c.status as CampaignStatus).includes(action));
+    if (!targets.length) {
+      showToast(`No selected campaigns can be ${ACTION_LABELS[action].toLowerCase()}d right now.`, false);
+      return;
+    }
+    const skipped = selectedIds.size - targets.length;
+
+    setBulkWorking(true);
+    let succeeded = 0, failed = 0;
+    for (const c of targets) {
+      const res = await fetch(`/api/campaigns/${c.id}/actions`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action }),
+      });
+      if (res.ok) succeeded++; else failed++;
+    }
+    setBulkWorking(false);
+
+    const parts = [`${succeeded} ${ACTION_LABELS[action].toLowerCase()}d`];
+    if (skipped > 0) parts.push(`${skipped} skipped (not eligible)`);
+    if (failed > 0) parts.push(`${failed} failed`);
+    showToast(parts.join(", "), failed === 0);
+    clearSelection();
+    load();
+  }
+
+  async function handleBulkRestore() {
+    const targets = deletedCampaigns.filter(c => selectedIds.has(c.id));
+    if (!targets.length) return;
+    if (!confirm(`Restore ${targets.length} campaign(s) to Draft?`)) return;
+
+    setBulkWorking(true);
+    let succeeded = 0, failed = 0;
+    for (const c of targets) {
+      const res = await fetch(`/api/campaigns/${c.id}`, {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ _action: "undelete" }),
+      });
+      if (res.ok) succeeded++; else failed++;
+    }
+    setBulkWorking(false);
+
+    showToast(failed > 0 ? `${succeeded} restored, ${failed} failed` : `${succeeded} campaign(s) restored to Draft.`, failed === 0);
+    clearSelection();
+    load();
+    loadDeleted();
+  }
+
   async function handleDuplicate(c: Campaign) {
     const slug = generateDuplicateSlug(c.brand_name, c.campaign_name);
     const payload = {
@@ -660,6 +763,7 @@ export default function CampaignsPage() {
                 setActiveTab(key);
                 setStatusFilter("all"); setUsageFilter("all");
                 setDateFilter("all"); setSearch("");
+                clearSelection();
               }}
               className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
                 activeTab === key
@@ -670,6 +774,49 @@ export default function CampaignsPage() {
             </button>
           ))}
         </div>
+
+        {/* Select all + bulk action bar */}
+        {!loading && displayed.length > 0 && (
+          <div className="flex items-center justify-between mb-3 text-sm">
+            <label className="flex items-center gap-2 text-gray-500 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={displayed.every(c => selectedIds.has(c.id))}
+                onChange={() => toggleSelectAll(displayed.map(c => c.id))}
+                className="w-4 h-4 accent-[#0B1929]"
+              />
+              Select all {displayed.length}
+            </label>
+          </div>
+        )}
+
+        {selectedIds.size > 0 && (
+          <div className="sticky top-2 z-10 bg-[#0B1929] text-white rounded-xl px-4 py-3 mb-4 flex flex-wrap items-center gap-2 shadow-lg">
+            <span className="text-sm font-medium mr-2">{selectedIds.size} selected</span>
+            {activeTab === "deleted" ? (
+              <button onClick={handleBulkRestore} disabled={bulkWorking}
+                className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 disabled:opacity-50 transition-colors">
+                {bulkWorking ? "Working…" : "Restore"}
+              </button>
+            ) : (
+              <>
+                {(["publish", "go_live", "pause", "resume", "close", "archive"] as CampaignAction[]).map(action => (
+                  <button key={action} onClick={() => handleBulkAction(action)} disabled={bulkWorking}
+                    className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 disabled:opacity-50 transition-colors">
+                    {bulkWorking ? "…" : ACTION_LABELS[action]}
+                  </button>
+                ))}
+                <button onClick={handleBulkDelete} disabled={bulkWorking}
+                  className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-red-500/20 text-red-200 hover:bg-red-500/30 disabled:opacity-50 transition-colors">
+                  {bulkWorking ? "…" : "Delete"}
+                </button>
+              </>
+            )}
+            <button onClick={clearSelection} className="ml-auto text-xs text-white/60 hover:text-white transition-colors">
+              Clear
+            </button>
+          </div>
+        )}
 
         {/* List */}
         {(loading || (activeTab === "deleted" && loadingDeleted)) && (
@@ -704,10 +851,16 @@ export default function CampaignsPage() {
               : "Move to deleted items";
 
             return (
-              <div key={c.id} className={`bg-white border rounded-xl p-5 shadow-sm transition-colors ${
+              <div key={c.id} className={`bg-white border rounded-xl p-5 shadow-sm transition-colors flex gap-3 ${
                 isDeleted ? "border-gray-100 opacity-75" : "border-gray-100 hover:border-gray-200"
               }`}>
-
+                <input
+                  type="checkbox"
+                  checked={selectedIds.has(c.id)}
+                  onChange={() => toggleSelect(c.id)}
+                  className="w-4 h-4 mt-1 accent-[#0B1929] flex-shrink-0"
+                />
+                <div className="flex-1 min-w-0">
                 {isDeleted ? (
                   /* ── Deleted card ── */
                   <>
@@ -830,6 +983,7 @@ export default function CampaignsPage() {
                     </div>
                   </>
                 )}
+                </div>
               </div>
             );
           })}
