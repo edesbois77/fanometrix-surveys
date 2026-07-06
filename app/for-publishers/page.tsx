@@ -37,11 +37,14 @@ const UNKNOWN_TODAY = [
   "How audiences differ from competitors",
 ];
 
+// Each label is forced onto exactly two lines via an explicit break (rather
+// than relying on wrapping at a shared max-width, which gave inconsistent
+// 1/2/3-line results depending on word length) so all four look uniform.
 const ECOSYSTEM_FLOW = [
-  { label: "Fans share opinions", icon: <path d="M4 4h16v12H8l-4 4V4z" /> },
-  { label: "Publishers understand audiences", icon: <path d="M11 4a7 7 0 100 14 7 7 0 000-14z M21 21l-4.35-4.35" /> },
-  { label: "Brands create better activations", icon: <path d="M12 2a6 6 0 00-3 11.2c.6.4 1 1.1 1 1.8h4c0-.7.4-1.4 1-1.8A6 6 0 0012 2z M9 18h6M10 21h4" /> },
-  { label: "Football experiences improve", icon: <path d="M12 21s-7-4.35-9.5-9A5.5 5.5 0 0112 6a5.5 5.5 0 019.5 6c-2.5 4.65-9.5 9-9.5 9z" /> },
+  { lines: ["Fans share", "opinions"], icon: <path d="M4 4h16v12H8l-4 4V4z" /> },
+  { lines: ["Publishers understand", "audiences"], icon: <path d="M11 4a7 7 0 100 14 7 7 0 000-14z M21 21l-4.35-4.35" /> },
+  { lines: ["Brands create", "better activations"], icon: <path d="M12 2a6 6 0 00-3 11.2c.6.4 1 1.1 1 1.8h4c0-.7.4-1.4 1-1.8A6 6 0 0012 2z M9 18h6M10 21h4" /> },
+  { lines: ["Football experiences", "improve"], icon: <path d="M12 21s-7-4.35-9.5-9A5.5 5.5 0 0112 6a5.5 5.5 0 019.5 6c-2.5 4.65-9.5 9-9.5 9z" /> },
 ];
 
 const WHEN_FANS_HAVE_A_VOICE = [
@@ -335,14 +338,16 @@ export default function ForPublishersPage() {
           <div className="relative max-w-[980px] mx-auto mb-14">
             <div className="hidden md:block absolute top-6 left-0 right-0 h-px" style={{ background: BORDER }} />
             <div className="relative grid grid-cols-2 md:grid-cols-4 gap-8 md:gap-6">
-              {ECOSYSTEM_FLOW.map(({ label, icon }, i) => (
-                <div key={label} className="scroll-fade-up flex flex-col items-center text-center" style={{ transitionDelay: `${i * 0.1}s` }}>
+              {ECOSYSTEM_FLOW.map(({ lines, icon }, i) => (
+                <div key={lines[0]} className="scroll-fade-up flex flex-col items-center text-center" style={{ transitionDelay: `${i * 0.1}s` }}>
                   <div className="relative z-10 w-12 h-12 rounded-full flex items-center justify-center shrink-0 bg-white border-2" style={{ borderColor: GOLD }}>
                     <svg viewBox="0 0 24 24" width={18} height={18} fill="none" stroke={NAVY} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
                       {icon}
                     </svg>
                   </div>
-                  <h3 className="mt-4 text-[14px] font-bold tracking-[-0.01em] max-w-[150px]" style={{ color: NAVY }}>{label}</h3>
+                  <h3 className="mt-4 text-[14px] font-bold tracking-[-0.01em]" style={{ color: NAVY }}>
+                    {lines[0]}<br />{lines[1]}
+                  </h3>
                 </div>
               ))}
             </div>
@@ -429,7 +434,7 @@ export default function ForPublishersPage() {
                 className="group scroll-fade-up bg-white rounded-2xl border overflow-hidden transition-all duration-200 hover:border-[#D7B87A] hover:-translate-y-1 hover:shadow-lg"
                 style={{ borderColor: BORDER, transitionDelay: `${i * 0.1}s` }}
               >
-                <div className="flex items-center gap-3 px-6 pt-6 pb-1">
+                <div className="flex items-center gap-3 px-6 py-5">
                   <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 border-2 bg-white" style={{ borderColor: GOLD }}>
                     <span className="text-sm font-bold" style={{ color: NAVY }}>{i + 1}</span>
                   </div>
