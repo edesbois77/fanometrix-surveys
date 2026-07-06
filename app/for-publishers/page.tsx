@@ -442,7 +442,7 @@ export default function ForPublishersPage() {
 
         {/* ── Simplicity ── */}
         <section className="border-t border-gray-100 bg-white pt-[clamp(64px,8vw,104px)] pb-[clamp(56px,7vw,96px)] px-5 sm:px-10">
-          <div className="text-center max-w-[760px] mx-auto mb-16">
+          <div className="text-center max-w-[760px] mx-auto mb-8">
             <SectionEyebrow>Implementation</SectionEyebrow>
             <h2
               className="scroll-fade-up font-bold leading-[1.15] tracking-tight mx-auto"
@@ -453,6 +453,17 @@ export default function ForPublishersPage() {
               You Can Run Fanometrix.
             </h2>
           </div>
+
+          <p
+            className="scroll-fade-up text-center text-xs font-semibold uppercase tracking-wide mb-8 flex items-center justify-center gap-1.5"
+            style={{ color: MUTED, transitionDelay: "0.15s" }}
+          >
+            <svg viewBox="0 0 24 24" width={13} height={13} fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 3l7.07 16.97 2.51-7.39 7.39-2.51L3 3z" />
+              <path d="M13 13l6 6" />
+            </svg>
+            Hover any screenshot to see more
+          </p>
 
           <div className="max-w-[1160px] mx-auto grid sm:grid-cols-2 gap-6 mb-14">
             {IMPLEMENTATION_STEPS.map(({ label, image }, i) => (
