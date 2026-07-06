@@ -37,21 +37,67 @@ function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
 }
 
-// ── Static, non-interactive MPU-shaped swatch ────────────────────────────────
-// Deliberately NOT a live ThemedSurvey instance — rendering dozens of
+// ── Poster-style format icons ────────────────────────────────────────────────
+// Small inline SVGs — no external assets, colour is passed in so they read
+// clearly against any design's background.
+
+function StopwatchIcon({ color, size }: { color: string; size: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 64 64" fill="none" aria-hidden>
+      <rect x="26" y="3" width="12" height="6" rx="2" fill={color} />
+      <circle cx="32" cy="36" r="23" stroke={color} strokeWidth="3" fill="none" />
+      <line x1="32" y1="15" x2="32" y2="19" stroke={color} strokeWidth="2" strokeLinecap="round" opacity="0.55" />
+      <line x1="53" y1="36" x2="49" y2="36" stroke={color} strokeWidth="2" strokeLinecap="round" opacity="0.55" />
+      <line x1="11" y1="36" x2="15" y2="36" stroke={color} strokeWidth="2" strokeLinecap="round" opacity="0.55" />
+      <line x1="32" y1="36" x2="32" y2="23" stroke={color} strokeWidth="2.5" strokeLinecap="round" />
+      <line x1="32" y1="36" x2="41" y2="36" stroke={color} strokeWidth="2.5" strokeLinecap="round" />
+      <circle cx="32" cy="36" r="2.5" fill={color} />
+    </svg>
+  );
+}
+
+function ListIcon({ color, size }: { color: string; size: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 64 64" fill="none" aria-hidden>
+      {[13, 30, 47].map((y, i) => (
+        <g key={y}>
+          <circle cx="10" cy={y} r="5" stroke={color} strokeWidth="2.5" fill={i === 0 ? color : "none"} />
+          <rect x="24" y={y - 3} width="30" height="6" rx="3" fill={color} opacity={i === 0 ? 1 : 0.5} />
+        </g>
+      ))}
+    </svg>
+  );
+}
+
+// ── Poster-style, non-interactive thumbnails ─────────────────────────────────
+// Deliberately not a live ThemedSurvey instance — rendering dozens of
 // interactive timer components (each with its own interval) on one page
-// would be slow. One live preview lives on the Studio page instead.
+// would be slow, and generic placeholder question/answer text on every card
+// doesn't communicate anything either. Instead each layout gets a poster
+// template (colour-graded with the design's own palette) that signals the
+// creative's *format* at a glance, closer to a template-library thumbnail
+// than a literal screenshot. One live preview lives on the Studio page.
 function DesignSwatch({ d }: { d: Design }) {
+  const badgeStyle: React.CSSProperties = {
+    display: "flex", flexDirection: "column", alignItems: "center", gap: 7,
+    padding: "12px 18px", borderRadius: 10,
+  };
+  const labelStyle: React.CSSProperties = {
+    fontSize: 9, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase",
+  };
+
   if (d.layout === "classic") {
     return (
-      <div style={{ width: "100%", aspectRatio: "300 / 250", borderRadius: 8, background: "#071B2F", overflow: "hidden", border: "1px solid rgba(0,0,0,0.06)" }}>
-        <div style={{ height: "18%", display: "flex", alignItems: "center", padding: "0 8%" }}>
-          <div style={{ width: 34, height: 8, background: GOLD, borderRadius: 2, opacity: 0.9 }} />
-        </div>
-        <div style={{ padding: "6% 8%", display: "flex", flexDirection: "column", gap: 5 }}>
-          {[0, 1, 2, 3].map(i => (
-            <div key={i} style={{ height: 14, borderRadius: 4, background: i === 0 ? "rgba(215,184,122,0.18)" : "#FAFAFA" }} />
-          ))}
+      <div style={{ width: "100%", aspectRatio: "300 / 250", borderRadius: 8, overflow: "hidden", position: "relative", background: "#071B2F" }}>
+        <div style={{
+          position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)",
+          width: 90, height: 90, borderRadius: "50%", background: "radial-gradient(circle, rgba(215,184,122,0.18), transparent 70%)",
+        }} />
+        <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div style={badgeStyle}>
+            <ListIcon color={GOLD} size={34} />
+            <span style={{ ...labelStyle, color: GOLD }}>Classic List</span>
+          </div>
         </div>
       </div>
     );
@@ -60,24 +106,28 @@ function DesignSwatch({ d }: { d: Design }) {
   let theme;
   try { theme = buildEmbedThemeFromState(d.builder_state); } catch { theme = null; }
   if (!theme) {
-    return <div style={{ width: "100%", aspectRatio: "300 / 250", borderRadius: 8, background: "#0B1929" }} />;
+    return <div style={{ width: "100%", aspectRatio: "300 / 250", borderRadius: 8, background: NAVY }} />;
   }
 
   return (
-    <div style={{ width: "100%", aspectRatio: "300 / 250", borderRadius: 8, overflow: "hidden", position: "relative", background: theme.canvas, border: `1px solid ${theme.outerBorder}` }}>
-      <div style={{ height: "29%", background: theme.header.bg }} />
+    <div style={{ width: "100%", aspectRatio: "300 / 250", borderRadius: 8, overflow: "hidden", position: "relative", background: theme.canvas }}>
+      {/* Full-bleed colour wash, fading into the design's canvas — poster key art, not a literal MPU screenshot */}
+      <div style={{ position: "absolute", inset: 0, background: theme.gradient }} />
+      <div style={{ position: "absolute", inset: 0, background: `linear-gradient(180deg, transparent 0%, ${theme.canvas} 88%)` }} />
+      {/* Faint quadrant motif — hints at the real 2x2 layout without literal answer buttons */}
       <div style={{
-        position: "absolute", top: "29%", left: 0, right: 0, bottom: 0,
-        display: "grid", gridTemplateColumns: "1fr 1fr", gridTemplateRows: "1fr 1fr",
-        gap: 1, background: theme.gridLine,
+        position: "absolute", inset: 0, display: "grid",
+        gridTemplateColumns: "1fr 1fr", gridTemplateRows: "1fr 1fr", gap: 6, padding: 12, opacity: 0.1,
       }}>
-        {[0, 1, 2, 3].map(i => <div key={i} style={{ background: theme.quad }} />)}
+        {[0, 1, 2, 3].map(i => <div key={i} style={{ background: "#fff", borderRadius: 6 }} />)}
       </div>
-      <div style={{
-        position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)",
-        width: "22%", aspectRatio: "1 / 1", borderRadius: "50%",
-        background: theme.circle, border: `2px solid ${theme.circleBorder}`,
-      }} />
+      {/* Format badge — dark scrim behind it so it reads over any gradient */}
+      <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ ...badgeStyle, background: "rgba(0,0,0,0.3)" }}>
+          <StopwatchIcon color="#fff" size={34} />
+          <span style={{ ...labelStyle, color: "#fff" }}>Countdown Timer</span>
+        </div>
+      </div>
     </div>
   );
 }
