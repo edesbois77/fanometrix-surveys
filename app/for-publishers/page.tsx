@@ -37,6 +37,20 @@ const UNKNOWN_TODAY = [
   "How audiences differ from competitors",
 ];
 
+const ECOSYSTEM_FLOW = [
+  { label: "Fans share opinions", icon: <path d="M4 4h16v12H8l-4 4V4z" /> },
+  { label: "Publishers understand audiences", icon: <path d="M11 4a7 7 0 100 14 7 7 0 000-14z M21 21l-4.35-4.35" /> },
+  { label: "Brands create better activations", icon: <path d="M12 2a6 6 0 00-3 11.2c.6.4 1 1.1 1 1.8h4c0-.7.4-1.4 1-1.8A6 6 0 0012 2z M9 18h6M10 21h4" /> },
+  { label: "Football experiences improve", icon: <path d="M12 21s-7-4.35-9.5-9A5.5 5.5 0 0112 6a5.5 5.5 0 019.5 6c-2.5 4.65-9.5 9-9.5 9z" /> },
+];
+
+const WHEN_FANS_HAVE_A_VOICE = [
+  "Publishers build better products",
+  "Brands create better experiences",
+  "Rights holders understand supporters",
+  "Football benefits from more valuable commercial investment",
+];
+
 const RECEIVE_CARDS = [
   {
     title: "Understand Your Audience",
@@ -65,7 +79,12 @@ const RECEIVE_CARDS = [
   },
 ];
 
-const IMPLEMENTATION_STEPS = ["Create Survey", "Generate Tag", "Traffic MPU", "View Results"];
+const IMPLEMENTATION_STEPS = [
+  { label: "Create Survey", image: "/for-publishers-create-survey.png" },
+  { label: "Generate Tag",  image: "/for-publishers-generate-tag.png" },
+  { label: "Traffic MPU",   image: "/for-publishers-traffic-mpu.png" },
+  { label: "View Results",  image: "/for-publishers-view-results.png" },
+];
 
 const NO_FRICTION = [
   "15 minute implementation",
@@ -178,53 +197,68 @@ export default function ForPublishersPage() {
       <main className="flex-1">
 
         {/* ── Hero ── */}
-        <section className="relative overflow-hidden px-5 sm:px-10 pt-[clamp(56px,8vw,100px)] pb-[clamp(56px,7vw,96px)]">
+        <section className="relative overflow-hidden px-5 sm:px-10 pt-[clamp(48px,7vw,84px)] pb-[clamp(56px,7vw,96px)]">
           <div
             aria-hidden
             className="pointer-events-none absolute inset-0"
             style={{ background: "radial-gradient(ellipse 90% 55% at 50% 0%, rgba(11,25,41,0.045) 0%, transparent 70%)" }}
           />
 
-          <div className="relative max-w-[840px] mx-auto text-center">
-            <p
-              className="hero-fade-up mb-5 font-semibold uppercase tracking-[0.18em]"
-              style={{ fontSize: 12, color: GOLD, animationDelay: "0s" }}
-            >
-              For Publishers
-            </p>
+          <div className="relative max-w-[1340px] mx-auto grid lg:grid-cols-[0.7fr_1.3fr] gap-14 lg:gap-8 items-center">
 
-            <h1
-              className="hero-fade-up font-bold leading-[1.06] tracking-tight mb-6 mx-auto"
-              style={{ fontSize: "clamp(38px, 6vw, 68px)", color: NAVY, letterSpacing: "-0.03em", animationDelay: "0.08s", maxWidth: 780 }}
-            >
-              Every Football Fan Deserves A Voice.
-            </h1>
+            {/* Left — copy (shown second on mobile, first on desktop) */}
+            <div className="order-2 lg:order-1 text-center lg:text-left">
+              <p
+                className="hero-fade-up mb-5 font-semibold uppercase tracking-[0.18em]"
+                style={{ fontSize: 12, color: GOLD, animationDelay: "0s" }}
+              >
+                For Publishers
+              </p>
 
-            <p
-              className="hero-fade-up leading-[1.75] mb-9 mx-auto"
-              style={{ animationDelay: "0.2s", fontSize: "clamp(15px, 1.6vw, 18px)", color: GREY, maxWidth: 620 }}
-            >
-              Fanometrix helps publishers understand not only what football fans do, but why they do it —
-              through short anonymous surveys embedded directly into existing football experiences.
-            </p>
+              <h1
+                className="hero-fade-up font-bold leading-[1.08] tracking-tight mb-6 mx-auto lg:mx-0"
+                style={{ fontSize: "clamp(36px, 5vw, 56px)", color: NAVY, letterSpacing: "-0.03em", animationDelay: "0.08s", maxWidth: 480 }}
+              >
+                Every Football Fan Deserves A Voice.
+              </h1>
 
-            <div className="hero-fade-up flex flex-wrap gap-2.5 justify-center mb-10" style={{ animationDelay: "0.3s" }}>
-              {HERO_BADGES.map(badge => <Pill key={badge}>{badge}</Pill>)}
+              <p
+                className="hero-fade-up leading-[1.75] mb-8 mx-auto lg:mx-0"
+                style={{ animationDelay: "0.2s", fontSize: "clamp(15px, 1.6vw, 17px)", color: GREY, maxWidth: 460 }}
+              >
+                Fanometrix helps publishers understand not only what football fans do, but why they do it —
+                through short anonymous surveys embedded directly into existing football experiences.
+              </p>
+
+              <div className="hero-fade-up flex flex-wrap gap-2.5 justify-center lg:justify-start mb-8" style={{ animationDelay: "0.3s" }}>
+                {HERO_BADGES.map(badge => <Pill key={badge}>{badge}</Pill>)}
+              </div>
+
+              <div className="hero-fade-up flex flex-wrap gap-x-8 gap-y-6 justify-center lg:justify-start" style={{ animationDelay: "0.4s" }}>
+                <div className="flex flex-col items-center lg:items-start gap-3 max-w-[260px]">
+                  <CtaButton href="/request-access?from=publisher" variant="primary">Run Your First Survey</CtaButton>
+                  <p className="text-xs leading-relaxed text-center lg:text-left" style={{ color: MUTED }}>
+                    Deploy Fanometrix on existing inventory and start seeing results within hours.
+                  </p>
+                </div>
+                <div className="flex flex-col items-center lg:items-start gap-3 max-w-[260px]">
+                  <CtaButton href="/request-access?from=publisher" variant="secondary">Join The Fanometrix Network</CtaButton>
+                  <p className="text-xs leading-relaxed text-center lg:text-left" style={{ color: MUTED }}>
+                    Join publishers helping shape the future of football audience intelligence.
+                  </p>
+                </div>
+              </div>
             </div>
 
-            <div className="hero-fade-up flex flex-wrap gap-x-10 gap-y-7 justify-center" style={{ animationDelay: "0.4s" }}>
-              <div className="flex flex-col items-center gap-3 max-w-[280px]">
-                <CtaButton href="/request-access" variant="primary">Run Your First Survey</CtaButton>
-                <p className="text-xs leading-relaxed" style={{ color: MUTED }}>
-                  Deploy Fanometrix on existing inventory and start seeing results within hours.
-                </p>
-              </div>
-              <div className="flex flex-col items-center gap-3 max-w-[280px]">
-                <CtaButton href="/request-access" variant="secondary">Become A Founding Publisher</CtaButton>
-                <p className="text-xs leading-relaxed" style={{ color: MUTED }}>
-                  Help shape the future of football audience intelligence.
-                </p>
-              </div>
+            {/* Right — real product visual (shown first on mobile, second on desktop) */}
+            <div className="hero-fade-up order-1 lg:order-2 relative" style={{ animationDelay: "0.45s" }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/homepagelaptopphone.webp"
+                alt="The Fanometrix dashboard on laptop, and a live survey creative on mobile"
+                className="w-full h-auto mx-auto"
+                style={{ maxWidth: 980 }}
+              />
             </div>
           </div>
         </section>
@@ -295,6 +329,63 @@ export default function ForPublishersPage() {
           </div>
         </section>
 
+        {/* ── Ecosystem Impact ── */}
+        <section className="border-t border-gray-100 bg-white pt-[clamp(64px,8vw,104px)] pb-[clamp(64px,8vw,104px)] px-5 sm:px-10">
+          <div className="text-center max-w-[760px] mx-auto mb-16">
+            <SectionEyebrow>Why Fanometrix Exists</SectionEyebrow>
+            <h2
+              className="scroll-fade-up font-bold leading-[1.15] tracking-tight mx-auto"
+              style={{ fontSize: "clamp(26px, 3.6vw, 42px)", color: NAVY, letterSpacing: "-0.02em", transitionDelay: "0.1s", maxWidth: 680 }}
+            >
+              Better understanding creates better football experiences.
+            </h2>
+          </div>
+
+          <div className="relative max-w-[980px] mx-auto mb-14">
+            <div className="hidden md:block absolute top-6 left-0 right-0 h-px" style={{ background: BORDER }} />
+            <div className="relative grid grid-cols-2 md:grid-cols-4 gap-8 md:gap-6">
+              {ECOSYSTEM_FLOW.map(({ label, icon }, i) => (
+                <div key={label} className="scroll-fade-up flex flex-col items-center text-center" style={{ transitionDelay: `${i * 0.1}s` }}>
+                  <div className="relative z-10 w-12 h-12 rounded-full flex items-center justify-center shrink-0 bg-white border-2" style={{ borderColor: GOLD }}>
+                    <svg viewBox="0 0 24 24" width={18} height={18} fill="none" stroke={NAVY} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
+                      {icon}
+                    </svg>
+                  </div>
+                  <h3 className="mt-4 text-[14px] font-bold tracking-[-0.01em] max-w-[150px]" style={{ color: NAVY }}>{label}</h3>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <p
+            className="scroll-fade-up text-center leading-[1.75] max-w-[600px] mx-auto mb-12"
+            style={{ fontSize: "clamp(15px, 1.6vw, 17px)", color: GREY, transitionDelay: "0.3s" }}
+          >
+            Fanometrix exists to help commercial investment improve football experiences rather than interrupt them.
+          </p>
+
+          <div className="max-w-[760px] mx-auto">
+            <p
+              className="scroll-fade-up text-center text-[11px] font-bold uppercase tracking-[0.14em] mb-6"
+              style={{ color: MUTED, transitionDelay: "0.35s" }}
+            >
+              When Fans Have A Voice
+            </p>
+            <div className="grid sm:grid-cols-2 gap-4">
+              {WHEN_FANS_HAVE_A_VOICE.map((item, i) => (
+                <div
+                  key={item}
+                  className="scroll-fade-up flex items-center gap-3 bg-white rounded-xl border p-4"
+                  style={{ borderColor: BORDER, transitionDelay: `${0.4 + i * 0.08}s` }}
+                >
+                  <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: GOLD }} />
+                  <span className="text-sm font-semibold" style={{ color: NAVY }}>{item}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
         {/* ── What Publishers Receive ── */}
         <section className="border-t border-gray-100 pt-[clamp(56px,7vw,96px)] pb-[clamp(56px,7vw,96px)] px-5 sm:px-10" style={{ background: BG_SOFT }}>
           <div className="text-center max-w-[720px] mx-auto mb-14">
@@ -338,18 +429,29 @@ export default function ForPublishersPage() {
             </h2>
           </div>
 
-          <div className="relative max-w-[900px] mx-auto mb-14">
-            <div className="hidden md:block absolute top-6 left-0 right-0 h-px" style={{ background: BORDER }} />
-            <div className="relative grid grid-cols-2 md:grid-cols-4 gap-8 md:gap-6">
-              {IMPLEMENTATION_STEPS.map((label, i) => (
-                <div key={label} className="scroll-fade-up flex flex-col items-center text-center" style={{ transitionDelay: `${i * 0.1}s` }}>
-                  <div className="relative z-10 w-12 h-12 rounded-full flex items-center justify-center shrink-0 bg-white border-2" style={{ borderColor: GOLD }}>
+          <div className="max-w-[1160px] mx-auto grid sm:grid-cols-2 gap-6 mb-14">
+            {IMPLEMENTATION_STEPS.map(({ label, image }, i) => (
+              <div
+                key={label}
+                className="scroll-fade-up bg-white rounded-2xl border overflow-hidden transition-all duration-200 hover:border-[#D7B87A] hover:-translate-y-1 hover:shadow-lg"
+                style={{ borderColor: BORDER, transitionDelay: `${i * 0.1}s` }}
+              >
+                <div className="flex items-center gap-3 px-6 pt-6 pb-1">
+                  <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 border-2 bg-white" style={{ borderColor: GOLD }}>
                     <span className="text-sm font-bold" style={{ color: NAVY }}>{i + 1}</span>
                   </div>
-                  <h3 className="mt-4 text-[15px] font-bold tracking-[-0.01em]" style={{ color: NAVY }}>{label}</h3>
+                  <h3 className="text-[16px] font-bold tracking-[-0.01em]" style={{ color: NAVY }}>{label}</h3>
                 </div>
-              ))}
-            </div>
+                <div className="flex items-center justify-center p-6" style={{ height: 300, background: SURFACE }}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={image}
+                    alt={`${label} — real Fanometrix product screenshot`}
+                    className="max-w-full max-h-full object-contain rounded-lg shadow-sm"
+                  />
+                </div>
+              </div>
+            ))}
           </div>
 
           <div className="scroll-fade-up flex flex-wrap gap-2.5 justify-center max-w-[720px] mx-auto" style={{ transitionDelay: "0.3s" }}>
@@ -474,8 +576,8 @@ export default function ForPublishersPage() {
             Start Listening To Your Fans.
           </h2>
           <div className="scroll-fade-up flex flex-wrap gap-3.5 justify-center" style={{ transitionDelay: "0.1s" }}>
-            <CtaButton href="/request-access" variant="primary">Run Your First Survey</CtaButton>
-            <CtaButton href="/request-access" variant="secondary">Become A Founding Publisher</CtaButton>
+            <CtaButton href="/request-access?from=publisher" variant="primary">Run Your First Survey</CtaButton>
+            <CtaButton href="/request-access?from=publisher" variant="secondary">Join The Fanometrix Network</CtaButton>
           </div>
         </section>
 

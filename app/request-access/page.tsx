@@ -1,7 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
+import { APP_URL } from "@/lib/env";
+import { MultiSelect } from "@/app/components/MultiSelect";
 
 const NAVY = "#0B1929";
 const GOLD = "#D7B87A";
@@ -14,12 +17,31 @@ const ROLES = [
   "Other",
 ];
 
-export default function RequestAccessPage() {
+const PUBLISHER_ROLE = "Media Partner / Publisher";
+
+const AUDIENCE_SIZES = ["Under 1M", "1M-5M", "5M-10M", "10M-50M", "50M+"];
+const AD_SERVERS = ["Google Ad Manager", "Equativ", "Xandr", "Kevel", "Other"];
+const MARKET_OPTIONS = [
+  "UK", "US", "Germany", "France", "Spain", "Italy", "LATAM", "MENA", "APAC", "Global",
+].map(m => ({ value: m, label: m }));
+
+const SELECT_CLASS = "w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#D7B87A] transition-colors text-gray-700 bg-white";
+
+function RequestAccessForm() {
+  const searchParams = useSearchParams();
+  const fromPublisher = searchParams.get("from") === "publisher";
+
   const [form, setForm] = useState({
-    name: "", email: "", organisation: "", role: "", message: "",
+    name: "", email: "", organisation: "",
+    role: fromPublisher ? PUBLISHER_ROLE : "",
+    message: "",
+    audience_size: "", ad_server: "",
   });
+  const [markets, setMarkets] = useState<string[]>([]);
   const [status,  setStatus]  = useState<"idle" | "submitting" | "success" | "error">("idle");
   const [error,   setError]   = useState("");
+
+  const isPublisher = form.role === PUBLISHER_ROLE;
 
   function set(field: string, value: string) {
     setForm(f => ({ ...f, [field]: value }));
@@ -34,7 +56,7 @@ export default function RequestAccessPage() {
     const res  = await fetch("/api/access-requests", {
       method:  "POST",
       headers: { "Content-Type": "application/json" },
-      body:    JSON.stringify(form),
+      body:    JSON.stringify({ ...form, primary_markets: markets }),
     });
     const json = await res.json().catch(() => ({}));
 
@@ -49,26 +71,35 @@ export default function RequestAccessPage() {
   return (
     <div className="min-h-screen flex flex-col" style={{ background: "#F7F8FA" }}>
 
-      {/* Nav bar */}
-      <header className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-white">
-        <Link href="/">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src="/Fanometrix_Logo.png"
-            alt="Fanometrix"
-            style={{
-              height: 20,
-              objectFit: "contain",
-              filter: "brightness(0) saturate(100%) invert(11%) sepia(33%) saturate(1200%) hue-rotate(192deg) brightness(95%)",
-            }}
-          />
-        </Link>
-        <Link
-          href="/login"
-          className="text-sm font-medium text-gray-500 hover:text-gray-800 transition-colors"
-        >
-          Already have an account? Log in →
-        </Link>
+      {/* Header — same as the public homepage */}
+      <header className="sticky top-0 z-50 bg-white/85 backdrop-blur border-b border-gray-100 px-4 sm:px-10">
+        <div className="max-w-[1340px] mx-auto flex items-center justify-between py-4 sm:py-5">
+          <Link href="/" className="flex items-center gap-1.5 sm:gap-2.5 min-w-0">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/Fanometrix_Logo.png"
+              alt="Fanometrix"
+              className="h-4 sm:h-[21px] w-auto shrink-0"
+              style={{
+                objectFit: "contain",
+                filter: "brightness(0) saturate(100%) invert(11%) sepia(33%) saturate(1200%) hue-rotate(192deg) brightness(95%)",
+              }}
+            />
+            <span
+              className="shrink-0 text-[9px] sm:text-[10px] font-bold uppercase tracking-[0.08em] px-1.5 sm:px-2 py-0.5 rounded-full"
+              style={{ background: GOLD, color: NAVY }}
+            >
+              Beta
+            </span>
+          </Link>
+          <Link
+            href={`${APP_URL}/login`}
+            className="shrink-0 whitespace-nowrap text-sm font-semibold transition-opacity duration-150 hover:opacity-70"
+            style={{ color: NAVY }}
+          >
+            Sign In
+          </Link>
+        </div>
       </header>
 
       <main className="flex-1 flex items-center justify-center px-5 py-12">
@@ -98,11 +129,12 @@ export default function RequestAccessPage() {
             <>
               <div className="mb-8 text-center">
                 <h1 className="text-2xl font-bold mb-2" style={{ color: NAVY }}>
-                  Request Access
+                  {fromPublisher ? "Run Your First Survey" : "Book A Demo"}
                 </h1>
                 <p className="text-sm text-gray-500 leading-relaxed max-w-sm mx-auto">
-                  Tell us a little about yourself and how you&apos;d like to use Fanometrix.
-                  We&apos;ll be in touch to get you set up.
+                  {fromPublisher
+                    ? "Tell us about your audience and inventory and we'll help you launch your first Fanometrix campaign."
+                    : "Tell us a little about yourself and how you'd like to use Fanometrix. We'll be in touch to get you set up."}
                 </p>
               </div>
 
@@ -161,7 +193,7 @@ export default function RequestAccessPage() {
                   <select
                     value={form.role}
                     onChange={e => set("role", e.target.value)}
-                    className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#D7B87A] transition-colors text-gray-700"
+                    className={SELECT_CLASS}
                   >
                     <option value="">Select your role (optional)</option>
                     {ROLES.map(r => (
@@ -169,6 +201,52 @@ export default function RequestAccessPage() {
                     ))}
                   </select>
                 </div>
+
+                {/* Publisher qualification — only shown once Media Partner / Publisher is selected */}
+                {isPublisher && (
+                  <div className="space-y-5 border-t border-gray-100 pt-5">
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
+                        Monthly Audience Size
+                      </label>
+                      <select
+                        value={form.audience_size}
+                        onChange={e => set("audience_size", e.target.value)}
+                        className={SELECT_CLASS}
+                      >
+                        <option value="">Select a range (optional)</option>
+                        {AUDIENCE_SIZES.map(s => <option key={s} value={s}>{s}</option>)}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
+                        Primary Markets
+                      </label>
+                      <MultiSelect
+                        options={MARKET_OPTIONS}
+                        selected={markets}
+                        onChange={setMarkets}
+                        placeholder="Search markets…"
+                        strict
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
+                        Ad Server
+                      </label>
+                      <select
+                        value={form.ad_server}
+                        onChange={e => set("ad_server", e.target.value)}
+                        className={SELECT_CLASS}
+                      >
+                        <option value="">Select your ad server (optional)</option>
+                        {AD_SERVERS.map(s => <option key={s} value={s}>{s}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                )}
 
                 <div>
                   <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
@@ -208,5 +286,13 @@ export default function RequestAccessPage() {
       </main>
 
     </div>
+  );
+}
+
+export default function RequestAccessPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen" style={{ background: "#F7F8FA" }} />}>
+      <RequestAccessForm />
+    </Suspense>
   );
 }

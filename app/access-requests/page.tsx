@@ -12,6 +12,9 @@ type AccessRequest = {
   message: string | null;
   status: "pending" | "approved" | "declined";
   created_at: string;
+  audience_size: string | null;
+  ad_server: string | null;
+  primary_markets: string[] | null;
 };
 
 const STATUS_STYLE: Record<string, string> = {
@@ -186,6 +189,24 @@ export default function AccessRequestsPage() {
                       <div>
                         <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Message</p>
                         <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{r.message}</p>
+                      </div>
+                    )}
+                    {(r.audience_size || r.ad_server || r.primary_markets?.length) && (
+                      <div>
+                        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
+                          Publisher Qualification
+                        </p>
+                        <div className="flex flex-wrap gap-x-6 gap-y-1.5 text-sm text-gray-700">
+                          {r.audience_size && (
+                            <span><span className="text-gray-400">Audience:</span> {r.audience_size}</span>
+                          )}
+                          {r.ad_server && (
+                            <span><span className="text-gray-400">Ad Server:</span> {r.ad_server}</span>
+                          )}
+                          {!!r.primary_markets?.length && (
+                            <span><span className="text-gray-400">Markets:</span> {r.primary_markets.join(", ")}</span>
+                          )}
+                        </div>
                       </div>
                     )}
                     <div className="flex items-center gap-2 pt-1">

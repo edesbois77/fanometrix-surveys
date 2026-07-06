@@ -13,6 +13,12 @@ export async function POST(req: NextRequest) {
   const role         = (body.role         ?? "").trim();
   const message      = (body.message      ?? "").trim();
 
+  // Publisher qualification fields — optional, only meaningful when role is
+  // Media Partner / Publisher, but accepted regardless of role for simplicity.
+  const audienceSize    = (body.audience_size ?? "").trim();
+  const adServer         = (body.ad_server     ?? "").trim();
+  const primaryMarkets   = Array.isArray(body.primary_markets) ? body.primary_markets : [];
+
   if (!name)         return NextResponse.json({ error: "Name is required."         }, { status: 400 });
   if (!email)        return NextResponse.json({ error: "Email is required."        }, { status: 400 });
   if (!organisation) return NextResponse.json({ error: "Organisation is required." }, { status: 400 });
@@ -25,6 +31,9 @@ export async function POST(req: NextRequest) {
     name, email, organisation,
     role:    role    || null,
     message: message || null,
+    audience_size:   audienceSize    || null,
+    ad_server:       adServer        || null,
+    primary_markets: primaryMarkets.length ? primaryMarkets : null,
   });
 
   if (error) {
