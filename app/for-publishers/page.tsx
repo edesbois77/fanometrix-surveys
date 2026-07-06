@@ -122,6 +122,33 @@ const PRIVACY_POINTS = [
   { label: "Publisher control",   body: "You control placement, frequency, and participation at every step." },
 ];
 
+const FAQ_ITEMS = [
+  {
+    q: "Is this really free?",
+    a: "Yes. Fanometrix is free for publishers because we believe every football fan deserves a voice and better audience understanding benefits the entire football ecosystem.",
+  },
+  {
+    q: "How long does implementation take?",
+    a: "Most publishers can launch their first survey in under 15 minutes using existing 300x250 inventory.",
+  },
+  {
+    q: "What data is collected?",
+    a: "Fanometrix collects anonymous survey responses only. No names, emails, cookies or personal identifiers are ever collected.",
+  },
+  {
+    q: "Can surveys match our design system?",
+    a: "Yes. Creatives can be tailored to match publisher colours, typography and visual identity, helping surveys feel native to existing experiences.",
+  },
+  {
+    q: "How can publishers use the results?",
+    a: "Publishers use Fanometrix to support commercial proposals, improve products and editorial decisions, benchmark audiences and better understand supporter behaviour and preferences.",
+  },
+  {
+    q: "Do we need to recruit a panel or offer incentives?",
+    a: "No. Fanometrix works using existing inventory and existing audiences. There are no panels to recruit and no incentives required.",
+  },
+];
+
 // ─── Shared UI ────────────────────────────────────────────────────────────────
 
 function CtaButton({ href, children, variant }: { href: string; children: React.ReactNode; variant: "primary" | "secondary" }) {
@@ -564,6 +591,42 @@ export default function ForPublishersPage() {
               Read our full privacy policy →
             </Link>
           </p>
+        </section>
+
+        {/* ── Common Publisher Questions ── */}
+        <section className="border-t border-gray-100 bg-white pt-[clamp(56px,7vw,96px)] pb-[clamp(56px,7vw,96px)] px-5 sm:px-10">
+          <div className="text-center max-w-[720px] mx-auto mb-12">
+            <SectionEyebrow>FAQ</SectionEyebrow>
+            <h2
+              className="scroll-fade-up font-bold leading-tight tracking-tight"
+              style={{ fontSize: "clamp(26px, 3.2vw, 40px)", color: NAVY, letterSpacing: "-0.02em", transitionDelay: "0.1s" }}
+            >
+              Common Publisher Questions
+            </h2>
+          </div>
+
+          <div className="max-w-[760px] mx-auto space-y-3">
+            {FAQ_ITEMS.map(({ q, a }, i) => (
+              <details
+                key={q}
+                className="scroll-fade-up group bg-white border rounded-2xl overflow-hidden"
+                style={{ borderColor: BORDER, transitionDelay: `${i * 0.06}s` }}
+              >
+                <summary className="cursor-pointer select-none list-none px-6 py-5 flex items-center justify-between gap-4">
+                  <span className="text-[15px] sm:text-base font-bold tracking-[-0.01em]" style={{ color: NAVY }}>{q}</span>
+                  <span
+                    className="shrink-0 w-7 h-7 rounded-full flex items-center justify-center border-2 text-lg leading-none transition-transform duration-200 group-open:rotate-45"
+                    style={{ borderColor: GOLD, color: NAVY }}
+                  >
+                    +
+                  </span>
+                </summary>
+                <p className="px-6 pb-6 -mt-1 text-sm leading-relaxed" style={{ color: GREY }}>
+                  {a}
+                </p>
+              </details>
+            ))}
+          </div>
         </section>
 
         {/* ── Final CTA ── */}
