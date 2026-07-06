@@ -482,6 +482,7 @@ export default function SurveysPage() {
   const [statusFilter,  setStatusFilter]  = useState<"all" | "draft" | "ready">("all");
   const [usageFilter,   setUsageFilter]   = useState<"all" | "unused" | "used" | "live">("all");
   const [createdFilter, setCreatedFilter] = useState<"all" | "today" | "7days" | "30days">("all");
+  const [sortBy,        setSortBy]        = useState<"recent" | "oldest" | "az">("recent");
 
   // Preview modal
   const [previewSurvey, setPreviewSurvey] = useState<Survey | null>(null);
@@ -658,8 +659,13 @@ export default function SurveysPage() {
       );
     }
 
-    return list;
-  }, [surveys, activeTab, statusFilter, usageFilter, createdFilter, search, activeSurveys, archivedSurveys, deletedSurveys]);
+    switch (sortBy) {
+      case "recent": return [...list].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      case "oldest": return [...list].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+      case "az":     return [...list].sort((a, b) => a.name.localeCompare(b.name));
+      default:       return list;
+    }
+  }, [surveys, activeTab, statusFilter, usageFilter, createdFilter, sortBy, search, activeSurveys, archivedSurveys, deletedSurveys]);
 
   // ── Usage modal ───────────────────────────────────────────────────────────
   async function openUsageModal(s: Survey) {
@@ -975,8 +981,8 @@ export default function SurveysPage() {
         </div>
 
         {/* ── Search + Filters ── */}
-        <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3 mb-5">
-          <div className="sm:flex-1 sm:min-w-[200px] relative">
+        <div className="mb-5 space-y-3">
+          <div className="relative">
             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm pointer-events-none">🔍</span>
             <input
               type="search"
@@ -987,39 +993,51 @@ export default function SurveysPage() {
             />
           </div>
 
-          {activeTab === "active" && (
+          <div className="flex flex-wrap gap-3">
+            {activeTab === "active" && (
+              <select
+                value={statusFilter}
+                onChange={e => setStatusFilter(e.target.value as typeof statusFilter)}
+                className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A] text-gray-600"
+              >
+                <option value="all">All Statuses</option>
+                <option value="draft">Draft</option>
+                <option value="ready">Ready</option>
+              </select>
+            )}
+
             <select
-              value={statusFilter}
-              onChange={e => setStatusFilter(e.target.value as typeof statusFilter)}
+              value={usageFilter}
+              onChange={e => setUsageFilter(e.target.value as typeof usageFilter)}
               className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A] text-gray-600"
             >
-              <option value="all">All Statuses</option>
-              <option value="draft">Draft</option>
-              <option value="ready">Ready</option>
+              <option value="all">All Usage</option>
+              <option value="unused">Unused</option>
+              <option value="used">Used by campaigns</option>
+              <option value="live">Serving live campaigns</option>
             </select>
-          )}
 
-          <select
-            value={usageFilter}
-            onChange={e => setUsageFilter(e.target.value as typeof usageFilter)}
-            className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A] text-gray-600"
-          >
-            <option value="all">All Usage</option>
-            <option value="unused">Unused</option>
-            <option value="used">Used by campaigns</option>
-            <option value="live">Serving live campaigns</option>
-          </select>
+            <select
+              value={createdFilter}
+              onChange={e => setCreatedFilter(e.target.value as typeof createdFilter)}
+              className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A] text-gray-600"
+            >
+              <option value="all">Any time</option>
+              <option value="today">Today</option>
+              <option value="7days">Last 7 days</option>
+              <option value="30days">Last 30 days</option>
+            </select>
 
-          <select
-            value={createdFilter}
-            onChange={e => setCreatedFilter(e.target.value as typeof createdFilter)}
-            className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A] text-gray-600"
-          >
-            <option value="all">Any time</option>
-            <option value="today">Today</option>
-            <option value="7days">Last 7 days</option>
-            <option value="30days">Last 30 days</option>
-          </select>
+            <select
+              value={sortBy}
+              onChange={e => setSortBy(e.target.value as typeof sortBy)}
+              className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A] text-gray-600"
+            >
+              <option value="recent">Most recent</option>
+              <option value="oldest">Oldest first</option>
+              <option value="az">A–Z</option>
+            </select>
+          </div>
         </div>
 
         {/* ── Tabs ── */}

@@ -186,6 +186,14 @@ export default function CampaignGroupsPage() {
 
   const [activeTab, setActiveTab] = useState<"active" | "closed" | "archived">("active");
 
+  const [search,          setSearch]          = useState("");
+  const [statusFilter,    setStatusFilter]    = useState<"all" | CampaignGroup["status"]>("all");
+  const [usageFilter,     setUsageFilter]     = useState<"all" | "no_responses" | "has_responses" | "end_reached">("all");
+  const [dateFilter,      setDateFilter]      = useState<"all" | "today" | "7days" | "30days">("all");
+  const [publisherFilter, setPublisherFilter] = useState<string>("all");
+  const [brandFilter,     setBrandFilter]     = useState<string>("all");
+  const [sortBy,          setSortBy]          = useState<"recent" | "oldest" | "az">("recent");
+
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editingId,  setEditingId]  = useState<string | null>(null);
   const [form,       setForm]       = useState<GroupForm>(BLANK_FORM);
@@ -217,10 +225,64 @@ export default function CampaignGroupsPage() {
   const closedGroups   = useMemo(() => groups.filter(g => g.status === "closed"),   [groups]);
   const archivedGroups = useMemo(() => groups.filter(g => g.status === "archived"), [groups]);
 
-  const displayed =
-    activeTab === "active"   ? activeGroups   :
-    activeTab === "closed"   ? closedGroups   :
-    archivedGroups;
+  // Option lists for the Publisher/Brand filters — derived from all loaded groups.
+  const publisherFilterOptions = useMemo(() =>
+    Array.from(new Set(groups.map(g => g.publisher).filter((p): p is string => !!p))).sort((a, b) => a.localeCompare(b)),
+    [groups]);
+
+  const brandFilterOptions = useMemo(() =>
+    Array.from(new Set(groups.map(g => g.brand_name).filter((b): b is string => !!b))).sort((a, b) => a.localeCompare(b)),
+    [groups]);
+
+  const displayed = useMemo(() => {
+    let list =
+      activeTab === "active"   ? activeGroups   :
+      activeTab === "closed"   ? closedGroups   :
+      archivedGroups;
+
+    if (activeTab === "active" && statusFilter !== "all") {
+      list = list.filter(g => g.status === statusFilter);
+    }
+
+    if (usageFilter === "no_responses")  list = list.filter(g => g.total_responses === 0);
+    if (usageFilter === "has_responses") list = list.filter(g => g.total_responses > 0);
+    if (usageFilter === "end_reached") {
+      const now = new Date();
+      list = list.filter(g => g.end_date && new Date(g.end_date) < now);
+    }
+
+    const now = new Date();
+    if (dateFilter === "today") {
+      list = list.filter(g => new Date(g.created_at).toDateString() === now.toDateString());
+    } else if (dateFilter === "7days") {
+      const cut = new Date(now); cut.setDate(cut.getDate() - 7);
+      list = list.filter(g => new Date(g.created_at) >= cut);
+    } else if (dateFilter === "30days") {
+      const cut = new Date(now); cut.setDate(cut.getDate() - 30);
+      list = list.filter(g => new Date(g.created_at) >= cut);
+    }
+
+    if (publisherFilter !== "all") list = list.filter(g => g.publisher === publisherFilter);
+    if (brandFilter !== "all")     list = list.filter(g => g.brand_name === brandFilter);
+
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      list = list.filter(g =>
+        g.name.toLowerCase().includes(q) ||
+        g.group_id.toLowerCase().includes(q) ||
+        (g.description ?? "").toLowerCase().includes(q) ||
+        (g.brand_name ?? "").toLowerCase().includes(q) ||
+        (g.publisher ?? "").toLowerCase().includes(q)
+      );
+    }
+
+    switch (sortBy) {
+      case "recent": return [...list].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      case "oldest": return [...list].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+      case "az":     return [...list].sort((a, b) => a.name.localeCompare(b.name));
+      default:       return list;
+    }
+  }, [activeGroups, closedGroups, archivedGroups, activeTab, statusFilter, usageFilter, dateFilter, publisherFilter, brandFilter, sortBy, search]);
 
   // Eligible campaigns for the selector (not deleted, not archived/closed)
   const selectableCampaigns = useMemo(() =>
@@ -355,7 +417,7 @@ export default function CampaignGroupsPage() {
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <AdminShell>
-      <div className="p-4 md:p-6 max-w-5xl mx-auto">
+      <div className="p-4 md:p-6 max-w-6xl mx-auto">
 
         {/* Header */}
         <div className="mb-5">
@@ -387,6 +449,71 @@ export default function CampaignGroupsPage() {
               Bundle multiple campaigns into one embed code. Useful when several surveys or campaign
               variants need to rotate across the same publisher placement.
             </p>
+          </div>
+        </div>
+
+        {/* Search + Filters */}
+        <div className="mb-5 space-y-3">
+          <div className="relative">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm pointer-events-none">🔍</span>
+            <input
+              type="search"
+              placeholder="Search groups…"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="w-full border border-gray-200 rounded-lg pl-8 pr-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A]"
+            />
+          </div>
+
+          <div className="flex flex-wrap gap-3">
+            {activeTab === "active" && (
+              <select value={statusFilter} onChange={e => setStatusFilter(e.target.value as typeof statusFilter)}
+                className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A] text-gray-600">
+                <option value="all">All Statuses</option>
+                <option value="draft">Draft</option>
+                <option value="live">Live</option>
+                <option value="paused">Paused</option>
+              </select>
+            )}
+
+            <select value={usageFilter} onChange={e => setUsageFilter(e.target.value as typeof usageFilter)}
+              className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A] text-gray-600">
+              <option value="all">All Usage</option>
+              <option value="no_responses">No responses</option>
+              <option value="has_responses">Has responses</option>
+              <option value="end_reached">End date reached</option>
+            </select>
+
+            <select value={dateFilter} onChange={e => setDateFilter(e.target.value as typeof dateFilter)}
+              className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A] text-gray-600">
+              <option value="all">Any time</option>
+              <option value="today">Today</option>
+              <option value="7days">Last 7 days</option>
+              <option value="30days">Last 30 days</option>
+            </select>
+
+            <select value={publisherFilter} onChange={e => setPublisherFilter(e.target.value)}
+              className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A] text-gray-600">
+              <option value="all">All Publishers</option>
+              {publisherFilterOptions.map(p => (
+                <option key={p} value={p}>{p}</option>
+              ))}
+            </select>
+
+            <select value={brandFilter} onChange={e => setBrandFilter(e.target.value)}
+              className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A] text-gray-600">
+              <option value="all">All Brands</option>
+              {brandFilterOptions.map(b => (
+                <option key={b} value={b}>{b}</option>
+              ))}
+            </select>
+
+            <select value={sortBy} onChange={e => setSortBy(e.target.value as typeof sortBy)}
+              className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A] text-gray-600">
+              <option value="recent">Most recent</option>
+              <option value="oldest">Oldest first</option>
+              <option value="az">A–Z</option>
+            </select>
           </div>
         </div>
 

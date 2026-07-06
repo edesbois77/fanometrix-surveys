@@ -215,6 +215,13 @@ export default function ResearchProjectsPage() {
   const [publisherOptions, setPublisherOptions] = useState<{ value: string; label: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [statusFilter,    setStatusFilter]    = useState<"all" | CampaignStatus>("all");
+  const [usageFilter,     setUsageFilter]     = useState<"all" | "no_responses" | "has_responses" | "target_reached" | "end_reached">("all");
+  const [dateFilter,      setDateFilter]      = useState<"all" | "today" | "7days" | "30days">("all");
+  const [countryFilter,   setCountryFilter]   = useState<string>("all");
+  const [publisherFilter, setPublisherFilter] = useState<string>("all");
+  const [brandFilter,     setBrandFilter]     = useState<string>("all");
+  const [sortBy,          setSortBy]          = useState<"recent" | "oldest" | "az">("recent");
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const [generating, setGenerating] = useState<Record<string, boolean>>({});
@@ -270,6 +277,26 @@ export default function ResearchProjectsPage() {
       .map(([tag]) => tag);
   }, [projects]);
 
+  // Option lists for the Country/Publisher/Brand filters — derived from all
+  // loaded projects so the dropdowns stay stable across filter changes.
+  const countryFilterOptions = useMemo(() => {
+    const byCode = new Map<string, string>();
+    for (const p of projects) {
+      for (const code of p.country_codes ?? []) {
+        if (!byCode.has(code)) byCode.set(code, countryByCode(code)?.name ?? code);
+      }
+    }
+    return Array.from(byCode.entries()).sort((a, b) => a[1].localeCompare(b[1]));
+  }, [projects]);
+
+  const publisherFilterOptions = useMemo(() =>
+    Array.from(new Set(projects.flatMap(p => p.publishers ?? []))).sort((a, b) => a.localeCompare(b)),
+    [projects]);
+
+  const brandFilterOptions = useMemo(() =>
+    Array.from(new Set(projects.map(p => p.brand_name).filter((b): b is string => !!b))).sort((a, b) => a.localeCompare(b)),
+    [projects]);
+
   // Surveys selectable as a project's inherited survey — same readiness gate as the Campaigns drawer.
   // Most recently created first, so the newest survey is always easiest to find.
   const selectableSurveys = useMemo(() => surveys
@@ -315,15 +342,51 @@ export default function ResearchProjectsPage() {
   ].filter(Boolean) as string[];
 
   const displayed = useMemo(() => {
-    if (!search.trim()) return projects;
-    const q = search.toLowerCase();
-    return projects.filter(p =>
-      p.project_name.toLowerCase().includes(q) ||
-      (p.brand_name ?? "").toLowerCase().includes(q) ||
-      (p.topic ?? "").toLowerCase().includes(q) ||
-      studyTypeLabel(p.study_type).toLowerCase().includes(q)
-    );
-  }, [projects, search]);
+    let list = projects;
+
+    if (statusFilter !== "all") list = list.filter(p => p.status === statusFilter);
+
+    if (usageFilter === "no_responses")   list = list.filter(p => p.total_responses === 0);
+    if (usageFilter === "has_responses")  list = list.filter(p => p.total_responses > 0);
+    if (usageFilter === "target_reached") list = list.filter(p =>
+      p.target_responses !== null && p.total_responses >= p.target_responses);
+    if (usageFilter === "end_reached") {
+      const now = new Date();
+      list = list.filter(p => p.end_date && new Date(p.end_date) < now);
+    }
+
+    const now = new Date();
+    if (dateFilter === "today") {
+      list = list.filter(p => new Date(p.created_at).toDateString() === now.toDateString());
+    } else if (dateFilter === "7days") {
+      const cut = new Date(now); cut.setDate(cut.getDate() - 7);
+      list = list.filter(p => new Date(p.created_at) >= cut);
+    } else if (dateFilter === "30days") {
+      const cut = new Date(now); cut.setDate(cut.getDate() - 30);
+      list = list.filter(p => new Date(p.created_at) >= cut);
+    }
+
+    if (countryFilter !== "all")   list = list.filter(p => (p.country_codes ?? []).includes(countryFilter));
+    if (publisherFilter !== "all") list = list.filter(p => (p.publishers ?? []).includes(publisherFilter));
+    if (brandFilter !== "all")     list = list.filter(p => p.brand_name === brandFilter);
+
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      list = list.filter(p =>
+        p.project_name.toLowerCase().includes(q) ||
+        (p.brand_name ?? "").toLowerCase().includes(q) ||
+        (p.topic ?? "").toLowerCase().includes(q) ||
+        studyTypeLabel(p.study_type).toLowerCase().includes(q)
+      );
+    }
+
+    switch (sortBy) {
+      case "recent": return [...list].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      case "oldest": return [...list].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+      case "az":     return [...list].sort((a, b) => a.project_name.localeCompare(b.project_name));
+      default:       return list;
+    }
+  }, [projects, search, statusFilter, usageFilter, dateFilter, countryFilter, publisherFilter, brandFilter, sortBy]);
 
   // ── Drawer helpers ─────────────────────────────────────────────────────────
   function openCreate() {
@@ -449,7 +512,7 @@ export default function ResearchProjectsPage() {
 
   return (
     <AdminShell>
-      <div className="p-4 md:p-6 max-w-5xl mx-auto">
+      <div className="p-4 md:p-6 max-w-6xl mx-auto">
 
         <div className="mb-5">
           <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-3">
@@ -475,15 +538,78 @@ export default function ResearchProjectsPage() {
           </div>
         </div>
 
-        <div className="mb-5 relative sm:max-w-xs">
-          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm pointer-events-none">🔍</span>
-          <input
-            type="search"
-            placeholder="Search projects…"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            className="w-full border border-gray-200 rounded-lg pl-8 pr-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A]"
-          />
+        <div className="mb-5 space-y-3">
+          <div className="relative">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm pointer-events-none">🔍</span>
+            <input
+              type="search"
+              placeholder="Search projects…"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="w-full border border-gray-200 rounded-lg pl-8 pr-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A]"
+            />
+          </div>
+
+          <div className="flex flex-wrap gap-3">
+            <select value={statusFilter} onChange={e => setStatusFilter(e.target.value as typeof statusFilter)}
+              className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A] text-gray-600">
+              <option value="all">All Statuses</option>
+              <option value="draft">Draft</option>
+              <option value="scheduled">Scheduled</option>
+              <option value="live">Live</option>
+              <option value="paused">Paused</option>
+              <option value="closed">Closed</option>
+              <option value="archived">Archived</option>
+            </select>
+
+            <select value={usageFilter} onChange={e => setUsageFilter(e.target.value as typeof usageFilter)}
+              className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A] text-gray-600">
+              <option value="all">All Usage</option>
+              <option value="no_responses">No responses</option>
+              <option value="has_responses">Has responses</option>
+              <option value="target_reached">Target reached</option>
+              <option value="end_reached">End date reached</option>
+            </select>
+
+            <select value={dateFilter} onChange={e => setDateFilter(e.target.value as typeof dateFilter)}
+              className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A] text-gray-600">
+              <option value="all">Any time</option>
+              <option value="today">Today</option>
+              <option value="7days">Last 7 days</option>
+              <option value="30days">Last 30 days</option>
+            </select>
+
+            <select value={countryFilter} onChange={e => setCountryFilter(e.target.value)}
+              className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A] text-gray-600">
+              <option value="all">All Countries</option>
+              {countryFilterOptions.map(([code, label]) => (
+                <option key={code} value={code}>{label}</option>
+              ))}
+            </select>
+
+            <select value={publisherFilter} onChange={e => setPublisherFilter(e.target.value)}
+              className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A] text-gray-600">
+              <option value="all">All Publishers</option>
+              {publisherFilterOptions.map(p => (
+                <option key={p} value={p}>{p}</option>
+              ))}
+            </select>
+
+            <select value={brandFilter} onChange={e => setBrandFilter(e.target.value)}
+              className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A] text-gray-600">
+              <option value="all">All Brands</option>
+              {brandFilterOptions.map(b => (
+                <option key={b} value={b}>{b}</option>
+              ))}
+            </select>
+
+            <select value={sortBy} onChange={e => setSortBy(e.target.value as typeof sortBy)}
+              className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A] text-gray-600">
+              <option value="recent">Most recent</option>
+              <option value="oldest">Oldest first</option>
+              <option value="az">A–Z</option>
+            </select>
+          </div>
         </div>
 
         {loading && <p className="text-gray-400 text-sm">Loading…</p>}
