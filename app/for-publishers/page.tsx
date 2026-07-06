@@ -100,9 +100,9 @@ const NO_FRICTION = [
 ];
 
 const COMMITMENT_ROWS = [
-  { label: "Inventory",        value: "1–5M monthly impressions" },
+  { label: "Inventory",        value: "House inventory" },
   { label: "Format",           value: "300×250 MPU" },
-  { label: "Frequency Cap",    value: "2–3" },
+  { label: "Frequency Cap",    value: "2–3 monthly" },
   { label: "Engineering Time", value: "15 minutes" },
   { label: "Commercial Cost",  value: "£0" },
 ];
@@ -440,13 +440,14 @@ export default function ForPublishersPage() {
                   </div>
                   <h3 className="text-[16px] font-bold tracking-[-0.01em]" style={{ color: NAVY }}>{label}</h3>
                 </div>
-                <div className="flex items-center justify-center p-6 overflow-hidden" style={{ height: 300, background: SURFACE }}>
+                <div className="relative overflow-hidden" style={{ height: 300, background: SURFACE }}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={image}
                     alt={`${label} — real Fanometrix product screenshot`}
-                    className="max-w-full max-h-full object-contain rounded-lg shadow-sm transition-transform duration-500 ease-out group-hover:scale-110"
+                    className="w-full h-full object-cover object-top transition-[object-position] duration-[900ms] ease-in-out group-hover:object-bottom"
                   />
+                  <div className="absolute inset-x-0 bottom-0 h-12 pointer-events-none bg-gradient-to-t from-black/10 to-transparent" />
                 </div>
               </div>
             ))}
