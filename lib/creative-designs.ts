@@ -22,6 +22,7 @@ export type CreativeDesign = {
   id: string;
   name: string;
   category: DesignCategory;
+  subTheme: string | null;
   layout: DesignLayout;
   gradient: string;
   text: string;
@@ -38,18 +39,23 @@ export const CREATIVE_DESIGNS: CreativeDesign[] = [
   // Ids below are unchanged from the original CREATIVE_THEMES catalog — they
   // must keep matching ThemedSurvey.tsx's EMBED_THEMES keys and every
   // existing campaigns.creative_design row.
-  { id: "classic", name: "Fanometrix Default", category: "fanometrix", layout: "classic", gradient: "linear-gradient(135deg,#071B2F,#0B1929)", text: "#D7B87A" },
-  { id: "fanometrix", name: "Fanometrix Premium", category: "fanometrix", layout: "timer", gradient: "linear-gradient(135deg,#D7B87A,#A8864A)", text: "#041B33" },
-  { id: "electric-football", name: "Electric Football", category: "fanometrix", layout: "timer", gradient: "linear-gradient(180deg,#00F5A0,#00C2FF)", text: "#061A2F" },
-  { id: "fan-energy", name: "Fan Energy", category: "fanometrix", layout: "timer", gradient: "linear-gradient(180deg,#FF4FA3,#A855F7)", text: "#fff" },
-  { id: "electric-purple", name: "Electric Purple", category: "fanometrix", layout: "timer", gradient: "linear-gradient(180deg,#D946EF,#7C3AED)", text: "#fff" },
-  { id: "sky-pulse", name: "Sky Pulse", category: "fanometrix", layout: "timer", gradient: "linear-gradient(180deg,#7DD3FC,#3B82F6)", text: "#071625" },
-  { id: "ocean", name: "Ocean", category: "fanometrix", layout: "timer", gradient: "linear-gradient(180deg,#7DD3FC,#2563EB)", text: "#081421" },
-  { id: "lime-energy", name: "Lime Energy", category: "fanometrix", layout: "timer", gradient: "linear-gradient(180deg,#F8F32B,#A3D92F)", text: "#10120B" },
-  { id: "stadium-green", name: "Stadium Green", category: "fanometrix", layout: "timer", gradient: "linear-gradient(180deg,#64DD17,#0B5D1E)", text: "#fff" },
+  //
+  // Sub-themes group by format: "Fanometrix Branded" holds the plain
+  // classic-list design; "Count Down Clock" holds every Timer-layout
+  // colour palette (they're all the same countdown-timer format, just
+  // recoloured).
+  { id: "classic", name: "Fanometrix Default", category: "fanometrix", subTheme: "Fanometrix Branded", layout: "classic", gradient: "linear-gradient(135deg,#071B2F,#0B1929)", text: "#D7B87A" },
+  { id: "fanometrix", name: "Fanometrix Premium", category: "fanometrix", subTheme: "Count Down Clock", layout: "timer", gradient: "linear-gradient(135deg,#D7B87A,#A8864A)", text: "#041B33" },
+  { id: "electric-football", name: "Electric Football", category: "fanometrix", subTheme: "Count Down Clock", layout: "timer", gradient: "linear-gradient(180deg,#00F5A0,#00C2FF)", text: "#061A2F" },
+  { id: "fan-energy", name: "Fan Energy", category: "fanometrix", subTheme: "Count Down Clock", layout: "timer", gradient: "linear-gradient(180deg,#FF4FA3,#A855F7)", text: "#fff" },
+  { id: "electric-purple", name: "Electric Purple", category: "fanometrix", subTheme: "Count Down Clock", layout: "timer", gradient: "linear-gradient(180deg,#D946EF,#7C3AED)", text: "#fff" },
+  { id: "sky-pulse", name: "Sky Pulse", category: "fanometrix", subTheme: "Count Down Clock", layout: "timer", gradient: "linear-gradient(180deg,#7DD3FC,#3B82F6)", text: "#071625" },
+  { id: "ocean", name: "Ocean", category: "fanometrix", subTheme: "Count Down Clock", layout: "timer", gradient: "linear-gradient(180deg,#7DD3FC,#2563EB)", text: "#081421" },
+  { id: "lime-energy", name: "Lime Energy", category: "fanometrix", subTheme: "Count Down Clock", layout: "timer", gradient: "linear-gradient(180deg,#F8F32B,#A3D92F)", text: "#10120B" },
+  { id: "stadium-green", name: "Stadium Green", category: "fanometrix", subTheme: "Count Down Clock", layout: "timer", gradient: "linear-gradient(180deg,#64DD17,#0B5D1E)", text: "#fff" },
   // brand / tournament / publisher: intentionally empty for now — future
   // curated designs land here with zero further schema changes. Picker UIs
-  // must render an empty-state message when a category has no entries.
+  // must render an empty-state message when a category/sub-theme has no entries.
 ];
 
 export const DESIGN_LAYOUTS: Record<string, DesignLayout> = Object.fromEntries(
