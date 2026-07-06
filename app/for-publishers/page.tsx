@@ -226,8 +226,7 @@ export default function ForPublishersPage() {
                 className="hero-fade-up leading-[1.75] mb-8 mx-auto lg:mx-0"
                 style={{ animationDelay: "0.2s", fontSize: "clamp(15px, 1.6vw, 17px)", color: GREY, maxWidth: 460 }}
               >
-                Fanometrix helps publishers understand not only what football fans do, but why they do it —
-                through short anonymous surveys embedded directly into existing football experiences.
+                Fanometrix helps publishers understand not only what football fans do, but why they do it, through short anonymous surveys embedded directly into existing football experiences.
               </p>
 
               <div className="hero-fade-up flex flex-wrap gap-2.5 justify-center lg:justify-start mb-8" style={{ animationDelay: "0.3s" }}>
@@ -510,7 +509,7 @@ export default function ForPublishersPage() {
           </div>
 
           <div className="text-center">
-            {["Your audience.", "Your inventory.", "Your design language."].map((line, i) => (
+            {["Your audience.", "Your inventory.", "Your design."].map((line, i) => (
               <p
                 key={line}
                 className="scroll-fade-up font-bold leading-[1.3] tracking-tight mx-auto"
