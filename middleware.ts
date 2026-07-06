@@ -19,6 +19,7 @@ const PUBLIC_PATHS = new Set([
   "/publisher-hub",
   "/publisher-guide",
   "/fanometrix-guide",
+  "/for-publishers",
   "/survey",
   "/embed",
   "/access-denied",
