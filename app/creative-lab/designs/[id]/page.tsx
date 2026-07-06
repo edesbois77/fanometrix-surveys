@@ -146,6 +146,11 @@ export default function CreativeStudioPage() {
   const [branding, setBranding] = useState<BrandingConfig>({});
   const [allSubThemes, setAllSubThemes] = useState<string[]>([]);
 
+  // Bump to remount the live preview on demand — it's a real ThemedSurvey/
+  // ClassicSurvey instance with its own internal state (countdown timer,
+  // selected answer, etc.), so colour/gradient edits made after the initial
+  // mount don't reset that state by themselves. Refresh gives a clean replay.
+  const [previewKey, setPreviewKey] = useState(0);
   const [saving, setSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [toast, setToast] = useState("");
@@ -322,14 +327,28 @@ export default function CreativeStudioPage() {
           </div>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-8 items-start">
+        <div className="grid grid-cols-1 lg:grid-cols-[350px_1fr] gap-8 items-start">
           {/* ── Left: sticky live preview ── */}
           <div className="lg:sticky lg:top-6">
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Live preview</p>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Live preview</p>
+              <button
+                onClick={() => setPreviewKey(k => k + 1)}
+                className="text-xs font-medium text-gray-500 hover:text-gray-700 flex items-center gap-1"
+                title="Restart the preview — see your edits without saving"
+              >
+                ↻ Refresh
+              </button>
+            </div>
             <div className="flex justify-center bg-gray-50 border border-gray-100 rounded-xl p-4">
+              {/* flex-shrink-0: the creative is a fixed 300x250 — it must never be
+                  compressed by its flex parent. A shrunk outer box previously
+                  clipped the (fixed-pixel-width) quadrant grid via overflow:hidden,
+                  which looked like a text-fit bug but was actually this. */}
+              <div className="flex-shrink-0">
               {layout === "classic" ? (
                 <ClassicSurvey
-                  key="studio-preview"
+                  key={`studio-preview-${previewKey}`}
                   branding={brandingPreview}
                   questions={PREVIEW_QUESTIONS}
                   thankYouTitle="Thank You"
@@ -343,7 +362,7 @@ export default function CreativeStudioPage() {
                 />
               ) : (
                 <ThemedSurvey
-                  key="studio-preview"
+                  key={`studio-preview-${previewKey}`}
                   themeId={design.slug}
                   customTheme={customTheme}
                   branding={brandingPreview}
@@ -358,6 +377,7 @@ export default function CreativeStudioPage() {
                   market={null} surveyLanguage="en" sessionId=""
                 />
               )}
+              </div>
             </div>
           </div>
 

@@ -307,7 +307,9 @@ export default function CreativeDesignsGalleryPage() {
                               className="bg-white border border-gray-100 rounded-xl shadow-sm p-3 flex flex-col gap-2.5"
                               style={d.status === "archived" ? { opacity: 0.55 } : undefined}
                             >
-                              <DesignSwatch d={d} />
+                              <Link href={`/creative-lab/designs/${d.id}`} className="block transition-opacity hover:opacity-90">
+                                <DesignSwatch d={d} />
+                              </Link>
                               <div className="flex items-start justify-between gap-1">
                                 <div className="min-w-0">
                                   <p className="text-sm font-semibold text-gray-900 truncate">{d.name}</p>

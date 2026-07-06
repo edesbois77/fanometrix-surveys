@@ -5,6 +5,16 @@
 // Renders the 4-quadrant timer design with the chosen theme applied.
 
 import { useState, useRef, useEffect, useLayoutEffect } from "react";
+import { Space_Grotesk, Inter } from "next/font/google";
+
+// Self-hosted via next/font (built at compile time, served from this origin,
+// size-matched fallback) — not a runtime Google Fonts @import. That approach
+// caused a real flash-of-fallback-text on every mount (including every ad
+// impression): text briefly rendered in a wider system fallback before the
+// web font swapped in, overflowing the 94px quadrant width and getting
+// clipped by overflow:hidden until the swap completed.
+const spaceGrotesk = Space_Grotesk({ subsets: ["latin"], weight: ["600", "700"], display: "swap" });
+const inter = Inter({ subsets: ["latin"], weight: ["400", "500", "600"], display: "swap" });
 
 // ── Compact theme definitions (8 themes, independent of creative-lab) ─────────
 
@@ -58,8 +68,8 @@ const PROG_CIRC = 2 * Math.PI * PROG_R;
 // GRID_TO_ANSWER: display index → options array index
 const GRID_TO_ANS = [0, 1, 3, 2];
 
-const FONT_Q = "'Space Grotesk', system-ui, sans-serif";
-const FONT_A = "'Inter', system-ui, sans-serif";
+const FONT_Q = spaceGrotesk.style.fontFamily;
+const FONT_A = inter.style.fontFamily;
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -611,9 +621,6 @@ export function ThemedSurvey(props: ThemedSurveyProps) {
       border:`1px solid ${theme.outerBorder}`, borderRadius:12,
       boxShadow:theme.outerShadow,
     }}>
-      {/* Google Fonts */}
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Inter:wght@400;500;600&display=swap');`}</style>
-
       {/* Themed privacy overlay — rendered above everything else */}
       {showPrivacy && (
         <ThemedPrivacyOverlay theme={theme} onClose={() => setShowPrivacy(false)} />
