@@ -4,7 +4,6 @@ import { useState, useCallback, useRef } from "react";
 import { VariantA, type SurveyEvent as EventA } from "./VariantA";
 import { VariantB, type SurveyEvent as EventB } from "./VariantB";
 import { THEMES, type Theme, type SurveyQuestion } from "./themes";
-import { CreativeGalleryBuilder } from "./CreativeGalleryBuilder";
 import { type TypographyMode } from "./typography";
 
 const DEFAULT_QUESTIONS: SurveyQuestion[] = [
@@ -16,7 +15,7 @@ const DEFAULT_QUESTIONS: SurveyQuestion[] = [
 type Variant    = "A" | "B";
 const DESIGN_LABEL = "Design — Timer (300×250)";
 type Device     = "desktop" | "mobile";
-type Tab        = "gallery" | "archive" | "myDesigns";
+type Tab        = "gallery" | "archive";
 type SurveyEvent = EventA | EventB;
 
 const PAGE_BG   = "#07101A";
@@ -458,7 +457,6 @@ export default function ThemeGalleryPage() {
 
   const TABS: { id: Tab; label: string }[] = [
     { id: "gallery",    label: "Gallery" },
-    { id: "myDesigns",  label: "Creative Gallery" },
     { id: "archive",    label: "Archive" },
   ];
 
@@ -560,10 +558,6 @@ export default function ThemeGalleryPage() {
           setQuestions={setQuestions}
           dark={dark}
         />
-      )}
-
-      {activeTab === "myDesigns" && (
-        <CreativeGalleryBuilder dark={dark} />
       )}
 
       {activeTab === "archive" && (

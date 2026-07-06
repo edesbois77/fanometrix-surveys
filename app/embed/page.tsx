@@ -113,6 +113,7 @@ function EmbedSurvey() {
   const [groupReady,         setGroupReady]         = useState(!groupSlug);
   const [creativeDesign,     setCreativeDesign]     = useState<string | null>(null);
   const [customTheme,        setCustomTheme]        = useState<EmbedTheme | null>(null);
+  const [branding,           setBranding]           = useState<string[]>([]);
   const [resolvedGroupId,      setResolvedGroupId]      = useState<string | null>(null);
   const [resolvedSurveyLang,   setResolvedSurveyLang]   = useState<string>(urlLang ?? "en");
   const [resolvedCountryCode,  setResolvedCountryCode]  = useState<string | null>(countryParam || null);
@@ -148,6 +149,7 @@ function EmbedSurvey() {
           setResolvedMarket(data.market ?? marketParam);
           setCreativeDesign(data.creative_design ?? null);
           setCustomTheme(data.custom_theme ?? null);
+          setBranding(data.branding ?? []);
         }
         setGroupReady(!!data?.campaign_id);
       })
@@ -172,6 +174,7 @@ function EmbedSurvey() {
           setResolvedSurveyLang(data.survey_language ?? urlLang ?? "en");
           setCreativeDesign(data.creative_design ?? null);
           setCustomTheme(data.custom_theme ?? null);
+          setBranding(data.branding ?? []);
         }
       })
       .catch(() => {/* keep fallback questions */});
@@ -209,6 +212,7 @@ function EmbedSurvey() {
       <ThemedSurvey
         themeId={creativeDesign!}
         customTheme={customTheme ?? undefined}
+        branding={branding}
         questions={questions}
         thankYouTitle={thankYouTitle}
         thankYouBody={thankYouBody}
@@ -236,6 +240,7 @@ function EmbedSurvey() {
 
   return (
     <ClassicSurvey
+      branding={branding}
       questions={questions}
       thankYouTitle={thankYouTitle}
       thankYouBody={thankYouBody}

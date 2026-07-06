@@ -7,7 +7,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { resolveQuestion, resolveText, type LangCode, type LocalisedQuestion, type LocalisedText } from "@/lib/survey-locale";
-import { buildEmbedThemeFromState, type BuilderState } from "@/lib/creative-theme-builder";
+import { buildEmbedThemeFromState, resolveBrandingLogos, type BuilderState, type BrandingConfig } from "@/lib/creative-theme-builder";
 import type { EmbedTheme } from "@/app/embed/ThemedSurvey";
 
 const NO_CACHE = {
@@ -83,16 +83,18 @@ export async function GET(req: NextRequest) {
   // Every creative_design slug — built-in or custom — is now a row in
   // creative_designs; resolve its layout + render palette from there.
   let customTheme: EmbedTheme | null = null;
+  let branding: string[] = [];
   if (effectiveCreativeDesign) {
     const { data: design } = await supabaseAdmin
       .from("creative_designs")
-      .select("layout, builder_state")
+      .select("layout, builder_state, branding")
       .eq("slug", effectiveCreativeDesign)
       .is("deleted_at", null)
       .single();
     if (design?.layout === "timer" && design.builder_state) {
       customTheme = buildEmbedThemeFromState(design.builder_state as BuilderState);
     }
+    branding = resolveBrandingLogos(design?.branding as BrandingConfig | null);
   }
 
   return NextResponse.json({
@@ -100,6 +102,7 @@ export async function GET(req: NextRequest) {
     survey_language: lang,
     creative_design:  effectiveCreativeDesign,
     custom_theme:    customTheme,
+    branding,
     questions,
     thank_you_title: resolveText((survey.thank_you_title as LocalisedText | null) ?? {}, lang) || "Thank you!",
     thank_you_body:  resolveText((survey.thank_you_body as LocalisedText | null) ?? {}, lang) || "Your anonymous feedback helps improve the football experience for fans everywhere.",

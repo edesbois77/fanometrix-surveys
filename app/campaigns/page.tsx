@@ -1419,7 +1419,7 @@ export default function CampaignsPage() {
                 <div className="border border-gray-100 rounded-xl p-4 space-y-3">
                   <div className="flex items-center justify-between">
                     <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Creative Design</p>
-                    <a href="/creative-lab/theme-gallery" target="_blank" rel="noopener"
+                    <a href="/creative-lab/designs" target="_blank" rel="noopener"
                       className="text-xs font-medium underline"
                       style={{ color: "#D7B87A" }}>
                       Browse all designs →

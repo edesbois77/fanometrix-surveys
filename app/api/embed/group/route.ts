@@ -21,7 +21,7 @@ import { supabase } from "@/lib/supabase";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { validateSurvey } from "@/lib/survey-validation";
 import { resolveQuestion, resolveText, type LangCode, type LocalisedQuestion, type LocalisedText } from "@/lib/survey-locale";
-import { buildEmbedThemeFromState, type BuilderState } from "@/lib/creative-theme-builder";
+import { buildEmbedThemeFromState, resolveBrandingLogos, type BuilderState, type BrandingConfig } from "@/lib/creative-theme-builder";
 import type { EmbedTheme } from "@/app/embed/ThemedSurvey";
 
 export async function GET(req: NextRequest) {
@@ -215,16 +215,18 @@ export async function GET(req: NextRequest) {
 
   const resolvedDesign = effectiveCreativeDesign(campaign);
   let customTheme: EmbedTheme | null = null;
+  let branding: string[] = [];
   if (resolvedDesign) {
     const { data: design } = await supabaseAdmin
       .from("creative_designs")
-      .select("layout, builder_state")
+      .select("layout, builder_state, branding")
       .eq("slug", resolvedDesign)
       .is("deleted_at", null)
       .single();
     if (design?.layout === "timer" && design.builder_state) {
       customTheme = buildEmbedThemeFromState(design.builder_state as BuilderState);
     }
+    branding = resolveBrandingLogos(design?.branding as BrandingConfig | null);
   }
 
   return NextResponse.json({
@@ -235,6 +237,7 @@ export async function GET(req: NextRequest) {
     market:          campaign.market ?? null,
     creative_design:  resolvedDesign,
     custom_theme:    customTheme,
+    branding,
     questions,
     thank_you_title: resolveText(survey?.thank_you_title ?? {}, lang) || "Thank you!",
     thank_you_body:  resolveText(survey?.thank_you_body ?? {}, lang) || "Your anonymous feedback helps improve the football experience for fans everywhere.",

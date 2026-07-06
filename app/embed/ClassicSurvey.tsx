@@ -300,7 +300,7 @@ function PrivacyModal({
 
 // ─── Shared header ──────────────────────────────────────────────────────────
 
-function AdHeader({ step, total }: { step?: number; total?: number }) {
+function AdHeader({ step, total, branding }: { step?: number; total?: number; branding?: string[] }) {
   return (
     <div
       style={{
@@ -315,12 +315,18 @@ function AdHeader({ step, total }: { step?: number; total?: number }) {
         boxSizing: "border-box",
       }}
     >
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src="/Fanometrix_Logo.png"
-        alt="Fanometrix"
-        style={{ height: 15, objectFit: "contain", objectPosition: "left" }}
-      />
+      <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/Fanometrix_Logo.png"
+          alt="Fanometrix"
+          style={{ height: 15, objectFit: "contain", objectPosition: "left", flexShrink: 0 }}
+        />
+        {branding?.map((url, i) => (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img key={i} src={url} alt="" style={{ height: 14, maxWidth: 40, objectFit: "contain", flexShrink: 0 }} />
+        ))}
+      </div>
       {step !== undefined && total !== undefined && (
         <span
           style={{
@@ -343,6 +349,9 @@ function AdHeader({ step, total }: { step?: number; total?: number }) {
 // Header: 46px | Progress: 3px | Body: flex:1 (179px) | Footer: 22px
 
 export interface ClassicSurveyProps {
+  // Resolved, visible logo URLs (see lib/creative-theme-builder.ts's
+  // resolveBrandingLogos) — rendered next to the Fanometrix logo in the header.
+  branding?: string[];
   questions: Question[];
   thankYouTitle: string;
   thankYouBody: string;
@@ -370,7 +379,7 @@ export interface ClassicSurveyProps {
 
 export function ClassicSurvey(props: ClassicSurveyProps) {
   const {
-    questions, thankYouTitle, thankYouBody, isPreview, campaignId, surveyId,
+    branding, questions, thankYouTitle, thankYouBody, isPreview, campaignId, surveyId,
     questionSetId, publisher, placement, placementId, creativeId, club,
     competition, country, segment, device, browser, groupId, countryCode,
     market, surveyLanguage, sessionId, urlLang,
@@ -569,7 +578,7 @@ export function ClassicSurvey(props: ClassicSurveyProps) {
       {status === "success" ? (
         /* ── Thank-you screen ─────────────────────────────────────────── */
         <>
-          <AdHeader />
+          <AdHeader branding={branding} />
 
           {/* Progress bar — 100% */}
           <div style={{ height: 3, minHeight: 3, background: "rgba(215,184,122,0.2)", flexShrink: 0 }}>
@@ -637,7 +646,7 @@ export function ClassicSurvey(props: ClassicSurveyProps) {
       ) : (
         /* ── Survey question screen ───────────────────────────────────── */
         <>
-          <AdHeader step={step + 1} total={questions.length} />
+          <AdHeader step={step + 1} total={questions.length} branding={branding} />
 
           {/* Gold progress bar */}
           <div style={{ height: 3, minHeight: 3, background: "rgba(215,184,122,0.2)", flexShrink: 0 }}>

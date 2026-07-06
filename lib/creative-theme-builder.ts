@@ -107,6 +107,35 @@ export function buildGradientCss(colors: string[], direction: string): string {
   return `linear-gradient(${direction}, ${colors[0]} 0%, ${colors[1]} 50%, ${colors[2]} 100%)`;
 }
 
+/** Simple logo-URL branding fields stored on a creative_designs row — see
+ * supabase-migration-050.sql. No upload infrastructure; just hosted URLs. */
+export interface BrandingConfig {
+  fanometrix_logo_url?: string | null;
+  fanometrix_logo_visible?: boolean;
+  publisher_logo_url?: string | null;
+  publisher_logo_visible?: boolean;
+  brand_logo_url?: string | null;
+  brand_logo_visible?: boolean;
+  sponsor_logo_url?: string | null;
+  sponsor_logo_visible?: boolean;
+}
+
+/** Resolves stored branding config into the ordered list of logo URLs that
+ * should actually render — a slot with no URL, or explicitly hidden, is
+ * skipped. Visible defaults to true once a URL is set. */
+export function resolveBrandingLogos(branding: BrandingConfig | null | undefined): string[] {
+  if (!branding) return [];
+  const slots: Array<[string | null | undefined, boolean | undefined]> = [
+    [branding.fanometrix_logo_url, branding.fanometrix_logo_visible],
+    [branding.publisher_logo_url, branding.publisher_logo_visible],
+    [branding.brand_logo_url, branding.brand_logo_visible],
+    [branding.sponsor_logo_url, branding.sponsor_logo_visible],
+  ];
+  return slots
+    .filter(([url, visible]) => !!url && visible !== false)
+    .map(([url]) => url as string);
+}
+
 export function buildEmbedThemeFromState(s: BuilderState): EmbedTheme {
   const glow = hexToRgba(s.glowHex, s.glowAlpha);
 

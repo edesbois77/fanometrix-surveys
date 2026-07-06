@@ -2,6 +2,28 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { requireSession } from "@/lib/auth";
 
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    await requireSession(req, ["admin"]);
+  } catch (err) {
+    return err as Response;
+  }
+
+  const { id } = await params;
+  const { data, error } = await supabaseAdmin
+    .from("creative_designs")
+    .select("*, publishers(name)")
+    .eq("id", id)
+    .is("deleted_at", null)
+    .single();
+
+  if (error || !data) return NextResponse.json({ error: "Design not found." }, { status: 404 });
+
+  return NextResponse.json({
+    data: { ...data, publisher_name: (data as { publishers?: { name: string } | null }).publishers?.name ?? null },
+  });
+}
+
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     await requireSession(req, ["admin"]);
@@ -14,9 +36,24 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
   const {
     deleted_at: _da, created_at: _ca, updated_at: _ua, slug: _sl,
-    publisher_name: _pn, publishers: _p,
+    publisher_name: _pn, publishers: _p, is_system: _is,
     ...safe
   } = body as Record<string, unknown>;
+
+  // Protected system designs (the original built-ins) can be archived like
+  // any other design, but their content (colours, name, theme, ...) can
+  // only change by duplicating into a new, unprotected variant.
+  const { data: existing } = await supabaseAdmin
+    .from("creative_designs")
+    .select("is_system")
+    .eq("id", id)
+    .single();
+  if (existing?.is_system && Object.keys(safe).some(k => k !== "status")) {
+    return NextResponse.json(
+      { error: "System designs can't be edited directly — duplicate to create an editable variant." },
+      { status: 409 }
+    );
+  }
 
   const theme = safe.theme as string | undefined;
   if (theme === "publisher") {

@@ -99,6 +99,16 @@ export const NAV_ITEMS: NavItemConfig[] = [
     roles: ["admin"],
     navGroup: "surveys",
   },
+  {
+    href: "/creative-lab/designs",
+    label: "Creative Designs",
+    icon: "◈",
+    description: "Browse, edit and organise every survey creative by Theme and Sub-theme, and see which campaigns use each one.",
+    cta: "Open Creative Designs",
+    section: "platform",
+    roles: ["admin"],
+    navGroup: "surveys",
+  },
 
   // ── SOCIAL LISTENING ──────────────────────────────────────────────────────
   {

@@ -71,6 +71,9 @@ export interface ThemedSurveyProps {
   // theme lookup (every design is resolved server-side into customTheme).
   themeId:        string;
   customTheme?:   EmbedTheme;
+  // Resolved, visible logo URLs (see lib/creative-theme-builder.ts's
+  // resolveBrandingLogos) — rendered as a small row, bottom-left.
+  branding?:      string[];
   questions:      EmbedQuestion[];
   thankYouTitle:  string;
   thankYouBody:   string;
@@ -670,6 +673,16 @@ export function ThemedSurvey(props: ThemedSurveyProps) {
         >
           ⓘ Privacy
         </button>
+      )}
+
+      {/* Branding — small logo row, bottom-left, opposite the Privacy button */}
+      {phase !== "thankyou" && !!props.branding?.length && (
+        <div style={{ position:"absolute", bottom:6, left:8, zIndex:7, display:"flex", alignItems:"center", gap:5 }}>
+          {props.branding.map((url, i) => (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img key={i} src={url} alt="" style={{ height:14, maxWidth:44, objectFit:"contain" }} />
+          ))}
+        </div>
       )}
     </div>
   );
