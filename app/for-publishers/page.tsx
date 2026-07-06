@@ -234,19 +234,11 @@ export default function ForPublishersPage() {
                 {HERO_BADGES.map(badge => <Pill key={badge}>{badge}</Pill>)}
               </div>
 
-              <div className="hero-fade-up flex flex-wrap gap-x-8 gap-y-6 justify-center lg:justify-start" style={{ animationDelay: "0.4s" }}>
-                <div className="flex flex-col items-center lg:items-start gap-3 max-w-[260px]">
-                  <CtaButton href="/request-access?from=publisher" variant="primary">Run Your First Survey</CtaButton>
-                  <p className="text-xs leading-relaxed text-center lg:text-left" style={{ color: MUTED }}>
-                    Deploy Fanometrix on existing inventory and start seeing results within hours.
-                  </p>
-                </div>
-                <div className="flex flex-col items-center lg:items-start gap-3 max-w-[260px]">
-                  <CtaButton href="/request-access?from=publisher" variant="secondary">Join The Fanometrix Network</CtaButton>
-                  <p className="text-xs leading-relaxed text-center lg:text-left" style={{ color: MUTED }}>
-                    Join publishers helping shape the future of football audience intelligence.
-                  </p>
-                </div>
+              <div className="hero-fade-up flex flex-col items-center lg:items-start gap-3" style={{ animationDelay: "0.4s" }}>
+                <CtaButton href="/request-access?from=publisher" variant="primary">Run Your First Survey</CtaButton>
+                <p className="text-xs leading-relaxed text-center lg:text-left max-w-[260px]" style={{ color: MUTED }}>
+                  Deploy Fanometrix on existing inventory and start seeing results within hours.
+                </p>
               </div>
             </div>
 
@@ -398,12 +390,12 @@ export default function ForPublishersPage() {
             </h2>
           </div>
 
-          <div className="max-w-[1160px] mx-auto grid gap-5" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))" }}>
+          <div className="max-w-[960px] mx-auto flex flex-wrap justify-center gap-5">
             {RECEIVE_CARDS.map(({ title, body, icon }, i) => (
               <div
                 key={title}
                 className="scroll-fade-up bg-white rounded-2xl border p-9 transition-all duration-200 hover:border-[#D7B87A] hover:-translate-y-1 hover:shadow-lg"
-                style={{ borderColor: BORDER, transitionDelay: `${i * 0.08}s` }}
+                style={{ borderColor: BORDER, transitionDelay: `${i * 0.08}s`, flex: "1 1 280px", maxWidth: 300 }}
               >
                 <div className="w-12 h-12 rounded-full flex items-center justify-center mb-6" style={{ background: SURFACE }}>
                   <svg viewBox="0 0 24 24" width={21} height={21} fill="none" stroke={NAVY} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
@@ -425,7 +417,9 @@ export default function ForPublishersPage() {
               className="scroll-fade-up font-bold leading-[1.15] tracking-tight mx-auto"
               style={{ fontSize: "clamp(26px, 3.6vw, 42px)", color: NAVY, letterSpacing: "-0.02em", transitionDelay: "0.1s", maxWidth: 680 }}
             >
-              If You Can Traffic An MPU, You Can Run Fanometrix.
+              If You Can Traffic An MPU,
+              <br />
+              You Can Run Fanometrix.
             </h2>
           </div>
 
@@ -433,7 +427,7 @@ export default function ForPublishersPage() {
             {IMPLEMENTATION_STEPS.map(({ label, image }, i) => (
               <div
                 key={label}
-                className="scroll-fade-up bg-white rounded-2xl border overflow-hidden transition-all duration-200 hover:border-[#D7B87A] hover:-translate-y-1 hover:shadow-lg"
+                className="group scroll-fade-up bg-white rounded-2xl border overflow-hidden transition-all duration-200 hover:border-[#D7B87A] hover:-translate-y-1 hover:shadow-lg"
                 style={{ borderColor: BORDER, transitionDelay: `${i * 0.1}s` }}
               >
                 <div className="flex items-center gap-3 px-6 pt-6 pb-1">
@@ -442,12 +436,12 @@ export default function ForPublishersPage() {
                   </div>
                   <h3 className="text-[16px] font-bold tracking-[-0.01em]" style={{ color: NAVY }}>{label}</h3>
                 </div>
-                <div className="flex items-center justify-center p-6" style={{ height: 300, background: SURFACE }}>
+                <div className="flex items-center justify-center p-6 overflow-hidden" style={{ height: 300, background: SURFACE }}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={image}
                     alt={`${label} — real Fanometrix product screenshot`}
-                    className="max-w-full max-h-full object-contain rounded-lg shadow-sm"
+                    className="max-w-full max-h-full object-contain rounded-lg shadow-sm transition-transform duration-500 ease-out group-hover:scale-110"
                   />
                 </div>
               </div>
@@ -577,7 +571,6 @@ export default function ForPublishersPage() {
           </h2>
           <div className="scroll-fade-up flex flex-wrap gap-3.5 justify-center" style={{ transitionDelay: "0.1s" }}>
             <CtaButton href="/request-access?from=publisher" variant="primary">Run Your First Survey</CtaButton>
-            <CtaButton href="/request-access?from=publisher" variant="secondary">Join The Fanometrix Network</CtaButton>
           </div>
         </section>
 
