@@ -3,9 +3,7 @@
 import { useState, useCallback, useRef } from "react";
 import { VariantA, type SurveyEvent as EventA } from "./VariantA";
 import { VariantB, type SurveyEvent as EventB } from "./VariantB";
-import { QuadrantSurvey } from "../quadrant-mode/QuadrantSurvey";
 import { THEMES, type Theme, type SurveyQuestion } from "./themes";
-import { CustomThemeBuilder } from "./CustomThemeBuilder";
 import { CreativeGalleryBuilder } from "./CreativeGalleryBuilder";
 import { type TypographyMode } from "./typography";
 
@@ -18,7 +16,7 @@ const DEFAULT_QUESTIONS: SurveyQuestion[] = [
 type Variant    = "A" | "B";
 const DESIGN_LABEL = "Design — Timer (300×250)";
 type Device     = "desktop" | "mobile";
-type Tab        = "gallery" | "sidebyside" | "analytics" | "archive" | "original" | "custom" | "myDesigns";
+type Tab        = "gallery" | "archive" | "myDesigns";
 type SurveyEvent = EventA | EventB;
 
 const PAGE_BG   = "#07101A";
@@ -44,16 +42,6 @@ function pc(dark: boolean) {
   };
 }
 
-// ── Palette helpers ───────────────────────────────────────────────────────────
-
-const METRIC_LABELS: Record<string, string> = {
-  prominenceScore:      "Visual Prominence",
-  interactionPotential: "Interaction Potential",
-  readabilityScore:     "Readability",
-  mobileFriendliness:   "Mobile Friendliness",
-  accessibilityScore:   "Accessibility",
-};
-
 // ── Device frames ─────────────────────────────────────────────────────────────
 
 function DesktopFrame({ children }: { children: React.ReactNode }) {
@@ -78,20 +66,6 @@ function MobileFrame({ children }: { children: React.ReactNode }) {
       <div style={{ width: 56, height: 7, background: "rgba(255,255,255,0.1)", borderRadius: 4, flexShrink: 0 }} />
       {children}
       <div style={{ width: 36, height: 4, background: "rgba(255,255,255,0.15)", borderRadius: 2, flexShrink: 0 }} />
-    </div>
-  );
-}
-
-// ── Score bar ─────────────────────────────────────────────────────────────────
-
-function ScoreBar({ value, color, label }: { value: number; color: string; label?: string }) {
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-      {label && <span style={{ color: "rgba(255,255,255,0.45)", fontSize: 9, width: 120, flexShrink: 0 }}>{label}</span>}
-      <div style={{ flex: 1, height: 3, background: "rgba(255,255,255,0.08)", borderRadius: 2, overflow: "hidden" }}>
-        <div style={{ width: `${value * 10}%`, height: "100%", background: color, borderRadius: 2, transition: "width 0.6s cubic-bezier(0.4,0,0.2,1)" }} />
-      </div>
-      <span style={{ color: "rgba(255,255,255,0.5)", fontSize: 9, width: 22, textAlign: "right", flexShrink: 0 }}>{value}/10</span>
     </div>
   );
 }
@@ -185,65 +159,6 @@ function EventLog({ events }: { events: Array<SurveyEvent & { id: number; time: 
   );
 }
 
-// ── Analytics card ────────────────────────────────────────────────────────────
-
-function AnalyticsCard({ theme }: { theme: Theme }) {
-  const a = theme.analytics;
-  const metrics = [
-    { key: "prominenceScore",      value: a.prominenceScore },
-    { key: "interactionPotential", value: a.interactionPotential },
-    { key: "readabilityScore",     value: a.readabilityScore },
-    { key: "mobileFriendliness",   value: a.mobileFriendliness },
-    { key: "accessibilityScore",   value: a.accessibilityScore },
-  ];
-  const avg = Math.round(metrics.reduce((s, m) => s + m.value, 0) / metrics.length * 10) / 10;
-
-  return (
-    <div style={{
-      background: "rgba(255,255,255,0.03)",
-      border: `1px solid ${theme.outerBorder}`,
-      borderRadius: 10,
-      padding: "14px 16px",
-      display: "flex",
-      flexDirection: "column",
-      gap: 10,
-    }}>
-      {/* Header row */}
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
-        <div>
-          <p style={{ color: "#fff", fontSize: 11, fontWeight: 700, margin: 0, letterSpacing: "-0.01em" }}>{theme.name}</p>
-          <p style={{ color: "rgba(255,255,255,0.35)", fontSize: 8.5, margin: "2px 0 0" }}>{theme.feeling}</p>
-        </div>
-        <div style={{ textAlign: "right", flexShrink: 0 }}>
-          <span style={{ color: theme.accent, fontSize: 16, fontWeight: 700, lineHeight: 1 }}>{avg}</span>
-          <span style={{ color: "rgba(255,255,255,0.3)", fontSize: 8 }}>/10</span>
-          <p style={{ color: "rgba(255,255,255,0.25)", fontSize: 7.5, margin: "1px 0 0", letterSpacing: "0.04em", textTransform: "uppercase" }}>Avg score</p>
-        </div>
-      </div>
-
-      {/* Score bars */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        {metrics.map((m) => (
-          <ScoreBar key={m.key} value={m.value} color={theme.accent} label={METRIC_LABELS[m.key]} />
-        ))}
-      </div>
-
-      {/* Use case tag */}
-      <div style={{
-        background: `${theme.accent}15`,
-        border: `1px solid ${theme.outerBorder}`,
-        borderRadius: 5,
-        padding: "4px 9px",
-        display: "inline-flex",
-        alignSelf: "flex-start",
-      }}>
-        <span style={{ color: theme.accent, fontSize: 8, fontWeight: 700, letterSpacing: "0.04em" }}>
-          ✦ {a.recommendedUseCase}
-        </span>
-      </div>
-    </div>
-  );
-}
 
 // ── Question editor ───────────────────────────────────────────────────────────
 
@@ -481,72 +396,6 @@ function GalleryTab({
   );
 }
 
-// ── Side-by-side tab ──────────────────────────────────────────────────────────
-
-function SideBySideTab({ surveyKey, forceExpire, onRestart, typography, questions, dark }: { surveyKey: number; forceExpire: number; onRestart: () => void; typography: TypographyMode; questions: SurveyQuestion[]; dark: boolean }) {
-  const [selectedId, setSelectedId] = useState(THEMES[0].id);
-  const theme = THEMES.find((t) => t.id === selectedId) ?? THEMES[0];
-  const p = pc(dark);
-
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      {/* Theme picker */}
-      <div>
-        <p style={{ color: p.faint, fontSize: 8, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", margin: "0 0 8px" }}>Select theme</p>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-          {THEMES.map((t) => {
-            const active = t.id === selectedId;
-            return (
-              <button
-                key={t.id}
-                onClick={() => setSelectedId(t.id)}
-                style={{
-                  background: active ? `${t.accent}22` : "rgba(255,255,255,0.04)",
-                  border: active ? `1px solid ${t.outerBorder}` : "1px solid rgba(255,255,255,0.07)",
-                  borderRadius: 8, cursor: "pointer",
-                  color: active ? t.accent : "rgba(255,255,255,0.5)",
-                  fontSize: 9.5, fontWeight: active ? 700 : 400,
-                  padding: "5px 12px",
-                  transition: "all 0.15s ease",
-                  fontFamily: "system-ui, -apple-system, sans-serif",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {t.name}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Theme feeling + colour swatch row */}
-      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <div style={{ width: 14, height: 14, borderRadius: 3, background: theme.gradient, flexShrink: 0 }} />
-        <span style={{ color: p.muted, fontSize: 10 }}>{theme.feeling}</span>
-        <button onClick={onRestart} style={{ marginLeft: "auto", background: "none", border: `1px solid rgba(255,255,255,0.08)`, borderRadius: 6, cursor: "pointer", color: "rgba(255,255,255,0.4)", fontSize: 9, padding: "3px 10px", fontFamily: "inherit" }}>
-          ↺ Reset
-        </button>
-      </div>
-
-      {/* MPU preview */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 10, alignItems: "flex-start" }}>
-        <div style={{ background: `${theme.accent}18`, border: `1px solid ${theme.outerBorder}`, borderRadius: 5, padding: "3px 12px" }}>
-          <span style={{ color: theme.accent, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase" }}>{DESIGN_LABEL}</span>
-        </div>
-        <VariantB key={`sbs-b-${surveyKey}-${theme.id}`} theme={theme} typography={typography} questions={questions} forceExpire={forceExpire} />
-      </div>
-
-      {/* Analytics summary for selected theme */}
-      <div style={{ maxWidth: 500 }}>
-        <p style={{ color: p.faint, fontSize: 8, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", margin: "0 0 10px" }}>
-          Theme analytics — {theme.name}
-        </p>
-        <AnalyticsCard theme={theme} />
-      </div>
-    </div>
-  );
-}
-
 // ── Archive tab — Variant A (circle design) across all 8 themes ──────────────
 
 function ArchiveTab({ surveyKey, typography, questions, dark }: {
@@ -572,161 +421,6 @@ function ArchiveTab({ surveyKey, typography, questions, dark }: {
           </div>
         ))}
       </div>
-    </div>
-  );
-}
-
-// ── Design - Original tab — V1 production creative ────────────────────────────
-
-function OriginalTab({ surveyKey, questions, dark }: { surveyKey: number; questions: SurveyQuestion[]; dark: boolean }) {
-  const p = pc(dark);
-  // QuadrantSurvey uses QMQuestion shape — same structure, compatible
-  const qmQuestions = questions.map(q => ({ text: q.text, answers: q.answers }));
-
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      <div style={{ background: p.surface, border: "1px solid rgba(215,184,122,0.2)", borderRadius: 10, padding: "14px 18px" }}>
-        <p style={{ color: p.text, fontSize: 13, fontWeight: 700, margin: "0 0 4px", letterSpacing: "-0.01em" }}>Design — Original</p>
-        <p style={{ color: p.muted, fontSize: 10, margin: 0, lineHeight: 1.5 }}>
-          The original Fanometrix survey creative — fixed navy/gold, no theme system. This is the reference point for how far the new designs have evolved.
-        </p>
-      </div>
-
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 32, alignItems: "flex-start" }}>
-        {/* Original creative */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 10, alignItems: "center" }}>
-          <div style={{ background: "rgba(215,184,122,0.1)", border: "1px solid rgba(215,184,122,0.3)", borderRadius: 5, padding: "3px 12px" }}>
-            <span style={{ color: GOLD, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase" }}>V1 Original — Fanometrix Navy/Gold</span>
-          </div>
-          <QuadrantSurvey key={`orig-${surveyKey}`} questions={qmQuestions} />
-        </div>
-
-        {/* Separator */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 8, justifyContent: "center", alignSelf: "center", padding: "0 8px" }}>
-          <div style={{ width: 1, height: 60, background: p.border, margin: "0 auto" }} />
-          <span style={{ color: p.faint, fontSize: 9, textTransform: "uppercase", letterSpacing: "0.08em" }}>vs</span>
-          <div style={{ width: 1, height: 60, background: p.border, margin: "0 auto" }} />
-        </div>
-
-        {/* New design — Fanometrix Premium theme for a fair comparison */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 10, alignItems: "center" }}>
-          <div style={{ background: "rgba(215,184,122,0.1)", border: "1px solid rgba(215,184,122,0.3)", borderRadius: 5, padding: "3px 12px" }}>
-            <span style={{ color: GOLD, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase" }}>New Design — Fanometrix Premium</span>
-          </div>
-          <VariantB key={`orig-new-${surveyKey}`} theme={THEMES[0]} questions={questions} />
-        </div>
-      </div>
-
-      {/* Callout */}
-      <div style={{ maxWidth: 560, background: "rgba(215,184,122,0.05)", border: "1px solid rgba(215,184,122,0.15)", borderRadius: 8, padding: "12px 16px" }}>
-        <p style={{ color: p.muted, fontSize: 10, margin: 0, lineHeight: 1.7 }}>
-          The original design uses a fixed navy background with a gold accent, a small 90px centre circle, and a progress ring that fills as questions are completed.
-          The new designs introduce themed gradients, a header bar, countdown timer, and the Electric Football typography system.
-        </p>
-      </div>
-    </div>
-  );
-}
-
-// ── Analytics tab ─────────────────────────────────────────────────────────────
-
-function AnalyticsTab({ dark }: { dark: boolean }) {
-  const p = pc(dark);
-  const metrics = [
-    { key: "prominenceScore",      label: "Prominence" },
-    { key: "interactionPotential", label: "Interaction" },
-    { key: "readabilityScore",     label: "Readability" },
-    { key: "mobileFriendliness",   label: "Mobile" },
-    { key: "accessibilityScore",   label: "Accessibility" },
-  ] as const;
-
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-
-      {/* Header */}
-      <div style={{ background: p.surface, border: `1px solid ${p.border}`, borderRadius: 10, padding: "14px 18px" }}>
-        <p style={{ color: p.text, fontSize: 13, fontWeight: 700, margin: "0 0 4px" }}>Creative Analytics Dashboard</p>
-        <p style={{ color: p.muted, fontSize: 10, margin: 0, lineHeight: 1.5 }}>
-          Mocked scoring for prototype evaluation. Scores represent estimated performance characteristics to help identify which concepts warrant production testing.
-        </p>
-      </div>
-
-      {/* Comparison table */}
-      <div style={{ overflowX: "auto" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 10, fontFamily: "system-ui, -apple-system, sans-serif" }}>
-          <thead>
-            <tr>
-              <th style={{ textAlign: "left", color: p.faint, fontSize: 8, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", padding: "6px 12px 10px 0", borderBottom: `1px solid ${p.divider}`, whiteSpace: "nowrap" }}>
-                Theme
-              </th>
-              {metrics.map((m) => (
-                <th key={m.key} style={{ textAlign: "center", color: p.faint, fontSize: 8, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", padding: "6px 8px 10px", borderBottom: `1px solid ${p.divider}`, whiteSpace: "nowrap" }}>
-                  {m.label}
-                </th>
-              ))}
-              <th style={{ textAlign: "center", color: p.faint, fontSize: 8, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", padding: "6px 8px 10px", borderBottom: `1px solid ${p.divider}`, whiteSpace: "nowrap" }}>
-                Avg
-              </th>
-              <th style={{ textAlign: "left", color: p.faint, fontSize: 8, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", padding: "6px 0 10px 8px", borderBottom: `1px solid ${p.divider}`, whiteSpace: "nowrap" }}>
-                Best for
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {THEMES.map((t, i) => {
-              const a = t.analytics;
-              const vals = [a.prominenceScore, a.interactionPotential, a.readabilityScore, a.mobileFriendliness, a.accessibilityScore];
-              const avg = Math.round(vals.reduce((s, v) => s + v, 0) / vals.length * 10) / 10;
-              return (
-                <tr key={t.id} style={{ background: i % 2 === 0 ? p.stripRow : "transparent" }}>
-                  <td style={{ padding: "10px 12px 10px 0", borderBottom: `1px solid ${p.borderFaint}` }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <div style={{ width: 20, height: 20, borderRadius: 4, background: t.gradient, flexShrink: 0 }} />
-                      <div>
-                        <p style={{ color: p.text, fontSize: 10, fontWeight: 600, margin: 0 }}>{t.name}</p>
-                        <p style={{ color: p.faint, fontSize: 8, margin: 0 }}>{t.feeling.split(" · ")[0]}</p>
-                      </div>
-                    </div>
-                  </td>
-                  {vals.map((v, vi) => (
-                    <td key={vi} style={{ textAlign: "center", padding: "10px 8px", borderBottom: `1px solid ${p.borderFaint}` }}>
-                      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
-                        <span style={{ color: v >= 9 ? t.accent : v >= 7 ? p.text : p.muted, fontSize: 12, fontWeight: 700, lineHeight: 1 }}>{v}</span>
-                        <div style={{ width: 28, height: 2, background: p.vfaint, borderRadius: 1, overflow: "hidden" }}>
-                          <div style={{ width: `${v * 10}%`, height: "100%", background: t.accent, borderRadius: 1 }} />
-                        </div>
-                      </div>
-                    </td>
-                  ))}
-                  <td style={{ textAlign: "center", padding: "10px 8px", borderBottom: `1px solid ${p.borderFaint}` }}>
-                    <span style={{ color: t.accent, fontSize: 13, fontWeight: 700 }}>{avg}</span>
-                  </td>
-                  <td style={{ padding: "10px 0 10px 8px", borderBottom: `1px solid ${p.borderFaint}` }}>
-                    <span style={{ background: `${t.accent}18`, border: `1px solid ${t.outerBorder}`, borderRadius: 4, padding: "2px 7px", color: t.accent, fontSize: 8, fontWeight: 600, whiteSpace: "nowrap" }}>
-                      {a.recommendedUseCase}
-                    </span>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Individual analytics cards */}
-      <div>
-        <p style={{ color: p.faint, fontSize: 8, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", margin: "0 0 12px" }}>
-          Detailed breakdown
-        </p>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 14 }}>
-          {THEMES.map((t) => <AnalyticsCard key={t.id} theme={t} />)}
-        </div>
-      </div>
-
-      {/* Disclaimer */}
-      <p style={{ color: p.faint, fontSize: 8.5, lineHeight: 1.6, margin: 0, textAlign: "center" }}>
-        All scores are mocked estimates for prototype evaluation purposes only. Real-world performance requires A/B testing with live audiences.
-      </p>
     </div>
   );
 }
@@ -765,11 +459,7 @@ export default function ThemeGalleryPage() {
   const TABS: { id: Tab; label: string }[] = [
     { id: "gallery",    label: "Gallery" },
     { id: "myDesigns",  label: "Creative Gallery" },
-    { id: "custom",     label: "Custom Builder" },
-    { id: "sidebyside", label: "Theme Preview" },
-    { id: "original",   label: "Design — Original" },
     { id: "archive",    label: "Archive" },
-    { id: "analytics",  label: "Analytics" },
   ];
 
   return (
@@ -872,34 +562,13 @@ export default function ThemeGalleryPage() {
         />
       )}
 
-      {activeTab === "sidebyside" && (
-        <SideBySideTab
-          surveyKey={surveyKey}
-          forceExpire={forceExpire}
-          onRestart={restart}
-          typography={typography}
-          questions={questions}
-          dark={dark}
-        />
-      )}
-
       {activeTab === "myDesigns" && (
         <CreativeGalleryBuilder dark={dark} />
-      )}
-
-      {activeTab === "custom" && (
-        <CustomThemeBuilder typography={typography} questions={questions} dark={dark} />
       )}
 
       {activeTab === "archive" && (
         <ArchiveTab surveyKey={surveyKey} typography={typography} questions={questions} dark={dark} />
       )}
-
-      {activeTab === "original" && (
-        <OriginalTab surveyKey={surveyKey} questions={questions} dark={dark} />
-      )}
-
-      {activeTab === "analytics" && <AnalyticsTab dark={dark} />}
     </div>
     </div>
   );
