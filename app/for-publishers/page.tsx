@@ -472,7 +472,7 @@ export default function ForPublishersPage() {
                   <img
                     src={image}
                     alt={`${label} — real Fanometrix product screenshot`}
-                    className="w-full h-full object-cover object-top transition-[object-position] duration-[2800ms] ease-in-out group-hover:object-bottom"
+                    className="w-full h-full object-cover object-top transition-[object-position] duration-[4000ms] ease-in-out group-hover:object-bottom"
                   />
                   <div className="absolute inset-x-0 bottom-0 h-12 pointer-events-none bg-gradient-to-t from-black/10 to-transparent" />
                 </div>
