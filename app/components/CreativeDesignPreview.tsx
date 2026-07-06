@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react";
 import { ThemedSurvey } from "@/app/embed/ThemedSurvey";
 import { ClassicSurvey } from "@/app/embed/ClassicSurvey";
-import { designById } from "@/lib/creative-designs";
 import { buildEmbedThemeFromState, type BuilderState } from "@/lib/creative-theme-builder";
 
 const PREVIEW_QUESTIONS = [
@@ -12,34 +11,31 @@ const PREVIEW_QUESTIONS = [
   { id: "p3", text: "What drives your club loyalty?", options: [{ id:1, text:"Local\nPride" },              { id:2, text:"Family\nTradition" },    { id:3, text:"Winning\nCulture" },         { id:4, text:"Player\nHeritage" }]     },
 ];
 
-type DynamicDesignRow = { slug: string; name: string; builder_state: BuilderState };
+type DesignRow = { slug: string; name: string; layout: "timer" | "classic"; builder_state: BuilderState };
 
 /**
  * Live preview of a Creative Design, using the same production components
  * (ThemedSurvey / ClassicSurvey) the embed actually renders — so what you
  * see here is exactly what a real deployment inheriting or set to this
- * design will look like. Handles both the static built-in catalog and
- * designs authored dynamically in the Creative Gallery. Renders nothing
- * when no design is selected or the id isn't recognised (yet).
+ * design will look like. Renders nothing when no design is selected or the
+ * id isn't recognised (yet).
  */
 export function CreativeDesignPreview({ designId }: { designId: string | null | undefined }) {
-  const [dynamicRows, setDynamicRows] = useState<DynamicDesignRow[]>([]);
+  const [rows, setRows] = useState<DesignRow[]>([]);
 
   useEffect(() => {
     fetch("/api/creative-designs")
       .then(r => r.ok ? r.json() : null)
-      .then(json => setDynamicRows(json?.data ?? []))
-      .catch(() => {/* fall back to static-only catalog */});
+      .then(json => setRows(json?.data ?? []))
+      .catch(() => {/* leave empty on failure */});
   }, []);
 
-  const staticDesign = designById(designId);
-  const dynamicDesign = !staticDesign && designId ? dynamicRows.find(d => d.slug === designId) : undefined;
+  const design = designId ? rows.find(d => d.slug === designId) : undefined;
 
-  if (!staticDesign && !dynamicDesign) return null;
+  if (!design) return null;
 
-  const name = staticDesign?.name ?? dynamicDesign!.name;
-  const layout = staticDesign?.layout ?? "timer"; // every dynamically-authored design is Timer layout
-  const customTheme = dynamicDesign ? buildEmbedThemeFromState(dynamicDesign.builder_state) : undefined;
+  const { name, layout } = design;
+  const customTheme = layout === "timer" ? buildEmbedThemeFromState(design.builder_state) : undefined;
 
   return (
     <div className="space-y-2 pt-1">
@@ -50,7 +46,7 @@ export function CreativeDesignPreview({ designId }: { designId: string | null | 
         {layout === "timer" ? (
           <ThemedSurvey
             key={designId}
-            themeId={staticDesign?.id ?? "fanometrix"}
+            themeId={design.slug}
             customTheme={customTheme}
             questions={PREVIEW_QUESTIONS}
             thankYouTitle="Thank You"

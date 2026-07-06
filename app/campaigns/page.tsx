@@ -99,7 +99,7 @@ type ResearchProjectSummary = {
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
 import { generateCampaignName, generateCampaignSlug } from "@/lib/naming";
-import { designById } from "@/lib/creative-designs";
+import { useCreativeDesignNames } from "@/lib/creative-designs";
 
 function generateCampaignId(brand: string, name: string): string {
   const year = new Date().getFullYear();
@@ -199,7 +199,8 @@ function CampaignPreviewModal({ campaign, onClose }: { campaign: Campaign; onClo
   function onBackdrop(e: React.MouseEvent<HTMLDivElement>) {
     if (e.target === e.currentTarget) onClose();
   }
-  const themeName = designById(campaign.effective_creative_design ?? campaign.creative_design)?.name;
+  const designNames = useCreativeDesignNames();
+  const themeName = designNames[(campaign.effective_creative_design ?? campaign.creative_design) ?? ""];
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
@@ -243,6 +244,7 @@ function CampaignPreviewModal({ campaign, onClose }: { campaign: Campaign; onClo
 export default function CampaignsPage() {
   const { user } = useSession();
   const isAdmin = user?.role === "admin";
+  const designNames = useCreativeDesignNames();
 
   // Data
   const [campaigns,        setCampaigns]        = useState<Campaign[]>([]);
@@ -1428,7 +1430,7 @@ export default function CampaignsPage() {
                     <InheritableField
                       label="Design"
                       inherited={editing.creative_design == null}
-                      resolvedDisplay={designById(selectedProject.creative_design)?.name ?? "Fanometrix Default"}
+                      resolvedDisplay={designNames[selectedProject.creative_design ?? ""] ?? "Fanometrix Default"}
                       onOverride={() => setEditing(x => ({ ...x, creative_design: selectedProject.creative_design ?? null }))}
                       onRevert={() => setEditing(x => ({ ...x, creative_design: null }))}
                     >

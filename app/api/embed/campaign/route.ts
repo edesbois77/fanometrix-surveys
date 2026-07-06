@@ -7,7 +7,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { resolveQuestion, resolveText, type LangCode, type LocalisedQuestion, type LocalisedText } from "@/lib/survey-locale";
-import { DESIGN_LAYOUTS } from "@/lib/creative-designs";
 import { buildEmbedThemeFromState, type BuilderState } from "@/lib/creative-theme-builder";
 import type { EmbedTheme } from "@/app/embed/ThemedSurvey";
 
@@ -81,18 +80,18 @@ export async function GET(req: NextRequest) {
   const lang = ((urlLang ?? campaign.survey_language ?? "en") as LangCode);
   const questions = ((survey.questions ?? []) as LocalisedQuestion[]).map(q => resolveQuestion(q, lang));
 
-  // If the resolved design isn't one of the static built-ins, it's a
-  // dynamically-authored one from the Creative Gallery — derive its full
-  // render palette from its stored builder_state.
+  // Every creative_design slug — built-in or custom — is now a row in
+  // creative_designs; resolve its layout + render palette from there.
   let customTheme: EmbedTheme | null = null;
-  if (effectiveCreativeDesign && !DESIGN_LAYOUTS[effectiveCreativeDesign]) {
-    const { data: dynamicDesign } = await supabaseAdmin
+  if (effectiveCreativeDesign) {
+    const { data: design } = await supabaseAdmin
       .from("creative_designs")
-      .select("builder_state")
+      .select("layout, builder_state")
       .eq("slug", effectiveCreativeDesign)
+      .is("deleted_at", null)
       .single();
-    if (dynamicDesign?.builder_state) {
-      customTheme = buildEmbedThemeFromState(dynamicDesign.builder_state as BuilderState);
+    if (design?.layout === "timer" && design.builder_state) {
+      customTheme = buildEmbedThemeFromState(design.builder_state as BuilderState);
     }
   }
 

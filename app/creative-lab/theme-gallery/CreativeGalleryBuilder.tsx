@@ -1,18 +1,17 @@
 "use client";
 
-// Production authoring tool — creates real Designs saved to the
-// creative_designs table (via /api/creative-designs), immediately available
-// in the Research Project and Campaigns Creative Design pickers. Distinct
-// from CustomThemeBuilder.tsx (a prototype that only saves to localStorage
-// and previews with the prototype VariantB component) — this tool previews
-// with the actual production ThemedSurvey component so what you see here is
-// exactly what a live deployment will render.
+// Production authoring + browsing tool — every Design (the 9 original
+// built-ins and everything authored here) is a real row in creative_designs
+// (via /api/creative-designs), immediately available in the Research Project
+// and Campaigns Creative Design pickers. Click any design below to edit it
+// in place, duplicate it as a new colour variant, or delete it.
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { ThemedSurvey } from "@/app/embed/ThemedSurvey";
+import { ClassicSurvey } from "@/app/embed/ClassicSurvey";
 import {
   hexToRgba, buildGradientCss, buildEmbedThemeFromState,
-  DEFAULT_GRADIENT_STATE, DEFAULT_SOLID_STATE,
+  DEFAULT_GRADIENT_STATE,
   type BuilderState, type GradientDirection,
 } from "@/lib/creative-theme-builder";
 import { DESIGN_CATEGORIES, type DesignCategory } from "@/lib/creative-designs";
@@ -41,6 +40,7 @@ type Design = {
   sub_theme: string | null;
   publisher_id: string | null;
   publisher_name: string | null;
+  layout: "timer" | "classic";
   builder_state: BuilderState;
 };
 
@@ -144,9 +144,13 @@ function Btn({ label, onClick, gold, small, danger }: {
   );
 }
 
+function designSwatch(d: Design): string {
+  try { return buildEmbedThemeFromState(d.builder_state).gradient; } catch { return "#0B1929"; }
+}
+
 // ── Main ─────────────────────────────────────────────────────────────────────
 
-export function CreativeGalleryBuilder({ dark }: { dark: boolean }) {
+export function CreativeGalleryBuilder({ dark: _dark }: { dark: boolean }) {
   const [state, setState] = useState<BuilderState>(DEFAULT_GRADIENT_STATE);
   const [theme, setTheme] = useState<DesignCategory>("fanometrix");
   const [subTheme, setSubTheme] = useState("");
@@ -154,14 +158,12 @@ export function CreativeGalleryBuilder({ dark }: { dark: boolean }) {
   const [publishers, setPublishers] = useState<{ id: string; name: string }[]>([]);
   const [designs, setDesigns] = useState<Design[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingIsClassic, setEditingIsClassic] = useState(false);
+  const [isDuplicating, setIsDuplicating] = useState(false);
   const [saving, setSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [toast, setToast] = useState("");
   const [surveyKey, setSurveyKey] = useState(0);
-
-  const p = dark
-    ? { surface: "rgba(255,255,255,0.02)", border: "rgba(255,255,255,0.07)", text: "#fff", muted: "rgba(255,255,255,0.4)" }
-    : { surface: "#fff", border: "rgba(0,0,0,0.08)", text: "#0B1929", muted: "rgba(11,25,41,0.5)" };
 
   const loadDesigns = () => {
     fetch("/api/creative-designs")
@@ -190,6 +192,26 @@ export function CreativeGalleryBuilder({ dark }: { dark: boolean }) {
     ? buildGradientCss(gradientColors, state.gradientDirection)
     : state.headerColor;
 
+  // Grouped Theme → Sub-theme browse tree, built from every fetched design.
+  const grouped = useMemo(() => {
+    const byTheme = new Map<DesignCategory, Map<string, Design[]>>();
+    for (const d of designs) {
+      const label = d.theme === "publisher" ? (d.publisher_name ?? "Unknown publisher") : (d.sub_theme ?? "General");
+      if (!byTheme.has(d.theme)) byTheme.set(d.theme, new Map());
+      const subMap = byTheme.get(d.theme)!;
+      if (!subMap.has(label)) subMap.set(label, []);
+      subMap.get(label)!.push(d);
+    }
+    return byTheme;
+  }, [designs]);
+
+  // Sub-theme reuse: every distinct freeform sub-theme name across ALL
+  // themes, so e.g. "Count Down Clock" is one click to reuse under Brand or
+  // Tournament instead of retyped.
+  const subThemeSuggestions = useMemo(() => (
+    Array.from(new Set(designs.map(d => d.sub_theme).filter((s): s is string => !!s))).sort()
+  ), [designs]);
+
   function showToast(msg: string) {
     setToast(msg);
     setTimeout(() => setToast(""), 3000);
@@ -201,6 +223,8 @@ export function CreativeGalleryBuilder({ dark }: { dark: boolean }) {
     setSubTheme("");
     setPublisherId(null);
     setEditingId(null);
+    setEditingIsClassic(false);
+    setIsDuplicating(false);
     setSurveyKey(k => k + 1);
   }
 
@@ -210,6 +234,20 @@ export function CreativeGalleryBuilder({ dark }: { dark: boolean }) {
     setSubTheme(d.sub_theme ?? "");
     setPublisherId(d.publisher_id);
     setEditingId(d.id);
+    setEditingIsClassic(d.layout === "classic");
+    setIsDuplicating(false);
+    setSurveyKey(k => k + 1);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function duplicateDesign(d: Design) {
+    setState({ ...d.builder_state, name: `${d.name} (copy)` });
+    setTheme(d.theme);
+    setSubTheme(d.sub_theme ?? "");
+    setPublisherId(d.publisher_id);
+    setEditingId(null);
+    setEditingIsClassic(false); // a duplicate is always a real, editable Timer variant
+    setIsDuplicating(true);
     setSurveyKey(k => k + 1);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
@@ -256,14 +294,17 @@ export function CreativeGalleryBuilder({ dark }: { dark: boolean }) {
     if (editingId === d.id) resetForm();
   }
 
+  const saveLabel = saving ? "Saving…" : editingId ? "Save changes" : isDuplicating ? "Save as new variant" : "Save design";
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
 
-      <div style={{ background: p.surface, border: `1px solid ${p.border}`, borderRadius: 10, padding: "14px 18px" }}>
-        <p style={{ color: p.text, fontSize: 13, fontWeight: 700, margin: "0 0 4px", letterSpacing: "-0.01em" }}>Creative Gallery</p>
-        <p style={{ color: p.muted, fontSize: 10, margin: 0, lineHeight: 1.5 }}>
-          Create new Design — Timer (300×250) colour treatments, save them under a Theme and Sub-theme, and they&apos;ll
-          appear immediately in the Research Project and Campaigns Creative Design pickers — no deploy needed.
+      <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 10, padding: "14px 18px" }}>
+        <p style={{ color: "#fff", fontSize: 13, fontWeight: 700, margin: "0 0 4px", letterSpacing: "-0.01em" }}>Creative Gallery</p>
+        <p style={{ color: "rgba(255,255,255,0.4)", fontSize: 10, margin: 0, lineHeight: 1.5 }}>
+          Every creative design — built-in and custom — lives here, organised by Theme and Sub-theme. Click one to
+          edit its colours and save the change, or save it as a new colour variant. New designs appear immediately
+          in the Research Project and Campaigns Creative Design pickers — no deploy needed.
         </p>
       </div>
 
@@ -307,104 +348,168 @@ export function CreativeGalleryBuilder({ dark }: { dark: boolean }) {
                 {publishers.map(pub => <option key={pub.id} value={pub.id} style={{ color: "#000" }}>{pub.name}</option>)}
               </select>
             ) : (
-              <input type="text" value={subTheme} onChange={e => setSubTheme(e.target.value)}
-                placeholder="e.g. Summer Campaign"
-                style={{ width: "100%", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 6, color: "#fff", fontSize: 11, padding: "6px 10px", fontFamily: "inherit", outline: "none", boxSizing: "border-box" }} />
+              <>
+                <input type="text" value={subTheme} onChange={e => setSubTheme(e.target.value)}
+                  placeholder="e.g. Count Down Clock"
+                  style={{ width: "100%", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 6, color: "#fff", fontSize: 11, padding: "6px 10px", fontFamily: "inherit", outline: "none", boxSizing: "border-box" }} />
+                {subThemeSuggestions.length > 0 && (
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 6 }}>
+                    {subThemeSuggestions.map(s => (
+                      <button key={s} onClick={() => setSubTheme(s)}
+                        style={{
+                          background: subTheme === s ? GOLD : "rgba(255,255,255,0.05)",
+                          border: "none", borderRadius: 5, cursor: "pointer",
+                          color: subTheme === s ? DARK_NAVY : "rgba(255,255,255,0.5)",
+                          fontSize: 8.5, fontWeight: subTheme === s ? 700 : 400,
+                          padding: "3px 8px", fontFamily: "inherit",
+                        }}>{s}</button>
+                    ))}
+                  </div>
+                )}
+              </>
             )}
           </div>
 
-          <SectionLabel>Gradient</SectionLabel>
-          <ColorRow label="Colour 1" hint="Start colour" value={state.gradientColor1} onChange={v => set("gradientColor1", v)} />
-          <ColorRow label="Colour 2" hint="End colour"   value={state.gradientColor2} onChange={v => set("gradientColor2", v)} />
-          <Toggle label="Use third colour" value={state.useThirdColor} onChange={v => set("useThirdColor", v)} />
-          {state.useThirdColor && (
-            <ColorRow label="Colour 3" hint="Mid stop" value={state.gradientColor3} onChange={v => set("gradientColor3", v)} />
-          )}
-          <div style={{ marginBottom: 10 }}>
-            <span style={{ color: "#fff", fontSize: 10, fontWeight: 600, display: "block", marginBottom: 5 }}>Direction</span>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
-              {DIRECTIONS.map(d => (
-                <button key={d.value} onClick={() => set("gradientDirection", d.value)}
-                  style={{
-                    background: state.gradientDirection === d.value ? GOLD : "rgba(255,255,255,0.05)",
-                    border: "none", borderRadius: 6, cursor: "pointer",
-                    color: state.gradientDirection === d.value ? DARK_NAVY : "rgba(255,255,255,0.6)",
-                    fontSize: 9, fontWeight: state.gradientDirection === d.value ? 700 : 400,
-                    padding: "4px 10px", fontFamily: "inherit",
-                  }}>{d.label}</button>
-              ))}
+          {editingIsClassic ? (
+            <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, padding: "10px 12px", marginTop: 4 }}>
+              <p style={{ color: "rgba(255,255,255,0.5)", fontSize: 9.5, lineHeight: 1.5, margin: 0 }}>
+                This is the plain classic-list format — it has no colours to customise. You can rename it or move it
+                to a different Sub-theme, but not recolour it. To create a coloured variant, use Duplicate on a
+                Timer design instead.
+              </p>
             </div>
-          </div>
-          <Toggle label="Mirror top quadrant gradient" value={state.mirrorTopQuadrants} onChange={v => set("mirrorTopQuadrants", v)} />
-          <div style={{ marginBottom: 10 }}>
-            <span style={{ color: "rgba(255,255,255,0.3)", fontSize: 8, display: "block", marginBottom: 5 }}>Header gradient preview</span>
-            <div style={{ height: 22, borderRadius: 6, background: gradientPreview, border: "1px solid rgba(255,255,255,0.1)" }} />
-          </div>
+          ) : (
+            <>
+              <SectionLabel>Gradient</SectionLabel>
+              <ColorRow label="Colour 1" hint="Start colour" value={state.gradientColor1} onChange={v => set("gradientColor1", v)} />
+              <ColorRow label="Colour 2" hint="End colour"   value={state.gradientColor2} onChange={v => set("gradientColor2", v)} />
+              <Toggle label="Use third colour" value={state.useThirdColor} onChange={v => set("useThirdColor", v)} />
+              {state.useThirdColor && (
+                <ColorRow label="Colour 3" hint="Mid stop" value={state.gradientColor3} onChange={v => set("gradientColor3", v)} />
+              )}
+              <div style={{ marginBottom: 10 }}>
+                <span style={{ color: "#fff", fontSize: 10, fontWeight: 600, display: "block", marginBottom: 5 }}>Direction</span>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
+                  {DIRECTIONS.map(d => (
+                    <button key={d.value} onClick={() => set("gradientDirection", d.value)}
+                      style={{
+                        background: state.gradientDirection === d.value ? GOLD : "rgba(255,255,255,0.05)",
+                        border: "none", borderRadius: 6, cursor: "pointer",
+                        color: state.gradientDirection === d.value ? DARK_NAVY : "rgba(255,255,255,0.6)",
+                        fontSize: 9, fontWeight: state.gradientDirection === d.value ? 700 : 400,
+                        padding: "4px 10px", fontFamily: "inherit",
+                      }}>{d.label}</button>
+                  ))}
+                </div>
+              </div>
+              <Toggle label="Mirror top quadrant gradient" value={state.mirrorTopQuadrants} onChange={v => set("mirrorTopQuadrants", v)} />
+              <div style={{ marginBottom: 10 }}>
+                <span style={{ color: "rgba(255,255,255,0.3)", fontSize: 8, display: "block", marginBottom: 5 }}>Header gradient preview</span>
+                <div style={{ height: 22, borderRadius: 6, background: gradientPreview, border: "1px solid rgba(255,255,255,0.1)" }} />
+              </div>
 
-          <SectionLabel>Colours</SectionLabel>
-          <ColorRow label="Background"    hint="Main MPU background"          value={state.background}   onChange={v => set("background",   v)} />
-          <ColorRow label="Quadrant base" hint="Default answer button colour"  value={state.quadrantBase} onChange={v => set("quadrantBase", v)} />
-          <ColorRow label="Border"        hint="Outer border and timer ring"   value={state.border}       onChange={v => set("border",       v)} />
-          <GlowRow hex={state.glowHex} alpha={state.glowAlpha}
-            onChange={(h, a) => setState(s => ({ ...s, glowHex: h, glowAlpha: a }))} />
-          <ColorRow label="Text"          hint="Answer text colour"            value={state.text}         onChange={v => set("text",         v)} />
-          <ColorRow label="Selected text" hint="Text on selected answer"       value={state.selectedText} onChange={v => set("selectedText", v)} />
-          <ColorRow label="Timer"         hint="Timer ring and progress ring"  value={state.timer}        onChange={v => set("timer",        v)} />
-          <ColorRow label="Header text"   hint="Text inside the header bar"    value={state.headerText}   onChange={v => set("headerText",   v)} />
+              <SectionLabel>Colours</SectionLabel>
+              <ColorRow label="Background"    hint="Main MPU background"          value={state.background}   onChange={v => set("background",   v)} />
+              <ColorRow label="Quadrant base" hint="Default answer button colour"  value={state.quadrantBase} onChange={v => set("quadrantBase", v)} />
+              <ColorRow label="Border"        hint="Outer border and timer ring"   value={state.border}       onChange={v => set("border",       v)} />
+              <GlowRow hex={state.glowHex} alpha={state.glowAlpha}
+                onChange={(h, a) => setState(s => ({ ...s, glowHex: h, glowAlpha: a }))} />
+              <ColorRow label="Text"          hint="Answer text colour"            value={state.text}         onChange={v => set("text",         v)} />
+              <ColorRow label="Selected text" hint="Text on selected answer"       value={state.selectedText} onChange={v => set("selectedText", v)} />
+              <ColorRow label="Timer"         hint="Timer ring and progress ring"  value={state.timer}        onChange={v => set("timer",        v)} />
+              <ColorRow label="Header text"   hint="Text inside the header bar"    value={state.headerText}   onChange={v => set("headerText",   v)} />
+            </>
+          )}
 
           {errorMsg && <p style={{ color: "#F87171", fontSize: 10, margin: "4px 0" }}>{errorMsg}</p>}
 
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 4 }}>
-            <Btn label={saving ? "Saving…" : editingId ? "Save changes" : "Save design"} onClick={save} gold />
-            {editingId && <Btn label="Cancel edit" onClick={resetForm} />}
+            <Btn label={saveLabel} onClick={save} gold />
+            {(editingId || isDuplicating) && <Btn label="Cancel" onClick={resetForm} />}
           </div>
         </div>
 
-        {/* ── Right: preview + saved designs ── */}
+        {/* ── Right: preview + browse tree ── */}
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
 
           <div>
             <p style={{ color: "rgba(255,255,255,0.25)", fontSize: 8, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", margin: "0 0 10px" }}>
               Live preview — {state.name || "Untitled"}
             </p>
-            <ThemedSurvey
-              key={`gallery-preview-${surveyKey}`}
-              themeId="fanometrix"
-              customTheme={customTheme}
-              questions={PREVIEW_QUESTIONS}
-              thankYouTitle="Thank You"
-              thankYouBody="Your anonymous feedback helps improve the football experience for fans everywhere."
-              isPreview={true}
-              campaignId="preview" surveyId={null} publisher={null} placement={null}
-              placementId={null} creativeId={null}
-              club={null} competition={null} country={null} segment={null}
-              device={null} browser={null} groupId={null} countryCode={null}
-              market={null} surveyLanguage="en" sessionId=""
-            />
+            {editingIsClassic ? (
+              <ClassicSurvey
+                key={`gallery-preview-${surveyKey}`}
+                questions={PREVIEW_QUESTIONS}
+                thankYouTitle="Thank You"
+                thankYouBody="Your anonymous feedback helps improve the football experience for fans everywhere."
+                isPreview={true}
+                campaignId="preview" surveyId={null} questionSetId={null} publisher={null} placement={null}
+                placementId={null} creativeId={null}
+                club={null} competition={null} country={null} segment={null}
+                device={null} browser={null} groupId={null} countryCode={null}
+                market={null} surveyLanguage="en" sessionId="" urlLang={null}
+              />
+            ) : (
+              <ThemedSurvey
+                key={`gallery-preview-${surveyKey}`}
+                themeId="fanometrix"
+                customTheme={customTheme}
+                questions={PREVIEW_QUESTIONS}
+                thankYouTitle="Thank You"
+                thankYouBody="Your anonymous feedback helps improve the football experience for fans everywhere."
+                isPreview={true}
+                campaignId="preview" surveyId={null} publisher={null} placement={null}
+                placementId={null} creativeId={null}
+                club={null} competition={null} country={null} segment={null}
+                device={null} browser={null} groupId={null} countryCode={null}
+                market={null} surveyLanguage="en" sessionId=""
+              />
+            )}
           </div>
 
           <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 10, padding: "12px 14px" }}>
             <p style={{ color: "rgba(255,255,255,0.25)", fontSize: 8, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", margin: "0 0 10px" }}>
-              Saved designs ({designs.length})
+              All designs ({designs.length})
             </p>
             {designs.length === 0 ? (
               <p style={{ color: "rgba(255,255,255,0.25)", fontSize: 9.5, fontStyle: "italic", margin: 0 }}>No designs saved yet.</p>
             ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                {designs.map(d => (
-                  <div key={d.id} style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, padding: "8px 10px" }}>
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 5 }}>
-                      <span style={{ color: "#fff", fontSize: 10, fontWeight: 600 }}>{d.name}</span>
-                      <span style={{ background: "rgba(215,184,122,0.15)", color: GOLD, fontSize: 7.5, fontWeight: 700, padding: "1px 6px", borderRadius: 4, letterSpacing: "0.06em", textTransform: "uppercase" }}>
-                        {DESIGN_CATEGORIES.find(c => c.id === d.theme)?.label}{(d.theme === "publisher" ? d.publisher_name : d.sub_theme) ? ` · ${d.theme === "publisher" ? d.publisher_name : d.sub_theme}` : ""}
-                      </span>
+              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                {DESIGN_CATEGORIES.map(cat => {
+                  const subMap = grouped.get(cat.id);
+                  if (!subMap || subMap.size === 0) return null;
+                  return (
+                    <div key={cat.id}>
+                      <p style={{ color: GOLD, fontSize: 9, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", margin: "0 0 6px" }}>
+                        {cat.label}
+                      </p>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                        {Array.from(subMap.entries()).sort(([a], [b]) => a.localeCompare(b)).map(([label, list]) => (
+                          <details key={label} open style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8 }}>
+                            <summary style={{ cursor: "pointer", padding: "6px 10px", fontSize: 9.5, fontWeight: 600, color: "rgba(255,255,255,0.7)" }}>
+                              {label} <span style={{ color: "rgba(255,255,255,0.3)" }}>({list.length})</span>
+                            </summary>
+                            <div style={{ display: "flex", flexDirection: "column", gap: 6, padding: "0 8px 8px" }}>
+                              {list.map(d => (
+                                <div key={d.id} style={{ display: "flex", alignItems: "center", gap: 8, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, padding: "6px 8px" }}>
+                                  <div style={{ width: 22, height: 22, borderRadius: 5, flexShrink: 0, background: designSwatch(d), border: "1px solid rgba(255,255,255,0.15)" }} />
+                                  <span style={{ color: "#fff", fontSize: 10, fontWeight: 600, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                    {d.name}
+                                  </span>
+                                  <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+                                    <Btn label="Edit" onClick={() => loadForEdit(d)} gold small />
+                                    <Btn label="Duplicate" onClick={() => duplicateDesign(d)} small />
+                                    <Btn label="Delete" onClick={() => deleteDesign(d)} small danger />
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </details>
+                        ))}
+                      </div>
                     </div>
-                    <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
-                      <Btn label="Edit" onClick={() => loadForEdit(d)} gold small />
-                      <Btn label="Delete" onClick={() => deleteDesign(d)} small danger />
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>

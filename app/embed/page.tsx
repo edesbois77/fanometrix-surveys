@@ -4,7 +4,6 @@ import { useState, useEffect, useRef, useCallback, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { ThemedSurvey, type EmbedTheme } from "./ThemedSurvey";
 import { ClassicSurvey } from "./ClassicSurvey";
-import { DESIGN_LAYOUTS } from "@/lib/creative-designs";
 
 const NAVY = "#071B2F";
 
@@ -73,7 +72,8 @@ function detectBrowser(): string {
 // ─── Main survey component ──────────────────────────────────────────────────
 // Resolves campaign/group/survey params to questions + the chosen creative
 // design, then hands off entirely to whichever creative component the
-// design's layout maps to (see DESIGN_LAYOUTS in lib/creative-designs.ts).
+// design's layout resolves to (the layout comes back from the embed API,
+// which looks it up in the creative_designs table).
 // Each creative component (ThemedSurvey, ClassicSurvey) is self-contained —
 // it owns its own event tracking and submit call, not shared with this parent.
 
@@ -199,12 +199,10 @@ function EmbedSurvey() {
     return <div style={{ width: 300, height: 250, background: "transparent" }} />;
   }
 
-  // Layout registry: unknown/missing design id (including every campaign
-  // with creative_design left null today) resolves to "classic" — zero
-  // behavior change for anything live before this feature shipped. A
-  // resolved customTheme means the design is a dynamically-authored one
-  // from the Creative Gallery, which is always Timer layout.
-  const layout = customTheme ? "timer" : (creativeDesign ? (DESIGN_LAYOUTS[creativeDesign] ?? "classic") : "classic");
+  // The API already resolved layout server-side (via creative_designs) — a
+  // non-null customTheme means Timer layout; anything else (no design set,
+  // classic layout, or an unresolvable design) falls back to Classic.
+  const layout = customTheme ? "timer" : "classic";
 
   if (layout === "timer") {
     return (

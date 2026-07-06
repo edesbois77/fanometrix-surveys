@@ -21,7 +21,6 @@ import { supabase } from "@/lib/supabase";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { validateSurvey } from "@/lib/survey-validation";
 import { resolveQuestion, resolveText, type LangCode, type LocalisedQuestion, type LocalisedText } from "@/lib/survey-locale";
-import { DESIGN_LAYOUTS } from "@/lib/creative-designs";
 import { buildEmbedThemeFromState, type BuilderState } from "@/lib/creative-theme-builder";
 import type { EmbedTheme } from "@/app/embed/ThemedSurvey";
 
@@ -216,14 +215,15 @@ export async function GET(req: NextRequest) {
 
   const resolvedDesign = effectiveCreativeDesign(campaign);
   let customTheme: EmbedTheme | null = null;
-  if (resolvedDesign && !DESIGN_LAYOUTS[resolvedDesign]) {
-    const { data: dynamicDesign } = await supabaseAdmin
+  if (resolvedDesign) {
+    const { data: design } = await supabaseAdmin
       .from("creative_designs")
-      .select("builder_state")
+      .select("layout, builder_state")
       .eq("slug", resolvedDesign)
+      .is("deleted_at", null)
       .single();
-    if (dynamicDesign?.builder_state) {
-      customTheme = buildEmbedThemeFromState(dynamicDesign.builder_state as BuilderState);
+    if (design?.layout === "timer" && design.builder_state) {
+      customTheme = buildEmbedThemeFromState(design.builder_state as BuilderState);
     }
   }
 

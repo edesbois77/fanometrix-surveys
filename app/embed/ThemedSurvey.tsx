@@ -20,106 +20,22 @@ export interface EmbedTheme {
   header: { bg: string; text: string; meta: string };
 }
 
-const EMBED_THEMES: Record<string, EmbedTheme> = {
-  "fanometrix": {
-    canvas:"#041B33", quad:"#0B1929", gridLine:"rgba(215,184,122,0.12)",
-    outerBorder:"rgba(215,184,122,0.5)", outerShadow:"0 8px 32px rgba(0,0,0,0.6)",
-    text:"#fff", accent:"#D7B87A", gradient:"linear-gradient(180deg,#D7B87A,#A8864A)",
-    reversedGradient:"linear-gradient(180deg,#A8864A,#D7B87A)",
-    selectedBg:"linear-gradient(180deg,#D7B87A,#A8864A)", selectedText:"#041B33",
-    hoverBg:"rgba(215,184,122,0.08)", hoverGlow:"inset 0 0 28px rgba(215,184,122,0.1)",
-    circle:"#041B33", circleBorder:"rgba(215,184,122,0.35)",
-    pulseGlow:"0 0 0 5px rgba(215,184,122,0.11),0 0 18px rgba(215,184,122,0.06)",
-    timerRing:"#D7B87A", progressRing:"#D7B87A",
-    header:{bg:"linear-gradient(180deg,#D7B87A,#A8864A)", text:"#041B33", meta:"rgba(4,27,51,0.6)"},
-  },
-  "electric-football": {
-    canvas:"#061A2F", quad:"#082038", gridLine:"rgba(0,245,160,0.12)",
-    outerBorder:"rgba(0,245,160,0.45)", outerShadow:"0 8px 32px rgba(0,245,160,0.15)",
-    text:"#fff", accent:"#00F5A0", gradient:"linear-gradient(180deg,#00F5A0,#00C2FF)",
-    reversedGradient:"linear-gradient(180deg,#00C2FF,#00F5A0)",
-    selectedBg:"linear-gradient(180deg,#00F5A0,#00C2FF)", selectedText:"#061A2F",
-    hoverBg:"rgba(0,245,160,0.07)", hoverGlow:"inset 0 0 28px rgba(0,245,160,0.1)",
-    circle:"#061A2F", circleBorder:"rgba(0,245,160,0.35)",
-    pulseGlow:"0 0 0 5px rgba(0,245,160,0.14),0 0 18px rgba(0,245,160,0.07)",
-    timerRing:"#00F5A0", progressRing:"#00F5A0",
-    header:{bg:"linear-gradient(180deg,#00F5A0,#00C2FF)", text:"#061A2F", meta:"rgba(6,26,47,0.6)"},
-  },
-  "fan-energy": {
-    canvas:"#170B2E", quad:"#21103D", gridLine:"rgba(255,79,163,0.12)",
-    outerBorder:"rgba(255,79,163,0.45)", outerShadow:"0 8px 32px rgba(255,79,163,0.2)",
-    text:"#fff", accent:"#FF4FA3", gradient:"linear-gradient(180deg,#FF4FA3,#A855F7)",
-    reversedGradient:"linear-gradient(180deg,#A855F7,#FF4FA3)",
-    selectedBg:"linear-gradient(180deg,#FF4FA3,#A855F7)", selectedText:"#fff",
-    hoverBg:"rgba(255,79,163,0.07)", hoverGlow:"inset 0 0 28px rgba(255,79,163,0.1)",
-    circle:"#170B2E", circleBorder:"rgba(255,79,163,0.35)",
-    pulseGlow:"0 0 0 5px rgba(255,79,163,0.14),0 0 18px rgba(255,79,163,0.07)",
-    timerRing:"#FF4FA3", progressRing:"#FF4FA3",
-    header:{bg:"linear-gradient(180deg,#FF4FA3,#A855F7)", text:"#fff", meta:"rgba(255,255,255,0.65)"},
-  },
-  "electric-purple": {
-    canvas:"#140B2E", quad:"#1E0D36", gridLine:"rgba(217,70,239,0.12)",
-    outerBorder:"rgba(217,70,239,0.45)", outerShadow:"0 8px 32px rgba(217,70,239,0.2)",
-    text:"#fff", accent:"#D946EF", gradient:"linear-gradient(180deg,#D946EF,#7C3AED)",
-    reversedGradient:"linear-gradient(180deg,#7C3AED,#D946EF)",
-    selectedBg:"linear-gradient(180deg,#D946EF,#7C3AED)", selectedText:"#fff",
-    hoverBg:"rgba(217,70,239,0.07)", hoverGlow:"inset 0 0 28px rgba(217,70,239,0.1)",
-    circle:"#140B2E", circleBorder:"rgba(217,70,239,0.35)",
-    pulseGlow:"0 0 0 5px rgba(217,70,239,0.14),0 0 18px rgba(217,70,239,0.07)",
-    timerRing:"#D946EF", progressRing:"#D946EF",
-    header:{bg:"linear-gradient(180deg,#D946EF,#7C3AED)", text:"#fff", meta:"rgba(255,255,255,0.65)"},
-  },
-  "sky-pulse": {
-    canvas:"#071625", quad:"#0A2033", gridLine:"rgba(125,211,252,0.1)",
-    outerBorder:"rgba(125,211,252,0.45)", outerShadow:"0 8px 32px rgba(125,211,252,0.1)",
-    text:"#fff", accent:"#7DD3FC", gradient:"linear-gradient(180deg,#7DD3FC,#3B82F6)",
-    reversedGradient:"linear-gradient(180deg,#3B82F6,#7DD3FC)",
-    selectedBg:"linear-gradient(180deg,#7DD3FC,#3B82F6)", selectedText:"#071625",
-    hoverBg:"rgba(125,211,252,0.07)", hoverGlow:"inset 0 0 28px rgba(125,211,252,0.08)",
-    circle:"#071625", circleBorder:"rgba(125,211,252,0.35)",
-    pulseGlow:"0 0 0 5px rgba(125,211,252,0.14),0 0 18px rgba(125,211,252,0.07)",
-    timerRing:"#7DD3FC", progressRing:"#7DD3FC",
-    header:{bg:"linear-gradient(180deg,#7DD3FC,#3B82F6)", text:"#071625", meta:"rgba(7,22,37,0.6)"},
-  },
-  "ocean": {
-    canvas:"#081421", quad:"#0B1C2D", gridLine:"rgba(114,212,241,0.1)",
-    outerBorder:"rgba(114,212,241,0.45)", outerShadow:"0 8px 32px rgba(114,212,241,0.1)",
-    text:"#fff", accent:"#72D4F1", gradient:"linear-gradient(180deg,#7DD3FC,#2563EB)",
-    reversedGradient:"linear-gradient(180deg,#2563EB,#7DD3FC)",
-    selectedBg:"linear-gradient(180deg,#7DD3FC,#2563EB)", selectedText:"#081421",
-    hoverBg:"rgba(114,212,241,0.07)", hoverGlow:"inset 0 0 28px rgba(114,212,241,0.08)",
-    circle:"#081421", circleBorder:"rgba(114,212,241,0.35)",
-    pulseGlow:"0 0 0 5px rgba(114,212,241,0.14),0 0 18px rgba(114,212,241,0.07)",
-    timerRing:"#72D4F1", progressRing:"#72D4F1",
-    header:{bg:"linear-gradient(180deg,#7DD3FC,#2563EB)", text:"#081421", meta:"rgba(8,20,33,0.6)"},
-  },
-  "lime-energy": {
-    canvas:"#10120B", quad:"#1A1F0E", gridLine:"rgba(248,243,43,0.12)",
-    outerBorder:"rgba(248,243,43,0.45)", outerShadow:"0 8px 32px rgba(248,243,43,0.1)",
-    text:"#fff", accent:"#F8F32B", gradient:"linear-gradient(180deg,#F8F32B,#A3D92F)",
-    reversedGradient:"linear-gradient(180deg,#A3D92F,#F8F32B)",
-    selectedBg:"linear-gradient(180deg,#F8F32B,#A3D92F)", selectedText:"#0B1929",
-    hoverBg:"rgba(248,243,43,0.07)", hoverGlow:"inset 0 0 28px rgba(248,243,43,0.08)",
-    circle:"#10120B", circleBorder:"rgba(248,243,43,0.35)",
-    pulseGlow:"0 0 0 5px rgba(248,243,43,0.14),0 0 18px rgba(248,243,43,0.07)",
-    timerRing:"#F8F32B", progressRing:"#F8F32B",
-    header:{bg:"linear-gradient(180deg,#F8F32B,#A3D92F)", text:"#10120B", meta:"rgba(16,18,11,0.65)"},
-  },
-  "stadium-green": {
-    canvas:"#07150B", quad:"#10210F", gridLine:"rgba(100,221,23,0.12)",
-    outerBorder:"rgba(100,221,23,0.45)", outerShadow:"0 8px 32px rgba(100,221,23,0.12)",
-    text:"#fff", accent:"#64DD17", gradient:"linear-gradient(180deg,#64DD17,#0B5D1E)",
-    reversedGradient:"linear-gradient(180deg,#0B5D1E,#64DD17)",
-    selectedBg:"linear-gradient(180deg,#64DD17,#0B5D1E)", selectedText:"#07150B",
-    hoverBg:"rgba(100,221,23,0.07)", hoverGlow:"inset 0 0 28px rgba(100,221,23,0.08)",
-    circle:"#07150B", circleBorder:"rgba(100,221,23,0.35)",
-    pulseGlow:"0 0 0 5px rgba(100,221,23,0.14),0 0 18px rgba(100,221,23,0.07)",
-    timerRing:"#64DD17", progressRing:"#64DD17",
-    header:{bg:"linear-gradient(180deg,#64DD17,#0B5D1E)", text:"#fff", meta:"rgba(255,255,255,0.65)"},
-  },
+// Last-resort default — used only if a design's row is ever unreachable or
+// missing. Every real design (including the 9 original built-ins) now lives
+// in the creative_designs table and is always passed in via customTheme;
+// see lib/creative-theme-builder.ts's buildEmbedThemeFromState.
+const FALLBACK_THEME: EmbedTheme = {
+  canvas:"#041B33", quad:"#0B1929", gridLine:"rgba(215,184,122,0.12)",
+  outerBorder:"rgba(215,184,122,0.45)", outerShadow:"0 8px 32px rgba(0,0,0,0.6)",
+  text:"#fff", accent:"#D7B87A", gradient:"linear-gradient(180deg,#D7B87A,#A8864A)",
+  reversedGradient:"linear-gradient(180deg,#A8864A,#D7B87A)",
+  selectedBg:"linear-gradient(180deg,#D7B87A,#A8864A)", selectedText:"#041B33",
+  hoverBg:"rgba(215,184,122,0.07)", hoverGlow:"inset 0 0 28px rgba(215,184,122,0.1)",
+  circle:"#041B33", circleBorder:"rgba(215,184,122,0.35)",
+  pulseGlow:"0 0 0 5px rgba(215,184,122,0.14),0 0 18px rgba(215,184,122,0.07)",
+  timerRing:"#D7B87A", progressRing:"#D7B87A",
+  header:{bg:"linear-gradient(180deg,#D7B87A,#A8864A)", text:"#041B33", meta:"rgba(4,27,51,0.6)"},
 };
-
-const FALLBACK_THEME = EMBED_THEMES["fanometrix"];
 
 // ── Layout constants (matches Design - Timer layout) ─────────────────────────
 
@@ -151,10 +67,9 @@ type EmbedOption  = { id: number; text: string };
 type EmbedQuestion = { id: string; text: string; options: EmbedOption[] };
 
 export interface ThemedSurveyProps {
+  // Kept for React `key` uniqueness at call sites — no longer used for a
+  // theme lookup (every design is resolved server-side into customTheme).
   themeId:        string;
-  // When set, used instead of the EMBED_THEMES[themeId] lookup — the render
-  // path for a dynamically-authored design (see lib/creative-theme-builder.ts).
-  // The 8 built-in ids are unaffected and never pass this.
   customTheme?:   EmbedTheme;
   questions:      EmbedQuestion[];
   thankYouTitle:  string;
@@ -494,7 +409,7 @@ function ThemedPrivacyOverlay({ theme, onClose }: { theme: EmbedTheme; onClose: 
 // ── Main export ───────────────────────────────────────────────────────────────
 
 export function ThemedSurvey(props: ThemedSurveyProps) {
-  const theme = props.customTheme ?? EMBED_THEMES[props.themeId] ?? FALLBACK_THEME;
+  const theme = props.customTheme ?? FALLBACK_THEME;
   const total = props.questions.length;
 
   const [step,        setStep]        = useState(0);

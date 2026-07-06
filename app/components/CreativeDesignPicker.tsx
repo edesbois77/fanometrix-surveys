@@ -1,15 +1,16 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { DESIGN_CATEGORIES, CREATIVE_DESIGNS, type DesignCategory } from "@/lib/creative-designs";
+import { DESIGN_CATEGORIES, type DesignCategory } from "@/lib/creative-designs";
 import { buildEmbedThemeFromState, type BuilderState } from "@/lib/creative-theme-builder";
 
-type DynamicDesignRow = {
+type DesignRow = {
   slug: string;
   name: string;
   theme: DesignCategory;
   sub_theme: string | null;
   publisher_name: string | null;
+  layout: "timer" | "classic";
   builder_state: BuilderState;
 };
 
@@ -32,9 +33,9 @@ const SELECT_CLASS = "w-full border border-gray-200 rounded-lg px-3 py-2 text-sm
  * design) and the Campaigns editor (per-deployment override). Clicking the
  * already-selected design clears it back to `null`.
  *
- * Merges the static built-in catalog (lib/creative-designs.ts) with designs
- * authored dynamically in the Creative Gallery (fetched from
- * /api/creative-designs) so new ones appear here with no code deploy.
+ * Every design — built-in or custom-authored in the Creative Gallery — is a
+ * row in creative_designs, fetched from /api/creative-designs, so new ones
+ * appear here immediately with no code deploy.
  */
 export function CreativeDesignPicker({
   value, onChange,
@@ -42,32 +43,26 @@ export function CreativeDesignPicker({
   value: string | null;
   onChange: (id: string | null) => void;
 }) {
-  const [dynamicRows, setDynamicRows] = useState<DynamicDesignRow[]>([]);
+  const [rows, setRows] = useState<DesignRow[]>([]);
 
   useEffect(() => {
     fetch("/api/creative-designs")
       .then(r => r.ok ? r.json() : null)
-      .then(json => setDynamicRows(json?.data ?? []))
-      .catch(() => {/* fall back to static-only catalog */});
+      .then(json => setRows(json?.data ?? []))
+      .catch(() => {/* leave empty on failure */});
   }, []);
 
-  const allDesigns: AnyDesign[] = useMemo(() => {
-    const staticDesigns: AnyDesign[] = CREATIVE_DESIGNS.map(d => ({
-      id: d.id, name: d.name, theme: d.category, subTheme: d.subTheme, gradient: d.gradient,
-    }));
-    const dynamicDesigns: AnyDesign[] = dynamicRows.map(row => {
-      let gradient = "#0B1929";
-      try { gradient = buildEmbedThemeFromState(row.builder_state).gradient; } catch { /* keep fallback swatch */ }
-      return {
-        id: row.slug,
-        name: row.name,
-        theme: row.theme,
-        subTheme: row.theme === "publisher" ? row.publisher_name : row.sub_theme,
-        gradient,
-      };
-    });
-    return [...staticDesigns, ...dynamicDesigns];
-  }, [dynamicRows]);
+  const allDesigns: AnyDesign[] = useMemo(() => rows.map(row => {
+    let gradient = "#0B1929";
+    try { gradient = buildEmbedThemeFromState(row.builder_state).gradient; } catch { /* keep fallback swatch */ }
+    return {
+      id: row.slug,
+      name: row.name,
+      theme: row.theme,
+      subTheme: row.theme === "publisher" ? row.publisher_name : row.sub_theme,
+      gradient,
+    };
+  }), [rows]);
 
   const selected = allDesigns.find(d => d.id === value);
   const [theme, setTheme] = useState<DesignCategory>(selected?.theme ?? "fanometrix");
