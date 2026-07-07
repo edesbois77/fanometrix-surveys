@@ -34,5 +34,7 @@ export function countryByCode(code: string): Country | undefined {
 }
 
 export function countryOptions(): { value: string; label: string }[] {
-  return COUNTRIES.map((c) => ({ value: c.code, label: c.name }));
+  return COUNTRIES
+    .map((c) => ({ value: c.code, label: c.name }))
+    .sort((a, b) => a.label.localeCompare(b.label));
 }
