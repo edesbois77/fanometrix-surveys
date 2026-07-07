@@ -143,7 +143,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   let session;
   try {
-    session = await requireUser(req, ["admin"]);
+    session = await requireUser(req, ["admin", "publisher"]);
   } catch (err) {
     return err as Response;
   }
@@ -152,6 +152,12 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   const { searchParams } = new URL(req.url);
   const permanent = searchParams.get("permanent") === "true";
   const now = new Date().toISOString();
+
+  // Permanent (hard) delete stays admin-only, matching the same restriction
+  // on other resources' destructive-permanent actions.
+  if (permanent && session.role !== "admin") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   if (permanent) {
     // Hard delete safety hatch — only if already soft-deleted
@@ -165,6 +171,19 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     const { error } = await supabaseAdmin.from("campaigns").delete().eq("id", id);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ success: true });
+  }
+
+  // A publisher can only ever delete campaigns they can see, and never one
+  // an admin set up for them (read-only) — same rule as edit and status
+  // actions.
+  if (session.role !== "admin") {
+    if (!(await canAccess(session, "campaign", id))) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+    const { data: existing } = await supabaseAdmin.from("campaigns").select("created_by_admin").eq("id", id).single();
+    if (existing?.created_by_admin) {
+      return NextResponse.json({ error: "This campaign was set up by the Fanometrix team and can't be deleted." }, { status: 403 });
+    }
   }
 
   // Soft delete — block only live/paused campaigns (too risky to delete while active)
