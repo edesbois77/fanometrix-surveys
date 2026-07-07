@@ -59,7 +59,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     _action: _a,
     deleted_at: _da, deleted_by: _db, delete_reason: _dr,
     deployment_count: _dc, publisher_count: _pc, country_count: _cc,
-    total_responses: _tr, completion_pct: _cp,
+    total_responses: _tr, completion_pct: _cp, created_by_admin: _cba,
     ...safeBody
   } = body;
 

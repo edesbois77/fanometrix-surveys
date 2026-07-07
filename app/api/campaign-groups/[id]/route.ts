@@ -47,10 +47,11 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   }
 
   const body = await req.json();
-  const { campaign_ids, member_count: _mc, total_responses: _tr, ...groupFields } = body as {
+  const { campaign_ids, member_count: _mc, total_responses: _tr, created_by_admin: _cba, ...groupFields } = body as {
     campaign_ids?: string[];
     member_count?: number;
     total_responses?: number;
+    created_by_admin?: boolean;
     [k: string]: unknown;
   };
 

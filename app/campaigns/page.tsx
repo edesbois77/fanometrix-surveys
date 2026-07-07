@@ -66,6 +66,7 @@ type Campaign = {
   // Research Project link — NULL fields below mean "inherited from project"
   research_project_id: string | null;
   tags: string[] | null;
+  created_by_admin: boolean;
   // API-only enrichment (resolved inheritance) — never real columns, must
   // never be sent back on save. See the strip list in openEdit() below.
   effective_survey_id?: string | null;
@@ -1001,9 +1002,12 @@ export default function CampaignsPage() {
             // All other statuses can be deleted; responses are preserved in the DB.
             const isLiveOrPaused = c.effective_status === "live" || c.effective_status === "paused"
               || c.status === "live" || c.status === "paused";
-            const canDelete  = !isDeleted && !isLiveOrPaused;
+            const isLockedByAdmin = c.created_by_admin && user?.role !== "admin";
+            const canDelete  = !isDeleted && !isLiveOrPaused && !isLockedByAdmin;
             const hasResponses = c.response_count > 0;
-            const deleteTitle = isLiveOrPaused
+            const deleteTitle = isLockedByAdmin
+              ? "Set up by the Fanometrix team — can't be deleted."
+              : isLiveOrPaused
               ? "Live and paused campaigns cannot be deleted. Pause or close it first."
               : "Move to deleted items";
 
@@ -1066,6 +1070,11 @@ export default function CampaignsPage() {
 
                         {/* Metadata chips */}
                         <div className="flex flex-wrap gap-1.5 mt-2">
+                          {isLockedByAdmin && (
+                            <span className="text-xs bg-amber-50 text-amber-700 px-2 py-0.5 rounded-full" title="Set up by the Fanometrix team — you can run it, but can't edit or delete it.">
+                              Set up by Fanometrix
+                            </span>
+                          )}
                           {c.surveys?.name && (
                             <span className="text-xs bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full">
                               Survey: {c.surveys.name}
@@ -1103,7 +1112,12 @@ export default function CampaignsPage() {
 
                       {/* Card management buttons */}
                       <div className="flex gap-1.5 ml-auto">
-                        {c.effective_status !== "archived" ? (
+                        {isLockedByAdmin ? (
+                          <button disabled title="Set up by the Fanometrix team — can't be edited."
+                            className="text-xs border border-gray-100 text-gray-300 px-3 py-1.5 rounded-lg cursor-not-allowed">
+                            Edit
+                          </button>
+                        ) : c.effective_status !== "archived" ? (
                           <button onClick={() => openEdit(c)}
                             className="text-xs border border-gray-200 text-gray-600 hover:bg-gray-50 px-3 py-1.5 rounded-lg transition-colors">
                             Edit

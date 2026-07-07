@@ -74,7 +74,7 @@ export async function POST(req: NextRequest) {
   const {
     deleted_at: _da, deleted_by: _db, delete_reason: _dr,
     deployment_count: _dc, publisher_count: _pc, country_count: _cc,
-    total_responses: _tr, completion_pct: _cp,
+    total_responses: _tr, completion_pct: _cp, created_by_admin: _cba,
     ...safe
   } = body;
 
@@ -83,6 +83,7 @@ export async function POST(req: NextRequest) {
   if (session.role === "publisher") {
     safe.publisher_org_ids = session.organisationId ? [session.organisationId] : [];
   }
+  safe.created_by_admin = session.role === "admin";
 
   const { data, error } = await supabaseAdmin
     .from("research_projects")

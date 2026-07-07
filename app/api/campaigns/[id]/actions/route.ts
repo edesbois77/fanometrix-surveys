@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { requireUser } from "@/lib/auth-server";
+import { canAccess } from "@/lib/access";
 import {
   ACTION_TRANSITIONS,
   ACTION_NOTIFICATIONS,
@@ -14,12 +15,21 @@ export async function POST(
 ) {
   let session;
   try {
-    session = await requireUser(req, ["admin"]);
+    session = await requireUser(req, ["admin", "publisher"]);
   } catch (err) {
     return err as Response;
   }
 
   const { id } = await params;
+
+  // Status actions (go live, pause, close, archive, restore) stay
+  // available to a publisher even on a campaign an admin set up for
+  // them — they need to actually run what's deployed on their platform.
+  // Only content edits (PUT) and delete are blocked for those — see
+  // app/api/campaigns/[id]/route.ts.
+  if (session.role !== "admin" && !(await canAccess(session, "campaign", id))) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   let body: { action: CampaignAction };
   try {

@@ -214,6 +214,7 @@ export async function POST(req: NextRequest) {
   const {
     deleted_at: _da, deleted_by: _db, delete_reason: _dr,
     effective_status: _es, status_reason: _sr, is_auto_transition: _iat, response_count: _rc,
+    created_by_admin: _cba,
     // API-only resolved-inheritance fields (added to the GET response for the
     // Research Project override UI) — never real columns on campaigns.
     effective_survey_id: _esi, effective_start_date: _esd, effective_end_date: _eed,
@@ -228,6 +229,7 @@ export async function POST(req: NextRequest) {
   if (session.role === "publisher") {
     safe.publisher_org_id = session.organisationId;
   }
+  safe.created_by_admin = session.role === "admin";
 
   const { data, error } = await supabase
     .from("campaigns")

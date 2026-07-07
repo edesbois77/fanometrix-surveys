@@ -204,6 +204,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         status: project.status,
         status_updated_at: nowIso,
         updated_at: nowIso,
+        created_by_admin: session.role === "admin",
       }])
       .select()
       .single();

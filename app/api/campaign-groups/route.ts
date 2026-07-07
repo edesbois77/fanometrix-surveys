@@ -64,13 +64,14 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json();
-  const { campaign_ids, ...groupFields } = body as { campaign_ids?: string[]; [k: string]: unknown };
+  const { campaign_ids, created_by_admin: _cba, ...groupFields } = body as { campaign_ids?: string[]; created_by_admin?: boolean; [k: string]: unknown };
 
   // Publisher accounts can only ever create groups for their own
   // organisation — enforced here regardless of what the UI sent.
   if (session.role === "publisher") {
     groupFields.publisher_org_id = session.organisationId;
   }
+  groupFields.created_by_admin = session.role === "admin";
 
   const { data: group, error } = await supabaseAdmin
     .from("campaign_groups")

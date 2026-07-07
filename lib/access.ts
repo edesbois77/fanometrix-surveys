@@ -48,6 +48,11 @@ export async function canAccess(
 async function orgWideResourceIds(organisationId: string, resourceType: ResourceType): Promise<string[]> {
   switch (resourceType) {
     case "campaign": {
+      // Deliberately not filtered by created_by_admin — a campaign an
+      // admin sets up that targets this organisation is still something
+      // physically running on their platform, so it stays visible
+      // (read-only, labelled "Set up by Fanometrix" in the UI — enforced
+      // in app/api/campaigns/[id]/route.ts's PUT/DELETE handlers).
       const { data } = await supabaseAdmin
         .from("campaigns")
         .select("id")
@@ -56,19 +61,28 @@ async function orgWideResourceIds(organisationId: string, resourceType: Resource
       return (data ?? []).map(r => r.id as string);
     }
     case "campaign_group": {
+      // Admin-created groups are never org-wide visible, regardless of
+      // targeting — they're an authoring tool, not something a publisher
+      // needs to see (unlike Campaigns, which stay visible read-only —
+      // see the "campaign" case above and supabase-migration-064.sql).
       const { data } = await supabaseAdmin
         .from("campaign_groups")
         .select("id")
-        .or(`publisher_org_id.eq.${organisationId},brand_org_id.eq.${organisationId},agency_org_id.eq.${organisationId}`);
+        .or(`publisher_org_id.eq.${organisationId},brand_org_id.eq.${organisationId},agency_org_id.eq.${organisationId}`)
+        .eq("created_by_admin", false);
       return (data ?? []).map(r => r.id as string);
     }
     case "research_project": {
+      // Admin-created projects are never org-wide visible, regardless of
+      // targeting — same reasoning as campaign_group above.
       const [byOwner, byPublisher] = await Promise.all([
         supabaseAdmin.from("research_projects").select("id")
           .or(`brand_org_id.eq.${organisationId},agency_org_id.eq.${organisationId}`)
+          .eq("created_by_admin", false)
           .is("deleted_at", null),
         supabaseAdmin.from("research_projects").select("id")
           .contains("publisher_org_ids", [organisationId])
+          .eq("created_by_admin", false)
           .is("deleted_at", null),
       ]);
       const ids = new Set<string>();

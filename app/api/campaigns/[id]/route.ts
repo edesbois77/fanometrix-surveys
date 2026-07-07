@@ -81,9 +81,17 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   const { id } = await params;
 
   // Publishers can only ever edit campaigns they can already see — the
-  // same rule the list/detail GET routes use.
-  if (session.role !== "admin" && !(await canAccess(session, "campaign", id))) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  // same rule the list/detail GET routes use. Campaigns an admin set up
+  // stay visible to a targeted publisher (read-only) but can never be
+  // edited by them, even though canAccess() alone would allow it.
+  if (session.role !== "admin") {
+    if (!(await canAccess(session, "campaign", id))) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+    const { data: existing } = await supabaseAdmin.from("campaigns").select("created_by_admin").eq("id", id).single();
+    if (existing?.created_by_admin) {
+      return NextResponse.json({ error: "This campaign was set up by the Fanometrix team and can't be edited." }, { status: 403 });
+    }
   }
 
   const body = await req.json();
@@ -106,7 +114,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     _action: _a,
     deleted_at: _da, deleted_by: _db, delete_reason: _dr,
     effective_status: _es, status_reason: _sr, is_auto_transition: _iat, response_count: _rc,
-    surveys: _s,
+    surveys: _s, created_by_admin: _cba,
     // API-only resolved-inheritance fields (added to the GET response for the
     // Research Project override UI) — never real columns on campaigns.
     effective_survey_id: _esi, effective_start_date: _esd, effective_end_date: _eed,
