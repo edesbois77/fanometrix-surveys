@@ -1,6 +1,7 @@
 "use client";
 
 import type { SurveyResponse } from "@/lib/types";
+import { useSession } from "@/app/components/SessionProvider";
 
 export type DashFilters = {
   // Scope filters (applied before dimension filters)
@@ -79,6 +80,12 @@ export function DashboardFilters({
   datePreset, setDatePreset, dateFrom, dateTo, setDateFrom, setDateTo,
   campaignHasDates, filteredCount, totalCount,
 }: Props) {
+  const { user } = useSession();
+  // A publisher only ever sees their own campaigns' responses, so filtering
+  // "by publisher" within that is meaningless — drop the dimension entirely
+  // rather than show a dropdown with (at most) one real option.
+  const dimFields = user?.role === "publisher" ? DIM_FIELDS.filter(f => f.key !== "publisher") : DIM_FIELDS;
+
   const sortedCampaigns = [...campaigns].sort(
     (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
   );
@@ -91,7 +98,7 @@ export function DashboardFilters({
   // All active filter chips (dimensions + date + q answers)
   const chips: { label: string; field: keyof DashFilters | "__date__"; value: string }[] = [];
 
-  DIM_FIELDS.forEach(({ key, label }) => {
+  dimFields.forEach(({ key, label }) => {
     if (filters[key]) chips.push({ label, field: key, value: filters[key] });
   });
   (["q1", "q2", "q3"] as (keyof DashFilters)[]).forEach(k => {
@@ -215,7 +222,7 @@ export function DashboardFilters({
 
       {/* Dimension dropdowns — 2 columns on mobile, 3 on sm+ */}
       <div className="px-4 py-3 grid grid-cols-2 sm:grid-cols-3 gap-2">
-        {DIM_FIELDS.map(({ key, label }) => (
+        {dimFields.map(({ key, label }) => (
           <div key={key}>
             <select
               value={filters[key]}
