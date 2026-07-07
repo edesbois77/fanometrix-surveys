@@ -757,8 +757,8 @@ export default function CampaignsPage() {
         </div>
 
         {/* Search + Filters */}
-        <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3 mb-5">
-          <div className="sm:flex-1 sm:min-w-[200px] relative">
+        <div className="mb-5 space-y-3">
+          <div className="relative">
             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm pointer-events-none">🔍</span>
             <input
               type="search"
@@ -769,6 +769,7 @@ export default function CampaignsPage() {
             />
           </div>
 
+          <div className="flex flex-wrap gap-3">
           {activeTab === "active" && (
             <select value={statusFilter} onChange={e => setStatusFilter(e.target.value as typeof statusFilter)}
               className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A] text-gray-600">
@@ -828,6 +829,7 @@ export default function CampaignsPage() {
             <option value="az">A–Z</option>
             <option value="status">By status</option>
           </select>
+          </div>
         </div>
 
         {/* Tabs */}
