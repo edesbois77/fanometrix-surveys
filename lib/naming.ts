@@ -1,11 +1,15 @@
 /**
  * Standardised naming convention helpers for Surveys, Campaigns, Campaign Groups,
- * and Research Projects.
+ * and Research Projects. All four share one Name Builder pattern — Topic, Brand,
+ * Agency, Type — so they share one naming function:
  *
- * Survey:           [Brand] - [Research Theme] - v[N]
- * Campaign:         [Brand] | [Research Theme] | [Country] | [Publisher] | [Year]
- * Campaign Group:   [Brand] | [Research Theme] | Global | [Year]
- * Research Project: [Brand or Topic] | [Study Type] | [Year]
+ * Campaign Group / Survey / Research Project:  [Topic] | [Type] | [Brand] | [Agency]
+ * Campaign:                                    [Topic] | [Type] | [Brand] | [Agency] | [Country] | [Publisher]
+ *
+ * Brand and Agency are optional and only appear when set — Topic and Type are
+ * the only two required inputs. Campaigns extend the shared name with Country
+ * and Publisher so Generate Deployments can still produce a uniquely-named
+ * campaign per country × publisher combination.
  *
  * Slug rules: lowercase, spaces→underscores, strip special chars, max 80 chars.
  */
@@ -20,71 +24,55 @@ export function toSlugPart(s: string): string {
     .replace(/^_|_$/g, "");
 }
 
-// ── Survey ────────────────────────────────────────────────────────────────────
+// ── Shared: Campaign Group / Survey / Research Project ─────────────────────────
 
-export function generateSurveyName(brand: string, theme: string, version: number): string {
-  const b = brand.trim();
-  const t = theme.trim();
-  if (!b || !t) return "";
-  return `${b} - ${t} - v${version}`;
+export function generateStudyName(topic: string, studyType: string, brand?: string, agency?: string): string {
+  const t = topic.trim();
+  const ty = studyType.trim();
+  if (!t || !ty) return "";
+  return [t, ty, brand?.trim(), agency?.trim()].filter(Boolean).join(" | ");
 }
 
-export function generateSurveySlug(brand: string, theme: string, version: number): string {
-  const b = toSlugPart(brand);
-  const t = toSlugPart(theme);
-  if (!b || !t) return "";
-  return `${b}_${t}_v${version}`.slice(0, 80);
+export function generateStudySlug(topic: string, studyType: string, brand?: string, agency?: string): string {
+  const t = toSlugPart(topic);
+  const ty = toSlugPart(studyType);
+  if (!t || !ty) return "";
+  const b = brand ? toSlugPart(brand) : "";
+  const a = agency ? toSlugPart(agency) : "";
+  return [t, ty, b, a].filter(Boolean).join("_").slice(0, 80);
 }
 
-// ── Campaign ──────────────────────────────────────────────────────────────────
+// ── Campaign — extends the shared name with Country + Publisher ────────────────
 
 export function generateCampaignName(
+  topic: string,
+  studyType: string,
   brand: string,
-  theme: string,
+  agency: string,
   country: string,
-  publisher: string,
-  year: string
+  publisher: string
 ): string {
-  const parts = [brand, theme, country, publisher, year]
-    .map(s => s.trim())
-    .filter(Boolean);
-  if (parts.length < 2) return "";
-  return parts.join(" | ");
+  const base = generateStudyName(topic, studyType, brand, agency);
+  if (!base) return "";
+  return [base, country.trim(), publisher.trim()].filter(Boolean).join(" | ");
 }
 
 export function generateCampaignSlug(
+  topic: string,
+  studyType: string,
   brand: string,
-  theme: string,
+  agency: string,
   country: string,
-  publisher: string,
-  year: string
+  publisher: string
 ): string {
-  const parts = [brand, theme, country, publisher, year]
-    .map(toSlugPart)
-    .filter(Boolean);
-  if (parts.length < 2) return "";
-  return parts.join("_").slice(0, 80);
+  const base = generateStudySlug(topic, studyType, brand, agency);
+  if (!base) return "";
+  const c = country ? toSlugPart(country) : "";
+  const p = publisher ? toSlugPart(publisher) : "";
+  return [base, c, p].filter(Boolean).join("_").slice(0, 80);
 }
 
-// ── Campaign Group ────────────────────────────────────────────────────────────
-
-export function generateGroupName(brand: string, theme: string, year: string): string {
-  const b = brand.trim();
-  const t = theme.trim();
-  const y = year.trim();
-  if (!b || !t) return "";
-  return [b, t, "Global", y].filter(Boolean).join(" | ");
-}
-
-export function generateGroupSlug(brand: string, theme: string, year: string): string {
-  const b = toSlugPart(brand);
-  const t = toSlugPart(theme);
-  const y = toSlugPart(year);
-  if (!b || !t) return "";
-  return [b, t, "global", y].filter(Boolean).join("_").slice(0, 60);
-}
-
-// ── Research Project ──────────────────────────────────────────────────────────
+// ── Study types — shared Type dropdown across all four ─────────────────────────
 
 export const STUDY_TYPES = [
   "fan_understanding",
@@ -120,21 +108,4 @@ export const STUDY_TYPE_LABELS: Record<StudyType, string> = {
 
 export function studyTypeLabel(studyType: string): string {
   return STUDY_TYPE_LABELS[studyType as StudyType] ?? studyType;
-}
-
-/** Project display uses Brand when present, falling back to Topic. */
-export function generateProjectName(brandOrTopic: string, studyType: string, year: string): string {
-  const b = brandOrTopic.trim();
-  const t = studyType.trim();
-  const y = year.trim();
-  if (!b || !t) return "";
-  return [b, t, y].filter(Boolean).join(" | ");
-}
-
-export function generateProjectSlug(brandOrTopic: string, studyType: string, year: string): string {
-  const b = toSlugPart(brandOrTopic);
-  const t = toSlugPart(studyType);
-  const y = toSlugPart(year);
-  if (!b || !t) return "";
-  return [b, t, y].filter(Boolean).join("_").slice(0, 80);
 }

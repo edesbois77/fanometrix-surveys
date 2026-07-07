@@ -16,7 +16,7 @@ import { EMPTY_DASH_FILTERS } from "@/app/dashboard/components/DashboardFilters"
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 type Campaign = {
-  id: string; campaign_id: string; brand_name: string; campaign_name: string;
+  id: string; campaign_id: string; campaign_name: string;
   campaign_description: string | null; start_date: string | null; end_date: string | null;
   survey_id: string | null; surveys?: { name: string } | null;
   publisher: string | null; status: string; effective_status: string;
@@ -418,7 +418,7 @@ export default function CampaignDetailPage() {
         <div className="flex items-center gap-2 text-xs text-gray-400 mb-4">
           <Link href="/campaigns" className="hover:text-[#D7B87A]">Campaigns</Link>
           <span>›</span>
-          <span className="text-gray-700">{campaign.brand_name} · {campaign.campaign_name}</span>
+          <span className="text-gray-700">{campaign.campaign_name}</span>
         </div>
 
         {/* Campaign Header */}
@@ -426,9 +426,7 @@ export default function CampaignDetailPage() {
           <div className="flex items-start justify-between gap-4">
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-3 flex-wrap mb-1">
-                <h1 className="text-xl font-bold text-gray-900">{campaign.brand_name}</h1>
-                <span className="text-gray-300">·</span>
-                <span className="text-lg text-gray-700">{campaign.campaign_name}</span>
+                <h1 className="text-xl font-bold text-gray-900">{campaign.campaign_name}</h1>
                 <span className={`text-xs font-semibold px-2.5 py-1 rounded-full capitalize ${STATUS_COLOURS[campaign.effective_status ?? campaign.status] ?? "bg-gray-100 text-gray-600"}`}>
                   {campaign.effective_status ?? campaign.status}
                 </span>

@@ -11,9 +11,10 @@ import { DrawerSection } from "@/app/components/DrawerSection";
 import { InfoTooltip } from "@/app/components/InfoTooltip";
 import { STATUS_META, type CampaignStatus } from "@/lib/campaign-status";
 import {
-  STUDY_TYPES, STUDY_TYPE_LABELS, studyTypeLabel,
-  generateProjectName, generateProjectSlug,
+  studyTypeLabel,
+  generateStudyName, generateStudySlug,
 } from "@/lib/naming";
+import { NameBuilder } from "@/app/components/NameBuilder";
 import { countryOptions, countryByCode } from "@/lib/countries";
 import { isSurveyValidForReady } from "@/lib/survey-validation";
 import { getCompletedLanguages, type LocalisedQuestion, type LocalisedText, type LangCode } from "@/lib/survey-locale";
@@ -30,7 +31,6 @@ type ResearchProject = {
   topic: string | null;
   tags: string[];
   description: string | null;
-  year: string | null;
   start_date: string | null;
   end_date: string | null;
   survey_id: string | null;
@@ -84,7 +84,7 @@ const PAGE_SIZE = 25;
 
 const BLANK: Partial<ResearchProject> = {
   project_id: "", project_name: "", brand_org_id: null, agency_org_id: null, study_type: "fan_understanding",
-  topic: "", tags: [], description: "", year: String(new Date().getFullYear()),
+  topic: "", tags: [], description: "",
   start_date: null, end_date: null, survey_id: null,
   target_responses: null, archive_after_days: null, creative_design: null, status: "draft",
   publisher_org_ids: [], country_codes: [],
@@ -424,13 +424,14 @@ export default function ResearchProjectsPage() {
     setDrawerOpen(true);
   }
 
-  // Auto-update name + slug from Brand/Topic/Study Type/Year while the drawer is open.
+  // Auto-update name + slug from Topic/Brand/Agency/Type while the drawer is open.
   useEffect(() => {
     if (!drawerOpen) return;
-    const brandOrTopic = orgName(editing.brand_org_id ?? null) || editing.topic || "";
     const label = studyTypeLabel(editing.study_type ?? "");
-    const name = generateProjectName(brandOrTopic, label, editing.year ?? "");
-    const slug = generateProjectSlug(brandOrTopic, label, editing.year ?? "");
+    const brand = orgName(editing.brand_org_id ?? null);
+    const agency = orgName(editing.agency_org_id ?? null);
+    const name = generateStudyName(editing.topic ?? "", label, brand, agency);
+    const slug = generateStudySlug(editing.topic ?? "", label, brand, agency);
     if (name || slug) {
       setEditing(e => ({
         ...e,
@@ -439,14 +440,15 @@ export default function ResearchProjectsPage() {
       }));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editing.brand_org_id, editing.topic, editing.study_type, editing.year, drawerOpen, orgName]);
+  }, [editing.brand_org_id, editing.agency_org_id, editing.topic, editing.study_type, drawerOpen, orgName]);
 
   function autoId() {
     setEditing(e => {
-      const brandOrTopic = orgName(e.brand_org_id ?? null) || e.topic || "";
       const label = studyTypeLabel(e.study_type ?? "");
-      const name = generateProjectName(brandOrTopic, label, e.year ?? "");
-      const slug = generateProjectSlug(brandOrTopic, label, e.year ?? "");
+      const brand = orgName(e.brand_org_id ?? null);
+      const agency = orgName(e.agency_org_id ?? null);
+      const name = generateStudyName(e.topic ?? "", label, brand, agency);
+      const slug = generateStudySlug(e.topic ?? "", label, brand, agency);
       return { ...e, project_name: name || e.project_name, project_id: slug || e.project_id };
     });
   }
@@ -840,71 +842,33 @@ export default function ResearchProjectsPage() {
 
             <div className="flex-1 overflow-y-auto p-6 space-y-5">
 
-              <DrawerSection step={1} title="Study Details" subtitle="What this project is and how it's classified.">
+              <DrawerSection step={1} title="Research Project Identity" subtitle="What this project is and how it's classified.">
+                <NameBuilder
+                  topic={editing.topic ?? ""}
+                  onTopicChange={v => setEditing(x => ({ ...x, topic: v }))}
+                  brandOrgId={editing.brand_org_id ?? ""}
+                  onBrandChange={v => setEditing(x => ({ ...x, brand_org_id: v || null }))}
+                  brandOptions={orgBrands}
+                  agencyOrgId={editing.agency_org_id ?? ""}
+                  onAgencyChange={v => setEditing(x => ({ ...x, agency_org_id: v || null }))}
+                  agencyOptions={orgAgencies}
+                  studyType={editing.study_type ?? "fan_understanding"}
+                  onStudyTypeChange={v => setEditing(x => ({ ...x, study_type: v }))}
+                  onAutoGenerate={autoId}
+                  preview={generateStudyName(
+                    editing.topic ?? "", studyTypeLabel(editing.study_type ?? ""),
+                    orgName(editing.brand_org_id ?? null), orgName(editing.agency_org_id ?? null)
+                  )}
+                />
+
                 <Field label="Project Name *">
                   <input value={editing.project_name ?? ""} onChange={e => setEditing(x => ({ ...x, project_name: e.target.value }))}
-                    className={INP} placeholder="Carlsberg | Fan Understanding | 2026" />
+                    className={INP} placeholder="Women's World Cup | Fan Understanding | Carlsberg" />
                 </Field>
 
-                <details className="group bg-gray-50 border border-gray-100 rounded-lg" open={!editing.id}>
-                  <summary className="cursor-pointer select-none list-none px-3 py-2 flex items-center gap-1.5 text-xs font-semibold text-gray-500">
-                    <span className="transition-transform group-open:rotate-90">›</span>
-                    Advanced Naming Options
-                    <span className="font-normal text-gray-400 normal-case">— brand, topic, year, and slug</span>
-                  </summary>
-                  <div className="px-3 pb-3 space-y-3">
-                    <div className="grid grid-cols-2 gap-3">
-                      <Field label="Brand (optional)">
-                        <select
-                          value={editing.brand_org_id ?? ""}
-                          onChange={e => setEditing(x => ({ ...x, brand_org_id: e.target.value || null }))}
-                          className={INP}
-                        >
-                          <option value="">— None —</option>
-                          {orgBrands.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
-                        </select>
-                      </Field>
-                      <Field label="Topic">
-                        <input value={editing.topic ?? ""} onChange={e => setEditing(x => ({ ...x, topic: e.target.value }))}
-                          className={INP} placeholder="Women's World Cup" />
-                      </Field>
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <Field label="Year">
-                        <input value={editing.year ?? ""} onChange={e => setEditing(x => ({ ...x, year: e.target.value }))}
-                          className={INP} placeholder={String(new Date().getFullYear())} maxLength={9} />
-                      </Field>
-                      <div className="flex items-end">
-                        <button type="button" onClick={autoId}
-                          className="w-full text-xs font-semibold px-3 py-2 rounded-lg border-2 border-[#D7B87A] text-[#0B1929] hover:bg-[#FBF5E8] transition-colors">
-                          Auto Generate Name &amp; Slug
-                        </button>
-                      </div>
-                    </div>
-                    <Field label="Project ID *">
-                      <input value={editing.project_id ?? ""} onChange={e => setEditing(x => ({ ...x, project_id: e.target.value }))}
-                        className={`${INP} font-mono`} placeholder="carlsberg_fan_understanding_2026" />
-                    </Field>
-                    <Field label="Agency (optional)">
-                      <select
-                        value={editing.agency_org_id ?? ""}
-                        onChange={e => setEditing(x => ({ ...x, agency_org_id: e.target.value || null }))}
-                        className={INP}
-                      >
-                        <option value="">— None —</option>
-                        {orgAgencies.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
-                      </select>
-                    </Field>
-                  </div>
-                </details>
-
-                <Field label="Study Type *">
-                  <select value={editing.study_type ?? "fan_understanding"} onChange={e => setEditing(x => ({ ...x, study_type: e.target.value }))}
-                    className={INP}>
-                    {STUDY_TYPES.map(t => (
-                      <option key={t} value={t}>{STUDY_TYPE_LABELS[t]}</option>
-                    ))}
-                  </select>
+                <Field label="Project ID *">
+                  <input value={editing.project_id ?? ""} onChange={e => setEditing(x => ({ ...x, project_id: e.target.value }))}
+                    className={`${INP} font-mono`} placeholder="womens_world_cup_fan_understanding_carlsberg" />
                 </Field>
 
                 <Field label="Tags">

@@ -97,9 +97,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }
   }
 
-  const brandOrTopic = (project.brand_org_id ? orgNameById.get(project.brand_org_id) : null) || project.topic || "";
+  const topic = project.topic || "";
   const theme = studyTypeLabel(project.study_type);
-  const year = project.year || "";
+  const brand = project.brand_org_id ? orgNameById.get(project.brand_org_id) ?? "" : "";
+  const agency = project.agency_org_id ? orgNameById.get(project.agency_org_id) ?? "" : "";
   const nowIso = new Date().toISOString();
 
   // Compute each combo's slug up front, then look up ALL campaigns with a
@@ -111,8 +112,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return {
       combo,
       country,
-      campaignName: generateCampaignName(brandOrTopic, theme, country.name, combo.publisherName, year),
-      campaignSlug: generateCampaignSlug(brandOrTopic, theme, country.name, combo.publisherName, year),
+      campaignName: generateCampaignName(topic, theme, brand, agency, country.name, combo.publisherName),
+      campaignSlug: generateCampaignSlug(topic, theme, brand, agency, country.name, combo.publisherName),
     };
   });
 
@@ -152,6 +153,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           publisher_org_id: combo.publisherOrgId,
           brand_org_id: project.brand_org_id ?? null,
           agency_org_id: project.agency_org_id ?? null,
+          topic: topic || null,
+          study_type: project.study_type,
         })
         .eq("id", clash.id);
       if (error) {
@@ -175,10 +178,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       .insert([{
         campaign_id: campaignSlug,
         campaign_name: campaignName,
-        // campaigns.brand_name is NOT NULL — Research Projects allow a blank
-        // Brand for non-brand studies, so fall back to Topic, then empty
-        // string, matching the naming convention's own brandOrTopic logic.
-        brand_name: brandOrTopic,
+        topic: topic || null,
         brand_org_id: project.brand_org_id ?? null,
         agency_org_id: project.agency_org_id ?? null,
         // Seeded from the project's own description — a one-time copy, not
@@ -192,8 +192,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         // language-mismatch check above already guarantees the project survey
         // has that translation, so this is never a silent fallback to English.
         survey_language: expectedSurveyLanguage(combo.countryCode),
-        research_theme: theme,
-        year,
+        study_type: project.study_type,
         research_project_id: project.id,
         survey_id: null,
         start_date: null,

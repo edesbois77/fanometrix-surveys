@@ -53,7 +53,14 @@ export default function OrganisationsPage() {
   const [loading, setLoading] = useState(true);
 
   const [search, setSearch] = useState("");
-  const [typeFilter, setTypeFilter] = useState<"all" | OrgType>("all");
+  // Pre-select the Type filter when linked to from a Brand/Agency dropdown
+  // elsewhere (e.g. /organisations?type=brand) — read directly from the URL
+  // rather than useSearchParams() so this page doesn't need a Suspense wrapper.
+  const [typeFilter, setTypeFilter] = useState<"all" | OrgType>(() => {
+    if (typeof window === "undefined") return "all";
+    const t = new URLSearchParams(window.location.search).get("type");
+    return t === "publisher" || t === "agency" || t === "brand" || t === "internal" ? t : "all";
+  });
   const [statusFilter, setStatusFilter] = useState<"all" | OrgStatus>("all");
 
   const [drawerOpen, setDrawerOpen] = useState(false);

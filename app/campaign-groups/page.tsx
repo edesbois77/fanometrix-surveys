@@ -5,7 +5,8 @@ import Papa from "papaparse";
 import { AdminShell } from "@/app/components/AdminShell";
 import { useSession } from "@/app/components/SessionProvider";
 import { DrawerSection } from "@/app/components/DrawerSection";
-import { generateGroupName, generateGroupSlug } from "@/lib/naming";
+import { generateStudyName, generateStudySlug, studyTypeLabel } from "@/lib/naming";
+import { NameBuilder } from "@/app/components/NameBuilder";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type CampaignGroup = {
@@ -17,8 +18,7 @@ type CampaignGroup = {
   brand_org_id: string | null;
   agency_org_id: string | null;
   topic: string | null;
-  research_theme: string | null;
-  year: string | null;
+  study_type: string;
   status: "draft" | "live" | "paused" | "closed" | "archived";
   rotation: "equal" | "weighted" | "priority";
   start_date: string | null;
@@ -170,8 +170,7 @@ type GroupForm = {
   brand_org_id:   string;
   agency_org_id:  string;
   topic:          string;
-  research_theme: string;
-  year:           string;
+  study_type:     string;
   status:         CampaignGroup["status"];
   rotation:       CampaignGroup["rotation"];
   start_date:     string;
@@ -181,7 +180,7 @@ type GroupForm = {
 
 const BLANK_FORM: GroupForm = {
   group_id: "", name: "", description: "", publisher_org_id: "",
-  brand_org_id: "", agency_org_id: "", topic: "", research_theme: "", year: String(new Date().getFullYear()),
+  brand_org_id: "", agency_org_id: "", topic: "", study_type: "custom",
   status: "draft", rotation: "equal",
   start_date: "", end_date: "", campaign_ids: [],
 };
@@ -240,12 +239,6 @@ export default function CampaignGroupsPage() {
   const agencyOrgs      = useMemo(() => orgs.filter(o => o.type === "agency"), [orgs]);
   const orgById = useMemo(() => new Map(orgs.map(o => [o.id, o])), [orgs]);
   const orgName = useCallback((id: string | null) => (id ? orgById.get(id)?.name ?? "" : ""), [orgById]);
-  // Brand is optional — a group with no real brand (e.g. "Women's World
-  // Cup") names itself from Topic instead, same pattern as Research Projects.
-  const brandOrTopic = useCallback(
-    (brandOrgId: string | null, topic: string | null) => orgName(brandOrgId) || (topic ?? ""),
-    [orgName]
-  );
 
   // Tab buckets
   const activeGroups   = useMemo(() => groups.filter(g => !["closed", "archived"].includes(g.status)), [groups]);
@@ -343,8 +336,7 @@ export default function CampaignGroupsPage() {
       brand_org_id:   g.brand_org_id ?? "",
       agency_org_id:  g.agency_org_id ?? "",
       topic:          g.topic ?? "",
-      research_theme: g.research_theme ?? "",
-      year:           g.year ?? String(new Date().getFullYear()),
+      study_type:     g.study_type ?? "custom",
       status:         g.status,
       rotation:       g.rotation,
       start_date:     g.start_date ?? "",
@@ -357,9 +349,11 @@ export default function CampaignGroupsPage() {
 
   function autoSlug() {
     setForm(f => {
-      const brandName = brandOrTopic(f.brand_org_id || null, f.topic || null);
-      const name = generateGroupName(brandName, f.research_theme, f.year);
-      const slug = generateGroupSlug(brandName, f.research_theme, f.year);
+      const studyType = studyTypeLabel(f.study_type);
+      const brandName = orgName(f.brand_org_id || null);
+      const agencyName = orgName(f.agency_org_id || null);
+      const name = generateStudyName(f.topic, studyType, brandName, agencyName);
+      const slug = generateStudySlug(f.topic, studyType, brandName, agencyName);
       return {
         ...f,
         name:     name || f.name,
@@ -382,6 +376,7 @@ export default function CampaignGroupsPage() {
       brand_org_id: form.brand_org_id || null,
       agency_org_id: form.agency_org_id || null,
       topic:        form.topic || null,
+      study_type:   form.study_type,
       status:       form.status,
       rotation:     form.rotation,
       start_date:   form.start_date || null,
@@ -438,8 +433,10 @@ export default function CampaignGroupsPage() {
         "Group Name":       g.name,
         "Slug":             g.group_id,
         "Description":      g.description ?? "",
-        "Brand":            orgName(g.brand_org_id),
         "Topic":            g.topic ?? "",
+        "Brand":            orgName(g.brand_org_id),
+        "Agency":           orgName(g.agency_org_id),
+        "Type":             studyTypeLabel(g.study_type),
         "Publisher":        orgName(g.publisher_org_id),
         "Status":           g.status,
         "Rotation":         g.rotation,
@@ -754,50 +751,24 @@ export default function CampaignGroupsPage() {
 
             <div className="flex-1 overflow-y-auto p-6 space-y-4">
 
-              <DrawerSection step={1} title="Group Identity" subtitle="Name, slug, and description for this group.">
-                <div className="bg-gray-50 border border-gray-100 rounded-xl p-4 space-y-3">
-                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Name Builder</p>
-                  <div className="grid grid-cols-2 gap-3">
-                    <Field label="Brand (optional)">
-                      <select
-                        value={form.brand_org_id}
-                        onChange={e => setForm(f => ({ ...f, brand_org_id: e.target.value }))}
-                        className={INP}
-                      >
-                        <option value="">— None —</option>
-                        {brandOrgs.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
-                      </select>
-                    </Field>
-                    <Field label="Topic">
-                      <input value={form.topic} onChange={e => setForm(f => ({ ...f, topic: e.target.value }))}
-                        className={INP} placeholder="Women's World Cup" />
-                      <p className="text-xs text-gray-400 mt-1">Used to name this group when there's no real brand.</p>
-                    </Field>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <Field label="Research Theme">
-                      <input value={form.research_theme} onChange={e => setForm(f => ({ ...f, research_theme: e.target.value }))}
-                        className={INP} placeholder="Fan Understanding" />
-                    </Field>
-                    <Field label="Year">
-                      <input value={form.year} onChange={e => setForm(f => ({ ...f, year: e.target.value }))}
-                        className={INP} placeholder={String(new Date().getFullYear())} maxLength={9} />
-                    </Field>
-                  </div>
-                  <button type="button" onClick={autoSlug}
-                    className="w-full text-xs font-semibold px-3 py-2 rounded-lg border-2 border-[#D7B87A] text-[#0B1929] hover:bg-[#FBF5E8] transition-colors">
-                    Auto Generate Name &amp; Slug
-                  </button>
-                  {/* Live preview */}
-                  {(form.brand_org_id || form.topic || form.research_theme) && (() => {
-                    const preview = generateGroupName(brandOrTopic(form.brand_org_id || null, form.topic || null), form.research_theme, form.year);
-                    return preview ? (
-                      <p className="text-xs text-gray-500 bg-white border border-gray-200 rounded-lg px-3 py-2 font-mono">
-                        {preview}
-                      </p>
-                    ) : null;
-                  })()}
-                </div>
+              <DrawerSection step={1} title="Campaign Group Identity" subtitle="Name, slug, and description for this group.">
+                <NameBuilder
+                  topic={form.topic}
+                  onTopicChange={v => setForm(f => ({ ...f, topic: v }))}
+                  brandOrgId={form.brand_org_id}
+                  onBrandChange={v => setForm(f => ({ ...f, brand_org_id: v }))}
+                  brandOptions={brandOrgs}
+                  agencyOrgId={form.agency_org_id}
+                  onAgencyChange={v => setForm(f => ({ ...f, agency_org_id: v }))}
+                  agencyOptions={agencyOrgs}
+                  studyType={form.study_type}
+                  onStudyTypeChange={v => setForm(f => ({ ...f, study_type: v }))}
+                  onAutoGenerate={autoSlug}
+                  preview={generateStudyName(
+                    form.topic, studyTypeLabel(form.study_type),
+                    orgName(form.brand_org_id || null), orgName(form.agency_org_id || null)
+                  )}
+                />
 
                 <Field label="Group Name *">
                   <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
@@ -835,16 +806,6 @@ export default function CampaignGroupsPage() {
                     {user?.role === "publisher" && (
                       <p className="text-xs text-gray-400 mt-1">Locked to your organisation.</p>
                     )}
-                  </Field>
-                  <Field label="Agency">
-                    <select
-                      value={form.agency_org_id}
-                      onChange={e => setForm(f => ({ ...f, agency_org_id: e.target.value }))}
-                      className={INP}
-                    >
-                      <option value="">— None —</option>
-                      {agencyOrgs.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
-                    </select>
                   </Field>
                   <Field label="Status">
                     <select value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value as CampaignGroup["status"] }))}

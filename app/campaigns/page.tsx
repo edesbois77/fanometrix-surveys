@@ -43,8 +43,7 @@ type Campaign = {
   brand_org_id: string | null;
   agency_org_id: string | null;
   topic: string | null;
-  research_theme: string | null;
-  year: string | null;
+  study_type: string;
   country_code: string | null;
   market: string | null;
   survey_language: string;
@@ -102,7 +101,8 @@ type ResearchProjectSummary = {
 };
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
-import { generateCampaignName, generateCampaignSlug } from "@/lib/naming";
+import { generateCampaignName, generateCampaignSlug, studyTypeLabel } from "@/lib/naming";
+import { NameBuilder } from "@/app/components/NameBuilder";
 import { useCreativeDesignNames } from "@/lib/creative-designs";
 
 function generateCampaignId(brand: string, name: string): string {
@@ -193,7 +193,7 @@ function CampaignProgress({ c }: { c: Campaign }) {
 const BLANK: Partial<Campaign> = {
   campaign_id: "", campaign_name: "",
   campaign_description: "", start_date: null, end_date: null,
-  survey_id: null, publisher_org_id: null, brand_org_id: null, agency_org_id: null, topic: null, research_theme: null, year: String(new Date().getFullYear()), country_code: null, market: null, survey_language: "en", status: "draft",
+  survey_id: null, publisher_org_id: null, brand_org_id: null, agency_org_id: null, topic: null, study_type: "custom", country_code: null, market: null, survey_language: "en", status: "draft",
   target_responses: null, archive_after_days: 90, creative_design: null,
   research_project_id: null, tags: null,
 };
@@ -349,12 +349,6 @@ export default function CampaignsPage() {
   // needs to show, filter, search, or generate a name/slug with one.
   const orgById = useMemo(() => new Map(orgs.map(o => [o.id, o])), [orgs]);
   const orgName = useCallback((id: string | null) => (id ? orgById.get(id)?.name ?? "" : ""), [orgById]);
-  // Brand is optional — a campaign with no real brand (e.g. "Women's World
-  // Cup") names itself from Topic instead, same pattern as Research Projects.
-  const brandOrTopic = useCallback(
-    (brandOrgId: string | null, topic: string | null) => orgName(brandOrgId) || (topic ?? ""),
-    [orgName]
-  );
 
   const publisherOptions = useMemo(() => {
     const ids = new Set(campaigns.map(c => c.publisher_org_id).filter((id): id is string => !!id));
@@ -467,20 +461,19 @@ export default function CampaignsPage() {
     setDrawerOpen(true);
   }
 
-  // Auto-update name + slug whenever any of the 5 builder fields change.
-  // Runs only while the drawer is open. The Campaign Name and Campaign ID
-  // fields remain editable — any manual edit simply becomes the new value.
+  // Auto-update name + slug whenever any Name Builder field, Country, or
+  // Publisher changes. Runs only while the drawer is open. The Campaign
+  // Name and Campaign ID fields remain editable — any manual edit simply
+  // becomes the new value.
   useEffect(() => {
     if (!drawerOpen) return;
-    const brand = brandOrTopic(editing.brand_org_id ?? null, editing.topic ?? null);
-    const name = generateCampaignName(
-      brand, editing.research_theme ?? "",
-      editing.country_code ?? "", orgName(editing.publisher_org_id ?? null), editing.year ?? ""
-    );
-    const slug = generateCampaignSlug(
-      brand, editing.research_theme ?? "",
-      editing.country_code ?? "", orgName(editing.publisher_org_id ?? null), editing.year ?? ""
-    );
+    const topic = editing.topic ?? "";
+    const studyType = studyTypeLabel(editing.study_type ?? "");
+    const brand = orgName(editing.brand_org_id ?? null);
+    const agency = orgName(editing.agency_org_id ?? null);
+    const publisher = orgName(editing.publisher_org_id ?? null);
+    const name = generateCampaignName(topic, studyType, brand, agency, editing.country_code ?? "", publisher);
+    const slug = generateCampaignSlug(topic, studyType, brand, agency, editing.country_code ?? "", publisher);
     if (name || slug) {
       setEditing(e => ({
         ...e,
@@ -489,7 +482,7 @@ export default function CampaignsPage() {
       }));
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editing.brand_org_id, editing.topic, editing.research_theme, editing.country_code, editing.publisher_org_id, editing.year, drawerOpen, orgName, brandOrTopic]);
+  }, [editing.topic, editing.study_type, editing.brand_org_id, editing.agency_org_id, editing.country_code, editing.publisher_org_id, drawerOpen, orgName]);
 
   // Auto-select Survey Language to match Country Code — but only when the
   // user actually changes Country Code during this drawer session, never
@@ -512,18 +505,17 @@ export default function CampaignsPage() {
 
   function autoId() {
     setEditing(e => {
-      const brandName = brandOrTopic(e.brand_org_id ?? null, e.topic ?? null);
+      const topic = e.topic ?? "";
+      const studyType = studyTypeLabel(e.study_type ?? "");
+      const brandName = orgName(e.brand_org_id ?? null);
+      const agencyName = orgName(e.agency_org_id ?? null);
       const publisherName = orgName(e.publisher_org_id ?? null);
-      const name = generateCampaignName(
-        brandName, e.research_theme ?? "", e.country_code ?? "", publisherName, e.year ?? ""
-      );
-      const slug = generateCampaignSlug(
-        brandName, e.research_theme ?? "", e.country_code ?? "", publisherName, e.year ?? ""
-      );
+      const name = generateCampaignName(topic, studyType, brandName, agencyName, e.country_code ?? "", publisherName);
+      const slug = generateCampaignSlug(topic, studyType, brandName, agencyName, e.country_code ?? "", publisherName);
       return {
         ...e,
         campaign_name: name || e.campaign_name,
-        campaign_id:   slug || generateCampaignId(brandName, e.campaign_name ?? ""),
+        campaign_id:   slug || generateCampaignId(topic, e.campaign_name ?? ""),
       };
     });
   }
@@ -688,7 +680,7 @@ export default function CampaignsPage() {
   }
 
   async function handleDuplicate(c: Campaign) {
-    const slug = generateDuplicateSlug(brandOrTopic(c.brand_org_id, c.topic), c.campaign_name);
+    const slug = generateDuplicateSlug(c.topic ?? "", c.campaign_name);
     const payload = {
       campaign_name:     `${c.campaign_name} (Copy)`,
       campaign_id:       slug,
@@ -700,6 +692,7 @@ export default function CampaignsPage() {
       brand_org_id:      c.brand_org_id,
       agency_org_id:     c.agency_org_id,
       topic:             c.topic,
+      study_type:        c.study_type,
       status:            "draft",
       target_responses:  c.target_responses,
       archive_after_days: c.archive_after_days,
@@ -725,13 +718,13 @@ export default function CampaignsPage() {
       return {
         "Campaign Name":    c.campaign_name,
         "Slug":             c.campaign_id,
-        "Brand":            orgName(c.brand_org_id),
         "Topic":            c.topic ?? "",
-        "Research Theme":   c.research_theme ?? "",
+        "Brand":            orgName(c.brand_org_id),
+        "Agency":           orgName(c.agency_org_id),
+        "Type":             studyTypeLabel(c.study_type),
         "Country":          c.country_code ?? "",
         "Market":           c.market ?? "",
         "Publisher":        orgName(c.publisher_org_id),
-        "Year":             c.year ?? "",
         "Survey":           c.surveys?.name ?? "",
         "Status (Stored)":  c.status,
         "Status (Effective)": c.effective_status ?? c.status,
@@ -1049,7 +1042,7 @@ export default function CampaignsPage() {
                   <>
                     <div className="flex items-start justify-between gap-3 mb-1">
                       <div>
-                        <p className="font-semibold text-gray-400 line-through">{brandOrTopic(c.brand_org_id, c.topic)} · {c.campaign_name}</p>
+                        <p className="font-semibold text-gray-400 line-through">{c.campaign_name}</p>
                         <p className="text-xs font-mono text-gray-300 mt-0.5">{c.campaign_id}</p>
                         <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1.5 text-xs text-gray-400">
                           {c.deleted_by && <span>Deleted by: <span className="font-medium text-gray-500">{c.deleted_by}</span></span>}
@@ -1079,7 +1072,7 @@ export default function CampaignsPage() {
                         <div className="flex items-start justify-between gap-3 mb-0.5">
                           <div className="min-w-0 flex-1">
                             <p className="font-semibold text-gray-900 group-hover:text-[#0B1929] truncate">
-                              {brandOrTopic(c.brand_org_id, c.topic)} · {c.campaign_name}
+                              {c.campaign_name}
                             </p>
                             {c.campaign_description ? (
                               <p className="text-xs text-gray-400 mt-0.5 truncate">{c.campaign_description}</p>
@@ -1201,58 +1194,24 @@ export default function CampaignsPage() {
             <div className="flex-1 overflow-y-auto p-6 space-y-5">
 
               <DrawerSection step={1} title="Campaign Identity" subtitle="Naming, description, and optional parent research project.">
-                <div className="bg-gray-50 border border-gray-100 rounded-lg p-3 space-y-3">
-                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Name Builder</p>
-                  <div className="grid grid-cols-2 gap-3">
-                    <Field label="Brand (optional)">
-                      <select
-                        value={editing.brand_org_id ?? ""}
-                        onChange={e => setEditing(x => ({ ...x, brand_org_id: e.target.value || null }))}
-                        className={INP}
-                      >
-                        <option value="">— None —</option>
-                        {brandOrgs.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
-                      </select>
-                      <p className="text-xs text-gray-400 mt-1">
-                        Not listed? Add it in <Link href="/organisations" className="underline hover:text-[#0B1929]">Organisations</Link> first.
-                      </p>
-                    </Field>
-                    <Field label="Topic">
-                      <input value={editing.topic ?? ""} onChange={e => setEditing(x => ({ ...x, topic: e.target.value }))}
-                        className={INP} placeholder="Women's World Cup" />
-                      <p className="text-xs text-gray-400 mt-1">Used to name this campaign when there's no real brand.</p>
-                    </Field>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <Field label="Research Theme *">
-                      <input value={editing.research_theme ?? ""} onChange={e => setEditing(x => ({ ...x, research_theme: e.target.value }))}
-                        className={INP} placeholder="Fan Understanding" />
-                    </Field>
-                    <Field label="Year">
-                      <input value={editing.year ?? ""} onChange={e => setEditing(x => ({ ...x, year: e.target.value }))}
-                        className={INP} placeholder={String(new Date().getFullYear())} maxLength={9} />
-                    </Field>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={autoId}
-                    className="w-full text-xs font-semibold px-3 py-2 rounded-lg border-2 border-[#D7B87A] text-[#0B1929] hover:bg-[#FBF5E8] transition-colors"
-                  >
-                    Auto Generate Name &amp; Slug
-                  </button>
-                  {/* Live preview */}
-                  {(editing.brand_org_id || editing.topic || editing.research_theme) && (() => {
-                    const preview = generateCampaignName(
-                      brandOrTopic(editing.brand_org_id ?? null, editing.topic ?? null), editing.research_theme ?? "",
-                      editing.country_code ?? "", orgName(editing.publisher_org_id ?? null), editing.year ?? ""
-                    );
-                    return preview ? (
-                      <p className="text-xs text-gray-500 bg-white border border-gray-200 rounded-lg px-3 py-2 font-mono">
-                        {preview}
-                      </p>
-                    ) : null;
-                  })()}
-                </div>
+                <NameBuilder
+                  topic={editing.topic ?? ""}
+                  onTopicChange={v => setEditing(x => ({ ...x, topic: v }))}
+                  brandOrgId={editing.brand_org_id ?? ""}
+                  onBrandChange={v => setEditing(x => ({ ...x, brand_org_id: v || null }))}
+                  brandOptions={brandOrgs}
+                  agencyOrgId={editing.agency_org_id ?? ""}
+                  onAgencyChange={v => setEditing(x => ({ ...x, agency_org_id: v || null }))}
+                  agencyOptions={agencyOrgs}
+                  studyType={editing.study_type ?? "custom"}
+                  onStudyTypeChange={v => setEditing(x => ({ ...x, study_type: v }))}
+                  onAutoGenerate={autoId}
+                  preview={generateCampaignName(
+                    editing.topic ?? "", studyTypeLabel(editing.study_type ?? ""),
+                    orgName(editing.brand_org_id ?? null), orgName(editing.agency_org_id ?? null),
+                    editing.country_code ?? "", orgName(editing.publisher_org_id ?? null)
+                  )}
+                />
 
                 <Field label="Campaign Name *">
                   <input value={editing.campaign_name ?? ""} onChange={e => setEditing(x => ({ ...x, campaign_name: e.target.value }))}
@@ -1302,17 +1261,6 @@ export default function CampaignsPage() {
                   {user?.role === "publisher" && (
                     <p className="text-xs text-gray-400 mt-1">Locked to your organisation.</p>
                   )}
-                </Field>
-
-                <Field label="Agency">
-                  <select
-                    value={editing.agency_org_id ?? ""}
-                    onChange={e => setEditing(x => ({ ...x, agency_org_id: e.target.value || null }))}
-                    className={INP}
-                  >
-                    <option value="">— None —</option>
-                    {agencyOrgs.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
-                  </select>
                 </Field>
 
                 {/* Country Code */}

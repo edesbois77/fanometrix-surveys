@@ -51,17 +51,14 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     responseCount
   );
 
-  const orgIds = [data.brand_org_id, data.publisher_org_id].filter((oid): oid is string => !!oid);
-  const { data: orgs } = orgIds.length > 0
-    ? await supabaseAdmin.from("organisations").select("id, name").in("id", orgIds)
-    : { data: [] as { id: string; name: string }[] };
-  const orgNameById = new Map((orgs ?? []).map(o => [o.id, o.name]));
+  const { data: publisherOrg } = data.publisher_org_id
+    ? await supabaseAdmin.from("organisations").select("name").eq("id", data.publisher_org_id).single()
+    : { data: null as { name: string } | null };
 
   return NextResponse.json({
     data: {
       ...data,
-      brand_name: data.brand_org_id ? orgNameById.get(data.brand_org_id) ?? "" : "",
-      publisher: data.publisher_org_id ? orgNameById.get(data.publisher_org_id) ?? null : null,
+      publisher: publisherOrg?.name ?? null,
       effective_status: effective,
       response_count: responseCount,
       effective_creative_design: effectiveCreativeDesign,
