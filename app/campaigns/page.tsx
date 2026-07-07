@@ -42,6 +42,7 @@ type Campaign = {
   publisher_org_id: string | null;
   brand_org_id: string | null;
   agency_org_id: string | null;
+  topic: string | null;
   research_theme: string | null;
   year: string | null;
   country_code: string | null;
@@ -192,7 +193,7 @@ function CampaignProgress({ c }: { c: Campaign }) {
 const BLANK: Partial<Campaign> = {
   campaign_id: "", campaign_name: "",
   campaign_description: "", start_date: null, end_date: null,
-  survey_id: null, publisher_org_id: null, brand_org_id: null, agency_org_id: null, research_theme: null, year: String(new Date().getFullYear()), country_code: null, market: null, survey_language: "en", status: "draft",
+  survey_id: null, publisher_org_id: null, brand_org_id: null, agency_org_id: null, topic: null, research_theme: null, year: String(new Date().getFullYear()), country_code: null, market: null, survey_language: "en", status: "draft",
   target_responses: null, archive_after_days: 90, creative_design: null,
   research_project_id: null, tags: null,
 };
@@ -348,6 +349,12 @@ export default function CampaignsPage() {
   // needs to show, filter, search, or generate a name/slug with one.
   const orgById = useMemo(() => new Map(orgs.map(o => [o.id, o])), [orgs]);
   const orgName = useCallback((id: string | null) => (id ? orgById.get(id)?.name ?? "" : ""), [orgById]);
+  // Brand is optional — a campaign with no real brand (e.g. "Women's World
+  // Cup") names itself from Topic instead, same pattern as Research Projects.
+  const brandOrTopic = useCallback(
+    (brandOrgId: string | null, topic: string | null) => orgName(brandOrgId) || (topic ?? ""),
+    [orgName]
+  );
 
   const publisherOptions = useMemo(() => {
     const ids = new Set(campaigns.map(c => c.publisher_org_id).filter((id): id is string => !!id));
@@ -405,6 +412,7 @@ export default function CampaignsPage() {
         c.campaign_name.toLowerCase().includes(q) ||
         c.campaign_id.toLowerCase().includes(q) ||
         orgName(c.brand_org_id).toLowerCase().includes(q) ||
+        (c.topic ?? "").toLowerCase().includes(q) ||
         orgName(c.publisher_org_id).toLowerCase().includes(q) ||
         (c.surveys?.name ?? "").toLowerCase().includes(q) ||
         c.effective_status.includes(q)
@@ -464,12 +472,13 @@ export default function CampaignsPage() {
   // fields remain editable — any manual edit simply becomes the new value.
   useEffect(() => {
     if (!drawerOpen) return;
+    const brand = brandOrTopic(editing.brand_org_id ?? null, editing.topic ?? null);
     const name = generateCampaignName(
-      orgName(editing.brand_org_id ?? null), editing.research_theme ?? "",
+      brand, editing.research_theme ?? "",
       editing.country_code ?? "", orgName(editing.publisher_org_id ?? null), editing.year ?? ""
     );
     const slug = generateCampaignSlug(
-      orgName(editing.brand_org_id ?? null), editing.research_theme ?? "",
+      brand, editing.research_theme ?? "",
       editing.country_code ?? "", orgName(editing.publisher_org_id ?? null), editing.year ?? ""
     );
     if (name || slug) {
@@ -480,7 +489,7 @@ export default function CampaignsPage() {
       }));
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editing.brand_org_id, editing.research_theme, editing.country_code, editing.publisher_org_id, editing.year, drawerOpen, orgName]);
+  }, [editing.brand_org_id, editing.topic, editing.research_theme, editing.country_code, editing.publisher_org_id, editing.year, drawerOpen, orgName, brandOrTopic]);
 
   // Auto-select Survey Language to match Country Code — but only when the
   // user actually changes Country Code during this drawer session, never
@@ -503,7 +512,7 @@ export default function CampaignsPage() {
 
   function autoId() {
     setEditing(e => {
-      const brandName = orgName(e.brand_org_id ?? null);
+      const brandName = brandOrTopic(e.brand_org_id ?? null, e.topic ?? null);
       const publisherName = orgName(e.publisher_org_id ?? null);
       const name = generateCampaignName(
         brandName, e.research_theme ?? "", e.country_code ?? "", publisherName, e.year ?? ""
@@ -520,7 +529,6 @@ export default function CampaignsPage() {
   }
 
   async function handleSave() {
-    if (!editing.brand_org_id)   { setError("Brand is required.");   return; }
     if (!editing.campaign_name?.trim()) { setError("Campaign name is required."); return; }
     if (!editing.campaign_id?.trim())  { setError("Campaign ID is required.");   return; }
     if (editing.start_date && editing.end_date && editing.start_date > editing.end_date) {
@@ -680,7 +688,7 @@ export default function CampaignsPage() {
   }
 
   async function handleDuplicate(c: Campaign) {
-    const slug = generateDuplicateSlug(orgName(c.brand_org_id), c.campaign_name);
+    const slug = generateDuplicateSlug(brandOrTopic(c.brand_org_id, c.topic), c.campaign_name);
     const payload = {
       campaign_name:     `${c.campaign_name} (Copy)`,
       campaign_id:       slug,
@@ -691,6 +699,7 @@ export default function CampaignsPage() {
       publisher_org_id:  c.publisher_org_id,
       brand_org_id:      c.brand_org_id,
       agency_org_id:     c.agency_org_id,
+      topic:             c.topic,
       status:            "draft",
       target_responses:  c.target_responses,
       archive_after_days: c.archive_after_days,
@@ -717,6 +726,7 @@ export default function CampaignsPage() {
         "Campaign Name":    c.campaign_name,
         "Slug":             c.campaign_id,
         "Brand":            orgName(c.brand_org_id),
+        "Topic":            c.topic ?? "",
         "Research Theme":   c.research_theme ?? "",
         "Country":          c.country_code ?? "",
         "Market":           c.market ?? "",
@@ -1039,7 +1049,7 @@ export default function CampaignsPage() {
                   <>
                     <div className="flex items-start justify-between gap-3 mb-1">
                       <div>
-                        <p className="font-semibold text-gray-400 line-through">{orgName(c.brand_org_id)} · {c.campaign_name}</p>
+                        <p className="font-semibold text-gray-400 line-through">{brandOrTopic(c.brand_org_id, c.topic)} · {c.campaign_name}</p>
                         <p className="text-xs font-mono text-gray-300 mt-0.5">{c.campaign_id}</p>
                         <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1.5 text-xs text-gray-400">
                           {c.deleted_by && <span>Deleted by: <span className="font-medium text-gray-500">{c.deleted_by}</span></span>}
@@ -1069,7 +1079,7 @@ export default function CampaignsPage() {
                         <div className="flex items-start justify-between gap-3 mb-0.5">
                           <div className="min-w-0 flex-1">
                             <p className="font-semibold text-gray-900 group-hover:text-[#0B1929] truncate">
-                              {orgName(c.brand_org_id)} · {c.campaign_name}
+                              {brandOrTopic(c.brand_org_id, c.topic)} · {c.campaign_name}
                             </p>
                             {c.campaign_description ? (
                               <p className="text-xs text-gray-400 mt-0.5 truncate">{c.campaign_description}</p>
@@ -1194,43 +1204,46 @@ export default function CampaignsPage() {
                 <div className="bg-gray-50 border border-gray-100 rounded-lg p-3 space-y-3">
                   <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Name Builder</p>
                   <div className="grid grid-cols-2 gap-3">
-                    <Field label="Brand *">
+                    <Field label="Brand (optional)">
                       <select
                         value={editing.brand_org_id ?? ""}
                         onChange={e => setEditing(x => ({ ...x, brand_org_id: e.target.value || null }))}
                         className={INP}
                       >
-                        <option value="">— Select brand —</option>
+                        <option value="">— None —</option>
                         {brandOrgs.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
                       </select>
                       <p className="text-xs text-gray-400 mt-1">
                         Not listed? Add it in <Link href="/organisations" className="underline hover:text-[#0B1929]">Organisations</Link> first.
                       </p>
                     </Field>
+                    <Field label="Topic">
+                      <input value={editing.topic ?? ""} onChange={e => setEditing(x => ({ ...x, topic: e.target.value }))}
+                        className={INP} placeholder="Women's World Cup" />
+                      <p className="text-xs text-gray-400 mt-1">Used to name this campaign when there's no real brand.</p>
+                    </Field>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
                     <Field label="Research Theme *">
                       <input value={editing.research_theme ?? ""} onChange={e => setEditing(x => ({ ...x, research_theme: e.target.value }))}
                         className={INP} placeholder="Fan Understanding" />
                     </Field>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
                     <Field label="Year">
                       <input value={editing.year ?? ""} onChange={e => setEditing(x => ({ ...x, year: e.target.value }))}
                         className={INP} placeholder={String(new Date().getFullYear())} maxLength={9} />
                     </Field>
-                    <div className="flex items-end">
-                      <button
-                        type="button"
-                        onClick={autoId}
-                        className="w-full text-xs font-semibold px-3 py-2 rounded-lg border-2 border-[#D7B87A] text-[#0B1929] hover:bg-[#FBF5E8] transition-colors"
-                      >
-                        Auto Generate Name &amp; Slug
-                      </button>
-                    </div>
                   </div>
+                  <button
+                    type="button"
+                    onClick={autoId}
+                    className="w-full text-xs font-semibold px-3 py-2 rounded-lg border-2 border-[#D7B87A] text-[#0B1929] hover:bg-[#FBF5E8] transition-colors"
+                  >
+                    Auto Generate Name &amp; Slug
+                  </button>
                   {/* Live preview */}
-                  {(editing.brand_org_id || editing.research_theme) && (() => {
+                  {(editing.brand_org_id || editing.topic || editing.research_theme) && (() => {
                     const preview = generateCampaignName(
-                      orgName(editing.brand_org_id ?? null), editing.research_theme ?? "",
+                      brandOrTopic(editing.brand_org_id ?? null, editing.topic ?? null), editing.research_theme ?? "",
                       editing.country_code ?? "", orgName(editing.publisher_org_id ?? null), editing.year ?? ""
                     );
                     return preview ? (

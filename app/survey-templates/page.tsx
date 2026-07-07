@@ -106,6 +106,7 @@ type Survey = {
   name: string;
   description: string | null;
   brand_name: string | null;
+  topic: string | null;
   research_theme: string | null;
   version_number: number;
   questions: Question[];
@@ -133,6 +134,7 @@ type EditFields = {
   name:           string;
   description:    string | null;
   brand_name:     string;
+  topic:          string;
   research_theme: string;
   version_number: number;
   questions:      Question[];
@@ -472,7 +474,7 @@ const BLANK_Q = (): Question => ({
 });
 
 const BLANK_FIELDS: EditFields = {
-  name: "", description: "", brand_name: "", research_theme: "", version_number: 1,
+  name: "", description: "", brand_name: "", topic: "", research_theme: "", version_number: 1,
   questions: [BLANK_Q()],
   thank_you_title: { en: "Thank you!" },
   thank_you_body: { en: "Your response has been recorded." },
@@ -724,6 +726,7 @@ export default function SurveysPage() {
       name:           s.name,
       description:    s.description,
       brand_name:     s.brand_name ?? "",
+      topic:          s.topic ?? "",
       research_theme: s.research_theme ?? "",
       version_number: s.version_number ?? 1,
       questions:      s.questions,
@@ -892,6 +895,7 @@ export default function SurveysPage() {
       name:           `${s.name} (Copy)`,
       description:    s.description,
       brand_name:     s.brand_name ?? "",
+      topic:          s.topic ?? "",
       research_theme: s.research_theme ?? "",
       version_number: s.version_number ?? 1,
       questions:      s.questions,
@@ -943,6 +947,7 @@ export default function SurveysPage() {
     const rows = displayed.map(s => ({
       "Name":             s.name,
       "Brand":            s.brand_name ?? "",
+      "Topic":            s.topic ?? "",
       "Research Theme":   s.research_theme ?? "",
       "Version":          s.version_number ?? 1,
       "Description":      s.description ?? "",
@@ -1401,40 +1406,46 @@ export default function SurveysPage() {
                 <div className="bg-gray-50 border border-gray-100 rounded-xl p-4 space-y-3">
                   <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Name Builder</p>
                   <div className="grid grid-cols-2 gap-3">
-                    <Field label="Brand">
+                    <Field label="Brand (optional)">
                       <input value={fields.brand_name}
                         onChange={e => setFields(f => ({ ...f, brand_name: e.target.value }))}
                         className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-[#D7B87A]"
                         placeholder="Carlsberg" />
                     </Field>
+                    <Field label="Topic">
+                      <input value={fields.topic}
+                        onChange={e => setFields(f => ({ ...f, topic: e.target.value }))}
+                        className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-[#D7B87A]"
+                        placeholder="Women's World Cup" />
+                    </Field>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
                     <Field label="Research Theme">
                       <input value={fields.research_theme}
                         onChange={e => setFields(f => ({ ...f, research_theme: e.target.value }))}
                         className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-[#D7B87A]"
                         placeholder="Fan Understanding" />
                     </Field>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
                     <Field label="Version">
                       <input type="number" min={1} max={99}
                         value={fields.version_number}
                         onChange={e => setFields(f => ({ ...f, version_number: Math.max(1, parseInt(e.target.value) || 1) }))}
                         className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-[#D7B87A]" />
                     </Field>
-                    <div className="flex items-end">
-                      <button type="button"
-                        onClick={() => {
-                          const n = generateSurveyName(fields.brand_name, fields.research_theme, fields.version_number);
-                          if (n) setFields(f => ({ ...f, name: n }));
-                        }}
-                        className="w-full text-xs font-semibold px-3 py-2 rounded-lg border-2 border-[#D7B87A] text-[#0B1929] hover:bg-[#FBF5E8] transition-colors">
-                        Auto Generate Name
-                      </button>
-                    </div>
                   </div>
+                  <button type="button"
+                    onClick={() => {
+                      const brand = fields.brand_name.trim() || fields.topic.trim();
+                      const n = generateSurveyName(brand, fields.research_theme, fields.version_number);
+                      if (n) setFields(f => ({ ...f, name: n }));
+                    }}
+                    className="w-full text-xs font-semibold px-3 py-2 rounded-lg border-2 border-[#D7B87A] text-[#0B1929] hover:bg-[#FBF5E8] transition-colors">
+                    Auto Generate Name
+                  </button>
                   {/* Live preview */}
-                  {(fields.brand_name || fields.research_theme) && (() => {
-                    const preview = generateSurveyName(fields.brand_name, fields.research_theme, fields.version_number);
+                  {(fields.brand_name || fields.topic || fields.research_theme) && (() => {
+                    const brand = fields.brand_name.trim() || fields.topic.trim();
+                    const preview = generateSurveyName(brand, fields.research_theme, fields.version_number);
                     return preview ? (
                       <p className="text-xs text-gray-500 bg-white border border-gray-200 rounded-lg px-3 py-2 font-mono">
                         {preview}

@@ -16,6 +16,7 @@ type CampaignGroup = {
   publisher_org_id: string | null;
   brand_org_id: string | null;
   agency_org_id: string | null;
+  topic: string | null;
   research_theme: string | null;
   year: string | null;
   status: "draft" | "live" | "paused" | "closed" | "archived";
@@ -168,6 +169,7 @@ type GroupForm = {
   publisher_org_id: string;
   brand_org_id:   string;
   agency_org_id:  string;
+  topic:          string;
   research_theme: string;
   year:           string;
   status:         CampaignGroup["status"];
@@ -179,7 +181,7 @@ type GroupForm = {
 
 const BLANK_FORM: GroupForm = {
   group_id: "", name: "", description: "", publisher_org_id: "",
-  brand_org_id: "", agency_org_id: "", research_theme: "", year: String(new Date().getFullYear()),
+  brand_org_id: "", agency_org_id: "", topic: "", research_theme: "", year: String(new Date().getFullYear()),
   status: "draft", rotation: "equal",
   start_date: "", end_date: "", campaign_ids: [],
 };
@@ -238,6 +240,12 @@ export default function CampaignGroupsPage() {
   const agencyOrgs      = useMemo(() => orgs.filter(o => o.type === "agency"), [orgs]);
   const orgById = useMemo(() => new Map(orgs.map(o => [o.id, o])), [orgs]);
   const orgName = useCallback((id: string | null) => (id ? orgById.get(id)?.name ?? "" : ""), [orgById]);
+  // Brand is optional — a group with no real brand (e.g. "Women's World
+  // Cup") names itself from Topic instead, same pattern as Research Projects.
+  const brandOrTopic = useCallback(
+    (brandOrgId: string | null, topic: string | null) => orgName(brandOrgId) || (topic ?? ""),
+    [orgName]
+  );
 
   // Tab buckets
   const activeGroups   = useMemo(() => groups.filter(g => !["closed", "archived"].includes(g.status)), [groups]);
@@ -295,6 +303,7 @@ export default function CampaignGroupsPage() {
         g.group_id.toLowerCase().includes(q) ||
         (g.description ?? "").toLowerCase().includes(q) ||
         orgName(g.brand_org_id).toLowerCase().includes(q) ||
+        (g.topic ?? "").toLowerCase().includes(q) ||
         orgName(g.publisher_org_id).toLowerCase().includes(q)
       );
     }
@@ -333,6 +342,7 @@ export default function CampaignGroupsPage() {
       publisher_org_id: g.publisher_org_id ?? "",
       brand_org_id:   g.brand_org_id ?? "",
       agency_org_id:  g.agency_org_id ?? "",
+      topic:          g.topic ?? "",
       research_theme: g.research_theme ?? "",
       year:           g.year ?? String(new Date().getFullYear()),
       status:         g.status,
@@ -347,7 +357,7 @@ export default function CampaignGroupsPage() {
 
   function autoSlug() {
     setForm(f => {
-      const brandName = orgName(f.brand_org_id || null);
+      const brandName = brandOrTopic(f.brand_org_id || null, f.topic || null);
       const name = generateGroupName(brandName, f.research_theme, f.year);
       const slug = generateGroupSlug(brandName, f.research_theme, f.year);
       return {
@@ -371,6 +381,7 @@ export default function CampaignGroupsPage() {
       publisher_org_id: form.publisher_org_id || null,
       brand_org_id: form.brand_org_id || null,
       agency_org_id: form.agency_org_id || null,
+      topic:        form.topic || null,
       status:       form.status,
       rotation:     form.rotation,
       start_date:   form.start_date || null,
@@ -427,6 +438,8 @@ export default function CampaignGroupsPage() {
         "Group Name":       g.name,
         "Slug":             g.group_id,
         "Description":      g.description ?? "",
+        "Brand":            orgName(g.brand_org_id),
+        "Topic":            g.topic ?? "",
         "Publisher":        orgName(g.publisher_org_id),
         "Status":           g.status,
         "Rotation":         g.rotation,
@@ -745,36 +758,39 @@ export default function CampaignGroupsPage() {
                 <div className="bg-gray-50 border border-gray-100 rounded-xl p-4 space-y-3">
                   <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Name Builder</p>
                   <div className="grid grid-cols-2 gap-3">
-                    <Field label="Brand">
+                    <Field label="Brand (optional)">
                       <select
                         value={form.brand_org_id}
                         onChange={e => setForm(f => ({ ...f, brand_org_id: e.target.value }))}
                         className={INP}
                       >
-                        <option value="">— Select brand —</option>
+                        <option value="">— None —</option>
                         {brandOrgs.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
                       </select>
                     </Field>
+                    <Field label="Topic">
+                      <input value={form.topic} onChange={e => setForm(f => ({ ...f, topic: e.target.value }))}
+                        className={INP} placeholder="Women's World Cup" />
+                      <p className="text-xs text-gray-400 mt-1">Used to name this group when there's no real brand.</p>
+                    </Field>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
                     <Field label="Research Theme">
                       <input value={form.research_theme} onChange={e => setForm(f => ({ ...f, research_theme: e.target.value }))}
                         className={INP} placeholder="Fan Understanding" />
                     </Field>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
                     <Field label="Year">
                       <input value={form.year} onChange={e => setForm(f => ({ ...f, year: e.target.value }))}
                         className={INP} placeholder={String(new Date().getFullYear())} maxLength={9} />
                     </Field>
-                    <div className="flex items-end">
-                      <button type="button" onClick={autoSlug}
-                        className="w-full text-xs font-semibold px-3 py-2 rounded-lg border-2 border-[#D7B87A] text-[#0B1929] hover:bg-[#FBF5E8] transition-colors">
-                        Auto Generate Name &amp; Slug
-                      </button>
-                    </div>
                   </div>
+                  <button type="button" onClick={autoSlug}
+                    className="w-full text-xs font-semibold px-3 py-2 rounded-lg border-2 border-[#D7B87A] text-[#0B1929] hover:bg-[#FBF5E8] transition-colors">
+                    Auto Generate Name &amp; Slug
+                  </button>
                   {/* Live preview */}
-                  {(form.brand_org_id || form.research_theme) && (() => {
-                    const preview = generateGroupName(orgName(form.brand_org_id || null), form.research_theme, form.year);
+                  {(form.brand_org_id || form.topic || form.research_theme) && (() => {
+                    const preview = generateGroupName(brandOrTopic(form.brand_org_id || null, form.topic || null), form.research_theme, form.year);
                     return preview ? (
                       <p className="text-xs text-gray-500 bg-white border border-gray-200 rounded-lg px-3 py-2 font-mono">
                         {preview}
