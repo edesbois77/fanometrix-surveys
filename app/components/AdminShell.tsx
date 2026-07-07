@@ -250,7 +250,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             {!loading && user && (
               <div className="mt-3 pt-3" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
                 <p className="px-3 text-xs mb-1.5 truncate" style={{ color: "#B0B7C3" }}>
-                  {user.organisationName || user.username}
+                  {user.organisationName || user.workEmail}
                 </p>
                 <button
                   onClick={handleLogout}

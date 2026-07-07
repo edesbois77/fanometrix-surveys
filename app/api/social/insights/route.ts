@@ -1,7 +1,7 @@
 // Generates client-ready intelligence insights from classified mentions.
 // Sends a structured data summary (not raw mentions) to avoid token limits.
 import { NextRequest, NextResponse } from "next/server";
-import { requireSession } from "@/lib/auth";
+import { requireUser } from "@/lib/auth-server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
 export type InsightReport = {
@@ -84,7 +84,7 @@ Write as a senior analyst. Be specific, insightful and commercially relevant. Ne
 }
 
 export async function POST(req: NextRequest) {
-  try { await requireSession(req, ["admin"]); } catch (err) { return err as Response; }
+  try { await requireUser(req, ["admin"]); } catch (err) { return err as Response; }
 
   const { search_id } = await req.json();
   if (!search_id) return NextResponse.json({ error: "search_id is required" }, { status: 400 });

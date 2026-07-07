@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
-import { requireSession } from "@/lib/auth";
+import { requireUser } from "@/lib/auth-server";
 
 export async function GET(req: NextRequest) {
   try {
-    await requireSession(req);
+    await requireUser(req);
   } catch (err) {
     return err as Response;
   }
@@ -38,7 +38,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   let session;
   try {
-    session = await requireSession(req, ["admin"]);
+    session = await requireUser(req, ["admin"]);
   } catch (err) {
     return err as Response;
   }
@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
 
   const { data, error } = await supabaseAdmin
     .from("surveys")
-    .insert([{ ...rest, created_by: session.username, updated_at: new Date().toISOString() }])
+    .insert([{ ...rest, created_by: session.workEmail, updated_at: new Date().toISOString() }])
     .select()
     .single();
 

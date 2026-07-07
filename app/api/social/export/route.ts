@@ -1,10 +1,10 @@
 // Export endpoint — returns CSV data or PPTX for the export page to consume.
 import { NextRequest, NextResponse } from "next/server";
-import { requireSession } from "@/lib/auth";
+import { requireUser } from "@/lib/auth-server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
 export async function GET(req: NextRequest) {
-  try { await requireSession(req, ["admin"]); } catch (err) { return err as Response; }
+  try { await requireUser(req, ["admin"]); } catch (err) { return err as Response; }
 
   const searchId = req.nextUrl.searchParams.get("search_id");
   const format   = req.nextUrl.searchParams.get("format") ?? "csv";

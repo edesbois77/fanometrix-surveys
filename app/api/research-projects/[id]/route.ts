@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
-import { requireSession } from "@/lib/auth";
+import { requireUser } from "@/lib/auth-server";
+import { canAccess } from "@/lib/access";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   let session;
   try {
-    session = await requireSession(req, ["admin", "brand", "agency"]);
+    session = await requireUser(req, ["admin", "brand", "agency", "publisher"]);
   } catch (err) {
     return err as Response;
   }
@@ -19,35 +20,27 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   if (error || !data) return NextResponse.json({ error: error?.message ?? "Not found" }, { status: 404 });
 
-  if (session.role === "brand" || session.role === "agency") {
-    const { data: user } = await supabaseAdmin
-      .from("users")
-      .select("associated_brand, associated_projects")
-      .eq("id", session.sub)
-      .single();
-
-    const assocProjects = ((user?.associated_projects ?? []) as string[]).map(p => p.toLowerCase());
-    const assocBrand = ((user?.associated_brand ?? "") as string).toLowerCase();
-    const idMatch = assocProjects.includes(data.project_id.toLowerCase());
-    const brandMatch =
-      session.role === "brand" && !!assocBrand && !!data.brand_name && data.brand_name.toLowerCase() === assocBrand;
-
-    if (!idMatch && !brandMatch) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
+  if (session.role !== "admin" && !(await canAccess(session, "research_project", data.id))) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   return NextResponse.json({ data });
 }
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  let session;
   try {
-    await requireSession(req, ["admin"]);
+    session = await requireUser(req, ["admin", "publisher"]);
   } catch (err) {
     return err as Response;
   }
 
   const { id } = await params;
+
+  if (session.role !== "admin" && !(await canAccess(session, "research_project", id))) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   const body = await req.json();
   const now = new Date().toISOString();
 
@@ -70,6 +63,12 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     ...safeBody
   } = body;
 
+  // A publisher can never retarget a project to a different publisher,
+  // even their own edit requests get this pinned server-side.
+  if (session.role === "publisher") {
+    safeBody.publisher_org_ids = session.organisationId ? [session.organisationId] : [];
+  }
+
   const { data, error } = await supabaseAdmin
     .from("research_projects")
     .update({ ...safeBody, updated_at: now })
@@ -90,7 +89,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   let session;
   try {
-    session = await requireSession(req, ["admin"]);
+    session = await requireUser(req, ["admin"]);
   } catch (err) {
     return err as Response;
   }
@@ -115,7 +114,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
 
   const { error } = await supabaseAdmin
     .from("research_projects")
-    .update({ deleted_at: now, deleted_by: session.username, updated_at: now })
+    .update({ deleted_at: now, deleted_by: session.workEmail, updated_at: now })
     .eq("id", id);
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

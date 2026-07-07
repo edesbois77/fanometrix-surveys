@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireSession } from "@/lib/auth";
+import { requireUser } from "@/lib/auth-server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
 export async function GET(req: NextRequest) {
-  try { await requireSession(req, ["admin"]); } catch (err) { return err as Response; }
+  try { await requireUser(req, ["admin"]); } catch (err) { return err as Response; }
 
   const { data, error } = await supabaseAdmin
     .from("social_searches")
@@ -16,14 +16,14 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   let session;
-  try { session = await requireSession(req, ["admin"]); } catch (err) { return err as Response; }
+  try { session = await requireUser(req, ["admin"]); } catch (err) { return err as Response; }
 
   const body = await req.json();
   const { keywords, ...searchFields } = body;
 
   const { data: search, error } = await supabaseAdmin
     .from("social_searches")
-    .insert({ ...searchFields, created_by: session.username })
+    .insert({ ...searchFields, created_by: session.workEmail })
     .select()
     .single();
 

@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
-import { requireSession } from "@/lib/auth";
+import { requireUser } from "@/lib/auth-server";
 
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    await requireSession(req, ["admin"]);
+    await requireUser(req, ["admin"]);
   } catch (err) {
     return err as Response;
   }

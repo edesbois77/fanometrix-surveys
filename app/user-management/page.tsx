@@ -2,67 +2,83 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { AdminShell } from "@/app/components/AdminShell";
-import { MultiSelect } from "@/app/components/MultiSelect";
+import { DrawerSection } from "@/app/components/DrawerSection";
+import { MultiSelect, type MultiSelectOption } from "@/app/components/MultiSelect";
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-const ACTIVE_THRESHOLD_MS = 10 * 60 * 1000; // 10 minutes
+// ─── Types ────────────────────────────────────────────────────────────────────
+type Role = "admin" | "brand" | "agency" | "publisher";
+type OrgType = "publisher" | "agency" | "brand" | "internal";
+type AccessScope = "organisation_wide" | "selected";
+type Status = "pending_invitation" | "active" | "disabled";
+
+type User = {
+  id: string;
+  first_name: string | null;
+  last_name: string | null;
+  work_email: string;
+  job_title: string | null;
+  role: Role;
+  organisation_id: string | null;
+  organisations: { name: string; type: OrgType } | null;
+  access_scope: AccessScope;
+  status: Status;
+  last_login_at: string | null;
+  password_changed_at: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+type Organisation = { id: string; name: string; type: OrgType; status: "active" | "disabled" };
+type Grant = { resource_type: string; resource_id: string };
+
+const NEW_ORG = "__new__";
+const ROLES: Role[] = ["admin", "publisher", "agency", "brand"];
+const ROLE_LABELS: Record<Role, string> = { admin: "Admin", publisher: "Publisher", agency: "Agency", brand: "Brand" };
+const ORG_TYPE_LABELS: Record<OrgType, string> = { publisher: "Publisher", agency: "Agency", brand: "Brand", internal: "Internal" };
 
 function relativeTime(iso: string | null): string {
   if (!iso) return "Never";
   const diff = Date.now() - new Date(iso).getTime();
-  if (diff < 60_000)          return "Just now";
-  if (diff < 3_600_000)       return `${Math.floor(diff / 60_000)} min ago`;
-  if (diff < 86_400_000)      return `${Math.floor(diff / 3_600_000)} hr ago`;
+  if (diff < 60_000) return "Just now";
+  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)} min ago`;
+  if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)} hr ago`;
   return `${Math.floor(diff / 86_400_000)} days ago`;
 }
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-type User = {
-  id: string;
-  username: string;
-  role: "admin" | "brand" | "agency" | "publisher";
-  organisation_name: string;
-  associated_agency: string | null;
-  associated_brand: string | null;
-  associated_publisher: string | null;
-  associated_projects: string[];
-  associated_markets: string[];
-  allowed_campaign_ids: string[];
-  allowed_publisher_ids: string[];
-  is_active: boolean;
-  force_password_change: boolean;
-  created_at: string;
-  updated_at: string;
-  last_seen_at: string | null;
-};
+function formatDate(iso: string | null): string {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+}
 
-type Option = { value: string; label: string };
-type CampaignOption = Option & { created_at: string };
+function fullName(u: User): string {
+  return [u.first_name, u.last_name].filter(Boolean).join(" ").trim();
+}
 
-// ─── Constants ────────────────────────────────────────────────────────────────
-const ROLES = ["admin", "brand", "agency", "publisher"] as const;
-
+function accessScopeLabel(u: { role: Role; access_scope: AccessScope }): string {
+  if (u.access_scope === "organisation_wide") return u.role === "publisher" ? "Publisher-wide" : "Organisation-wide";
+  return "Selected Access";
+}
 
 // ─── Password generator (uses Web Crypto) ─────────────────────────────────────
 function generatePassword(): string {
-  const upper  = "ABCDEFGHJKLMNPQRSTUVWXYZ";
-  const lower  = "abcdefghjkmnpqrstuvwxyz";
+  const upper = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+  const lower = "abcdefghjkmnpqrstuvwxyz";
   const digits = "23456789";
-  const syms   = "!@#$%&*";
-  const all    = upper + lower + digits + syms;
+  const syms = "!@#$%&*";
+  const all = upper + lower + digits + syms;
 
   const rand = new Uint8Array(32);
   crypto.getRandomValues(rand);
 
   const chars: string[] = [
-    upper[rand[0]  % upper.length],
-    lower[rand[1]  % lower.length],
+    upper[rand[0] % upper.length],
+    lower[rand[1] % lower.length],
     digits[rand[2] % digits.length],
-    syms[rand[3]   % syms.length],
+    syms[rand[3] % syms.length],
     ...Array.from({ length: 8 }, (_, i) => all[rand[4 + i] % all.length]),
   ];
 
-  // Fisher-Yates shuffle
   for (let i = chars.length - 1; i > 0; i--) {
     const j = rand[12 + i] % (i + 1);
     [chars[i], chars[j]] = [chars[j], chars[i]];
@@ -70,27 +86,18 @@ function generatePassword(): string {
   return chars.join("");
 }
 
-// ─── Searchable multi-select ──────────────────────────────────────────────────
 // ─── Credentials modal (shown once after account create / password reset) ─────
-function CredentialsModal({
-  username,
-  password,
-  onClose,
-}: {
-  username: string;
-  password: string;
-  onClose: () => void;
-}) {
+function CredentialsModal({ email, password, onClose }: { email: string; password: string; onClose: () => void }) {
   const [copied, setCopied] = useState(false);
 
   async function copyCredentials() {
-    const text = `Username: ${username}\nTemporary Password: ${password}`;
+    const text = `Work Email: ${email}\nTemporary Password: ${password}`;
     try {
       await navigator.clipboard.writeText(text);
       setCopied(true);
       setTimeout(() => setCopied(false), 2500);
     } catch {
-      // Fallback: select the text manually
+      // Fallback: user copies manually.
     }
   }
 
@@ -105,8 +112,8 @@ function CredentialsModal({
 
         <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 space-y-3 mb-4">
           <div>
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-0.5">Username</p>
-            <p className="font-mono text-sm text-gray-900">{username}</p>
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-0.5">Work Email</p>
+            <p className="font-mono text-sm text-gray-900">{email}</p>
           </div>
           <div>
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-0.5">Temporary Password</p>
@@ -121,17 +128,13 @@ function CredentialsModal({
         </div>
 
         <div className="flex gap-3">
-          <button
-            onClick={copyCredentials}
+          <button onClick={copyCredentials}
             className="flex-1 text-sm font-semibold py-2.5 rounded-lg transition-colors"
-            style={{ background: "#0B1929", color: "#D7B87A" }}
-          >
+            style={{ background: "#0B1929", color: "#D7B87A" }}>
             {copied ? "✓ Copied" : "Copy Credentials"}
           </button>
-          <button
-            onClick={onClose}
-            className="flex-1 border border-gray-200 text-gray-600 hover:bg-gray-50 text-sm font-medium py-2.5 rounded-lg transition-colors"
-          >
+          <button onClick={onClose}
+            className="flex-1 border border-gray-200 text-gray-600 hover:bg-gray-50 text-sm font-medium py-2.5 rounded-lg transition-colors">
             Close
           </button>
         </div>
@@ -142,99 +145,74 @@ function CredentialsModal({
 
 // ─── Form state ───────────────────────────────────────────────────────────────
 type FormState = {
-  username:              string;
-  new_password:          string;
-  confirm_password:      string;
+  first_name: string;
+  last_name: string;
+  work_email: string;
+  job_title: string;
+  new_password: string;
+  confirm_password: string;
   force_password_change: boolean;
-  role:                  User["role"];
-  organisation_name:     string;
-  associated_agency:     string;
-  associated_brand:      string;
-  associated_publisher:  string;
-  associated_projects:   string[];
-  associated_markets:    string[];
-  allowed_campaign_ids:  string[];
-  allowed_publisher_ids: string[];
-  is_active:             boolean;
+  role: Role;
+  organisation_id: string; // "" = none, NEW_ORG = create-new mode
+  new_org_name: string;
+  new_org_type: OrgType;
+  access_scope: AccessScope;
+  status: Status;
+  grants: string[]; // composite "resource_type:resource_id" values
 };
 
 const EMPTY_FORM: FormState = {
-  username:              "",
-  new_password:          "",
-  confirm_password:      "",
+  first_name: "",
+  last_name: "",
+  work_email: "",
+  job_title: "",
+  new_password: "",
+  confirm_password: "",
   force_password_change: true,
-  role:                  "brand",
-  organisation_name:     "",
-  associated_agency:     "",
-  associated_brand:      "",
-  associated_publisher:  "",
-  associated_projects:   [],
-  associated_markets:    [],
-  allowed_campaign_ids:  [],
-  allowed_publisher_ids: [],
-  is_active:             true,
+  role: "brand",
+  organisation_id: "",
+  new_org_name: "",
+  new_org_type: "brand",
+  access_scope: "organisation_wide",
+  status: "active",
+  grants: [],
 };
+
+const INPUT = "w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:border-[#D7B87A] transition-colors bg-white";
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">{label}</label>
+      {children}
+    </div>
+  );
+}
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function UserManagementPage() {
-  const [users,           setUsers]           = useState<User[]>([]);
-  const [loading,         setLoading]         = useState(true);
-  const [showModal,       setShowModal]       = useState(false);
-  const [editUser,        setEditUser]        = useState<User | null>(null);
-  const [form,            setForm]            = useState<FormState>({ ...EMPTY_FORM });
-  const [formError,       setFormError]       = useState("");
-  const [saving,          setSaving]          = useState(false);
-  const [toast,           setToast]           = useState<{ msg: string; ok: boolean } | null>(null);
-  const [credentials,     setCredentials]     = useState<{ username: string; password: string } | null>(null);
-  const [campaignOptions,     setCampaignOptions]     = useState<CampaignOption[]>([]);
-  const [publisherOptions,    setPublisherOptions]    = useState<Option[]>([]);
-  const [publisherUnmatched,  setPublisherUnmatched]  = useState(false);
-  const [campaignSort,        setCampaignSort]        = useState<"recent" | "alpha">("recent");
+  const [users, setUsers] = useState<User[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [orgs, setOrgs] = useState<Organisation[]>([]);
+  const [accessOptions, setAccessOptions] = useState<MultiSelectOption[]>([]);
 
-  // ── Table sort ───────────────────────────────────────────────────────────────
-  type SortCol = "username" | "role" | "organisation_name" | "is_active" | "updated_at" | "last_seen_at";
-  type SortDir = "asc" | "desc";
-  const [sortCol, setSortCol] = useState<SortCol | null>(null);
-  const [sortDir, setSortDir] = useState<SortDir>("asc");
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [editUser, setEditUser] = useState<User | null>(null);
+  const [form, setForm] = useState<FormState>({ ...EMPTY_FORM });
+  const [formError, setFormError] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
+  const [credentials, setCredentials] = useState<{ email: string; password: string } | null>(null);
 
-  function handleSort(col: SortCol) {
-    if (sortCol === col) {
-      setSortDir(d => d === "asc" ? "desc" : "asc");
-    } else {
-      setSortCol(col);
-      setSortDir("asc");
-    }
+  const [search, setSearch] = useState("");
+  const [roleFilter, setRoleFilter] = useState<"all" | Role>("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | Status>("all");
+
+  function showToast(msg: string, ok = true) {
+    setToast({ msg, ok });
+    setTimeout(() => setToast(null), 4000);
   }
 
-  const sortedUsers = useMemo(() => {
-    if (!sortCol) return users;
-    return [...users].sort((a, b) => {
-      let va: string | number;
-      let vb: string | number;
-      switch (sortCol) {
-        case "username":
-          va = a.username.toLowerCase(); vb = b.username.toLowerCase(); break;
-        case "role":
-          va = a.role; vb = b.role; break;
-        case "organisation_name":
-          va = (a.organisation_name || "").toLowerCase();
-          vb = (b.organisation_name || "").toLowerCase(); break;
-        case "is_active":
-          va = a.is_active ? 0 : 1; vb = b.is_active ? 0 : 1; break;
-        case "updated_at":
-          va = a.updated_at ?? a.created_at;
-          vb = b.updated_at ?? b.created_at; break;
-        case "last_seen_at":
-          va = a.last_seen_at ?? ""; vb = b.last_seen_at ?? ""; break;
-        default: return 0;
-      }
-      if (va < vb) return sortDir === "asc" ? -1 : 1;
-      if (va > vb) return sortDir === "asc" ?  1 : -1;
-      return 0;
-    });
-  }, [users, sortCol, sortDir]);
-
-  // ── Load users ──────────────────────────────────────────────────────────────
   const loadUsers = useCallback(async () => {
     setLoading(true);
     const res = await fetch("/api/users");
@@ -244,72 +222,51 @@ export default function UserManagementPage() {
 
   useEffect(() => { loadUsers(); }, [loadUsers]);
 
-  // ── Load campaign + publisher options ───────────────────────────────────────
   useEffect(() => {
-    Promise.all([fetch("/api/campaigns"), fetch("/api/publishers")])
-      .then(async ([camRes, pubRes]) => {
-        const camData: Array<{
-          campaign_id: string; campaign_name: string;
-          brand_name: string; publisher: string | null; created_at: string;
-        }> = (await camRes.json()).data ?? [];
-        const pubData: Array<{ name: string }> = (await pubRes.json()).data ?? [];
-
-        setCampaignOptions(
-          camData.map(c => ({
-            value:      c.campaign_id,
-            label:      `${c.campaign_name} — ${c.brand_name}`,
-            created_at: c.created_at,
-          }))
-        );
-
-        // Publishers registry is primary source; supplement with any names
-        // set directly on campaigns (covers legacy / unlisted ones)
-        const seen = new Set<string>(pubData.map(p => p.name));
-        for (const c of camData) if (c.publisher?.trim()) seen.add(c.publisher.trim());
-        setPublisherOptions([...seen].sort().map(p => ({ value: p, label: p })));
-      })
-      .catch(() => {});
+    fetch("/api/organisations").then(r => r.json()).then(j => setOrgs(j.data ?? [])).catch(() => {});
+    fetch("/api/access-search").then(r => r.json()).then(j => setAccessOptions(j.data ?? [])).catch(() => {});
   }, []);
 
-  const sortedCampaignOptions: Option[] = campaignSort === "alpha"
-    ? [...campaignOptions].sort((a, b) => a.label.localeCompare(b.label))
-    : [...campaignOptions].sort((a, b) =>
-        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-      );
-
-  // ── Helpers ─────────────────────────────────────────────────────────────────
-  function showToast(msg: string, ok = true) {
-    setToast({ msg, ok });
-    setTimeout(() => setToast(null), 4000);
-  }
+  const orgsByType = useMemo(() => {
+    const grouped: Record<OrgType, Organisation[]> = { publisher: [], agency: [], brand: [], internal: [] };
+    for (const o of orgs) grouped[o.type].push(o);
+    return grouped;
+  }, [orgs]);
 
   function openCreate() {
     setEditUser(null);
     setForm({ ...EMPTY_FORM });
     setFormError("");
-    setShowModal(true);
+    setDrawerOpen(true);
   }
 
-  function openEdit(u: User) {
+  async function openEdit(u: User) {
     setEditUser(u);
-    setForm({
-      username:              u.username,
-      new_password:          "",
-      confirm_password:      "",
-      force_password_change: u.force_password_change,
-      role:                  u.role,
-      organisation_name:     u.organisation_name,
-      associated_agency:     u.associated_agency    ?? "",
-      associated_brand:      u.associated_brand     ?? "",
-      associated_publisher:  u.associated_publisher ?? "",
-      associated_projects:   u.associated_projects  ?? [],
-      associated_markets:    u.associated_markets   ?? [],
-      allowed_campaign_ids:  u.allowed_campaign_ids  ?? [],
-      allowed_publisher_ids: u.allowed_publisher_ids ?? [],
-      is_active:             u.is_active,
-    });
     setFormError("");
-    setShowModal(true);
+    setForm({
+      first_name: u.first_name ?? "",
+      last_name: u.last_name ?? "",
+      work_email: u.work_email,
+      job_title: u.job_title ?? "",
+      new_password: "",
+      confirm_password: "",
+      force_password_change: false,
+      role: u.role,
+      organisation_id: u.organisation_id ?? "",
+      new_org_name: "",
+      new_org_type: "brand",
+      access_scope: u.access_scope,
+      status: u.status,
+      grants: [],
+    });
+    setDrawerOpen(true);
+
+    // Fetch this user's current grants to pre-populate Assign Permissions.
+    const res = await fetch(`/api/users/${u.id}`);
+    if (res.ok) {
+      const detail = (await res.json()).data as User & { grants: Grant[] };
+      setForm(f => ({ ...f, grants: detail.grants.map(g => `${g.resource_type}:${g.resource_id}`) }));
+    }
   }
 
   function handleGeneratePassword() {
@@ -317,25 +274,15 @@ export default function UserManagementPage() {
     setForm(f => ({ ...f, new_password: pwd, confirm_password: pwd }));
   }
 
-  async function handleSave(e: React.FormEvent) {
-    e.preventDefault();
+  async function handleSave() {
     setFormError("");
 
-    // Block save if there is unmatched text in the publisher search input
-    if (publisherUnmatched) {
-      setFormError("Please select a publisher from the list, or clear the Publisher Access search field before saving.");
-      return;
-    }
+    const firstName = form.first_name.trim();
+    const lastName = form.last_name.trim();
+    const email = form.work_email.trim();
+    if (!firstName || !lastName) { setFormError("First and last name are required."); return; }
+    if (!email) { setFormError("Work email is required."); return; }
 
-    // Validate username — stored as typed, matched case-insensitively at login
-    const cleanUsername = form.username.trim();
-    if (!cleanUsername) { setFormError("Username is required."); return; }
-    if (!/^[a-zA-Z0-9_-]+$/.test(cleanUsername)) {
-      setFormError("Username may only contain letters, numbers, underscores and hyphens.");
-      return;
-    }
-
-    // Validate password
     const hasPassword = form.new_password.length > 0;
     if (!editUser && !hasPassword) { setFormError("Password is required."); return; }
     if (hasPassword) {
@@ -343,67 +290,108 @@ export default function UserManagementPage() {
       if (form.new_password !== form.confirm_password) { setFormError("Passwords do not match."); return; }
     }
 
+    if (form.organisation_id === NEW_ORG && !form.new_org_name.trim()) {
+      setFormError("Enter a name for the new organisation."); return;
+    }
+
     setSaving(true);
 
+    // Create-new-organisation-inline, if that's what was selected.
+    let organisationId = form.organisation_id;
+    if (organisationId === NEW_ORG) {
+      const orgRes = await fetch("/api/organisations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: form.new_org_name.trim(), type: form.new_org_type }),
+      });
+      const orgJson = await orgRes.json();
+      if (!orgRes.ok) { setSaving(false); setFormError(orgJson.error ?? "Failed to create organisation."); return; }
+      organisationId = orgJson.data.id;
+      setOrgs(prev => [...prev, orgJson.data]);
+    }
+
+    const effectiveScope: AccessScope = form.role === "publisher" ? "organisation_wide" : form.access_scope;
+    const grants = effectiveScope === "selected"
+      ? form.grants.map(v => {
+          const idx = v.indexOf(":");
+          return { resource_type: v.slice(0, idx), resource_id: v.slice(idx + 1) };
+        })
+      : [];
+
     const payload: Record<string, unknown> = {
-      username:              cleanUsername,
-      role:                  form.role,
-      organisation_name:     form.organisation_name,
-      associated_agency:     form.associated_agency.trim()    || null,
-      associated_brand:      form.associated_brand.trim()     || null,
-      associated_publisher:  form.associated_publisher.trim() || null,
-      associated_projects:   form.associated_projects,
-      associated_markets:    form.associated_markets,
-      // Publishers use Publisher Access only — clear any campaign IDs stored historically
-      allowed_campaign_ids:  form.role === "publisher" ? [] : form.allowed_campaign_ids,
-      allowed_publisher_ids: form.allowed_publisher_ids,
-      is_active:             form.is_active,
+      first_name: firstName,
+      last_name: lastName,
+      work_email: email,
+      job_title: form.job_title.trim() || null,
+      role: form.role,
+      organisation_id: organisationId || null,
+      access_scope: effectiveScope,
       force_password_change: form.force_password_change,
+      grants,
     };
+    if (editUser) payload.status = form.status;
     if (hasPassword) payload.password = form.new_password;
 
-    const url    = editUser ? `/api/users/${editUser.id}` : "/api/users";
+    const url = editUser ? `/api/users/${editUser.id}` : "/api/users";
     const method = editUser ? "PUT" : "POST";
 
-    const res  = await fetch(url, {
-      method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
-    });
+    const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
     const json = await res.json();
     setSaving(false);
 
-    if (!res.ok) {
-      setFormError(json.error ?? "Failed to save. Please try again.");
-      return;
-    }
+    if (!res.ok) { setFormError(json.error ?? "Failed to save. Please try again."); return; }
 
-    // Show credentials modal if a password was set
     if (hasPassword) {
-      setCredentials({ username: cleanUsername, password: form.new_password });
+      setCredentials({ email, password: form.new_password });
     } else {
       showToast(editUser ? "Account updated." : "Account created.");
     }
 
-    setPublisherUnmatched(false);
-    setShowModal(false);
+    setDrawerOpen(false);
     loadUsers();
   }
 
-  async function toggleActive(u: User) {
-    const res  = await fetch(`/api/users/${u.id}`, {
+  async function toggleStatus(u: User) {
+    const nextStatus: Status = u.status === "disabled" ? "active" : "disabled";
+    const res = await fetch(`/api/users/${u.id}`, {
       method: "PATCH", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ is_active: !u.is_active }),
+      body: JSON.stringify({ status: nextStatus }),
     });
     const json = await res.json();
     if (!res.ok) { showToast(json.error ?? "Failed to update", false); return; }
-    showToast(u.is_active ? "Account disabled." : "Account enabled.");
+    showToast(nextStatus === "disabled" ? "Account disabled." : "Account enabled.");
     loadUsers();
   }
 
-  const ROLE_COLOURS: Record<User["role"], string> = {
-    admin:     "bg-[#0B1929] text-white",
-    brand:     "bg-amber-100 text-amber-800",
-    agency:    "bg-blue-100 text-blue-800",
+  const filtered = useMemo(() => {
+    let list = users;
+    if (roleFilter !== "all") list = list.filter(u => u.role === roleFilter);
+    if (statusFilter !== "all") list = list.filter(u => u.status === statusFilter);
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      list = list.filter(u =>
+        fullName(u).toLowerCase().includes(q) ||
+        u.work_email.toLowerCase().includes(q) ||
+        (u.organisations?.name ?? "").toLowerCase().includes(q)
+      );
+    }
+    return list;
+  }, [users, roleFilter, statusFilter, search]);
+
+  const ROLE_COLOURS: Record<Role, string> = {
+    admin: "bg-[#0B1929] text-white",
+    brand: "bg-amber-100 text-amber-800",
+    agency: "bg-blue-100 text-blue-800",
     publisher: "bg-green-100 text-green-800",
+  };
+
+  const STATUS_COLOURS: Record<Status, string> = {
+    active: "bg-green-50 text-green-700",
+    pending_invitation: "bg-amber-50 text-amber-700",
+    disabled: "bg-gray-100 text-gray-500",
+  };
+  const STATUS_LABELS: Record<Status, string> = {
+    active: "Active", pending_invitation: "Pending Invitation", disabled: "Disabled",
   };
 
   // ── Render ───────────────────────────────────────────────────────────────────
@@ -411,108 +399,104 @@ export default function UserManagementPage() {
     <AdminShell>
       <div className="p-4 md:p-6 max-w-6xl mx-auto">
 
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">User Management</h1>
-            <p className="text-sm text-gray-400 mt-0.5">Organisation accounts and platform access.</p>
+        <div className="mb-5">
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-3">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">User Management</h1>
+              <p className="text-sm text-gray-400 mt-0.5">
+                {users.length} account{users.length !== 1 ? "s" : ""}
+              </p>
+            </div>
+            <button onClick={openCreate}
+              className="text-sm font-semibold px-4 py-2 rounded-lg transition-colors flex-shrink-0"
+              style={{ background: "#0B1929", color: "#D7B87A" }}>
+              + New Account
+            </button>
           </div>
-          <button onClick={openCreate}
-            className="text-sm font-semibold px-4 py-2 rounded-lg transition-colors"
-            style={{ background: "#0B1929", color: "#D7B87A" }}>
-            + New Account
-          </button>
+        </div>
+
+        {/* Search + Filters */}
+        <div className="mb-5 space-y-3">
+          <div className="relative">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm pointer-events-none">🔍</span>
+            <input
+              type="search"
+              placeholder="Search by name, email or organisation…"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="w-full border border-gray-200 rounded-lg pl-8 pr-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A]"
+            />
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <select value={roleFilter} onChange={e => setRoleFilter(e.target.value as typeof roleFilter)}
+              className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A] text-gray-600">
+              <option value="all">All Roles</option>
+              {ROLES.map(r => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
+            </select>
+            <select value={statusFilter} onChange={e => setStatusFilter(e.target.value as typeof statusFilter)}
+              className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A] text-gray-600">
+              <option value="all">All Statuses</option>
+              <option value="active">Active</option>
+              <option value="pending_invitation">Pending Invitation</option>
+              <option value="disabled">Disabled</option>
+            </select>
+          </div>
         </div>
 
         {/* Table */}
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden overflow-x-auto">
           {loading ? (
             <div className="p-8 text-center text-gray-400 text-sm">Loading…</div>
-          ) : users.length === 0 ? (
-            <div className="p-8 text-center text-gray-400 text-sm">No accounts yet.</div>
+          ) : filtered.length === 0 ? (
+            <div className="p-8 text-center text-gray-400 text-sm">No accounts match your filters.</div>
           ) : (
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-gray-100">
-                  {(
-                    [
-                      { col: "username"          as SortCol, label: "Username"      },
-                      { col: "role"              as SortCol, label: "Access Rights" },
-                      { col: "organisation_name" as SortCol, label: "Organisation"  },
-                      { col: "is_active"         as SortCol, label: "Status"        },
-                      { col: "last_seen_at"      as SortCol, label: "Last Seen"     },
-                      { col: "updated_at"        as SortCol, label: "Last Updated"  },
-                    ] as { col: SortCol; label: string }[]
-                  ).map(({ col, label }) => {
-                    const active = sortCol === col;
-                    return (
-                      <th key={col} className="text-left px-5 py-3">
-                        <button
-                          onClick={() => handleSort(col)}
-                          className={`flex items-center gap-1 text-xs font-semibold uppercase tracking-wide transition-colors select-none ${
-                            active ? "text-[#0B1929]" : "text-gray-400 hover:text-gray-600"
-                          }`}
-                        >
-                          {label}
-                          <span className="text-[10px] leading-none">
-                            {active ? (sortDir === "asc" ? "↑" : "↓") : "↕"}
-                          </span>
-                        </button>
-                      </th>
-                    );
-                  })}
+                <tr className="border-b border-gray-100 text-xs text-gray-400 uppercase tracking-wide">
+                  <th className="text-left px-5 py-3 font-semibold">Name</th>
+                  <th className="text-left px-5 py-3 font-semibold">Email</th>
+                  <th className="text-left px-5 py-3 font-semibold">Organisation</th>
+                  <th className="text-left px-5 py-3 font-semibold hidden lg:table-cell">Org Type</th>
+                  <th className="text-left px-5 py-3 font-semibold">Role</th>
+                  <th className="text-left px-5 py-3 font-semibold hidden md:table-cell">Access Scope</th>
+                  <th className="text-left px-5 py-3 font-semibold">Status</th>
+                  <th className="text-left px-5 py-3 font-semibold hidden lg:table-cell">Last Login</th>
+                  <th className="text-left px-5 py-3 font-semibold hidden xl:table-cell">Created</th>
+                  <th className="text-left px-5 py-3 font-semibold hidden xl:table-cell">Updated</th>
                   <th className="px-5 py-3" />
                 </tr>
               </thead>
               <tbody>
-                {sortedUsers.map(u => (
+                {filtered.map(u => (
                   <tr key={u.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
-                    <td className="px-5 py-3 font-mono text-xs text-gray-700">
-                      {u.username}
-                      {u.force_password_change && (
-                        <span className="ml-2 text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-sans">
-                          pwd reset
-                        </span>
-                      )}
-                    </td>
+                    <td className="px-5 py-3 font-medium text-gray-800">{fullName(u) || <span className="text-gray-300">—</span>}</td>
+                    <td className="px-5 py-3 text-gray-600 font-mono text-xs">{u.work_email}</td>
+                    <td className="px-5 py-3 text-gray-600">{u.organisations?.name ?? <span className="text-gray-300">—</span>}</td>
+                    <td className="px-5 py-3 text-gray-500 hidden lg:table-cell">{u.organisations ? ORG_TYPE_LABELS[u.organisations.type] : "—"}</td>
                     <td className="px-5 py-3">
                       <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${ROLE_COLOURS[u.role]}`}>
-                        {u.role}
+                        {ROLE_LABELS[u.role]}
                       </span>
                     </td>
-                    <td className="px-5 py-3 text-gray-600">
-                      {u.organisation_name || <span className="text-gray-300">—</span>}
-                    </td>
+                    <td className="px-5 py-3 text-gray-500 hidden md:table-cell">{accessScopeLabel(u)}</td>
                     <td className="px-5 py-3">
-                      <span className={`text-xs font-semibold ${u.is_active ? "text-green-600" : "text-gray-400"}`}>
-                        {u.is_active ? "Active" : "Disabled"}
+                      <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${STATUS_COLOURS[u.status]}`}>
+                        {STATUS_LABELS[u.status]}
                       </span>
                     </td>
-                    <td className="px-5 py-3 text-xs">
-                      {u.last_seen_at && (Date.now() - new Date(u.last_seen_at).getTime()) < ACTIVE_THRESHOLD_MS ? (
-                        <span className="flex items-center gap-1.5 text-green-600 font-medium">
-                          <span className="w-1.5 h-1.5 rounded-full bg-green-500 flex-shrink-0" />
-                          Active now
-                        </span>
-                      ) : (
-                        <span className="text-gray-400">{relativeTime(u.last_seen_at)}</span>
-                      )}
-                    </td>
-                    <td className="px-5 py-3 text-gray-400 text-xs">
-                      {u.updated_at
-                        ? new Date(u.updated_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })
-                        : new Date(u.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
-                    </td>
+                    <td className="px-5 py-3 text-gray-400 text-xs hidden lg:table-cell">{relativeTime(u.last_login_at)}</td>
+                    <td className="px-5 py-3 text-gray-400 text-xs hidden xl:table-cell">{formatDate(u.created_at)}</td>
+                    <td className="px-5 py-3 text-gray-400 text-xs hidden xl:table-cell">{formatDate(u.updated_at)}</td>
                     <td className="px-5 py-3">
                       <div className="flex items-center gap-3 justify-end">
-                        <button onClick={() => openEdit(u)}
-                          className="text-xs text-gray-500 hover:text-gray-800 transition-colors">
+                        <button onClick={() => openEdit(u)} className="text-xs text-gray-500 hover:text-gray-800 transition-colors">
                           Edit
                         </button>
-                        <button onClick={() => toggleActive(u)}
+                        <button onClick={() => toggleStatus(u)}
                           className={`text-xs font-medium transition-colors ${
-                            u.is_active ? "text-red-400 hover:text-red-600" : "text-green-500 hover:text-green-700"
+                            u.status === "disabled" ? "text-green-500 hover:text-green-700" : "text-red-400 hover:text-red-600"
                           }`}>
-                          {u.is_active ? "Disable" : "Enable"}
+                          {u.status === "disabled" ? "Enable" : "Disable"}
                         </button>
                       </div>
                     </td>
@@ -524,243 +508,198 @@ export default function UserManagementPage() {
         </div>
       </div>
 
-      {/* ── Create / Edit modal ── */}
-      {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl p-7 max-w-lg w-full mx-4 max-h-[92vh] overflow-y-auto">
-            <h2 className="text-lg font-bold text-gray-900 mb-5">
-              {editUser ? `Edit ${editUser.username}` : "New Account"}
-            </h2>
+      {/* ── Create / Edit Drawer ── */}
+      {drawerOpen && (
+        <div className="fixed inset-0 z-50 flex">
+          <div className="flex-1 bg-black/40" onClick={() => setDrawerOpen(false)} />
+          <div className="w-full sm:w-[480px] bg-white flex flex-col shadow-2xl overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <h2 className="font-bold text-gray-900">{editUser ? `Edit ${fullName(editUser) || editUser.work_email}` : "New Account"}</h2>
+              <button onClick={() => setDrawerOpen(false)} className="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
+            </div>
 
-            <form onSubmit={handleSave} className="space-y-4">
+            <div className="flex-1 overflow-y-auto p-6 space-y-4">
 
-              {/* Username — always editable */}
-              <Field label="Username">
-                <input
-                  type="text"
-                  value={form.username}
-                  onChange={e => setForm(f => ({ ...f, username: e.target.value }))}
-                  required
-                  placeholder="e.g. FotMob_Admin"
-                  className={INPUT}
-                  spellCheck={false}
-                  autoCapitalize="none"
-                />
-                <p className="text-xs text-gray-400 mt-1">
-                  Letters, numbers, underscores and hyphens only. Login is not case-sensitive.
-                </p>
-              </Field>
+              {/* Section 1: User Details */}
+              <DrawerSection step={1} title="User Details" subtitle="Who this account belongs to, and how they log in.">
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="First Name *">
+                    <input value={form.first_name} onChange={e => setForm(f => ({ ...f, first_name: e.target.value }))}
+                      className={INPUT} placeholder="Sarah" required />
+                  </Field>
+                  <Field label="Last Name *">
+                    <input value={form.last_name} onChange={e => setForm(f => ({ ...f, last_name: e.target.value }))}
+                      className={INPUT} placeholder="Jones" required />
+                  </Field>
+                </div>
 
-              {/* Password */}
-              <div className="space-y-3">
+                <Field label="Work Email *">
+                  <input type="email" value={form.work_email} onChange={e => setForm(f => ({ ...f, work_email: e.target.value }))}
+                    className={INPUT} placeholder="sarah.jones@dentsu.com" required />
+                  <p className="text-xs text-gray-400 mt-1">This becomes the login username.</p>
+                </Field>
+
+                <Field label="Job Title">
+                  <input value={form.job_title} onChange={e => setForm(f => ({ ...f, job_title: e.target.value }))}
+                    className={INPUT} placeholder="Account Director (optional)" />
+                </Field>
+
                 <div>
                   <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
-                    {editUser ? "Set New Password" : "Password"}
+                    {editUser ? "Set New Password" : "Password *"}
                   </label>
-                  <input
-                    type="password"
-                    value={form.new_password}
-                    onChange={e => setForm(f => ({ ...f, new_password: e.target.value }))}
-                    required={!editUser}
-                    placeholder="••••••••"
-                    className={INPUT}
-                    autoComplete="new-password"
-                  />
+                  <input type="password" value={form.new_password} onChange={e => setForm(f => ({ ...f, new_password: e.target.value }))}
+                    required={!editUser} placeholder="••••••••" className={INPUT} autoComplete="new-password" />
                 </div>
 
                 {(form.new_password.length > 0 || !editUser) && (
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
-                      Confirm Password
-                    </label>
-                    <input
-                      type="password"
-                      value={form.confirm_password}
-                      onChange={e => setForm(f => ({ ...f, confirm_password: e.target.value }))}
-                      required={!editUser || form.new_password.length > 0}
-                      placeholder="••••••••"
-                      className={INPUT}
-                      autoComplete="new-password"
-                    />
-                  </div>
+                  <Field label="Confirm Password">
+                    <input type="password" value={form.confirm_password} onChange={e => setForm(f => ({ ...f, confirm_password: e.target.value }))}
+                      required={!editUser || form.new_password.length > 0} placeholder="••••••••" className={INPUT} autoComplete="new-password" />
+                  </Field>
                 )}
 
-                <button
-                  type="button"
-                  onClick={handleGeneratePassword}
-                  className="w-full border border-dashed border-gray-300 text-gray-600 hover:border-[#D7B87A] hover:text-[#0B1929] text-sm py-2 rounded-lg transition-colors"
-                >
+                <button type="button" onClick={handleGeneratePassword}
+                  className="w-full border border-dashed border-gray-300 text-gray-600 hover:border-[#D7B87A] hover:text-[#0B1929] text-sm py-2 rounded-lg transition-colors">
                   ⚡ Generate Temporary Password
                 </button>
 
-                <p className="text-xs text-gray-400">
-                  Passwords cannot be viewed. You can only set or generate a new password.
-                </p>
-              </div>
-
-              {/* Force password change */}
-              <label className="flex items-start gap-3 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={form.force_password_change}
-                  onChange={e => setForm(f => ({ ...f, force_password_change: e.target.checked }))}
-                  className="w-4 h-4 mt-0.5 accent-[#0B1929] flex-shrink-0"
-                />
-                <div>
-                  <span className="text-sm text-gray-700 font-medium">Force password change on first login</span>
-                  <p className="text-xs text-gray-400 mt-0.5">
-                    The user will be prompted to set a permanent password before accessing the platform.
-                  </p>
-                </div>
-              </label>
-
-              <hr className="border-gray-100" />
-
-              {/* Role */}
-              <Field label="Access Rights">
-                <select value={form.role}
-                  onChange={e => setForm(f => ({ ...f, role: e.target.value as User["role"] }))}
-                  className={INPUT} required>
-                  {ROLES.map(r => (
-                    <option key={r} value={r}>{r.charAt(0).toUpperCase() + r.slice(1)}</option>
-                  ))}
-                </select>
-              </Field>
-
-              {/* Organisation Name */}
-              <Field label="Organisation Name">
-                <input type="text" value={form.organisation_name}
-                  onChange={e => setForm(f => ({ ...f, organisation_name: e.target.value }))}
-                  placeholder="e.g. Carlsberg" className={INPUT} />
-              </Field>
-
-              <hr className="border-gray-100" />
-
-              {/* Audience association fields — drive insight access control */}
-              <div>
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
-                  Audience Associations
-                </p>
-                <p className="text-xs text-gray-400 mb-3 leading-relaxed">
-                  These optional fields control which restricted insights this user can see.
-                  An insight tagged &ldquo;Dentsu&rdquo; will appear for any user whose Associated Agency is Dentsu.
-                </p>
-                <div className="space-y-3">
-                  <Field label="Associated Agency">
-                    <input type="text" value={form.associated_agency}
-                      onChange={e => setForm(f => ({ ...f, associated_agency: e.target.value }))}
-                      placeholder="e.g. Dentsu" className={INPUT} />
-                  </Field>
-
-                  <Field label="Associated Brand / Client">
-                    <input type="text" value={form.associated_brand}
-                      onChange={e => setForm(f => ({ ...f, associated_brand: e.target.value }))}
-                      placeholder="e.g. Carlsberg" className={INPUT} />
-                  </Field>
-
-                  <Field label="Associated Publisher">
-                    <input type="text" value={form.associated_publisher}
-                      onChange={e => setForm(f => ({ ...f, associated_publisher: e.target.value }))}
-                      placeholder="e.g. Football365" className={INPUT} />
-                  </Field>
-
-                  <Field label="Associated Projects">
-                    <SimpleTagInput
-                      values={form.associated_projects}
-                      onChange={v => setForm(f => ({ ...f, associated_projects: v }))}
-                      placeholder="Type a project and press Enter…"
-                    />
-                    <p className="text-xs text-gray-400 mt-1">e.g. UEFA EURO 2028</p>
-                  </Field>
-
-                  <Field label="Associated Markets">
-                    <SimpleTagInput
-                      values={form.associated_markets}
-                      onChange={v => setForm(f => ({ ...f, associated_markets: v }))}
-                      placeholder="Type a market and press Enter…"
-                    />
-                    <p className="text-xs text-gray-400 mt-1">e.g. UK, Germany, Sweden</p>
-                  </Field>
-                </div>
-              </div>
-
-              <hr className="border-gray-100" />
-
-              {/* Campaign Access — hidden for publishers (they use Publisher Access instead) */}
-              {form.role !== "publisher" ? (
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                    Campaign Access
-                  </label>
-                  <div className="flex rounded-md border border-gray-200 overflow-hidden text-xs">
-                    <button type="button" onClick={() => setCampaignSort("recent")}
-                      className={`px-2.5 py-1 transition-colors ${campaignSort === "recent" ? "bg-[#0B1929] text-white" : "text-gray-500 hover:bg-gray-50"}`}>
-                      Recent
-                    </button>
-                    <button type="button" onClick={() => setCampaignSort("alpha")}
-                      className={`px-2.5 py-1 border-l border-gray-200 transition-colors ${campaignSort === "alpha" ? "bg-[#0B1929] text-white" : "text-gray-500 hover:bg-gray-50"}`}>
-                      A–Z
-                    </button>
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input type="checkbox" checked={form.force_password_change}
+                    onChange={e => setForm(f => ({ ...f, force_password_change: e.target.checked }))}
+                    className="w-4 h-4 mt-0.5 accent-[#0B1929] flex-shrink-0" />
+                  <div>
+                    <span className="text-sm text-gray-700 font-medium">Force password change on first login</span>
+                    <p className="text-xs text-gray-400 mt-0.5">The user sets their own permanent password before accessing the platform.</p>
                   </div>
-                </div>
-                <MultiSelect
-                  options={sortedCampaignOptions}
-                  selected={form.allowed_campaign_ids}
-                  onChange={v => setForm(f => ({ ...f, allowed_campaign_ids: v }))}
-                  placeholder="Search campaigns…"
-                  helperText="Restrict this account to specific campaigns. Leave blank for access to all campaigns."
-                />
-              </div>
-              ) : (
-                <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3">
-                  <p className="text-xs text-blue-700 font-medium">Campaign Access not required for Publisher accounts</p>
-                  <p className="text-xs text-blue-500 mt-0.5">Publishers see all campaigns tagged with their publisher name(s) automatically via Publisher Access.</p>
-                </div>
+                </label>
+              </DrawerSection>
+
+              {/* Section 2: Organisation */}
+              <DrawerSection step={2} title="Organisation" subtitle="Which company this person belongs to.">
+                <Field label="Organisation">
+                  <select value={form.organisation_id} onChange={e => setForm(f => ({ ...f, organisation_id: e.target.value }))}
+                    className={INPUT}>
+                    <option value="">— No organisation —</option>
+                    <option value={NEW_ORG}>+ Create New Organisation…</option>
+                    {(["publisher", "agency", "brand", "internal"] as OrgType[]).map(t => (
+                      orgsByType[t].length > 0 && (
+                        <optgroup key={t} label={ORG_TYPE_LABELS[t] + "s"}>
+                          {orgsByType[t].map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
+                        </optgroup>
+                      )
+                    ))}
+                  </select>
+                </Field>
+
+                {form.organisation_id === NEW_ORG && (
+                  <div className="grid grid-cols-2 gap-3 bg-gray-50 border border-gray-100 rounded-lg p-3">
+                    <Field label="New Org Name">
+                      <input value={form.new_org_name} onChange={e => setForm(f => ({ ...f, new_org_name: e.target.value }))}
+                        className={INPUT} placeholder="e.g. Snack Media" />
+                    </Field>
+                    <Field label="Type">
+                      <select value={form.new_org_type} onChange={e => setForm(f => ({ ...f, new_org_type: e.target.value as OrgType }))}
+                        className={INPUT}>
+                        <option value="publisher">Publisher</option>
+                        <option value="agency">Agency</option>
+                        <option value="brand">Brand</option>
+                        <option value="internal">Internal</option>
+                      </select>
+                    </Field>
+                  </div>
+                )}
+              </DrawerSection>
+
+              {/* Section 3: Role */}
+              <DrawerSection step={3} title="Role" subtitle="What type of user this is.">
+                <Field label="Role">
+                  <select value={form.role}
+                    onChange={e => {
+                      const role = e.target.value as Role;
+                      setForm(f => ({ ...f, role, access_scope: role === "publisher" ? "organisation_wide" : f.access_scope }));
+                    }}
+                    className={INPUT}>
+                    {ROLES.map(r => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
+                  </select>
+                </Field>
+              </DrawerSection>
+
+              {/* Section 4: Access Scope */}
+              <DrawerSection step={4} title="Access Scope" subtitle="What this user is allowed to see." prominent>
+                {form.role === "publisher" ? (
+                  <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3">
+                    <p className="text-xs text-blue-700 font-medium">Publisher-wide (fixed)</p>
+                    <p className="text-xs text-blue-500 mt-0.5">
+                      Publisher accounts always see everything belonging to their own organisation only, and nothing else.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {(["organisation_wide", "selected"] as AccessScope[]).map(scope => (
+                      <label key={scope} className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                        form.access_scope === scope ? "border-[#D7B87A] bg-[#FBF5E8]/50" : "border-gray-200"
+                      }`}>
+                        <input type="radio" name="access_scope" checked={form.access_scope === scope}
+                          onChange={() => setForm(f => ({ ...f, access_scope: scope }))}
+                          className="w-4 h-4 mt-0.5 accent-[#0B1929] flex-shrink-0" />
+                        <div>
+                          <span className="text-sm text-gray-800 font-medium">
+                            {scope === "organisation_wide" ? "Organisation-wide" : "Selected Access"}
+                          </span>
+                          <p className="text-xs text-gray-400 mt-0.5">
+                            {scope === "organisation_wide"
+                              ? "Sees everything belonging to their organisation, automatically."
+                              : "Only sees the specific Research Projects, Campaign Groups, Campaigns, and Insights assigned below."}
+                          </p>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </DrawerSection>
+
+              {/* Section 5: Assign Permissions */}
+              {form.role !== "publisher" && form.access_scope === "selected" && (
+                <DrawerSection step={5} title="Assign Permissions" subtitle="Search across everything, assign at the highest level that makes sense.">
+                  <MultiSelect
+                    options={accessOptions}
+                    selected={form.grants}
+                    onChange={v => setForm(f => ({ ...f, grants: v }))}
+                    placeholder="Search Research Projects, Campaign Groups, Campaigns, Insights…"
+                    helperText="Granting a Research Project or Campaign Group automatically includes everything inside it — there's usually no need to also add its individual campaigns."
+                  />
+                </DrawerSection>
               )}
 
-              {/* Publisher Access */}
-              <Field label="Publisher Access">
-                <MultiSelect
-                  options={publisherOptions}
-                  selected={form.allowed_publisher_ids}
-                  onChange={v => setForm(f => ({ ...f, allowed_publisher_ids: v }))}
-                  placeholder="Search publishers…"
-                  helperText="Restrict this account to specific publishers. Leave blank for access to all publishers."
-                  strict
-                  onUnmatchedText={setPublisherUnmatched}
-                  unmatchedMessage={s => `"${s}" is not a recognised publisher — select from the list, or add it in Administration → Publishers first.`}
-                />
-              </Field>
-
-              <hr className="border-gray-100" />
-
-              {/* Account active */}
-              <label className="flex items-center gap-3 cursor-pointer">
-                <input type="checkbox" checked={form.is_active}
-                  onChange={e => setForm(f => ({ ...f, is_active: e.target.checked }))}
-                  className="w-4 h-4 accent-[#0B1929]" />
-                <span className="text-sm text-gray-700">Account active</span>
-              </label>
+              {editUser && (
+                <DrawerSection step={form.role !== "publisher" && form.access_scope === "selected" ? 6 : 5} title="Status">
+                  <Field label="Account Status">
+                    <select value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value as Status }))}
+                      className={INPUT}>
+                      <option value="active">Active</option>
+                      <option value="pending_invitation">Pending Invitation</option>
+                      <option value="disabled">Disabled</option>
+                    </select>
+                  </Field>
+                </DrawerSection>
+              )}
 
               {formError && (
                 <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-2.5">
                   <p className="text-red-600 text-sm">{formError}</p>
                 </div>
               )}
+            </div>
 
-              <div className="flex gap-3 pt-1">
-                <button type="button" onClick={() => { setPublisherUnmatched(false); setShowModal(false); }}
-                  className="flex-1 border border-gray-200 text-gray-600 hover:bg-gray-50 text-sm font-medium py-2.5 rounded-lg transition-colors">
-                  Cancel
-                </button>
-                <button type="submit" disabled={saving}
-                  className="flex-1 text-sm font-semibold py-2.5 rounded-lg transition-opacity disabled:opacity-50"
-                  style={{ background: "#0B1929", color: "#D7B87A" }}>
-                  {saving ? "Saving…" : editUser ? "Save Changes" : "Create Account"}
-                </button>
-              </div>
-            </form>
+            <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-3">
+              <button type="button" onClick={() => setDrawerOpen(false)} className="text-sm text-gray-500 px-4 py-2">Cancel</button>
+              <button type="button" onClick={handleSave} disabled={saving}
+                className="text-sm font-semibold px-5 py-2 rounded-lg disabled:opacity-60"
+                style={{ background: "#D7B87A", color: "#0B1929" }}>
+                {saving ? "Saving…" : editUser ? "Save Changes" : "Create Account"}
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -768,12 +707,9 @@ export default function UserManagementPage() {
       {/* ── Credentials modal (shown once) ── */}
       {credentials && (
         <CredentialsModal
-          username={credentials.username}
+          email={credentials.email}
           password={credentials.password}
-          onClose={() => {
-            setCredentials(null);
-            showToast("Account ready. Share credentials securely.");
-          }}
+          onClose={() => { setCredentials(null); showToast("Account ready. Share credentials securely."); }}
         />
       )}
 
@@ -786,70 +722,5 @@ export default function UserManagementPage() {
         </div>
       )}
     </AdminShell>
-  );
-}
-
-// ─── Shared styles ────────────────────────────────────────────────────────────
-const INPUT = "w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm focus:outline-none focus:border-[#D7B87A] transition-colors bg-white";
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
-        {label}
-      </label>
-      {children}
-    </div>
-  );
-}
-
-function SimpleTagInput({
-  values,
-  onChange,
-  placeholder = "Type and press Enter…",
-}: {
-  values: string[];
-  onChange: (v: string[]) => void;
-  placeholder?: string;
-}) {
-  const [text, setText] = useState("");
-
-  function add() {
-    const t = text.trim();
-    if (t && !values.includes(t)) onChange([...values, t]);
-    setText("");
-  }
-
-  function remove(v: string) {
-    onChange(values.filter(x => x !== v));
-  }
-
-  return (
-    <div>
-      {values.length > 0 && (
-        <div className="flex flex-wrap gap-1.5 mb-2">
-          {values.map(v => (
-            <span key={v} className="inline-flex items-center gap-1 text-xs bg-[#0B1929]/8 text-[#0B1929] border border-[#0B1929]/15 px-2.5 py-1 rounded-full">
-              {v}
-              <button type="button" onClick={() => remove(v)} className="text-gray-400 hover:text-gray-700 leading-none">×</button>
-            </span>
-          ))}
-        </div>
-      )}
-      <div className="flex gap-2">
-        <input
-          type="text"
-          value={text}
-          onChange={e => setText(e.target.value)}
-          onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); add(); } }}
-          placeholder={placeholder}
-          className={INPUT}
-        />
-        <button type="button" onClick={add}
-          className="px-3 py-2 text-xs border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors whitespace-nowrap">
-          Add
-        </button>
-      </div>
-    </div>
   );
 }

@@ -34,12 +34,20 @@ export async function POST(req: NextRequest) {
   // ── Look up campaign ────────────────────────────────────────────────────────
   const { data: campaign, error: campaignError } = await supabase
     .from("campaigns")
-    .select("id, brand_name, campaign_name, status, manual_status_override, start_date, end_date, target_responses, archive_after_days")
+    .select("id, brand_org_id, campaign_name, status, manual_status_override, start_date, end_date, target_responses, archive_after_days")
     .eq("campaign_id", campaign_id as string)
     .single();
 
+  // organisations has deny_all_anon RLS, so this lookup uses supabaseAdmin
+  // even though the rest of this public route uses the anon client.
+  let brandName = "";
+  if (campaign?.brand_org_id) {
+    const { data: brandOrg } = await supabaseAdmin.from("organisations").select("name").eq("id", campaign.brand_org_id).single();
+    brandName = brandOrg?.name ?? "";
+  }
+
   const campaignName = campaign
-    ? `${campaign.brand_name} – ${campaign.campaign_name}`
+    ? `${brandName} – ${campaign.campaign_name}`
     : String(campaign_id);
 
   const manualStatus = campaign?.status ?? null;

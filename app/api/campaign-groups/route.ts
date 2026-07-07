@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
-import { requireSession } from "@/lib/auth";
+import { requireUser } from "@/lib/auth-server";
+import { visibleResourceIds } from "@/lib/access";
 
 export async function GET(req: NextRequest) {
+  let session;
   try {
-    await requireSession(req, ["admin"]);
+    session = await requireUser(req, ["admin", "publisher"]);
   } catch (err) {
     return err as Response;
   }
@@ -17,7 +19,7 @@ export async function GET(req: NextRequest) {
   ] = await Promise.all([
     supabaseAdmin.from("campaign_groups").select("*").order("created_at", { ascending: false }),
     supabaseAdmin.from("campaign_group_members").select("group_id, campaign_id"),
-    supabaseAdmin.from("campaigns").select("id, campaign_id, campaign_name, brand_name"),
+    supabaseAdmin.from("campaigns").select("id, campaign_id"),
     supabaseAdmin.from("vw_campaign_stats").select("campaign_id, response_count"),
   ]);
 
@@ -46,18 +48,29 @@ export async function GET(req: NextRequest) {
     return { ...g, member_count: campaignUuids.length, total_responses: totalResponses, campaign_ids: campaignUuids };
   });
 
-  return NextResponse.json({ data });
+  if (session.role === "admin") return NextResponse.json({ data });
+
+  const visibleIds = await visibleResourceIds(session, "campaign_group");
+  const visible = visibleIds === null ? data : data.filter(g => visibleIds.includes(g.id));
+  return NextResponse.json({ data: visible });
 }
 
 export async function POST(req: NextRequest) {
+  let session;
   try {
-    await requireSession(req, ["admin"]);
+    session = await requireUser(req, ["admin", "publisher"]);
   } catch (err) {
     return err as Response;
   }
 
   const body = await req.json();
   const { campaign_ids, ...groupFields } = body as { campaign_ids?: string[]; [k: string]: unknown };
+
+  // Publisher accounts can only ever create groups for their own
+  // organisation — enforced here regardless of what the UI sent.
+  if (session.role === "publisher") {
+    groupFields.publisher_org_id = session.organisationId;
+  }
 
   const { data: group, error } = await supabaseAdmin
     .from("campaign_groups")

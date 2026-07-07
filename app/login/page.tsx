@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 
 function LoginForm() {
   const searchParams = useSearchParams();
-  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError]       = useState("");
   const [loading, setLoading]   = useState(false);
@@ -19,7 +19,7 @@ function LoginForm() {
       const res = await fetch("/api/auth/login", {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ username: username.trim(), password }),
+        body:    JSON.stringify({ email: email.trim(), password }),
       });
 
       if (res.ok) {
@@ -31,7 +31,7 @@ function LoginForm() {
         window.location.href = next;
       } else {
         const json = await res.json().catch(() => ({}));
-        setError(json.error || "Invalid username or password");
+        setError(json.error || "Invalid email or password");
       }
     } catch {
       setError("Something went wrong. Please try again.");
@@ -44,16 +44,16 @@ function LoginForm() {
     <form onSubmit={handleSubmit} className="space-y-5">
       <div>
         <label className="block text-sm font-medium mb-1.5" style={{ color: "#0B1929" }}>
-          Username
+          Work Email
         </label>
         <input
-          type="text"
-          autoComplete="username"
-          value={username}
-          onChange={e => setUsername(e.target.value)}
+          type="email"
+          autoComplete="email"
+          value={email}
+          onChange={e => setEmail(e.target.value)}
           required
           className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#D7B87A] transition-colors"
-          placeholder="your_username"
+          placeholder="you@company.com"
           disabled={loading}
         />
       </div>

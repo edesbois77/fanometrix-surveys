@@ -26,9 +26,9 @@ const SHOW_TRUSTED_BY = false;
 
 const BUILT_FOR = [
   {
-    label: "For Publishers",
-    body: "Understand audiences, collect first-party intelligence and benchmark against the wider ecosystem.",
-    icon: <path d="M7 3h7l5 5v13a1 1 0 01-1 1H7a1 1 0 01-1-1V4a1 1 0 011-1z M14 3v5h5 M9 13h6M9 17h6" />,
+    label: "For Agencies",
+    body: "Support planning, recommendations and client strategy with real football fan intelligence and insight.",
+    icon: <path d="M9 11.2a3.2 3.2 0 100-6.4 3.2 3.2 0 000 6.4z M2.8 20c.8-3.4 3.2-5.4 6.2-5.4s5.4 2 6.2 5.4 M17 11.6a2.6 2.6 0 100-5.2 2.6 2.6 0 000 5.2z M15 14.4c2.4.3 4 2 4.6 4.4" />,
   },
   {
     label: "For Brands",
@@ -36,9 +36,9 @@ const BUILT_FOR = [
     icon: <path d="M12.6 3H5a1 1 0 00-1 1v7.6a1 1 0 00.3.7l9.4 9.4a1 1 0 001.4 0l7.6-7.6a1 1 0 000-1.4l-9.4-9.4a1 1 0 00-.7-.3z M8.5 8.7a.2.2 0 100-.4.2.2 0 000 .4z" />,
   },
   {
-    label: "For Agencies",
-    body: "Support planning, recommendations and client strategy with real football fan intelligence and insight.",
-    icon: <path d="M9 11.2a3.2 3.2 0 100-6.4 3.2 3.2 0 000 6.4z M2.8 20c.8-3.4 3.2-5.4 6.2-5.4s5.4 2 6.2 5.4 M17 11.6a2.6 2.6 0 100-5.2 2.6 2.6 0 000 5.2z M15 14.4c2.4.3 4 2 4.6 4.4" />,
+    label: "For Publishers",
+    body: "Understand audiences, collect first-party intelligence and benchmark against the wider ecosystem.",
+    icon: <path d="M7 3h7l5 5v13a1 1 0 01-1 1H7a1 1 0 01-1-1V4a1 1 0 011-1z M14 3v5h5 M9 13h6M9 17h6" />,
   },
   {
     label: "For Rights Holders",
@@ -57,7 +57,7 @@ const HOW_IT_WORKS = [
 const SAMPLE_INSIGHTS = [
   { tag: "Sponsorship",     stat: "72%", body: "of fans believe sponsors should improve the fan experience." },
   { tag: "Authenticity",    stat: "64%", body: "say authenticity matters more than visibility." },
-  { tag: "Purchase Intent", stat: "41%", body: "have purchased a product after discovering it through football." },
+  { tag: "Purchase Intent", stat: "58%", body: "of fans prefer brands that contribute to football communities." },
 ];
 
 function CtaButton({ href, children, variant }: { href: string; children: React.ReactNode; variant: "primary" | "secondary" }) {
@@ -68,7 +68,7 @@ function CtaButton({ href, children, variant }: { href: string; children: React.
       className="text-sm font-bold px-8 py-3.5 rounded-xl border-2 transition-all duration-150 hover:opacity-85"
       style={
         primary
-          ? { background: NAVY, color: GOLD, borderColor: NAVY, letterSpacing: "0.01em" }
+          ? { background: GOLD, color: NAVY, borderColor: GOLD, letterSpacing: "0.01em" }
           : { background: "#fff", color: NAVY, borderColor: GOLD, letterSpacing: "0.01em" }
       }
     >
@@ -153,7 +153,7 @@ export default function PublicHomePage() {
               </p>
 
               <div className="hero-fade-up flex flex-wrap gap-3.5 justify-center lg:justify-start" style={{ animationDelay: "0.3s" }}>
-                <CtaButton href="/request-access" variant="primary">Request Access</CtaButton>
+                <CtaButton href="/request-access" variant="primary">Book A Demo</CtaButton>
                 <CtaButton href="#sample-insights" variant="secondary">View Example Insight</CtaButton>
               </div>
 
@@ -314,7 +314,7 @@ export default function PublicHomePage() {
                 {/* abstract visual tile */}
                 <div className="relative h-20 flex items-end gap-1 px-6 overflow-hidden" style={{ background: SURFACE }}>
                   {[40, 65, 50, 80, 60, 90, 45].map((h, j) => (
-                    <div key={j} className="flex-1 rounded-t-sm" style={{ height: `${h}%`, background: NAVY, opacity: 0.1 + j * 0.03 }} />
+                    <div key={j} className="flex-1 rounded-t-sm" style={{ height: `${h}%`, background: GOLD, opacity: 0.35 + j * 0.08 }} />
                   ))}
                 </div>
                 <div className="p-8 pt-6">
@@ -327,8 +327,41 @@ export default function PublicHomePage() {
             ))}
           </div>
 
-          <p className="scroll-fade-up text-center text-xs mt-10" style={{ color: MUTED, transitionDelay: "0.3s" }}>
-            Illustrative examples for demonstration purposes.
+          {/* Fanometrix Recommendation — the synthesis of the three cards above, so it's wider, */}
+          {/* more heavily padded, and left-aligned like a report conclusion rather than a card. */}
+          <div
+            className="scroll-fade-up max-w-[1160px] mx-auto mt-14 bg-white rounded-2xl border shadow-sm p-10 sm:p-14 lg:p-16"
+            style={{ borderColor: BORDER, transitionDelay: "0.4s" }}
+          >
+            <div>
+              <div className="flex items-center gap-3 mb-5">
+                <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0" style={{ background: SURFACE }}>
+                  <svg viewBox="0 0 24 24" width={17} height={17} fill="none" stroke={NAVY} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M9 18h6M10 21h4M12 3a6 6 0 00-3 11.2c.6.4 1 1.1 1 1.8h4c0-.7.4-1.4 1-1.8A6 6 0 0012 3z" />
+                  </svg>
+                </div>
+                <span className="text-[11px] font-bold uppercase tracking-wide" style={{ color: GOLD }}>
+                  Fanometrix Recommendation
+                </span>
+              </div>
+              <p className="text-lg font-bold leading-snug mb-4" style={{ color: NAVY }}>
+                Football sponsorship is entering the experience economy.
+              </p>
+              <p className="text-sm leading-relaxed mb-3" style={{ color: GREY }}>
+                Survey responses across the UK, Italy, France, Poland and Spain, combined with social conversation trends and wider industry research, suggest football fans increasingly value brands that improve the supporter experience over those that simply seek visibility.
+              </p>
+              <p className="text-sm leading-relaxed mb-3" style={{ color: GREY }}>
+                Fans increasingly reward brands that provide utility, access, authenticity and meaningful contributions to football communities rather than traditional exposure-led sponsorship.
+              </p>
+
+              <p className="text-sm leading-relaxed" style={{ color: GREY }}>
+                The most effective football sponsorships of the next decade are likely to behave less like advertisers and more like contributors to the fan experience.
+              </p>
+            </div>
+          </div>
+
+          <p className="scroll-fade-up text-center mt-8" style={{ color: "rgba(156,163,175,0.28)", fontSize: 11, transitionDelay: "0.5s" }}>
+            Sample insights and recommendations shown for demonstration purposes.
           </p>
         </section>
 
@@ -341,8 +374,7 @@ export default function PublicHomePage() {
             Ready to understand football fans better?
           </h2>
           <div className="scroll-fade-up flex flex-wrap gap-3.5 justify-center" style={{ transitionDelay: "0.1s" }}>
-            <CtaButton href="/request-access" variant="primary">Request Access</CtaButton>
-            <CtaButton href="mailto:partnerships@fanometrix.com" variant="secondary">Speak To Us</CtaButton>
+            <CtaButton href="/request-access" variant="primary">Book A Demo</CtaButton>
           </div>
         </section>
 

@@ -48,7 +48,7 @@ type Design = {
   name: string;
   theme: DesignCategory;
   sub_theme: string | null;
-  publisher_id: string | null;
+  publisher_org_id: string | null;
   layout: "timer" | "classic";
   status: "active" | "archived";
   is_system: boolean;
@@ -166,7 +166,7 @@ export default function CreativeStudioPage() {
         setDesignName(d.name);
         setTheme(d.theme);
         setSubTheme(d.sub_theme ?? "");
-        setPublisherId(d.publisher_id);
+        setPublisherId(d.publisher_org_id);
         setLayout(d.layout);
         setBranding(d.branding ?? {});
       })
@@ -184,9 +184,12 @@ export default function CreativeStudioPage() {
         setAllSubThemes(Array.from(new Set(rows.map(r => r.sub_theme).filter((s): s is string => !!s))).sort());
       })
       .catch(() => {});
-    fetch("/api/publishers")
+    fetch("/api/organisations")
       .then(r => r.ok ? r.json() : null)
-      .then(json => setPublishers(json?.data ?? []))
+      .then(json => {
+        const orgs = (json?.data ?? []) as { id: string; name: string; type: string }[];
+        setPublishers(orgs.filter(o => o.type === "publisher"));
+      })
       .catch(() => {});
   }, []);
 
@@ -214,7 +217,7 @@ export default function CreativeStudioPage() {
       name,
       theme,
       sub_theme: theme === "publisher" ? null : (subTheme.trim() || null),
-      publisher_id: theme === "publisher" ? publisherId : null,
+      publisher_org_id: theme === "publisher" ? publisherId : null,
       builder_state: { ...state, name },
       branding,
     };

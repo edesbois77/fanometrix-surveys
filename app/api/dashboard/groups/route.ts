@@ -1,13 +1,15 @@
 // Returns campaign groups relevant to the calling user.
-// Admin: all groups. Publisher: only groups that contain at least one of their campaigns.
+// Admin: all groups. Everyone else: only groups their organisation owns
+// (or that they've been individually granted access to).
 import { NextRequest, NextResponse } from "next/server";
-import { requireSession } from "@/lib/auth";
+import { requireUser } from "@/lib/auth-server";
+import { visibleResourceIds } from "@/lib/access";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
 export async function GET(req: NextRequest) {
   let session;
   try {
-    session = await requireSession(req);
+    session = await requireUser(req);
   } catch (err) {
     return err as Response;
   }
@@ -27,24 +29,12 @@ export async function GET(req: NextRequest) {
     campaign_ids: (g.campaign_group_members as { campaign_id: string }[]).map(m => m.campaign_id),
   }));
 
-  // Publishers only see groups that contain at least one of their campaigns
-  if (session.role === "publisher" && session.allowedPublisherIds.length > 0) {
-    const publisherIds = session.allowedPublisherIds;
-
-    // Get the campaign UUIDs accessible to this publisher
-    const { data: campaigns } = await supabaseAdmin
-      .from("campaigns")
-      .select("id")
-      .in("publisher", publisherIds)
-      .is("deleted_at", null);
-
-    const publisherCampaignIds = new Set((campaigns ?? []).map(c => c.id));
-
-    const filtered = enriched.filter(g =>
-      g.campaign_ids.some(id => publisherCampaignIds.has(id))
-    );
-
-    return NextResponse.json({ data: filtered });
+  if (session.role !== "admin") {
+    const groupIds = await visibleResourceIds(session, "campaign_group");
+    if (groupIds !== null) {
+      const visible = new Set(groupIds);
+      return NextResponse.json({ data: enriched.filter(g => visible.has(g.id)) });
+    }
   }
 
   return NextResponse.json({ data: enriched });

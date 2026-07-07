@@ -19,7 +19,7 @@ type Design = {
   name: string;
   theme: DesignCategory;
   sub_theme: string | null;
-  publisher_id: string | null;
+  publisher_org_id: string | null;
   publisher_name: string | null;
   layout: "timer" | "classic";
   status: "active" | "archived";
@@ -206,7 +206,7 @@ export default function CreativeDesignsGalleryPage() {
         name: `${d.name} (copy)`,
         theme: d.theme,
         sub_theme: d.theme === "publisher" ? null : d.sub_theme,
-        publisher_id: d.theme === "publisher" ? d.publisher_id : null,
+        publisher_org_id: d.theme === "publisher" ? d.publisher_org_id : null,
         builder_state: d.builder_state,
       }),
     });

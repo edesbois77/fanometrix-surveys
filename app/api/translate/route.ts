@@ -2,7 +2,7 @@
 // Requires DEEPL_API_KEY in Vercel environment variables.
 // Sign up for a free key at deepl.com/pro-api (500,000 chars/month free).
 import { NextRequest, NextResponse } from "next/server";
-import { requireSession } from "@/lib/auth";
+import { requireUser } from "@/lib/auth-server";
 
 // Map Fanometrix language codes → DeepL target language codes.
 // Keep in sync with lib/survey-locale.ts SUPPORTED_LANGUAGES' autoTranslatable
@@ -45,7 +45,7 @@ const DEEPL_LANG: Record<string, string> = {
 
 export async function POST(req: NextRequest) {
   try {
-    await requireSession(req, ["admin"]);
+    await requireUser(req, ["admin"]);
   } catch (err) {
     return err as Response;
   }

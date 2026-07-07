@@ -2,11 +2,11 @@
 // (The /api/embed prefix is public in middleware, so we check here.)
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
-import { requireSession } from "@/lib/auth";
+import { requireUser } from "@/lib/auth-server";
 
 export async function GET(req: NextRequest) {
   try {
-    await requireSession(req, ["admin"]);
+    await requireUser(req, ["admin"]);
   } catch (err) {
     return err as Response;
   }

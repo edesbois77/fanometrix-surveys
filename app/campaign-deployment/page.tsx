@@ -1,16 +1,16 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { AdminShell } from "@/app/components/AdminShell";
 
 type Campaign = {
   id: string;
   campaign_id: string;
-  brand_name: string;
+  brand_org_id: string | null;
   campaign_name: string;
   survey_id: string | null;
   surveys?: { name: string } | null;
-  publisher: string | null;
+  publisher_org_id: string | null;
   survey_language: string | null;
   country_code: string | null;
 };
@@ -45,6 +45,7 @@ const INSTRUCTIONS = `1. Place the iframe inside a 300x250 MPU creative slot.
 
 export default function EmbedGeneratorPage() {
   const [campaigns,       setCampaigns]       = useState<Campaign[]>([]);
+  const [orgs,            setOrgs]            = useState<{ id: string; name: string }[]>([]);
   const [selectedId,      setSelectedId]      = useState("");          // campaign UUID
   const [publisher,       setPublisher]       = useState("");
   const [placementPreset, setPlacementPreset] = useState("");
@@ -68,14 +69,20 @@ export default function EmbedGeneratorPage() {
           if (match) setSelectedId(match.id);
         }
       });
+    fetch("/api/organisations")
+      .then(r => r.json())
+      .then(j => setOrgs(j.data ?? []));
   }, []);
+
+  const orgById = useMemo(() => new Map(orgs.map(o => [o.id, o])), [orgs]);
+  const orgName = useCallback((id: string | null) => (id ? orgById.get(id)?.name ?? "" : ""), [orgById]);
 
   const campaign = campaigns.find(c => c.id === selectedId) ?? null;
 
   // When campaign changes, auto-fill publisher from the campaign record
   useEffect(() => {
-    setPublisher(campaigns.find(c => c.id === selectedId)?.publisher ?? "");
-  }, [selectedId, campaigns]);
+    setPublisher(orgName(campaigns.find(c => c.id === selectedId)?.publisher_org_id ?? null));
+  }, [selectedId, campaigns, orgName]);
 
   const placement = placementPreset === "Custom…" ? placementCustom : placementPreset;
   const countryMacro = GEO_MACROS[adServer] ?? "%%COUNTRY%%";
@@ -172,7 +179,7 @@ export default function EmbedGeneratorPage() {
                 >
                   <option value="">— select a campaign —</option>
                   {campaigns.map(c => (
-                    <option key={c.id} value={c.id}>{c.brand_name} · {c.campaign_name}</option>
+                    <option key={c.id} value={c.id}>{orgName(c.brand_org_id)} · {c.campaign_name}</option>
                   ))}
                 </select>
                 {!campaigns.length && (

@@ -2,7 +2,7 @@
 // Requires OPENAI_API_KEY in Vercel environment variables.
 // Falls back to rule-based classification if no key is configured.
 import { NextRequest, NextResponse } from "next/server";
-import { requireSession } from "@/lib/auth";
+import { requireUser } from "@/lib/auth-server";
 import { buildClassificationPrompt, FOOTBALL_TOPICS, type Sentiment } from "@/lib/social-taxonomy";
 
 export type ClassificationResult = {
@@ -64,7 +64,7 @@ function classifyRuleBased(content: string): ClassificationResult {
 }
 
 export async function POST(req: NextRequest) {
-  try { await requireSession(req, ["admin"]); } catch (err) { return err as Response; }
+  try { await requireUser(req, ["admin"]); } catch (err) { return err as Response; }
 
   const { content } = await req.json();
   if (!content?.trim()) return NextResponse.json({ error: "content is required" }, { status: 400 });

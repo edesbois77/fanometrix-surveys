@@ -80,7 +80,7 @@ export async function GET(req: NextRequest) {
     end_date: string | null;
     target_responses: number | null;
     deleted_at: string | null;
-    publisher: string | null;
+    publisher_org_id: string | null;
     country_code: string | null;
     market: string | null;
     survey_language: string | null;
@@ -91,11 +91,28 @@ export async function GET(req: NextRequest) {
 
   const { data: campaigns } = await supabase
     .from("campaigns")
-    .select("id, campaign_id, status, start_date, end_date, target_responses, deleted_at, publisher, country_code, market, survey_language, creative_design, survey_id, research_project_id")
+    .select("id, campaign_id, status, start_date, end_date, target_responses, deleted_at, publisher_org_id, country_code, market, survey_language, creative_design, survey_id, research_project_id")
     .in("id", campaignUuids) as { data: CampaignRow[] | null };
 
   if (!campaigns?.length) {
     return NextResponse.json({ error: "No campaigns found" }, { status: 404 });
+  }
+
+  // Resolve each campaign's publisher organisation name for the ?publisher=
+  // filter below. organisations is service-role-only (deny_all_anon RLS),
+  // so this lookup uses supabaseAdmin even though the rest of this public
+  // route uses the anon client — same pattern already used for
+  // research_projects and creative_designs a few lines down.
+  const publisherOrgIdsNeeded = Array.from(new Set(
+    campaigns.map(c => c.publisher_org_id).filter((id): id is string => !!id)
+  ));
+  const publisherNameByOrgId: Record<string, string> = {};
+  if (publisherOrgIdsNeeded.length > 0) {
+    const { data: publisherOrgs } = await supabaseAdmin
+      .from("organisations")
+      .select("id, name")
+      .in("id", publisherOrgIdsNeeded);
+    for (const o of publisherOrgs ?? []) publisherNameByOrgId[o.id] = o.name;
   }
 
   const responsesBySlug: Record<string, number> = {};
@@ -160,9 +177,10 @@ export async function GET(req: NextRequest) {
       if (c.market.trim().toLowerCase() !== market.toLowerCase()) return false;
     }
 
-    // Publisher filter — null publisher on campaign means it accepts any publisher
-    if (publisher && c.publisher) {
-      if (c.publisher.toLowerCase() !== publisher.toLowerCase()) return false;
+    // Publisher filter — no publisher_org_id on the campaign means it accepts any publisher
+    const campaignPublisherName = c.publisher_org_id ? publisherNameByOrgId[c.publisher_org_id] : null;
+    if (publisher && campaignPublisherName) {
+      if (campaignPublisherName.toLowerCase() !== publisher.toLowerCase()) return false;
     }
 
     // Must not have reached target responses

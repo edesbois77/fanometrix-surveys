@@ -281,7 +281,7 @@ export default function HomePage() {
             <div className="h-8 w-48 bg-gray-100 rounded-lg animate-pulse mb-2" />
           ) : (
             <h1 className="text-2xl font-bold mb-0.5" style={{ color: "#0B1929" }}>
-              Welcome back{user ? `, ${user.organisationName || user.username}` : ""}.
+              Welcome back{user ? `, ${user.firstName || user.workEmail}` : ""}.
             </h1>
           )}
           {user && (

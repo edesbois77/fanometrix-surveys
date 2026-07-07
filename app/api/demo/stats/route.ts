@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
-import { requireSession } from "@/lib/auth";
+import { requireUser } from "@/lib/auth-server";
 
 export async function GET(req: NextRequest) {
   try {
-    await requireSession(req);
+    await requireUser(req);
   } catch (err) {
     return err as Response;
   }

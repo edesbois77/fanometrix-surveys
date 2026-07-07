@@ -1,7 +1,7 @@
 // Creates the three Phase 7 Wave 1 validation test searches.
 // Safe to run multiple times — skips searches with the same name.
 import { NextRequest, NextResponse } from "next/server";
-import { requireSession } from "@/lib/auth";
+import { requireUser } from "@/lib/auth-server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
 const TEST_SEARCHES = [
@@ -65,7 +65,7 @@ const TEST_SEARCHES = [
 
 export async function POST(req: NextRequest) {
   let session;
-  try { session = await requireSession(req, ["admin"]); } catch (err) { return err as Response; }
+  try { session = await requireUser(req, ["admin"]); } catch (err) { return err as Response; }
 
   const created: string[] = [];
   const skipped: string[] = [];
@@ -86,7 +86,7 @@ export async function POST(req: NextRequest) {
       .insert({
         name: s.name, entity_type: s.entity_type, research_goal: s.research_goal,
         description: s.description, markets: s.markets, platforms: s.platforms,
-        frequency: s.frequency, status: s.status, created_by: session.username,
+        frequency: s.frequency, status: s.status, created_by: session.workEmail,
       })
       .select()
       .single();

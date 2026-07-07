@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { AdminShell } from "@/app/components/AdminShell";
 import {
   computeStatusWithReason,
@@ -14,7 +14,7 @@ import {
 type Campaign = {
   id: string;
   campaign_id: string;
-  brand_name: string;
+  brand_org_id: string | null;
   campaign_name: string;
   survey_id: string | null;
   surveys?: { name: string } | null;
@@ -133,6 +133,7 @@ async function performHealthChecks(campaign: Campaign | null): Promise<HealthChe
 
 export default function EmbedTestPage() {
   const [campaigns,      setCampaigns]      = useState<Campaign[]>([]);
+  const [orgs,           setOrgs]           = useState<{ id: string; name: string }[]>([]);
   const [selectedId,     setSelectedId]     = useState("");
   const [iframeKey,      setIframeKey]      = useState(0);
   const [publisher,      setPublisher]      = useState("embed-test");
@@ -155,7 +156,13 @@ export default function EmbedTestPage() {
     fetch("/api/campaigns")
       .then(r => r.json())
       .then(j => { setCampaigns(j.data ?? []); setLoading(false); });
+    fetch("/api/organisations")
+      .then(r => r.json())
+      .then(j => setOrgs(j.data ?? []));
   }, []);
+
+  const orgById = useMemo(() => new Map(orgs.map(o => [o.id, o])), [orgs]);
+  const orgName = useCallback((id: string | null) => (id ? orgById.get(id)?.name ?? "" : ""), [orgById]);
 
   const campaign = campaigns.find(c => c.id === selectedId) ?? null;
 
@@ -316,7 +323,7 @@ export default function EmbedTestPage() {
   const copyDiagnostics = useCallback(() => {
     if (!campaign) return;
     const text = [
-      `Campaign:          ${campaign.brand_name} – ${campaign.campaign_name}`,
+      `Campaign:          ${orgName(campaign.brand_org_id)} – ${campaign.campaign_name}`,
       `Campaign ID:       ${campaign.campaign_id}`,
       `Manual Status:     ${campaign.status}`,
       `Effective Status:  ${campaign.effective_status}`,
@@ -386,7 +393,7 @@ export default function EmbedTestPage() {
                 >
                   <option value="">— select a campaign —</option>
                   {campaigns.map(c => (
-                    <option key={c.id} value={c.id}>{c.brand_name} · {c.campaign_name}</option>
+                    <option key={c.id} value={c.id}>{orgName(c.brand_org_id)} · {c.campaign_name}</option>
                   ))}
                 </select>
               )}

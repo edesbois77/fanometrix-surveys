@@ -1,17 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
-import { requireSession } from "@/lib/auth";
+import { requireUser } from "@/lib/auth-server";
 import { filterInsights } from "@/lib/insights-access";
-import type { FullUser, Insight } from "@/lib/types";
+import type { Insight } from "@/lib/types";
 
 const INSIGHT_SELECT = "id,title,subtitle,slug,content_type,status,published_at,summary,content_blocks,download_url,featured_image_url,tags,visibility,created_by,created_at,updated_at";
-
-const USER_AUDIENCE_SELECT = "id,username,role,organisation_name,associated_agency,associated_brand,associated_publisher,associated_projects,associated_markets,allowed_campaign_ids,allowed_publisher_ids,is_active,force_password_change,created_at,updated_at,last_seen_at";
 
 export async function GET(req: NextRequest) {
   let session;
   try {
-    session = await requireSession(req);
+    session = await requireUser(req);
   } catch (err) {
     return err as Response;
   }
@@ -27,25 +25,21 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ data: insights ?? [] });
   }
 
-  // Non-admin: fetch full user record to run audience matching
-  const { data: user, error: userError } = await supabaseAdmin
-    .from("users")
-    .select(USER_AUDIENCE_SELECT)
-    .eq("id", session.sub)
-    .single();
+  const { data: grants } = await supabaseAdmin
+    .from("user_access_grants")
+    .select("resource_id")
+    .eq("user_id", session.id)
+    .eq("resource_type", "insight");
+  const grantedInsightIds = new Set((grants ?? []).map(g => g.resource_id as string));
 
-  if (userError || !user) {
-    return NextResponse.json({ error: "User not found" }, { status: 404 });
-  }
-
-  const filtered = filterInsights((insights ?? []) as Insight[], user as FullUser);
+  const filtered = filterInsights((insights ?? []) as Insight[], session, grantedInsightIds);
   return NextResponse.json({ data: filtered });
 }
 
 export async function POST(req: NextRequest) {
   let session;
   try {
-    session = await requireSession(req, ["admin"]);
+    session = await requireUser(req, ["admin"]);
   } catch (err) {
     return err as Response;
   }
@@ -94,7 +88,7 @@ export async function POST(req: NextRequest) {
       featured_image_url: body.featured_image_url ?? null,
       tags:               body.tags ?? [],
       visibility:         body.visibility,
-      created_by:         session.username,
+      created_by:         session.workEmail,
     })
     .select(INSIGHT_SELECT)
     .single();

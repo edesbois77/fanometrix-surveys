@@ -4,7 +4,7 @@
 //            → sentiment, topic, subtopic, ai_summary
 // This validates the classification engine rather than bypassing it.
 import { NextRequest, NextResponse } from "next/server";
-import { requireSession } from "@/lib/auth";
+import { requireUser } from "@/lib/auth-server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { FOOTBALL_TOPICS, buildClassificationPrompt, type Sentiment } from "@/lib/social-taxonomy";
 
@@ -171,7 +171,7 @@ function fallbackClassify(content: string): { sentiment: Sentiment; topic: strin
 // ── Route handler ─────────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
   let session;
-  try { session = await requireSession(req, ["admin"]); } catch (err) { return err as Response; }
+  try { session = await requireUser(req, ["admin"]); } catch (err) { return err as Response; }
 
   const {
     search_id,
@@ -263,7 +263,7 @@ export async function POST(req: NextRequest) {
   const { error: insertErr } = await supabaseAdmin.from("social_mentions").insert(inserts);
   if (insertErr) return NextResponse.json({ error: insertErr.message }, { status: 500 });
 
-  console.info(`[generate-sample] ${session.username}: generated ${rawMentions.length} raw → ${classified.length} classified for "${search.name}"`);
+  console.info(`[generate-sample] ${session.workEmail}: generated ${rawMentions.length} raw → ${classified.length} classified for "${search.name}"`);
 
   return NextResponse.json({
     raw_generated:    rawMentions.length,

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
-export type MultiSelectOption = { value: string; label: string };
+export type MultiSelectOption = { value: string; label: string; keywords?: string };
 
 const INPUT =
   "w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm focus:outline-none focus:border-[#D7B87A] transition-colors bg-white";
@@ -18,6 +18,7 @@ export function MultiSelect({
   unmatchedMessage,
   allowCreate = false,
   createLabel,
+  disabled = false,
 }: {
   options: MultiSelectOption[];
   selected: string[];
@@ -34,6 +35,8 @@ export function MultiSelect({
   allowCreate?: boolean;
   /** Customise the "create new" button label — defaults to a generic tag-creation label */
   createLabel?: (text: string) => string;
+  /** When true, shows the selected pills read-only and hides the search input entirely */
+  disabled?: boolean;
 }) {
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState(false);
@@ -51,10 +54,11 @@ export function MultiSelect({
     return () => document.removeEventListener("mousedown", handle);
   }, []);
 
-  const remaining = options.filter(
-    o => !selected.includes(o.value) &&
-         o.label.toLowerCase().includes(search.toLowerCase())
-  );
+  const remaining = options.filter(o => {
+    if (selected.includes(o.value)) return false;
+    const q = search.toLowerCase();
+    return o.label.toLowerCase().includes(q) || (o.keywords ?? "").toLowerCase().includes(q);
+  });
 
   const trimmed = search.trim();
   const alreadyExists =
@@ -96,6 +100,25 @@ export function MultiSelect({
   }
 
   const labelFor = (v: string) => options.find(o => o.value === v)?.label ?? v;
+
+  if (disabled) {
+    return (
+      <div>
+        {selected.length > 0 ? (
+          <div className="flex flex-wrap gap-1.5">
+            {selected.map(v => (
+              <span key={v} className="inline-flex items-center gap-1 text-xs bg-gray-100 text-gray-500 border border-gray-200 px-2.5 py-1 rounded-full">
+                {labelFor(v)}
+              </span>
+            ))}
+          </div>
+        ) : (
+          <p className="text-xs text-gray-400">None selected.</p>
+        )}
+        {helperText && <p className="text-xs text-gray-400 mt-1.5 leading-relaxed">{helperText}</p>}
+      </div>
+    );
+  }
 
   return (
     <div>

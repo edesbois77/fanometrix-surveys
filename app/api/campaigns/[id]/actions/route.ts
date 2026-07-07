@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { supabaseAdmin } from "@/lib/supabase-admin";
-import { requireSession } from "@/lib/auth";
+import { requireUser } from "@/lib/auth-server";
 import {
   ACTION_TRANSITIONS,
   ACTION_NOTIFICATIONS,
@@ -14,7 +14,7 @@ export async function POST(
 ) {
   let session;
   try {
-    session = await requireSession(req, ["admin"]);
+    session = await requireUser(req, ["admin"]);
   } catch (err) {
     return err as Response;
   }
@@ -36,12 +36,18 @@ export async function POST(
 
   const { data: campaign, error: fetchError } = await supabase
     .from("campaigns")
-    .select("id, brand_name, campaign_name, status")
+    .select("id, brand_org_id, campaign_name, status")
     .eq("id", id)
     .single();
 
   if (fetchError || !campaign) {
     return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
+  }
+
+  let brandName = "";
+  if (campaign.brand_org_id) {
+    const { data: brandOrg } = await supabaseAdmin.from("organisations").select("name").eq("id", campaign.brand_org_id).single();
+    brandName = brandOrg?.name ?? "";
   }
 
   const now = new Date().toISOString();
@@ -60,7 +66,7 @@ export async function POST(
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  const campaignName = `${campaign.brand_name} – ${campaign.campaign_name}`;
+  const campaignName = `${brandName} – ${campaign.campaign_name}`;
 
   // Log to audit history
   await supabaseAdmin.from("campaign_status_history").insert({
@@ -68,7 +74,7 @@ export async function POST(
     old_status:  campaign.status,
     new_status:  transition.status,
     reason:      `Manual action: ${action}`,
-    changed_by:  session.username,
+    changed_by:  session.workEmail,
   });
 
   // Create notification for meaningful actions

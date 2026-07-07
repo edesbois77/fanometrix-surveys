@@ -36,17 +36,26 @@ const BRAND_AGENCY_RESTRICTED = [
   "/publisher-performance",
 ];
 
-// Routes visible to admin/brand/agency but not publisher (organisational/strategic layer)
-const PUBLISHER_RESTRICTED = [
-  "/research-projects",
+// Routes visible to admin/brand/agency/publisher, gated further below —
+// kept empty for now, but retained as the extension point if another role
+// needs excluding from a currently-shared route in future.
+const PUBLISHER_RESTRICTED: string[] = [];
+
+// Routes open to admin and publisher only (not brand/agency) — Campaigns
+// and Campaign Groups are creation/management tools. Publisher accounts
+// create and manage their own here, scoped server-side to their own
+// organisation (see lib/access.ts); brand/agency continue to work through
+// Insights/Dashboard instead, unchanged.
+const ADMIN_AND_PUBLISHER_PREFIXES = [
+  "/campaigns",
+  "/campaign-groups",
+  "/api/campaign-groups",
 ];
 
 // Routes only admins may access
 const ADMIN_ONLY_PREFIXES = [
   "/analysis",
   "/survey-templates",
-  "/campaigns",
-  "/campaign-groups",
   "/campaign-deployment",
   "/reporting",
   "/looker-templates",
@@ -59,15 +68,13 @@ const ADMIN_ONLY_PREFIXES = [
   "/api/social/seed",
   "/api/social/mentions",
   "/user-management",
-  "/publishers",
+  "/organisations",
   "/embed-test",
   "/admin-insights",
   "/api/users",
-  "/api/publishers",
   "/api/admin",
   "/api/social",
   "/api/surveys",
-  "/api/campaign-groups",
   "/api/demo",
 ];
 
@@ -103,6 +110,8 @@ export async function middleware(req: NextRequest) {
     // Admin routes accessed on the marketing domain → redirect to app
     if (
       ADMIN_ONLY_PREFIXES.some(p => pathname.startsWith(p)) ||
+      ADMIN_AND_PUBLISHER_PREFIXES.some(p => pathname.startsWith(p)) ||
+      pathname.startsWith("/research-projects") ||
       pathname.startsWith("/home") ||
       pathname.startsWith("/dashboard")
     ) {
@@ -181,7 +190,15 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(new URL("/access-denied", req.url));
   }
 
-  // Publisher: block admin/brand/agency-facing organisational routes
+  // Admin + Publisher only routes (Campaigns, Campaign Groups) — brand/agency
+  // stay blocked here, same as they always were when these were admin-only.
+  const isAdminAndPublisherOnly = ADMIN_AND_PUBLISHER_PREFIXES.some((p) => pathname.startsWith(p));
+  if (isAdminAndPublisherOnly && session.role !== "admin" && session.role !== "publisher") {
+    return NextResponse.redirect(new URL("/access-denied", req.url));
+  }
+
+  // Publisher: block any remaining admin/brand/agency-facing organisational
+  // routes not covered by a more specific rule above.
   if (session.role === "publisher" && PUBLISHER_RESTRICTED.some((p) => pathname.startsWith(p))) {
     return NextResponse.redirect(new URL("/home", req.url));
   }

@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireSession } from "@/lib/auth";
+import { requireUser } from "@/lib/auth-server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
 export async function GET(req: NextRequest) {
-  try { await requireSession(req, ["admin"]); } catch (err) { return err as Response; }
+  try { await requireUser(req, ["admin"]); } catch (err) { return err as Response; }
 
   const searchId  = req.nextUrl.searchParams.get("search_id");
   const sentiment = req.nextUrl.searchParams.get("sentiment");
@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-  try { await requireSession(req, ["admin"]); } catch (err) { return err as Response; }
+  try { await requireUser(req, ["admin"]); } catch (err) { return err as Response; }
   const { ids }: { ids: string[] } = await req.json();
   const { error } = await supabaseAdmin.from("social_mentions").delete().in("id", ids);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

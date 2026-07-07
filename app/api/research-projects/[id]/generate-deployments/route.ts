@@ -1,21 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
-import { requireSession } from "@/lib/auth";
+import { requireUser } from "@/lib/auth-server";
+import { canAccess } from "@/lib/access";
 import { generateCampaignName, generateCampaignSlug, studyTypeLabel } from "@/lib/naming";
 import { countryByCode } from "@/lib/countries";
 import { getCompletedLanguages, type LangCode } from "@/lib/survey-locale";
 import { expectedSurveyLanguage, LANGUAGE_DISPLAY_NAMES } from "@/lib/locales";
 
-type Combo = { publisher: string; countryCode: string };
+type Combo = { publisherName: string; publisherOrgId: string; countryCode: string };
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  let session;
   try {
-    await requireSession(req, ["admin"]);
+    session = await requireUser(req, ["admin", "publisher"]);
   } catch (err) {
     return err as Response;
   }
 
   const { id } = await params;
+
+  if (session.role !== "admin" && !(await canAccess(session, "research_project", id))) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   const { data: project, error: projectError } = await supabaseAdmin
     .from("research_projects")
@@ -31,10 +37,21 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   // Publishers/countries are the project's own saved target matrix — set via
   // the project drawer, not passed in per-request — so this action is a
   // simple, repeatable "catch up the deployments" click.
-  const publishers = (project.publishers ?? []) as string[];
+  const publisherOrgIds = (project.publisher_org_ids ?? []) as string[];
   const countryCodes = (project.country_codes ?? []) as string[];
 
-  if (publishers.length === 0) {
+  // Resolve organisation names by id — used for generated campaign names/slugs
+  // and for the created/restored/failed summaries returned to the UI.
+  const orgIdsToResolve = Array.from(new Set([
+    ...publisherOrgIds,
+    ...(project.brand_org_id ? [project.brand_org_id] : []),
+  ]));
+  const { data: resolvedOrgs } = orgIdsToResolve.length > 0
+    ? await supabaseAdmin.from("organisations").select("id, name").in("id", orgIdsToResolve)
+    : { data: [] as { id: string; name: string }[] };
+  const orgNameById = new Map((resolvedOrgs ?? []).map(o => [o.id, o.name]));
+
+  if (publisherOrgIds.length === 0) {
     return NextResponse.json({ error: "Add at least one publisher to this project before generating deployments." }, { status: 400 });
   }
   if (countryCodes.length === 0) {
@@ -74,13 +91,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   }
 
   const allCombos: Combo[] = [];
-  for (const publisher of publishers) {
+  for (const publisherOrgId of publisherOrgIds) {
     for (const countryCode of countryCodes) {
-      allCombos.push({ publisher, countryCode });
+      allCombos.push({ publisherOrgId, publisherName: orgNameById.get(publisherOrgId) ?? "", countryCode });
     }
   }
 
-  const brandOrTopic = project.brand_name || project.topic || "";
+  const brandOrTopic = (project.brand_org_id ? orgNameById.get(project.brand_org_id) : null) || project.topic || "";
   const theme = studyTypeLabel(project.study_type);
   const year = project.year || "";
   const nowIso = new Date().toISOString();
@@ -94,8 +111,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return {
       combo,
       country,
-      campaignName: generateCampaignName(brandOrTopic, theme, country.name, combo.publisher, year),
-      campaignSlug: generateCampaignSlug(brandOrTopic, theme, country.name, combo.publisher, year),
+      campaignName: generateCampaignName(brandOrTopic, theme, country.name, combo.publisherName, year),
+      campaignSlug: generateCampaignSlug(brandOrTopic, theme, country.name, combo.publisherName, year),
     };
   });
 
@@ -132,12 +149,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           survey_language: expectedSurveyLanguage(combo.countryCode),
           campaign_description: project.description || null,
           status: project.status, status_updated_at: nowIso, updated_at: nowIso,
+          publisher_org_id: combo.publisherOrgId,
+          brand_org_id: project.brand_org_id ?? null,
+          agency_org_id: project.agency_org_id ?? null,
         })
         .eq("id", clash.id);
       if (error) {
-        failed.push({ publisher: combo.publisher, country: country.name, reason: error.message });
+        failed.push({ publisher: combo.publisherName, country: country.name, reason: error.message });
       } else {
-        restored.push({ publisher: combo.publisher, country: country.name, campaign_id: campaignSlug });
+        restored.push({ publisher: combo.publisherName, country: country.name, campaign_id: campaignSlug });
       }
       continue;
     }
@@ -145,7 +165,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (clash && clash.deleted_at) {
       // Slug is held by a deleted campaign that isn't ours to restore (e.g. moved
       // between projects, or a coincidental manual campaign) — don't repurpose it.
-      failed.push({ publisher: combo.publisher, country: country.name, reason: "Campaign ID already exists (deleted, different context)" });
+      failed.push({ publisher: combo.publisherName, country: country.name, reason: "Campaign ID already exists (deleted, different context)" });
       continue;
     }
 
@@ -159,11 +179,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         // Brand for non-brand studies, so fall back to Topic, then empty
         // string, matching the naming convention's own brandOrTopic logic.
         brand_name: brandOrTopic,
+        brand_org_id: project.brand_org_id ?? null,
+        agency_org_id: project.agency_org_id ?? null,
         // Seeded from the project's own description — a one-time copy, not
         // live-inherited, so each deployment can be edited individually
         // afterward without affecting its siblings.
         campaign_description: project.description || null,
-        publisher: combo.publisher,
+        publisher_org_id: combo.publisherOrgId,
         country_code: combo.countryCode,
         market: country.name,
         // Defaults to the country's expected language (e.g. DE → de) — the
@@ -188,12 +210,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     if (error) {
       failed.push({
-        publisher: combo.publisher,
+        publisher: combo.publisherName,
         country: country.name,
         reason: error.code === "23505" ? "Campaign ID already exists" : error.message,
       });
     } else {
-      created.push({ publisher: combo.publisher, country: country.name, campaign_id: campaignSlug });
+      created.push({ publisher: combo.publisherName, country: country.name, campaign_id: campaignSlug });
     }
   }
 
@@ -202,7 +224,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       created,
       restored,
       skipped_existing: skippedExisting.map(c => ({
-        publisher: c.publisher,
+        publisher: c.publisherName,
         country: countryByCode(c.countryCode)?.name ?? c.countryCode,
       })),
       failed,

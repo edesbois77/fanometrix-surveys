@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
-import { requireSession, type SessionPayload } from "@/lib/auth";
+import { requireUser } from "@/lib/auth-server";
+import { visibleResourceIds } from "@/lib/access";
+
+const EMPTY = { renders: 0, starts: 0, q2_reached: 0, q3_reached: 0, completed: 0 };
 
 export async function GET(req: NextRequest) {
-  let session: SessionPayload;
+  let user;
   try {
-    session = await requireSession(req);
+    user = await requireUser(req);
   } catch (err) {
     return err as Response;
   }
@@ -24,6 +27,23 @@ export async function GET(req: NextRequest) {
   const date_from    = p.get("date_from")    || null;
   const date_to      = p.get("date_to")      || null;
 
+  // survey_events is a raw analytics log keyed by the human-readable
+  // campaign_id (text), not the campaigns.id uuid, so resolve this user's
+  // visible campaigns (via lib/access.ts, which already unifies
+  // publisher/brand/agency org-wide and Selected Access into one check)
+  // down to that text id before filtering. Empty means "none" — this
+  // replaces the old per-role allowed_campaign_ids/allowed_publisher_ids
+  // branching, which is now handled uniformly by visibleResourceIds().
+  let scopedCampaignIds: string[] | null = null;
+  if (user.role !== "admin") {
+    const uuids = (await visibleResourceIds(user, "campaign")) ?? [];
+    if (uuids.length === 0) return NextResponse.json(EMPTY);
+
+    const { data: rows } = await supabaseAdmin.from("campaigns").select("campaign_id").in("id", uuids);
+    scopedCampaignIds = (rows ?? []).map(r => r.campaign_id as string);
+    if (scopedCampaignIds.length === 0) return NextResponse.json(EMPTY);
+  }
+
   // Build a count query for a given event type
   function countQuery(eventType: string) {
     let q = supabaseAdmin
@@ -41,32 +61,14 @@ export async function GET(req: NextRequest) {
     if (date_from)   q = q.gte("created_at", date_from);
     if (date_to)     q = q.lte("created_at", `${date_to}T23:59:59`);
 
-    // Role-based campaign filtering (supabaseAdmin bypasses RLS, so apply manually)
-    if (session.role === "brand" || session.role === "agency") {
-      const ids = session.allowedCampaignIds;
-      if (ids.length === 0) return null;
-      q = q.in("campaign_id", ids);
-    } else if (session.role === "publisher") {
-      const ids = session.allowedPublisherIds;
-      if (ids.length === 0) return null;
-      q = q.in("publisher", ids);
-    }
+    if (scopedCampaignIds) q = q.in("campaign_id", scopedCampaignIds);
 
     return q;
   }
 
-  // Short-circuit for roles with no access
-  const renders   = countQuery("SURVEY_RENDER");
-  const starts    = countQuery("SURVEY_START");
-  const q2        = countQuery("QUESTION_2_REACHED");
-  const q3        = countQuery("QUESTION_3_REACHED");
-  const completed = countQuery("SURVEY_COMPLETED");
-
-  if (!renders || !starts || !q2 || !q3 || !completed) {
-    return NextResponse.json({ renders: 0, starts: 0, q2_reached: 0, q3_reached: 0, completed: 0 });
-  }
-
-  const results = await Promise.all([renders, starts, q2, q3, completed]);
+  const results = await Promise.all(
+    ["SURVEY_RENDER", "SURVEY_START", "QUESTION_2_REACHED", "QUESTION_3_REACHED", "SURVEY_COMPLETED"].map(countQuery)
+  );
 
   return NextResponse.json({
     renders:    results[0].count ?? 0,

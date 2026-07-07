@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { supabaseAdmin } from "@/lib/supabase-admin";
-import { requireSession } from "@/lib/auth";
+import { requireUser } from "@/lib/auth-server";
+import { canAccess } from "@/lib/access";
 import { computeEffectiveStatus, type CampaignForStatus } from "@/lib/campaign-status";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   let session;
   try {
-    session = await requireSession(req);
+    session = await requireUser(req);
   } catch (err) {
     return err as Response;
   }
@@ -20,10 +21,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   if (error || !data) return NextResponse.json({ error: error?.message ?? "Not found" }, { status: 404 });
 
-  if (session.role === "brand" || session.role === "agency") {
-    if (!session.allowedCampaignIds.includes(data.campaign_id)) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
+  // Unified check for every non-admin role — previously only brand/agency
+  // were checked here at all, leaving publisher users able to fetch any
+  // campaign by id regardless of allowed_publisher_ids; canAccess() closes
+  // that gap by covering all three the same way.
+  if (session.role !== "admin" && !(await canAccess(session, "campaign", data.id))) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   const responseCount = Number(statsData?.response_count ?? 0);
@@ -48,9 +51,17 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     responseCount
   );
 
+  const orgIds = [data.brand_org_id, data.publisher_org_id].filter((oid): oid is string => !!oid);
+  const { data: orgs } = orgIds.length > 0
+    ? await supabaseAdmin.from("organisations").select("id, name").in("id", orgIds)
+    : { data: [] as { id: string; name: string }[] };
+  const orgNameById = new Map((orgs ?? []).map(o => [o.id, o.name]));
+
   return NextResponse.json({
     data: {
       ...data,
+      brand_name: data.brand_org_id ? orgNameById.get(data.brand_org_id) ?? "" : "",
+      publisher: data.publisher_org_id ? orgNameById.get(data.publisher_org_id) ?? null : null,
       effective_status: effective,
       response_count: responseCount,
       effective_creative_design: effectiveCreativeDesign,
@@ -62,12 +73,19 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   let session;
   try {
-    session = await requireSession(req, ["admin"]);
+    session = await requireUser(req, ["admin", "publisher"]);
   } catch (err) {
     return err as Response;
   }
 
   const { id } = await params;
+
+  // Publishers can only ever edit campaigns they can already see — the
+  // same rule the list/detail GET routes use.
+  if (session.role !== "admin" && !(await canAccess(session, "campaign", id))) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   const body = await req.json();
   const now = new Date().toISOString();
 
@@ -97,6 +115,12 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     ...safeBody
   } = body;
 
+  // A publisher can never move a campaign to a different publisher, even
+  // their own edit requests get this pinned server-side.
+  if (session.role === "publisher") {
+    safeBody.publisher_org_id = session.organisationId;
+  }
+
   const { data, error } = await supabase
     .from("campaigns")
     .update({ ...safeBody, updated_at: now })
@@ -111,7 +135,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   let session;
   try {
-    session = await requireSession(req, ["admin"]);
+    session = await requireUser(req, ["admin"]);
   } catch (err) {
     return err as Response;
   }
@@ -153,7 +177,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
 
   const { error } = await supabaseAdmin
     .from("campaigns")
-    .update({ deleted_at: now, deleted_by: session.username, updated_at: now })
+    .update({ deleted_at: now, deleted_by: session.workEmail, updated_at: now })
     .eq("id", id);
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

@@ -3,11 +3,14 @@
 import { createContext, useContext, useState, useEffect, useCallback } from "react";
 
 export type SessionUser = {
-  username: string;
+  workEmail: string;
+  firstName: string | null;
+  lastName: string | null;
   role: "admin" | "brand" | "agency" | "publisher";
+  organisationId: string | null;
   organisationName: string | null;
-  allowedCampaignIds: string[];
-  allowedPublisherIds: string[];
+  organisationType: "publisher" | "agency" | "brand" | "internal" | null;
+  accessScope: "organisation_wide" | "selected";
 };
 
 type SessionContextValue = {

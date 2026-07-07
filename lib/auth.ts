@@ -1,5 +1,16 @@
 // Edge-compatible: only imports from 'jose' and standard Web APIs.
-// Safe to import in middleware.ts. Do NOT import bcryptjs here.
+// Safe to import in middleware.ts. Do NOT import bcryptjs or
+// supabase-admin here.
+//
+// The JWT is identity-only: it proves who the user is (sub), not what
+// they're allowed to do. `role` and `forcePasswordChange` are carried
+// along purely as coarse, non-authoritative hints for middleware's route
+// redirects and client-side UI (e.g. "should the sidebar show admin
+// links") — they can lag reality by up to the session's lifetime. Actual
+// authorization always re-fetches the live role/organisation/access
+// scope/status from the database — see lib/auth-server.ts's
+// requireUser(), used by every API route. Never gate real data access on
+// this module's session payload alone.
 import { SignJWT, jwtVerify } from "jose";
 import type { NextRequest } from "next/server";
 
@@ -7,11 +18,7 @@ export type UserRole = "admin" | "brand" | "agency" | "publisher";
 
 export type SessionPayload = {
   sub: string;
-  username: string;
   role: UserRole;
-  organisationName: string | null;
-  allowedCampaignIds: string[];
-  allowedPublisherIds: string[];
   forcePasswordChange: boolean;
   iat: number;
   exp: number;
@@ -57,28 +64,4 @@ export async function getSession(
   if (!match) return null;
 
   return verifyJwt(match[1]);
-}
-
-/**
- * Verify session and optionally check role.
- * Returns the session payload or throws a Response (for use in API routes).
- */
-export async function requireSession(
-  req: Request | NextRequest,
-  allowedRoles?: UserRole[]
-): Promise<SessionPayload> {
-  const session = await getSession(req);
-  if (!session) {
-    throw new Response(JSON.stringify({ error: "Unauthorised" }), {
-      status: 401,
-      headers: { "Content-Type": "application/json" },
-    });
-  }
-  if (allowedRoles && !allowedRoles.includes(session.role)) {
-    throw new Response(JSON.stringify({ error: "Forbidden" }), {
-      status: 403,
-      headers: { "Content-Type": "application/json" },
-    });
-  }
-  return session;
 }

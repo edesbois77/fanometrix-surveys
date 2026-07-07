@@ -33,14 +33,15 @@ type Survey = {
 type Campaign = {
   id: string;
   campaign_id: string;
-  brand_name: string;
   campaign_name: string;
   campaign_description: string | null;
   start_date: string | null;
   end_date: string | null;
   survey_id: string | null;
   surveys?: { name: string } | null;
-  publisher: string | null;
+  publisher_org_id: string | null;
+  brand_org_id: string | null;
+  agency_org_id: string | null;
   research_theme: string | null;
   year: string | null;
   country_code: string | null;
@@ -188,9 +189,9 @@ function CampaignProgress({ c }: { c: Campaign }) {
 
 // ─── Blank form ───────────────────────────────────────────────────────────────
 const BLANK: Partial<Campaign> = {
-  campaign_id: "", brand_name: "", campaign_name: "",
+  campaign_id: "", campaign_name: "",
   campaign_description: "", start_date: null, end_date: null,
-  survey_id: null, publisher: "", research_theme: null, year: String(new Date().getFullYear()), country_code: null, market: null, survey_language: "en", status: "draft",
+  survey_id: null, publisher_org_id: null, brand_org_id: null, agency_org_id: null, research_theme: null, year: String(new Date().getFullYear()), country_code: null, market: null, survey_language: "en", status: "draft",
   target_responses: null, archive_after_days: 90, creative_design: null,
   research_project_id: null, tags: null,
 };
@@ -251,7 +252,7 @@ export default function CampaignsPage() {
   const [campaigns,        setCampaigns]        = useState<Campaign[]>([]);
   const [deletedCampaigns, setDeletedCampaigns] = useState<Campaign[]>([]);
   const [surveys,          setSurveys]          = useState<Survey[]>([]);
-  const [publishers,       setPublishers]       = useState<string[]>([]);
+  const [orgs,             setOrgs]              = useState<{ id: string; name: string; type: "publisher" | "agency" | "brand" | "internal" }[]>([]);
   const [researchProjects, setResearchProjects] = useState<ResearchProjectSummary[]>([]);
   const [loading,          setLoading]          = useState(true);
   const [loadingDeleted,   setLoadingDeleted]   = useState(false);
@@ -290,17 +291,16 @@ export default function CampaignsPage() {
   // ── Load ──────────────────────────────────────────────────────────────────
   const load = useCallback(async () => {
     setLoading(true);
-    const [camRes, surRes, pubRes, projRes] = await Promise.all([
+    const [camRes, surRes, projRes, orgRes] = await Promise.all([
       fetch("/api/campaigns"),
       fetch("/api/surveys"),
-      fetch("/api/publishers"),
       fetch("/api/research-projects"),
+      fetch("/api/organisations"),
     ]);
     setCampaigns((await camRes.json()).data ?? []);
     setSurveys((await surRes.json()).data ?? []);
-    const pubData = (await pubRes.json()).data ?? [];
-    setPublishers(pubData.map((p: { name: string }) => p.name));
     setResearchProjects((await projRes.json()).data ?? []);
+    setOrgs((await orgRes.json()).data ?? []);
     setLoading(false);
   }, []);
 
@@ -338,13 +338,21 @@ export default function CampaignsPage() {
     return Array.from(byCode.entries()).sort((a, b) => a[1].localeCompare(b[1]));
   }, [campaigns]);
 
-  const publisherOptions = useMemo(() =>
-    Array.from(new Set(campaigns.map(c => c.publisher).filter((p): p is string => !!p))).sort((a, b) => a.localeCompare(b)),
-    [campaigns]);
+  // Organisations are the single source of truth for publisher/brand/agency
+  // display names now — this resolves an id to its name anywhere a campaign
+  // needs to show, filter, search, or generate a name/slug with one.
+  const orgById = useMemo(() => new Map(orgs.map(o => [o.id, o])), [orgs]);
+  const orgName = useCallback((id: string | null) => (id ? orgById.get(id)?.name ?? "" : ""), [orgById]);
 
-  const brandOptions = useMemo(() =>
-    Array.from(new Set(campaigns.map(c => c.brand_name).filter((b): b is string => !!b))).sort((a, b) => a.localeCompare(b)),
-    [campaigns]);
+  const publisherOptions = useMemo(() => {
+    const ids = new Set(campaigns.map(c => c.publisher_org_id).filter((id): id is string => !!id));
+    return Array.from(ids).map(id => ({ id, name: orgName(id) })).sort((a, b) => a.name.localeCompare(b.name));
+  }, [campaigns, orgName]);
+
+  const brandOptions = useMemo(() => {
+    const ids = new Set(campaigns.map(c => c.brand_org_id).filter((id): id is string => !!id));
+    return Array.from(ids).map(id => ({ id, name: orgName(id) })).sort((a, b) => a.name.localeCompare(b.name));
+  }, [campaigns, orgName]);
 
   const displayed = useMemo(() => {
     let list: Campaign[] =
@@ -382,8 +390,8 @@ export default function CampaignsPage() {
 
     // Country / Publisher / Brand filters
     if (countryFilter !== "all")   list = list.filter(c => c.country_code === countryFilter);
-    if (publisherFilter !== "all") list = list.filter(c => c.publisher === publisherFilter);
-    if (brandFilter !== "all")     list = list.filter(c => c.brand_name === brandFilter);
+    if (publisherFilter !== "all") list = list.filter(c => c.publisher_org_id === publisherFilter);
+    if (brandFilter !== "all")     list = list.filter(c => c.brand_org_id === brandFilter);
 
     // Search
     if (search.trim()) {
@@ -391,8 +399,8 @@ export default function CampaignsPage() {
       list = list.filter(c =>
         c.campaign_name.toLowerCase().includes(q) ||
         c.campaign_id.toLowerCase().includes(q) ||
-        c.brand_name.toLowerCase().includes(q) ||
-        (c.publisher ?? "").toLowerCase().includes(q) ||
+        orgName(c.brand_org_id).toLowerCase().includes(q) ||
+        orgName(c.publisher_org_id).toLowerCase().includes(q) ||
         (c.surveys?.name ?? "").toLowerCase().includes(q) ||
         c.effective_status.includes(q)
       );
@@ -406,7 +414,11 @@ export default function CampaignsPage() {
       case "status":  return [...list].sort((a, b) => STATUS_ORDER[a.effective_status] - STATUS_ORDER[b.effective_status]);
       default:        return list;
     }
-  }, [campaigns, deletedCampaigns, activeTab, statusFilter, usageFilter, dateFilter, countryFilter, publisherFilter, brandFilter, sortBy, search, activeCampaigns, closedCampaigns, archivedCampaigns]);
+  }, [campaigns, deletedCampaigns, activeTab, statusFilter, usageFilter, dateFilter, countryFilter, publisherFilter, brandFilter, sortBy, search, activeCampaigns, closedCampaigns, archivedCampaigns, orgName]);
+
+  const publisherOrgs = useMemo(() => orgs.filter(o => o.type === "publisher"), [orgs]);
+  const brandOrgs      = useMemo(() => orgs.filter(o => o.type === "brand"), [orgs]);
+  const agencyOrgs      = useMemo(() => orgs.filter(o => o.type === "agency"), [orgs]);
 
   const selectedProject = useMemo(
     () => researchProjects.find(p => p.id === editing.research_project_id) ?? null,
@@ -415,7 +427,11 @@ export default function CampaignsPage() {
 
   // ── Drawer helpers ─────────────────────────────────────────────────────────
   function openCreate() {
-    setEditing({ ...BLANK, publisher: "" });
+    const isPublisher = user?.role === "publisher";
+    setEditing({
+      ...BLANK,
+      publisher_org_id: isPublisher ? (user?.organisationId ?? null) : null,
+    });
     setError("");
     setDrawerOpen(true);
   }
@@ -441,12 +457,12 @@ export default function CampaignsPage() {
   useEffect(() => {
     if (!drawerOpen) return;
     const name = generateCampaignName(
-      editing.brand_name ?? "", editing.research_theme ?? "",
-      editing.country_code ?? "", editing.publisher ?? "", editing.year ?? ""
+      orgName(editing.brand_org_id ?? null), editing.research_theme ?? "",
+      editing.country_code ?? "", orgName(editing.publisher_org_id ?? null), editing.year ?? ""
     );
     const slug = generateCampaignSlug(
-      editing.brand_name ?? "", editing.research_theme ?? "",
-      editing.country_code ?? "", editing.publisher ?? "", editing.year ?? ""
+      orgName(editing.brand_org_id ?? null), editing.research_theme ?? "",
+      editing.country_code ?? "", orgName(editing.publisher_org_id ?? null), editing.year ?? ""
     );
     if (name || slug) {
       setEditing(e => ({
@@ -456,7 +472,7 @@ export default function CampaignsPage() {
       }));
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editing.brand_name, editing.research_theme, editing.country_code, editing.publisher, editing.year, drawerOpen]);
+  }, [editing.brand_org_id, editing.research_theme, editing.country_code, editing.publisher_org_id, editing.year, drawerOpen, orgName]);
 
   // Auto-select Survey Language to match Country Code — but only when the
   // user actually changes Country Code during this drawer session, never
@@ -479,22 +495,24 @@ export default function CampaignsPage() {
 
   function autoId() {
     setEditing(e => {
+      const brandName = orgName(e.brand_org_id ?? null);
+      const publisherName = orgName(e.publisher_org_id ?? null);
       const name = generateCampaignName(
-        e.brand_name ?? "", e.research_theme ?? "", e.country_code ?? "", e.publisher ?? "", e.year ?? ""
+        brandName, e.research_theme ?? "", e.country_code ?? "", publisherName, e.year ?? ""
       );
       const slug = generateCampaignSlug(
-        e.brand_name ?? "", e.research_theme ?? "", e.country_code ?? "", e.publisher ?? "", e.year ?? ""
+        brandName, e.research_theme ?? "", e.country_code ?? "", publisherName, e.year ?? ""
       );
       return {
         ...e,
         campaign_name: name || e.campaign_name,
-        campaign_id:   slug || generateCampaignId(e.brand_name ?? "", e.campaign_name ?? ""),
+        campaign_id:   slug || generateCampaignId(brandName, e.campaign_name ?? ""),
       };
     });
   }
 
   async function handleSave() {
-    if (!editing.brand_name?.trim())   { setError("Brand name is required.");   return; }
+    if (!editing.brand_org_id)   { setError("Brand is required.");   return; }
     if (!editing.campaign_name?.trim()) { setError("Campaign name is required."); return; }
     if (!editing.campaign_id?.trim())  { setError("Campaign ID is required.");   return; }
     if (editing.start_date && editing.end_date && editing.start_date > editing.end_date) {
@@ -654,16 +672,17 @@ export default function CampaignsPage() {
   }
 
   async function handleDuplicate(c: Campaign) {
-    const slug = generateDuplicateSlug(c.brand_name, c.campaign_name);
+    const slug = generateDuplicateSlug(orgName(c.brand_org_id), c.campaign_name);
     const payload = {
-      brand_name:        c.brand_name,
       campaign_name:     `${c.campaign_name} (Copy)`,
       campaign_id:       slug,
       campaign_description: c.campaign_description,
       start_date:        null,
       end_date:          null,
       survey_id:         c.survey_id,
-      publisher:         c.publisher ?? "",
+      publisher_org_id:  c.publisher_org_id,
+      brand_org_id:      c.brand_org_id,
+      agency_org_id:     c.agency_org_id,
       status:            "draft",
       target_responses:  c.target_responses,
       archive_after_days: c.archive_after_days,
@@ -689,11 +708,11 @@ export default function CampaignsPage() {
       return {
         "Campaign Name":    c.campaign_name,
         "Slug":             c.campaign_id,
-        "Brand":            c.brand_name,
+        "Brand":            orgName(c.brand_org_id),
         "Research Theme":   c.research_theme ?? "",
         "Country":          c.country_code ?? "",
         "Market":           c.market ?? "",
-        "Publisher":        c.publisher ?? "",
+        "Publisher":        orgName(c.publisher_org_id),
         "Year":             c.year ?? "",
         "Survey":           c.surveys?.name ?? "",
         "Status (Stored)":  c.status,
@@ -721,7 +740,7 @@ export default function CampaignsPage() {
 
   return (
     <AdminShell>
-      <div className="p-4 md:p-6 max-w-5xl mx-auto">
+      <div className="p-4 md:p-6 max-w-6xl mx-auto">
 
         {/* Header */}
         <div className="mb-5">
@@ -747,13 +766,63 @@ export default function CampaignsPage() {
               </button>
             </div>
           </div>
-          <div className="bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 flex gap-2.5 items-start">
-            <span className="text-gray-400 flex-shrink-0 text-sm mt-0.5">ℹ</span>
-            <p className="text-sm text-gray-500 leading-relaxed">
-              Each campaign connects a survey to a publisher, placement and date range.
-              Campaign status determines whether responses are accepted.
-            </p>
-          </div>
+          <details className="group bg-gray-50 w-full">
+            <summary className="cursor-pointer select-none list-none py-3">
+              <p className="text-sm text-gray-500 leading-relaxed">
+                Each campaign connects a survey to a publisher, placement and date range.
+                Campaign status determines whether responses are accepted.{" "}
+                <span className="font-semibold inline-flex items-center gap-1" style={{ color: "#D7B87A" }}>
+                  Expand to find out more
+                  <span className="inline-block transition-transform group-open:rotate-90">›</span>
+                </span>
+              </p>
+            </summary>
+            <div className="pb-4 pt-3 mt-1 border-t border-gray-200 text-sm text-gray-600 leading-relaxed space-y-4">
+              <div>
+                <p className="font-semibold text-gray-700 mb-1">Campaign lifecycle</p>
+                <ul className="list-disc pl-5 space-y-1">
+                  <li><strong>Draft</strong>: being set up, not yet deployed</li>
+                  <li><strong>Scheduled</strong>: ready to go, waiting for its start date</li>
+                  <li><strong>Live</strong>: actively collecting responses</li>
+                  <li><strong>Paused</strong>: temporarily stopped, can be resumed</li>
+                  <li><strong>Closed</strong>: permanently finished</li>
+                  <li><strong>Archived</strong>: hidden from the default view, kept as a historical record</li>
+                </ul>
+                <p className="mt-1 text-gray-500">Fanometrix automatically moves a campaign from Scheduled to Live on its start date, and from Live to Closed when the end date passes or the target response count is reached.</p>
+              </div>
+              <div>
+                <p className="font-semibold text-gray-700 mb-1">What you can do with a campaign</p>
+                <ul className="list-disc pl-5 space-y-1">
+                  <li><strong>Publish</strong>: from Draft, sets it to Scheduled and waiting for the start date</li>
+                  <li><strong>Go live now</strong>: from Draft or Scheduled, makes it Live immediately</li>
+                  <li><strong>Pause</strong>: from Live or Scheduled, temporarily stops it collecting responses</li>
+                  <li><strong>Resume</strong>: from Paused, starts collecting responses again</li>
+                  <li><strong>Close</strong>: from Live or Paused, ends it permanently</li>
+                  <li><strong>Archive</strong>: from Closed, moves it out of the main list</li>
+                  <li><strong>Duplicate</strong>: available any time, creates a Draft copy with dates cleared and responses reset to zero</li>
+                </ul>
+              </div>
+              <div>
+                <p className="font-semibold text-gray-700 mb-1">Creating a campaign</p>
+                <ul className="list-disc pl-5 space-y-1">
+                  <li>Click + Create Campaign, enter a Brand Name and Campaign Name, then use Auto to generate the Campaign ID</li>
+                  <li>Set a Start Date and End Date, these drive the automatic status changes above</li>
+                  <li>Optionally set a Target Responses number, the campaign closes automatically once it&apos;s reached</li>
+                  <li>Choose the Survey and enter the Publisher</li>
+                  <li>Save as Draft, then Go Live Now or Publish when it&apos;s ready</li>
+                </ul>
+              </div>
+              <div>
+                <p className="font-semibold text-gray-700 mb-1">Deleting a campaign</p>
+                <p>Campaigns can only be deleted while they&apos;re Draft or Scheduled and have zero responses. Once a campaign has any responses it can never be hard deleted, archive it instead. This keeps reporting and historical records intact.</p>
+              </div>
+              <a href="/fanometrix-guide" target="_blank" rel="noopener noreferrer"
+                className="text-xs font-semibold inline-flex items-center gap-1" style={{ color: "#0B1929" }}>
+                Read the full Fanometrix Guide
+                <span className="text-[10px] opacity-60">↗</span>
+              </a>
+            </div>
+          </details>
         </div>
 
         {/* Search + Filters */}
@@ -810,7 +879,7 @@ export default function CampaignsPage() {
             className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A] text-gray-600">
             <option value="all">All Publishers</option>
             {publisherOptions.map(p => (
-              <option key={p} value={p}>{p}</option>
+              <option key={p.id} value={p.id}>{p.name}</option>
             ))}
           </select>
 
@@ -818,7 +887,7 @@ export default function CampaignsPage() {
             className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A] text-gray-600">
             <option value="all">All Brands</option>
             {brandOptions.map(b => (
-              <option key={b} value={b}>{b}</option>
+              <option key={b.id} value={b.id}>{b.name}</option>
             ))}
           </select>
 
@@ -951,7 +1020,7 @@ export default function CampaignsPage() {
                   <>
                     <div className="flex items-start justify-between gap-3 mb-1">
                       <div>
-                        <p className="font-semibold text-gray-400 line-through">{c.brand_name} · {c.campaign_name}</p>
+                        <p className="font-semibold text-gray-400 line-through">{orgName(c.brand_org_id)} · {c.campaign_name}</p>
                         <p className="text-xs font-mono text-gray-300 mt-0.5">{c.campaign_id}</p>
                         <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1.5 text-xs text-gray-400">
                           {c.deleted_by && <span>Deleted by: <span className="font-medium text-gray-500">{c.deleted_by}</span></span>}
@@ -981,7 +1050,7 @@ export default function CampaignsPage() {
                         <div className="flex items-start justify-between gap-3 mb-0.5">
                           <div className="min-w-0 flex-1">
                             <p className="font-semibold text-gray-900 group-hover:text-[#0B1929] truncate">
-                              {c.brand_name} · {c.campaign_name}
+                              {orgName(c.brand_org_id)} · {c.campaign_name}
                             </p>
                             {c.campaign_description ? (
                               <p className="text-xs text-gray-400 mt-0.5 truncate">{c.campaign_description}</p>
@@ -999,8 +1068,8 @@ export default function CampaignsPage() {
                               Survey: {c.surveys.name}
                             </span>
                           )}
-                          {c.publisher && (
-                            <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">{c.publisher}</span>
+                          {orgName(c.publisher_org_id) && (
+                            <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">{orgName(c.publisher_org_id)}</span>
                           )}
                         </div>
 
@@ -1097,8 +1166,17 @@ export default function CampaignsPage() {
                   <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Name Builder</p>
                   <div className="grid grid-cols-2 gap-3">
                     <Field label="Brand *">
-                      <input value={editing.brand_name ?? ""} onChange={e => setEditing(x => ({ ...x, brand_name: e.target.value }))}
-                        className={INP} placeholder="Carlsberg" />
+                      <select
+                        value={editing.brand_org_id ?? ""}
+                        onChange={e => setEditing(x => ({ ...x, brand_org_id: e.target.value || null }))}
+                        className={INP}
+                      >
+                        <option value="">— Select brand —</option>
+                        {brandOrgs.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
+                      </select>
+                      <p className="text-xs text-gray-400 mt-1">
+                        Not listed? Add it in <Link href="/organisations" className="underline hover:text-[#0B1929]">Organisations</Link> first.
+                      </p>
                     </Field>
                     <Field label="Research Theme *">
                       <input value={editing.research_theme ?? ""} onChange={e => setEditing(x => ({ ...x, research_theme: e.target.value }))}
@@ -1121,10 +1199,10 @@ export default function CampaignsPage() {
                     </div>
                   </div>
                   {/* Live preview */}
-                  {(editing.brand_name || editing.research_theme) && (() => {
+                  {(editing.brand_org_id || editing.research_theme) && (() => {
                     const preview = generateCampaignName(
-                      editing.brand_name ?? "", editing.research_theme ?? "",
-                      editing.country_code ?? "", editing.publisher ?? "", editing.year ?? ""
+                      orgName(editing.brand_org_id ?? null), editing.research_theme ?? "",
+                      editing.country_code ?? "", orgName(editing.publisher_org_id ?? null), editing.year ?? ""
                     );
                     return preview ? (
                       <p className="text-xs text-gray-500 bg-white border border-gray-200 rounded-lg px-3 py-2 font-mono">
@@ -1169,14 +1247,29 @@ export default function CampaignsPage() {
               <DrawerSection step={2} title="Market Targeting" subtitle="Publisher, country and language for this specific deployment — always stored independently." prominent>
                 <Field label="Publisher">
                   <select
-                    value={editing.publisher ?? ""}
-                    onChange={e => setEditing(x => ({ ...x, publisher: e.target.value || null }))}
-                    className={INP}
+                    value={editing.publisher_org_id ?? ""}
+                    onChange={e => setEditing(x => ({ ...x, publisher_org_id: e.target.value || null }))}
+                    disabled={user?.role === "publisher"}
+                    className={`${INP} ${user?.role === "publisher" ? "bg-gray-50 text-gray-500" : ""}`}
                   >
                     <option value="">— Select publisher —</option>
-                    {publishers.map(p => (
-                      <option key={p} value={p}>{p}</option>
+                    {publisherOrgs.map(o => (
+                      <option key={o.id} value={o.id}>{o.name}</option>
                     ))}
+                  </select>
+                  {user?.role === "publisher" && (
+                    <p className="text-xs text-gray-400 mt-1">Locked to your organisation.</p>
+                  )}
+                </Field>
+
+                <Field label="Agency">
+                  <select
+                    value={editing.agency_org_id ?? ""}
+                    onChange={e => setEditing(x => ({ ...x, agency_org_id: e.target.value || null }))}
+                    className={INP}
+                  >
+                    <option value="">— None —</option>
+                    {agencyOrgs.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
                   </select>
                 </Field>
 

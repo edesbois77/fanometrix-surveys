@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
-import { requireSession } from "@/lib/auth";
+import { requireUser } from "@/lib/auth-server";
+import { canAccess } from "@/lib/access";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  let session;
   try {
-    await requireSession(req, ["admin"]);
+    session = await requireUser(req, ["admin", "publisher"]);
   } catch (err) {
     return err as Response;
   }
@@ -18,6 +20,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   if (error || !group) return NextResponse.json({ error: error?.message ?? "Not found" }, { status: 404 });
 
+  if (session.role !== "admin" && !(await canAccess(session, "campaign_group", group.id))) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   return NextResponse.json({
     data: {
       ...group,
@@ -27,13 +33,19 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 }
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  let session;
   try {
-    await requireSession(req, ["admin"]);
+    session = await requireUser(req, ["admin", "publisher"]);
   } catch (err) {
     return err as Response;
   }
 
   const { id } = await params;
+
+  if (session.role !== "admin" && !(await canAccess(session, "campaign_group", id))) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   const body = await req.json();
   const { campaign_ids, member_count: _mc, total_responses: _tr, ...groupFields } = body as {
     campaign_ids?: string[];
@@ -41,6 +53,12 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     total_responses?: number;
     [k: string]: unknown;
   };
+
+  // A publisher can never move a group to a different publisher, even
+  // their own edit requests get this pinned server-side.
+  if (session.role === "publisher") {
+    groupFields.publisher_org_id = session.organisationId;
+  }
 
   const { data: group, error } = await supabaseAdmin
     .from("campaign_groups")
@@ -70,7 +88,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await requireSession(req, ["admin"]);
+    await requireUser(req, ["admin"]);
   } catch (err) {
     return err as Response;
   }

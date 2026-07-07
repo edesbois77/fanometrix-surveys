@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import Papa from "papaparse";
 import { AdminShell } from "@/app/components/AdminShell";
+import { DrawerSection } from "@/app/components/DrawerSection";
 import { validateSurvey, SURVEY_LIMITS } from "@/lib/survey-validation";
 import {
   SUPPORTED_LANGUAGES, resolveQuestion, resolveText, findLanguageMatches, getCompletedLanguages,
@@ -13,6 +14,15 @@ import { generateSurveyName } from "@/lib/naming";
 // ─── MPU colours ─────────────────────────────────────────────────────────────
 const NAVY = "#071B2F";
 const GOLD = "#D7B87A";
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block mb-1.5">{label}</label>
+      {children}
+    </div>
+  );
+}
 
 // ─── MPU content limits (from shared lib/survey-validation.ts) ───────────────
 const { MAX_QUESTIONS, MAX_OPTIONS, MAX_Q_CHARS, MAX_OPT_CHARS, MAX_TY_TITLE, MAX_TY_BODY } = SURVEY_LIMITS;
@@ -959,7 +969,7 @@ export default function SurveysPage() {
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <AdminShell>
-      <div className="p-4 md:p-6 max-w-5xl mx-auto">
+      <div className="p-4 md:p-6 max-w-6xl mx-auto">
 
         {/* ── Page header ── */}
         <div className="mb-5">
@@ -990,14 +1000,53 @@ export default function SurveysPage() {
               </button>
             </div>
           </div>
-          {/* Info card — compact, full-width, replaces the inline paragraph */}
-          <div className="bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 flex gap-2.5 items-start">
-            <span className="text-gray-400 flex-shrink-0 text-sm mt-0.5">ℹ</span>
-            <p className="text-sm text-gray-500 leading-relaxed">
-              Reusable questionnaires containing questions and a thank-you screen shown inside the
-              300×250 MPU. Surveys must be attached to a campaign before going live.
-            </p>
-          </div>
+          <details className="group bg-gray-50 w-full">
+            <summary className="cursor-pointer select-none list-none py-3">
+              <p className="text-sm text-gray-500 leading-relaxed">
+                Reusable questionnaires containing questions and a thank-you screen shown inside the
+                300×250 MPU. Surveys must be attached to a campaign before going live.{" "}
+                <span className="font-semibold inline-flex items-center gap-1" style={{ color: GOLD }}>
+                  Expand to find out more
+                  <span className="inline-block transition-transform group-open:rotate-90">›</span>
+                </span>
+              </p>
+            </summary>
+            <div className="pb-4 pt-3 mt-1 border-t border-gray-200 text-sm text-gray-600 leading-relaxed space-y-4">
+              <div>
+                <p className="font-semibold text-gray-700 mb-1">Survey statuses</p>
+                <ul className="list-disc pl-5 space-y-1">
+                  <li><strong>Draft</strong>: still being written, cannot be attached to a campaign yet</li>
+                  <li><strong>Ready</strong>: complete and approved, can be attached to any campaign</li>
+                  <li><strong>Archived</strong>: hidden from the default view but still searchable and reusable</li>
+                  <li><strong>Deleted</strong>: soft deleted, not visible by default, can still be restored by an admin</li>
+                </ul>
+                <p className="mt-1 text-gray-500">A survey is never Live itself, campaigns control serving. The same survey can be used in a Live campaign, a Paused campaign, and a Closed campaign at the same time.</p>
+              </div>
+              <div>
+                <p className="font-semibold text-gray-700 mb-1">Creating a survey</p>
+                <ul className="list-disc pl-5 space-y-1">
+                  <li>Click + Create Survey, give it a name and optional description, and leave the status as Draft</li>
+                  <li>Add up to {MAX_QUESTIONS} questions, each with up to {MAX_OPTIONS} answer options</li>
+                  <li>Customise the Thank You screen shown to fans after they finish</li>
+                  <li>Use Preview to see how it looks in the 300×250 ad unit, previewing never records a response</li>
+                  <li>Once approved, change the status to Ready so it can be attached to campaigns</li>
+                </ul>
+              </div>
+              <div>
+                <p className="font-semibold text-gray-700 mb-1">Content limits</p>
+                <p>Questions and answers are capped so everything fits inside the 300×250 ad unit: {MAX_QUESTIONS} questions max, {MAX_OPTIONS} answers per question, {MAX_Q_CHARS} characters per question, {MAX_OPT_CHARS} characters per answer, {MAX_TY_TITLE} characters for the thank you title, and {MAX_TY_BODY} characters for the thank you message.</p>
+              </div>
+              <div>
+                <p className="font-semibold text-gray-700 mb-1">Deleting a survey</p>
+                <p>A survey can only be deleted once it has zero responses and isn&apos;t linked to any campaigns. If either is still true, the Delete button stays disabled, archive it instead. Archived surveys stay searchable and can be restored later.</p>
+              </div>
+              <a href="/fanometrix-guide" target="_blank" rel="noopener noreferrer"
+                className="text-xs font-semibold inline-flex items-center gap-1" style={{ color: "#0B1929" }}>
+                Read the full Fanometrix Guide
+                <span className="text-[10px] opacity-60">↗</span>
+              </a>
+            </div>
+          </details>
         </div>
 
         {/* ── Search + Filters ── */}
@@ -1338,100 +1387,109 @@ export default function SurveysPage() {
               <button onClick={() => setDrawerOpen(false)} className="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-6 space-y-5">
+            <div className="flex-1 overflow-y-auto p-6 space-y-4">
 
               {/* Info banner for archived surveys */}
               {editingOriginalStatus === "archived" && (
                 <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
                   <p className="text-xs font-semibold text-amber-800">Editing an archived survey</p>
-                  <p className="text-xs text-amber-700 mt-0.5">Content changes will be saved. The survey will remain archived — use Restore to make it active again.</p>
+                  <p className="text-xs text-amber-700 mt-0.5">Content changes will be saved. The survey will remain archived, use Restore to make it active again.</p>
                 </div>
               )}
 
-              {/* ── Name Builder ── */}
-              <div className="bg-gray-50 border border-gray-100 rounded-xl p-4 space-y-3">
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Name Builder</p>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-xs font-semibold text-gray-600 block mb-1">Brand</label>
-                    <input value={fields.brand_name}
-                      onChange={e => setFields(f => ({ ...f, brand_name: e.target.value }))}
-                      className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-[#D7B87A]"
-                      placeholder="Carlsberg" />
+              <DrawerSection step={1} title="Survey Identity" subtitle="Name, description, and status for this survey.">
+                <div className="bg-gray-50 border border-gray-100 rounded-xl p-4 space-y-3">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Name Builder</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Field label="Brand">
+                      <input value={fields.brand_name}
+                        onChange={e => setFields(f => ({ ...f, brand_name: e.target.value }))}
+                        className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-[#D7B87A]"
+                        placeholder="Carlsberg" />
+                    </Field>
+                    <Field label="Research Theme">
+                      <input value={fields.research_theme}
+                        onChange={e => setFields(f => ({ ...f, research_theme: e.target.value }))}
+                        className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-[#D7B87A]"
+                        placeholder="Fan Understanding" />
+                    </Field>
                   </div>
-                  <div>
-                    <label className="text-xs font-semibold text-gray-600 block mb-1">Research Theme</label>
-                    <input value={fields.research_theme}
-                      onChange={e => setFields(f => ({ ...f, research_theme: e.target.value }))}
-                      className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-[#D7B87A]"
-                      placeholder="Fan Understanding" />
+                  <div className="grid grid-cols-2 gap-3">
+                    <Field label="Version">
+                      <input type="number" min={1} max={99}
+                        value={fields.version_number}
+                        onChange={e => setFields(f => ({ ...f, version_number: Math.max(1, parseInt(e.target.value) || 1) }))}
+                        className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-[#D7B87A]" />
+                    </Field>
+                    <div className="flex items-end">
+                      <button type="button"
+                        onClick={() => {
+                          const n = generateSurveyName(fields.brand_name, fields.research_theme, fields.version_number);
+                          if (n) setFields(f => ({ ...f, name: n }));
+                        }}
+                        className="w-full text-xs font-semibold px-3 py-2 rounded-lg border-2 border-[#D7B87A] text-[#0B1929] hover:bg-[#FBF5E8] transition-colors">
+                        Auto Generate Name
+                      </button>
+                    </div>
                   </div>
+                  {/* Live preview */}
+                  {(fields.brand_name || fields.research_theme) && (() => {
+                    const preview = generateSurveyName(fields.brand_name, fields.research_theme, fields.version_number);
+                    return preview ? (
+                      <p className="text-xs text-gray-500 bg-white border border-gray-200 rounded-lg px-3 py-2 font-mono">
+                        {preview}
+                      </p>
+                    ) : null;
+                  })()}
                 </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-xs font-semibold text-gray-600 block mb-1">Version</label>
-                    <input type="number" min={1} max={99}
-                      value={fields.version_number}
-                      onChange={e => setFields(f => ({ ...f, version_number: Math.max(1, parseInt(e.target.value) || 1) }))}
-                      className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-[#D7B87A]" />
-                  </div>
-                  <div className="flex items-end">
-                    <button type="button"
-                      onClick={() => {
-                        const n = generateSurveyName(fields.brand_name, fields.research_theme, fields.version_number);
-                        if (n) setFields(f => ({ ...f, name: n }));
-                      }}
-                      className="w-full text-xs font-semibold px-3 py-2 rounded-lg border-2 border-[#D7B87A] text-[#0B1929] hover:bg-[#FBF5E8] transition-colors">
-                      Auto Generate Name
-                    </button>
-                  </div>
-                </div>
-                {/* Live preview */}
-                {(fields.brand_name || fields.research_theme) && (() => {
-                  const preview = generateSurveyName(fields.brand_name, fields.research_theme, fields.version_number);
-                  return preview ? (
-                    <p className="text-xs text-gray-500 bg-white border border-gray-200 rounded-lg px-3 py-2 font-mono">
-                      {preview}
-                    </p>
-                  ) : null;
-                })()}
-              </div>
 
-              <div>
-                <label className="text-xs font-semibold text-gray-600 block mb-1">Survey Name *</label>
-                <input
-                  value={fields.name}
-                  onChange={e => setFields(f => ({ ...f, name: e.target.value }))}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A]"
-                  placeholder="e.g. Carlsberg - Fan Understanding - v1"
-                />
-              </div>
+                <Field label="Survey Name *">
+                  <input
+                    value={fields.name}
+                    onChange={e => setFields(f => ({ ...f, name: e.target.value }))}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A]"
+                    placeholder="e.g. Carlsberg - Fan Understanding - v1"
+                  />
+                </Field>
 
-              <div>
-                <label className="text-xs font-semibold text-gray-600 block mb-1">Description</label>
-                <input
-                  value={fields.description ?? ""}
-                  onChange={e => setFields(f => ({ ...f, description: e.target.value || null }))}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A]"
-                  placeholder="Optional description"
-                />
-              </div>
+                <Field label="Description">
+                  <input
+                    value={fields.description ?? ""}
+                    onChange={e => setFields(f => ({ ...f, description: e.target.value || null }))}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A]"
+                    placeholder="Optional description"
+                  />
+                </Field>
 
-              {/* Status select — hidden when editing an archived survey (status is preserved automatically) */}
-              {editingOriginalStatus !== "archived" && (
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-xs font-semibold text-gray-600 block mb-1">Status</label>
-                    <select
-                      value={fields.status}
-                      onChange={e => setFields(f => ({ ...f, status: e.target.value as "draft" | "ready" }))}
-                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A]"
-                    >
-                      <option value="draft">Draft — still being edited</option>
-                      <option value="ready">Ready — can be attached to campaigns</option>
-                    </select>
+                {/* Status select, hidden when editing an archived survey (status is preserved automatically) */}
+                {editingOriginalStatus !== "archived" && (
+                  <div className="grid grid-cols-2 gap-3">
+                    <Field label="Status">
+                      <select
+                        value={fields.status}
+                        onChange={e => setFields(f => ({ ...f, status: e.target.value as "draft" | "ready" }))}
+                        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A]"
+                      >
+                        <option value="draft">Draft, still being edited</option>
+                        <option value="ready">Ready, can be attached to campaigns</option>
+                      </select>
+                    </Field>
+                    <div className="flex items-end pb-2">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={fields.is_template}
+                          onChange={e => setFields(f => ({ ...f, is_template: e.target.checked }))}
+                          className="accent-[#D7B87A] w-4 h-4"
+                        />
+                        <span className="text-sm text-gray-700">Mark as template</span>
+                      </label>
+                    </div>
                   </div>
-                  <div className="flex items-end pb-2">
+                )}
+
+                {editingOriginalStatus === "archived" && (
+                  <div className="flex items-center pb-1">
                     <label className="flex items-center gap-2 cursor-pointer">
                       <input
                         type="checkbox"
@@ -1442,28 +1500,18 @@ export default function SurveysPage() {
                       <span className="text-sm text-gray-700">Mark as template</span>
                     </label>
                   </div>
-                </div>
-              )}
+                )}
+              </DrawerSection>
 
-              {editingOriginalStatus === "archived" && (
-                <div className="flex items-center pb-1">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={fields.is_template}
-                      onChange={e => setFields(f => ({ ...f, is_template: e.target.checked }))}
-                      className="accent-[#D7B87A] w-4 h-4"
-                    />
-                    <span className="text-sm text-gray-700">Mark as template</span>
-                  </label>
-                </div>
-              )}
-
-              {/* Questions */}
-              <div>
+              <DrawerSection
+                step={2}
+                title="Questions"
+                subtitle={`Up to ${MAX_QUESTIONS} questions, ${MAX_OPTIONS} answers each. English is required, translations are optional.`}
+                prominent
+              >
                 <div className="flex items-center justify-between mb-1">
                   <label className="text-xs font-semibold text-gray-600">
-                    Questions ({fields.questions.length}/{MAX_QUESTIONS})
+                    {fields.questions.length} of {MAX_QUESTIONS} added
                   </label>
                   <button
                     onClick={addQuestion}
@@ -1473,10 +1521,6 @@ export default function SurveysPage() {
                     + Add question
                   </button>
                 </div>
-                <p className="text-xs text-gray-400 mb-3">
-                  Maximum {MAX_QUESTIONS} questions · {MAX_OPTIONS} answers each.
-                  English is required. Translations are optional — the embed falls back to English if a translation is blank.
-                </p>
 
                 {/* Language selector tabs */}
                 <div className="flex gap-1 mb-2 flex-wrap items-center">
@@ -1535,13 +1579,13 @@ export default function SurveysPage() {
                         {translating ? "Translating…" : "✦ Translate from English"}
                       </button>
                     ) : (
-                      <span className="ml-auto text-xs text-gray-400">Automatic translation isn't available for this language yet.</span>
+                      <span className="ml-auto text-xs text-gray-400">Automatic translation isn&apos;t available for this language yet.</span>
                     );
                   })()}
                 </div>
                 {editorLang !== "en" && !translating && (
                   <p className="text-xs text-gray-400 mb-3">
-                    Optional — leave blank to show English as fallback. Click "Translate from English" to auto-fill.
+                    Optional, leave blank to show English as fallback. Click &quot;Translate from English&quot; to auto-fill.
                   </p>
                 )}
 
@@ -1622,12 +1666,10 @@ export default function SurveysPage() {
                     );
                   })}
                 </div>
-              </div>
+              </DrawerSection>
 
-              {/* Thank you screen */}
-              <div className="border border-gray-100 rounded-xl p-4 space-y-3 bg-gray-50">
-                <div className="flex items-center justify-between">
-                  <p className="text-xs font-semibold text-gray-600">Thank You Screen</p>
+              <DrawerSection step={3} title="Thank You Screen" subtitle="Shown to fans after they finish the survey.">
+                <div className="flex items-center justify-end">
                   <p className="text-xs text-gray-400">
                     Editing: {SUPPORTED_LANGUAGES.find(l => l.code === editorLang)?.label ?? editorLang}
                   </p>
@@ -1666,10 +1708,10 @@ export default function SurveysPage() {
                 </div>
                 {editorLang !== "en" && (
                   <p className="text-xs text-gray-400">
-                    Optional — leave blank to show English as fallback.
+                    Optional, leave blank to show English as fallback.
                   </p>
                 )}
-              </div>
+              </DrawerSection>
 
               {formError && <p className="text-red-500 text-xs">{formError}</p>}
             </div>
@@ -1679,10 +1721,8 @@ export default function SurveysPage() {
               <button
                 onClick={handleSave}
                 disabled={saving}
-                className="text-sm font-semibold px-5 py-2 rounded-lg disabled:opacity-60"
+                className="text-sm font-semibold px-5 py-2 rounded-lg disabled:opacity-60 hover:opacity-90 transition-opacity"
                 style={{ background: GOLD, color: "#0B1929" }}
-                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#C9A766"; }}
-                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = GOLD; }}
               >
                 {saving ? "Saving…" : "Save Survey"}
               </button>

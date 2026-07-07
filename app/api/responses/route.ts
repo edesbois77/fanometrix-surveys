@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
-import { requireSession } from "@/lib/auth";
+import { supabaseAdmin } from "@/lib/supabase-admin";
+import { requireUser } from "@/lib/auth-server";
+import { visibleResourceIds } from "@/lib/access";
 
 export async function GET(req: NextRequest) {
   let session;
   try {
-    session = await requireSession(req);
+    session = await requireUser(req);
   } catch (err) {
     return err as Response;
   }
@@ -20,15 +22,19 @@ export async function GET(req: NextRequest) {
   // Apply URL filter first (stacks with role filter below)
   if (campaignId) query = query.eq("campaign_id", campaignId);
 
-  // Role-based data filtering
-  if (session.role === "brand" || session.role === "agency") {
-    const ids = session.allowedCampaignIds;
-    if (ids.length === 0) return NextResponse.json({ data: [] });
-    query = query.in("campaign_id", ids);
-  } else if (session.role === "publisher") {
-    const ids = session.allowedPublisherIds;
-    if (ids.length === 0) return NextResponse.json({ data: [] });
-    query = query.in("publisher", ids);
+  // responses.campaign_id is the human-readable text id (matching
+  // campaigns.campaign_id), not the campaigns.id uuid, so resolve this
+  // user's visible campaigns (unified across publisher/brand/agency
+  // org-wide and Selected Access) down to that text id.
+  if (session.role !== "admin") {
+    const uuids = await visibleResourceIds(session, "campaign");
+    if (uuids !== null) {
+      if (uuids.length === 0) return NextResponse.json({ data: [] });
+      const { data: rows } = await supabaseAdmin.from("campaigns").select("campaign_id").in("id", uuids);
+      const ids = (rows ?? []).map(r => r.campaign_id as string);
+      if (ids.length === 0) return NextResponse.json({ data: [] });
+      query = query.in("campaign_id", ids);
+    }
   }
 
   const { data, error } = await query;

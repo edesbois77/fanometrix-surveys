@@ -24,7 +24,8 @@ type ResearchProject = {
   id: string;
   project_id: string;
   project_name: string;
-  brand_name: string | null;
+  brand_org_id: string | null;
+  agency_org_id: string | null;
   study_type: string;
   topic: string | null;
   tags: string[];
@@ -37,7 +38,7 @@ type ResearchProject = {
   archive_after_days: number | null;
   creative_design: string | null;
   status: string;
-  publishers: string[];
+  publisher_org_ids: string[];
   country_codes: string[];
   deleted_at: string | null;
   deleted_by: string | null;
@@ -62,7 +63,7 @@ type Deployment = {
   id: string;
   campaign_id: string;
   campaign_name: string;
-  publisher: string | null;
+  publisher_org_id: string | null;
   country_code: string | null;
   market: string | null;
   status: string;
@@ -82,11 +83,11 @@ type GenerateResult = {
 const PAGE_SIZE = 25;
 
 const BLANK: Partial<ResearchProject> = {
-  project_id: "", project_name: "", brand_name: "", study_type: "fan_understanding",
+  project_id: "", project_name: "", brand_org_id: null, agency_org_id: null, study_type: "fan_understanding",
   topic: "", tags: [], description: "", year: String(new Date().getFullYear()),
   start_date: null, end_date: null, survey_id: null,
   target_responses: null, archive_after_days: null, creative_design: null, status: "draft",
-  publishers: [], country_codes: [],
+  publisher_org_ids: [], country_codes: [],
 };
 
 function StatusBadge({ status }: { status: CampaignStatus }) {
@@ -135,7 +136,7 @@ function deploymentLanguageWarning(d: Deployment, surveys: Survey[]): string | n
 }
 
 // ─── Read-only deployments list (expand panel) ─────────────────────────────────
-function DeploymentsList({ project, surveys, refreshToken }: { project: ResearchProject; surveys: Survey[]; refreshToken: number }) {
+function DeploymentsList({ project, surveys, refreshToken, orgName }: { project: ResearchProject; surveys: Survey[]; refreshToken: number; orgName: (id: string | null) => string }) {
   const [deployments, setDeployments] = useState<Deployment[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
@@ -170,7 +171,7 @@ function DeploymentsList({ project, surveys, refreshToken }: { project: Research
                   <p className="text-xs font-mono text-gray-400">{d.campaign_id}</p>
                   <div className="flex flex-wrap gap-1.5 mt-1">
                     {d.country_code && <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">{d.country_code}</span>}
-                    {d.publisher && <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">{d.publisher}</span>}
+                    {orgName(d.publisher_org_id) && <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">{orgName(d.publisher_org_id)}</span>}
                   </div>
                   {languageWarning && (
                     <p className="text-xs text-amber-600 mt-1" title="Add the missing translation to the survey in Surveys, or override this deployment's survey in Campaigns.">
@@ -213,7 +214,7 @@ export default function ResearchProjectsPage() {
 
   const [projects, setProjects] = useState<ResearchProject[]>([]);
   const [surveys, setSurveys] = useState<Survey[]>([]);
-  const [publisherOptions, setPublisherOptions] = useState<{ value: string; label: string }[]>([]);
+  const [orgs, setOrgs] = useState<{ id: string; name: string; type: "publisher" | "agency" | "brand" | "internal" }[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [statusFilter,    setStatusFilter]    = useState<"all" | CampaignStatus>("all");
@@ -242,21 +243,24 @@ export default function ResearchProjectsPage() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const [projRes, surRes, pubRes] = await Promise.all([
+    const [projRes, surRes, orgRes] = await Promise.all([
       fetch("/api/research-projects"),
       fetch("/api/surveys"),
-      isAdmin ? fetch("/api/publishers") : Promise.resolve(null),
+      fetch("/api/organisations"),
     ]);
     setProjects((await projRes.json()).data ?? []);
     setSurveys((await surRes.json()).data ?? []);
-    if (pubRes) {
-      const pubData = (await pubRes.json()).data ?? [];
-      setPublisherOptions(pubData.map((p: { name: string }) => ({ value: p.name, label: p.name })));
-    }
+    setOrgs((await orgRes.json()).data ?? []);
     setLoading(false);
-  }, [isAdmin]);
+  }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  const orgPublishers = useMemo(() => orgs.filter(o => o.type === "publisher"), [orgs]);
+  const orgBrands      = useMemo(() => orgs.filter(o => o.type === "brand"), [orgs]);
+  const orgAgencies      = useMemo(() => orgs.filter(o => o.type === "agency"), [orgs]);
+  const orgById = useMemo(() => new Map(orgs.map(o => [o.id, o])), [orgs]);
+  const orgName = useCallback((id: string | null) => (id ? orgById.get(id)?.name ?? "" : ""), [orgById]);
 
   const existingTags = useMemo(() => {
     const set = new Set<string>();
@@ -291,12 +295,16 @@ export default function ResearchProjectsPage() {
   }, [projects]);
 
   const publisherFilterOptions = useMemo(() =>
-    Array.from(new Set(projects.flatMap(p => p.publishers ?? []))).sort((a, b) => a.localeCompare(b)),
-    [projects]);
+    Array.from(new Set(projects.flatMap(p => p.publisher_org_ids ?? [])))
+      .map(id => ({ id, name: orgName(id) }))
+      .sort((a, b) => a.name.localeCompare(b.name)),
+    [projects, orgName]);
 
   const brandFilterOptions = useMemo(() =>
-    Array.from(new Set(projects.map(p => p.brand_name).filter((b): b is string => !!b))).sort((a, b) => a.localeCompare(b)),
-    [projects]);
+    Array.from(new Set(projects.map(p => p.brand_org_id).filter((b): b is string => !!b)))
+      .map(id => ({ id, name: orgName(id) }))
+      .sort((a, b) => a.name.localeCompare(b.name)),
+    [projects, orgName]);
 
   // Surveys selectable as a project's inherited survey — same readiness gate as the Campaigns drawer.
   // Most recently created first, so the newest survey is always easiest to find.
@@ -332,10 +340,10 @@ export default function ResearchProjectsPage() {
   );
 
   const editingCanGenerate =
-    (editing.publishers?.length ?? 0) > 0 && (editing.country_codes?.length ?? 0) > 0 &&
+    (editing.publisher_org_ids?.length ?? 0) > 0 && (editing.country_codes?.length ?? 0) > 0 &&
     !!editing.survey_id && editingMismatches.length === 0;
   const editingBlockedReasons = [
-    (editing.publishers?.length ?? 0) === 0 && "add publishers",
+    (editing.publisher_org_ids?.length ?? 0) === 0 && "add publishers",
     (editing.country_codes?.length ?? 0) === 0 && "add countries",
     !editing.survey_id && "select a survey",
     editing.survey_id && editingMismatches.length > 0 &&
@@ -368,14 +376,14 @@ export default function ResearchProjectsPage() {
     }
 
     if (countryFilter !== "all")   list = list.filter(p => (p.country_codes ?? []).includes(countryFilter));
-    if (publisherFilter !== "all") list = list.filter(p => (p.publishers ?? []).includes(publisherFilter));
-    if (brandFilter !== "all")     list = list.filter(p => p.brand_name === brandFilter);
+    if (publisherFilter !== "all") list = list.filter(p => (p.publisher_org_ids ?? []).includes(publisherFilter));
+    if (brandFilter !== "all")     list = list.filter(p => p.brand_org_id === brandFilter);
 
     if (search.trim()) {
       const q = search.toLowerCase();
       list = list.filter(p =>
         p.project_name.toLowerCase().includes(q) ||
-        (p.brand_name ?? "").toLowerCase().includes(q) ||
+        orgName(p.brand_org_id).toLowerCase().includes(q) ||
         (p.topic ?? "").toLowerCase().includes(q) ||
         studyTypeLabel(p.study_type).toLowerCase().includes(q)
       );
@@ -387,11 +395,15 @@ export default function ResearchProjectsPage() {
       case "az":     return [...list].sort((a, b) => a.project_name.localeCompare(b.project_name));
       default:       return list;
     }
-  }, [projects, search, statusFilter, usageFilter, dateFilter, countryFilter, publisherFilter, brandFilter, sortBy]);
+  }, [projects, search, statusFilter, usageFilter, dateFilter, countryFilter, publisherFilter, brandFilter, sortBy, orgName]);
 
   // ── Drawer helpers ─────────────────────────────────────────────────────────
   function openCreate() {
-    setEditing({ ...BLANK });
+    const isPublisher = user?.role === "publisher";
+    setEditing({
+      ...BLANK,
+      publisher_org_ids: isPublisher && user?.organisationId ? [user.organisationId] : [],
+    });
     setError("");
     setDrawerOpen(true);
   }
@@ -408,7 +420,7 @@ export default function ResearchProjectsPage() {
   // Auto-update name + slug from Brand/Topic/Study Type/Year while the drawer is open.
   useEffect(() => {
     if (!drawerOpen) return;
-    const brandOrTopic = editing.brand_name || editing.topic || "";
+    const brandOrTopic = orgName(editing.brand_org_id ?? null) || editing.topic || "";
     const label = studyTypeLabel(editing.study_type ?? "");
     const name = generateProjectName(brandOrTopic, label, editing.year ?? "");
     const slug = generateProjectSlug(brandOrTopic, label, editing.year ?? "");
@@ -420,11 +432,11 @@ export default function ResearchProjectsPage() {
       }));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editing.brand_name, editing.topic, editing.study_type, editing.year, drawerOpen]);
+  }, [editing.brand_org_id, editing.topic, editing.study_type, editing.year, drawerOpen, orgName]);
 
   function autoId() {
     setEditing(e => {
-      const brandOrTopic = e.brand_name || e.topic || "";
+      const brandOrTopic = orgName(e.brand_org_id ?? null) || e.topic || "";
       const label = studyTypeLabel(e.study_type ?? "");
       const name = generateProjectName(brandOrTopic, label, e.year ?? "");
       const slug = generateProjectSlug(brandOrTopic, label, e.year ?? "");
@@ -531,12 +543,50 @@ export default function ResearchProjectsPage() {
               </button>
             )}
           </div>
-          <div className="bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 flex gap-2.5 items-start">
-            <span className="text-gray-400 flex-shrink-0 text-sm mt-0.5">ℹ</span>
-            <p className="text-sm text-gray-500 leading-relaxed">
-              Select the publishers and countries for a study, then click <strong>Generate Deployments</strong> to create every publisher × country campaign automatically — instead of creating each one by hand.
-            </p>
-          </div>
+          <details className="group bg-gray-50 w-full">
+            <summary className="cursor-pointer select-none list-none py-3">
+              <p className="text-sm text-gray-500 leading-relaxed">
+                Select the publishers and countries for a study, then click <strong>Generate Deployments</strong> to create every publisher × country campaign automatically, instead of creating each one by hand.{" "}
+                <span className="font-semibold inline-flex items-center gap-1" style={{ color: "#D7B87A" }}>
+                  Expand to find out more
+                  <span className="inline-block transition-transform group-open:rotate-90">›</span>
+                </span>
+              </p>
+            </summary>
+            <div className="pb-4 pt-3 mt-1 border-t border-gray-200 text-sm text-gray-600 leading-relaxed space-y-4">
+              <div>
+                <p className="font-semibold text-gray-700 mb-1">What a Research Project is</p>
+                <p>It&apos;s the easy way to set up a whole batch of campaigns at once instead of one at a time. Pick the publishers, countries, survey, dates, and target responses for a study, and a Research Project builds the full grid of campaigns for every publisher × country combination automatically.</p>
+              </div>
+              <div>
+                <p className="font-semibold text-gray-700 mb-1">Setting one up</p>
+                <ul className="list-disc pl-5 space-y-1">
+                  <li>Click + Create Research Project and fill in the brand/topic, theme, and year, the project name and ID generate automatically</li>
+                  <li>Choose the Publishers and Countries the study should run in</li>
+                  <li>Pick a Survey, and optionally set default dates and a target response count</li>
+                  <li>Click Generate Deployments to create a campaign for every publisher × country combination</li>
+                </ul>
+              </div>
+              <div>
+                <p className="font-semibold text-gray-700 mb-1">Edit vs. Generate Deployments</p>
+                <p><strong>Edit</strong> changes the project&apos;s own settings only, it never creates, deletes, or rewrites a campaign. <strong>Generate Deployments</strong> is the action that actually creates the campaigns, based on whichever publishers and countries are set at the time you click it.</p>
+                <p className="mt-1 text-gray-500">It&apos;s safe to click Generate Deployments again later: campaigns that already exist are left untouched, only newly added combinations are created. If you remove a publisher or country afterward, its campaign keeps running and needs to be archived or deleted by hand, it isn&apos;t removed automatically.</p>
+              </div>
+              <div>
+                <p className="font-semibold text-gray-700 mb-1">Defaults vs. overrides</p>
+                <p>Survey, dates, target responses, and tags set on the project act as defaults for every campaign generated from it. A campaign only follows the project&apos;s value while its own field is left blank, the moment someone sets that field directly on a campaign, it locks to that value and stops following the project.</p>
+              </div>
+              <div>
+                <p className="font-semibold text-gray-700 mb-1">Deleting a project</p>
+                <p>Deleting a Research Project never deletes its campaigns, they carry on running exactly as they were. If any campaigns are still active, you&apos;ll be asked to confirm before the project is deleted.</p>
+              </div>
+              <a href="/fanometrix-guide" target="_blank" rel="noopener noreferrer"
+                className="text-xs font-semibold inline-flex items-center gap-1" style={{ color: "#0B1929" }}>
+                Read the full Fanometrix Guide
+                <span className="text-[10px] opacity-60">↗</span>
+              </a>
+            </div>
+          </details>
         </div>
 
         <div className="mb-5 space-y-3">
@@ -592,7 +642,7 @@ export default function ResearchProjectsPage() {
               className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A] text-gray-600">
               <option value="all">All Publishers</option>
               {publisherFilterOptions.map(p => (
-                <option key={p} value={p}>{p}</option>
+                <option key={p.id} value={p.id}>{p.name}</option>
               ))}
             </select>
 
@@ -600,7 +650,7 @@ export default function ResearchProjectsPage() {
               className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A] text-gray-600">
               <option value="all">All Brands</option>
               {brandFilterOptions.map(b => (
-                <option key={b} value={b}>{b}</option>
+                <option key={b.id} value={b.id}>{b.name}</option>
               ))}
             </select>
 
@@ -626,11 +676,11 @@ export default function ResearchProjectsPage() {
         <div className="space-y-3">
           {displayed.map(p => {
             const expanded = expandedId === p.id;
-            const possibleCombos = p.publishers.length * p.country_codes.length;
+            const possibleCombos = p.publisher_org_ids.length * p.country_codes.length;
             const projectMismatches = missingLanguageCountries(p.survey_id, p.country_codes);
-            const canGenerate = p.publishers.length > 0 && p.country_codes.length > 0 && !!p.survey_id && projectMismatches.length === 0;
+            const canGenerate = p.publisher_org_ids.length > 0 && p.country_codes.length > 0 && !!p.survey_id && projectMismatches.length === 0;
             const generateBlockedReasons = [
-              p.publishers.length === 0 && "add publishers",
+              p.publisher_org_ids.length === 0 && "add publishers",
               p.country_codes.length === 0 && "add countries",
               !p.survey_id && "select a survey",
               p.survey_id && projectMismatches.length > 0 &&
@@ -669,7 +719,7 @@ export default function ResearchProjectsPage() {
                   </div>
 
                   <div className="flex flex-wrap gap-x-4 gap-y-1 mt-3">
-                    <Stat label="Publishers" value={p.publishers.length} />
+                    <Stat label="Publishers" value={p.publisher_org_ids.length} />
                     <Stat label="Countries" value={p.country_codes.length} />
                     <Stat label="Deployments" value={possibleCombos > 0 ? `${p.deployment_count} / ${possibleCombos}` : p.deployment_count} />
                     <Stat label="Responses" value={p.target_responses ? `${p.total_responses.toLocaleString()} / ${p.target_responses.toLocaleString()}` : p.total_responses.toLocaleString()} />
@@ -763,7 +813,7 @@ export default function ResearchProjectsPage() {
                 )}
 
                 {expanded && (
-                  <DeploymentsList project={p} surveys={surveys} refreshToken={refreshTokens[p.id] ?? 0} />
+                  <DeploymentsList project={p} surveys={surveys} refreshToken={refreshTokens[p.id] ?? 0} orgName={orgName} />
                 )}
               </div>
             );
@@ -798,8 +848,14 @@ export default function ResearchProjectsPage() {
                   <div className="px-3 pb-3 space-y-3">
                     <div className="grid grid-cols-2 gap-3">
                       <Field label="Brand (optional)">
-                        <input value={editing.brand_name ?? ""} onChange={e => setEditing(x => ({ ...x, brand_name: e.target.value }))}
-                          className={INP} placeholder="Carlsberg" />
+                        <select
+                          value={editing.brand_org_id ?? ""}
+                          onChange={e => setEditing(x => ({ ...x, brand_org_id: e.target.value || null }))}
+                          className={INP}
+                        >
+                          <option value="">— None —</option>
+                          {orgBrands.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
+                        </select>
                       </Field>
                       <Field label="Topic">
                         <input value={editing.topic ?? ""} onChange={e => setEditing(x => ({ ...x, topic: e.target.value }))}
@@ -821,6 +877,16 @@ export default function ResearchProjectsPage() {
                     <Field label="Project ID *">
                       <input value={editing.project_id ?? ""} onChange={e => setEditing(x => ({ ...x, project_id: e.target.value }))}
                         className={`${INP} font-mono`} placeholder="carlsberg_fan_understanding_2026" />
+                    </Field>
+                    <Field label="Agency (optional)">
+                      <select
+                        value={editing.agency_org_id ?? ""}
+                        onChange={e => setEditing(x => ({ ...x, agency_org_id: e.target.value || null }))}
+                        className={INP}
+                      >
+                        <option value="">— None —</option>
+                        {orgAgencies.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
+                      </select>
                     </Field>
                   </div>
                 </details>
@@ -875,12 +941,14 @@ export default function ResearchProjectsPage() {
               >
                 <Field label="Publishers">
                   <MultiSelect
-                    options={publisherOptions}
-                    selected={editing.publishers ?? []}
-                    onChange={v => setEditing(x => ({ ...x, publishers: v }))}
+                    options={orgPublishers.map(o => ({ value: o.id, label: o.name }))}
+                    selected={editing.publisher_org_ids ?? []}
+                    onChange={ids => setEditing(x => ({ ...x, publisher_org_ids: ids }))}
                     placeholder="Select publishers…"
                     strict
-                    unmatchedMessage={s => `"${s}" is not a recognised publisher — add it in Administration → Publishers first.`}
+                    disabled={user?.role === "publisher"}
+                    helperText={user?.role === "publisher" ? "Locked to your organisation." : undefined}
+                    unmatchedMessage={s => `"${s}" is not a recognised publisher — add it in Organisations first.`}
                   />
                 </Field>
                 <Field label="Countries">
@@ -893,12 +961,12 @@ export default function ResearchProjectsPage() {
                     unmatchedMessage={s => `"${s}" is not a recognised country.`}
                   />
                 </Field>
-                {(editing.publishers?.length ?? 0) > 0 && (editing.country_codes?.length ?? 0) > 0 && (
+                {(editing.publisher_org_ids?.length ?? 0) > 0 && (editing.country_codes?.length ?? 0) > 0 && (
                   <>
                     <div className="bg-white border border-[#D7B87A] rounded-lg px-3 py-3 flex items-center justify-center gap-3">
                       <div className="text-center">
-                        <p className="text-2xl font-bold text-[#0B1929]">{editing.publishers!.length}</p>
-                        <p className="text-xs text-gray-500">Publisher{editing.publishers!.length !== 1 ? "s" : ""}</p>
+                        <p className="text-2xl font-bold text-[#0B1929]">{editing.publisher_org_ids!.length}</p>
+                        <p className="text-xs text-gray-500">Publisher{editing.publisher_org_ids!.length !== 1 ? "s" : ""}</p>
                       </div>
                       <span className="text-xl text-gray-300">×</span>
                       <div className="text-center">
@@ -907,7 +975,7 @@ export default function ResearchProjectsPage() {
                       </div>
                       <span className="text-xl text-gray-300">=</span>
                       <div className="text-center">
-                        <p className="text-2xl font-bold text-[#0B1929]">{editing.publishers!.length * editing.country_codes!.length}</p>
+                        <p className="text-2xl font-bold text-[#0B1929]">{editing.publisher_org_ids!.length * editing.country_codes!.length}</p>
                         <p className="text-xs font-semibold text-[#0B1929]">Deployments</p>
                       </div>
                     </div>
@@ -928,9 +996,9 @@ export default function ResearchProjectsPage() {
                             </tr>
                           </thead>
                           <tbody>
-                            {editing.publishers!.map(pub => (
-                              <tr key={pub} className="border-t border-gray-100">
-                                <td className="px-3 py-1.5 font-medium text-gray-700 whitespace-nowrap">{pub}</td>
+                            {editing.publisher_org_ids!.map(id => (
+                              <tr key={id} className="border-t border-gray-100">
+                                <td className="px-3 py-1.5 font-medium text-gray-700 whitespace-nowrap">{orgName(id)}</td>
                                 {editing.country_codes!.map(code => (
                                   <td key={code} className="text-center text-[#0B1929]">✓</td>
                                 ))}

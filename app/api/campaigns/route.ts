@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { supabaseAdmin } from "@/lib/supabase-admin";
-import { requireSession } from "@/lib/auth";
+import { requireUser } from "@/lib/auth-server";
+import { visibleResourceIds } from "@/lib/access";
 import {
   computeStatusWithReason,
   type CampaignForStatus,
@@ -10,7 +11,7 @@ import {
 export async function GET(req: NextRequest) {
   let session;
   try {
-    session = await requireSession(req);
+    session = await requireUser(req);
   } catch (err) {
     return err as Response;
   }
@@ -63,14 +64,12 @@ export async function GET(req: NextRequest) {
 
   if (researchProjectId) query = query.eq("research_project_id", researchProjectId);
 
-  if (session.role === "brand" || session.role === "agency") {
-    const ids = session.allowedCampaignIds;
-    if (ids.length === 0) return NextResponse.json({ data: [] });
-    query = query.in("campaign_id", ids);
-  } else if (session.role === "publisher") {
-    const ids = session.allowedPublisherIds;
-    if (ids.length === 0) return NextResponse.json({ data: [] });
-    query = query.in("publisher", ids);
+  if (session.role !== "admin") {
+    const ids = await visibleResourceIds(session, "campaign");
+    if (ids !== null) {
+      if (ids.length === 0) return NextResponse.json({ data: [] });
+      query = query.in("id", ids);
+    }
   }
 
   const [{ data: campaigns, error }, { data: statsData }] = await Promise.all([
@@ -82,6 +81,15 @@ export async function GET(req: NextRequest) {
 
   const statsMap: Record<string, number> = {};
   for (const s of statsData ?? []) statsMap[s.campaign_id] = Number(s.response_count ?? 0);
+
+  // Batch-fetch brand organisation names — used only for the auto-transition
+  // notification message built below, not returned in the response (the
+  // client resolves brand/publisher display names itself from *_org_id).
+  const brandOrgIds = Array.from(new Set((campaigns ?? []).map(c => c.brand_org_id).filter((oid): oid is string => !!oid)));
+  const { data: brandOrgs } = brandOrgIds.length > 0
+    ? await supabaseAdmin.from("organisations").select("id, name").in("id", brandOrgIds)
+    : { data: [] as { id: string; name: string }[] };
+  const brandNameById = new Map((brandOrgs ?? []).map(o => [o.id, o.name]));
 
   // Batch-fetch linked research projects to resolve inherited-vs-overridden fields.
   const projectIds = Array.from(
@@ -152,7 +160,7 @@ export async function GET(req: NextRequest) {
           effective === "archived" ? "archived"   : null;
 
         if (notifType) {
-          const campaignName = `${c.brand_name} – ${c.campaign_name}`;
+          const campaignName = `${c.brand_org_id ? brandNameById.get(c.brand_org_id) ?? "" : ""} – ${c.campaign_name}`;
           const messages: Record<string, string> = {
             went_live: `"${campaignName}" automatically went Live.`,
             closed:    `"${campaignName}" automatically closed.`,
@@ -193,8 +201,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  let session;
   try {
-    await requireSession(req, ["admin"]);
+    session = await requireUser(req, ["admin", "publisher"]);
   } catch (err) {
     return err as Response;
   }
@@ -212,6 +221,13 @@ export async function POST(req: NextRequest) {
     effective_tags: _et, effective_creative_design: _ecd, inherited: _inh,
     ...safe
   } = body;
+
+  // Publisher accounts can only ever create campaigns for their own
+  // organisation — enforced here regardless of what the UI sent, since
+  // client-side locking alone isn't enforcement.
+  if (session.role === "publisher") {
+    safe.publisher_org_id = session.organisationId;
+  }
 
   const { data, error } = await supabase
     .from("campaigns")

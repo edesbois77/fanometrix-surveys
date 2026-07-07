@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
-import { requireSession } from "@/lib/auth";
+import { requireUser } from "@/lib/auth-server";
 
 // ─── Weighted random helper ───────────────────────────────────────────────────
 
@@ -106,7 +106,7 @@ function buildResponse(campaignSlug: string) {
 
 export async function POST(req: NextRequest) {
   try {
-    await requireSession(req, ["admin"]);
+    await requireUser(req, ["admin"]);
   } catch (err) {
     return err as Response;
   }

@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
-import { requireSession } from "@/lib/auth";
+import { requireUser } from "@/lib/auth-server";
 import { toSlugPart } from "@/lib/naming";
 
 export async function GET(req: NextRequest) {
   try {
-    await requireSession(req, ["admin"]);
+    await requireUser(req, ["admin"]);
   } catch (err) {
     return err as Response;
   }
@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
 
   let query = supabaseAdmin
     .from("creative_designs")
-    .select("*, publishers(name)")
+    .select("*")
     .is("deleted_at", null);
   if (!includeArchived) query = query.eq("status", "active");
 
@@ -37,20 +37,31 @@ export async function GET(req: NextRequest) {
     if (slug) usageBySlug[slug] = (usageBySlug[slug] ?? 0) + 1;
   }
 
-  // Flatten the joined publisher name so a design's sub-theme label is
-  // always resolved live from the current publisher record, never a copy.
-  const flattened = (data ?? []).map(d => ({
-    ...d,
-    publisher_name: (d as { publishers?: { name: string } | null }).publishers?.name ?? null,
-    usage_count: usageBySlug[(d as { slug: string }).slug] ?? 0,
-  }));
+  // Resolve the publisher organisation name live, never a copy, so a
+  // publisher rename never orphans a design's sub-theme label.
+  const orgIds = Array.from(new Set(
+    (data ?? []).map(d => (d as { publisher_org_id: string | null }).publisher_org_id).filter((id): id is string => !!id)
+  ));
+  const { data: orgs } = orgIds.length > 0
+    ? await supabaseAdmin.from("organisations").select("id, name").in("id", orgIds)
+    : { data: [] as { id: string; name: string }[] };
+  const orgNameById = new Map((orgs ?? []).map(o => [o.id, o.name]));
+
+  const flattened = (data ?? []).map(d => {
+    const publisherOrgId = (d as { publisher_org_id: string | null }).publisher_org_id;
+    return {
+      ...d,
+      publisher_name: publisherOrgId ? orgNameById.get(publisherOrgId) ?? null : null,
+      usage_count: usageBySlug[(d as { slug: string }).slug] ?? 0,
+    };
+  });
 
   return NextResponse.json({ data: flattened });
 }
 
 export async function POST(req: NextRequest) {
   try {
-    await requireSession(req, ["admin"]);
+    await requireUser(req, ["admin"]);
   } catch (err) {
     return err as Response;
   }
@@ -59,7 +70,7 @@ export async function POST(req: NextRequest) {
 
   const {
     deleted_at: _da, created_at: _ca, updated_at: _ua,
-    publisher_name: _pn, publishers: _p, is_system: _is, status: _st,
+    publisher_name: _pn, is_system: _is, status: _st,
     ...safe
   } = body as Record<string, unknown>;
 
@@ -71,12 +82,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid theme." }, { status: 400 });
   }
   if (theme === "publisher") {
-    if (!safe.publisher_id) {
+    if (!safe.publisher_org_id) {
       return NextResponse.json({ error: "Select a publisher for the Publisher theme." }, { status: 400 });
     }
     safe.sub_theme = null;
   } else {
-    safe.publisher_id = null;
+    safe.publisher_org_id = null;
   }
   if (!safe.builder_state) {
     return NextResponse.json({ error: "Missing design colours." }, { status: 400 });
@@ -87,7 +98,7 @@ export async function POST(req: NextRequest) {
   const { data, error } = await supabaseAdmin
     .from("creative_designs")
     .insert([{ ...safe, name, slug, updated_at: new Date().toISOString() }])
-    .select("*, publishers(name)")
+    .select("*")
     .single();
 
   if (error) {
@@ -97,7 +108,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
+  let publisherName: string | null = null;
+  if (data.publisher_org_id) {
+    const { data: org } = await supabaseAdmin.from("organisations").select("name").eq("id", data.publisher_org_id).single();
+    publisherName = org?.name ?? null;
+  }
+
   return NextResponse.json({
-    data: { ...data, publisher_name: (data as { publishers?: { name: string } | null }).publishers?.name ?? null },
+    data: { ...data, publisher_name: publisherName },
   }, { status: 201 });
 }

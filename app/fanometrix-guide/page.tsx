@@ -162,7 +162,7 @@ export default function FanometrixGuidePage() {
           A complete guide to creating surveys, running campaigns, building campaign groups and serving fan intelligence through publisher embeds.
         </p>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 10, justifyContent: "center" }}>
-          {[["◫","Surveys"],["◎","Campaigns"],["⬡","Campaign Groups"],["</>","Deployment"],["◉","User Management"]].map(([icon, label]) => (
+          {[["◫","Surveys"],["◎","Campaigns"],["▦","Research Projects"],["⬡","Campaign Groups"],["</>","Deployment"],["◉","User Management"]].map(([icon, label]) => (
             <div key={label} style={{ display: "flex", alignItems: "center", gap: 7, background: "rgba(255,255,255,.07)", border: "1px solid rgba(255,255,255,.14)", borderRadius: 40, padding: "8px 16px", whiteSpace: "nowrap" }}>
               <span style={{ fontSize: 13 }}>{icon}</span>
               <span style={{ color: "#fff", fontSize: 12, fontWeight: 500 }}>{label}</span>
@@ -178,12 +178,13 @@ export default function FanometrixGuidePage() {
         <div style={{ textAlign: "center", marginBottom: 48 }}>
           <SectionLabel>Overview</SectionLabel>
           <H2>How the platform works</H2>
-          <Subtitle>Three core building blocks. Understanding how they relate makes everything else straightforward.</Subtitle>
+          <Subtitle>Four core building blocks. Understanding how they relate makes everything else straightforward.</Subtitle>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(260px,1fr))", gap: 18 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(380px,1fr))", gap: 18 }}>
           {[
-            { icon: "◫", title: "Survey", body: "The questionnaire — up to questions with multiple-choice answers. A survey is a reusable template, not tied to any specific campaign or publisher. The same survey can run in dozens of campaigns simultaneously." },
+            { icon: "◫", title: "Survey", body: "The questionnaire, up to questions with multiple-choice answers. A survey is a reusable template, not tied to any specific campaign or publisher. The same survey can run in dozens of campaigns simultaneously." },
             { icon: "◎", title: "Campaign", body: "One survey running for one publisher, with specific dates, a response target, and a live/paused/closed status. The campaign controls whether responses are collected. Each campaign gets its own embed code." },
+            { icon: "▦", title: "Research Project", body: "The easy way to set up a whole batch of campaigns at once instead of one at a time. Set the publishers, countries, survey and dates once, and it builds a campaign for every publisher × country combination automatically." },
             { icon: "⬡", title: "Campaign Group", body: "A bundle of campaigns served through a single embed code. When the embed loads, Fanometrix picks an eligible campaign and serves it. The publisher only ever needs one URL." },
           ].map(({ icon, title, body }) => (
             <div key={title} style={{ background: "#fff", border: "1px solid #E5E7EB", borderRadius: 16, padding: "26px 24px", boxShadow: "0 1px 3px rgba(0,0,0,.06)" }}>
@@ -204,7 +205,7 @@ export default function FanometrixGuidePage() {
       <Section gray>
         <SectionLabel>Section 2</SectionLabel>
         <H2>Surveys</H2>
-        <Subtitle>A survey is a questionnaire — up to {SURVEY_LIMITS.MAX_QUESTIONS} questions, each with up to {SURVEY_LIMITS.MAX_OPTIONS} multiple-choice answers. Surveys are reusable templates, independent of campaigns.</Subtitle>
+        <Subtitle>A survey is a questionnaire, up to {SURVEY_LIMITS.MAX_QUESTIONS} questions, each with up to {SURVEY_LIMITS.MAX_OPTIONS} multiple-choice answers. Surveys are reusable templates, independent of campaigns.</Subtitle>
 
         <div className={styles.accordion}>
           <Accordion title="Survey statuses">
@@ -248,7 +249,7 @@ export default function FanometrixGuidePage() {
           </Accordion>
 
           <Accordion title="Deletion rules">
-            <p style={{ fontSize: 14, lineHeight: 1.7 }}>A survey can only be deleted if it has <strong>zero responses</strong> and is <strong>not linked to any campaigns</strong>. If either condition is not met, the Delete button is disabled. Archive instead — archived surveys remain searchable and can be restored.</p>
+            <p style={{ fontSize: 14, lineHeight: 1.7 }}>A survey can only be deleted if it has <strong>zero responses</strong> and is <strong>not linked to any campaigns</strong>. If either condition is not met, the Delete button is disabled. Archive instead, archived surveys remain searchable and can be restored.</p>
           </Accordion>
         </div>
       </Section>
@@ -274,7 +275,7 @@ export default function FanometrixGuidePage() {
                 key === "live"      ? "Actively collecting responses" :
                 key === "paused"    ? "Temporarily stopped, can be resumed" :
                 key === "closed"    ? "Permanently finished" :
-                                      "Hidden from the default view — historical record",
+                                      "Hidden from the default view, historical record",
                 <Pill key={key} green={key === "live"} />,
               ])}
             />
@@ -304,25 +305,61 @@ export default function FanometrixGuidePage() {
               <span key="1">Go to <strong>Campaigns</strong> and click <strong>+ Create Campaign</strong>.</span>,
               <span key="2">Enter <strong>Brand Name</strong> and <strong>Campaign Name</strong>. Click <strong>Auto</strong> to generate the Campaign ID.</span>,
               <span key="3">Set <strong>Start Date</strong> and <strong>End Date</strong>. Automatic transitions happen on these dates.</span>,
-              <span key="4">Optionally set a <strong>Target Responses</strong> number — the campaign closes automatically when this is hit.</span>,
+              <span key="4">Optionally set a <strong>Target Responses</strong> number, the campaign closes automatically when this is hit.</span>,
               <span key="5">Select the <strong>Survey</strong> and enter the <strong>Publisher</strong> name.</span>,
               <span key="6">Save as <strong>Draft</strong>. When ready, click <strong>Go Live Now</strong> or <strong>Publish</strong>.</span>,
             ]} />
           </Accordion>
 
           <Accordion title="Deletion rules">
-            <p style={{ fontSize: 14, lineHeight: 1.7 }}>Campaigns can only be deleted if status is <strong>Draft</strong> or <strong>Scheduled</strong> AND they have <strong>zero responses</strong>. Campaigns with responses can never be hard-deleted — archive them instead. This protects reporting integrity and historical audit trails.</p>
+            <p style={{ fontSize: 14, lineHeight: 1.7 }}>Campaigns can only be deleted if status is <strong>Draft</strong> or <strong>Scheduled</strong> AND they have <strong>zero responses</strong>. Campaigns with responses can never be hard-deleted, archive them instead. This protects reporting integrity and historical audit trails.</p>
           </Accordion>
         </div>
       </Section>
 
       {/* ─────────────────────────────────────────── */}
-      {/* 4. Campaign Groups                         */}
+      {/* 4. Research Projects                       */}
       {/* ─────────────────────────────────────────── */}
       <Section gray>
         <SectionLabel>Section 4</SectionLabel>
+        <H2>Research Projects</H2>
+        <Subtitle>The easy way to set up a whole batch of campaigns at once, instead of creating each one by hand. Set the publishers, countries, survey and dates once, and it builds a campaign for every publisher × country combination.</Subtitle>
+
+        <div className={styles.accordion}>
+          <Accordion title="Setting one up">
+            <Steps items={[
+              <span key="1">Go to <strong>Research Projects</strong> and click <strong>+ Create Research Project</strong>.</span>,
+              <span key="2">Enter a <strong>Brand/Topic</strong>, <strong>Theme</strong> and <strong>Year</strong>, the project name and ID generate automatically.</span>,
+              <span key="3">Choose the <strong>Publishers</strong> and <strong>Countries</strong> the study should run in.</span>,
+              <span key="4">Pick a <strong>Survey</strong>, and optionally set default dates and a target response count.</span>,
+              <span key="5">Click <strong>Generate Deployments</strong> to create a campaign for every publisher × country combination.</span>,
+            ]} />
+          </Accordion>
+
+          <Accordion title="Edit vs. Generate Deployments">
+            <p style={{ fontSize: 14, lineHeight: 1.7 }}><strong>Edit</strong> changes the project&apos;s own settings only, it never creates, deletes or rewrites a campaign. <strong>Generate Deployments</strong> is the action that actually creates the campaigns, based on whichever publishers and countries are set at the time you click it.</p>
+            <InfoBox>
+              🔁 It&apos;s safe to click <strong style={{ color: G }}>Generate Deployments</strong> again later. Campaigns that already exist are left untouched, only newly added combinations are created (or restored, if they&apos;d previously been deleted). If you remove a publisher or country afterward, its campaign keeps running, it isn&apos;t removed automatically, so archive or delete it by hand.
+            </InfoBox>
+          </Accordion>
+
+          <Accordion title="Defaults vs. overrides">
+            <p style={{ fontSize: 14, lineHeight: 1.7 }}>Survey, dates, target responses and tags set on the project act as defaults for every campaign generated from it. A campaign only follows the project&apos;s value while its own field is left blank, the moment someone sets that field directly on a campaign, it locks to that value and stops following the project.</p>
+          </Accordion>
+
+          <Accordion title="Deletion rules">
+            <p style={{ fontSize: 14, lineHeight: 1.7 }}>Deleting a Research Project never deletes its campaigns, they carry on running exactly as they were. If any campaigns are still active, you&apos;ll be asked to confirm before the project is deleted.</p>
+          </Accordion>
+        </div>
+      </Section>
+
+      {/* ─────────────────────────────────────────── */}
+      {/* 5. Campaign Groups                         */}
+      {/* ─────────────────────────────────────────── */}
+      <Section>
+        <SectionLabel>Section 5</SectionLabel>
         <H2>Campaign Groups</H2>
-        <Subtitle>A Campaign Group bundles multiple campaigns together under one embed code. When the embed loads, Fanometrix picks an eligible campaign and serves it. Responses link to the specific campaign served — not the group.</Subtitle>
+        <Subtitle>A Campaign Group bundles multiple campaigns together under one embed code. When the embed loads, Fanometrix picks an eligible campaign and serves it. Responses link to the specific campaign served, not the group.</Subtitle>
 
         <div className={styles.accordion}>
           <Accordion title="When to use a Campaign Group">
@@ -333,7 +370,7 @@ export default function FanometrixGuidePage() {
               "You want to run one survey across multiple publishers (one campaign per publisher, all in a group)",
             ]} />
             <InfoBox>
-              🏗️ The publisher gets <strong style={{ color: G }}>one URL</strong> and trafficks it once. You control which surveys run, add or remove campaigns, or pause the whole group — without asking the publisher to change anything.
+              🏗️ The publisher gets <strong style={{ color: G }}>one URL</strong> and trafficks it once. You control which surveys run, add or remove campaigns, or pause the whole group, without asking the publisher to change anything.
             </InfoBox>
           </Accordion>
 
@@ -341,7 +378,7 @@ export default function FanometrixGuidePage() {
             <DataTable
               headers={["Type", "How it works", "Best for"]}
               rows={[
-                ["Equal",    "Each eligible campaign has the same chance on every load",    "Most situations — default"],
+                ["Equal",    "Each eligible campaign has the same chance on every load",    "Most situations, default"],
                 ["Weighted", "Campaigns with higher weight values are served more often",   "When one survey should run more frequently"],
                 ["Priority", "The eligible campaign with the lowest priority number serves first", "One primary survey with fallback backups"],
               ]}
@@ -357,7 +394,7 @@ export default function FanometrixGuidePage() {
               "Campaign must not have reached its target response count",
               "Campaign's survey must exist, not be deleted, and pass MPU validation",
             ]} />
-            <p style={{ fontSize: 14, marginTop: 12, color: "#6B7280" }}>If no campaigns are eligible the embed renders blank — publishers see an empty ad slot, not an error.</p>
+            <p style={{ fontSize: 14, marginTop: 12, color: "#6B7280" }}>If no campaigns are eligible the embed renders blank, publishers see an empty ad slot, not an error.</p>
           </Accordion>
 
           <Accordion title="The group embed code">
@@ -373,10 +410,10 @@ export default function FanometrixGuidePage() {
       </Section>
 
       {/* ─────────────────────────────────────────── */}
-      {/* 5. Embed Codes                             */}
+      {/* 6. Embed Codes                             */}
       {/* ─────────────────────────────────────────── */}
-      <Section>
-        <SectionLabel>Section 5</SectionLabel>
+      <Section gray>
+        <SectionLabel>Section 6</SectionLabel>
         <H2>Embed Codes</H2>
         <Subtitle>The embed is a standard 300×250 iframe that publishers drop into their ad serving system. Once trafficked, you control everything from the Fanometrix admin.</Subtitle>
 
@@ -434,22 +471,22 @@ export default function FanometrixGuidePage() {
       </Section>
 
       {/* ─────────────────────────────────────────── */}
-      {/* 6. User Management                         */}
+      {/* 7. User Management                         */}
       {/* ─────────────────────────────────────────── */}
-      <Section gray>
-        <SectionLabel>Section 6</SectionLabel>
+      <Section>
+        <SectionLabel>Section 7</SectionLabel>
         <H2>User Management</H2>
-        <Subtitle>Fanometrix accounts are organisation-based. Each account represents a company — a brand, agency or publisher — not an individual. No personal data (names, emails) is stored.</Subtitle>
+        <Subtitle>Fanometrix accounts are organisation-based. Each account represents a company, a brand, agency or publisher, not an individual. No personal data (names, emails) is stored.</Subtitle>
 
         <div className={styles.accordion}>
           <Accordion title="Account roles">
             <DataTable
               headers={["Role", "What they can see"]}
               rows={[
-                [<strong key="a">Admin</strong>,     "Everything — full platform access including user management"],
-                [<strong key="b">Brand</strong>,     "Dashboard, Campaign Reports, Exports, Insights — for their allowed campaigns only"],
-                [<strong key="ag">Agency</strong>,   "Dashboard, Campaign Reports, Publisher Performance, Exports — for their allowed campaigns and publishers"],
-                [<strong key="p">Publisher</strong>, "Dashboard, Publisher Performance — filtered to their own publisher data"],
+                [<strong key="a">Admin</strong>,     "Everything, full platform access including user management"],
+                [<strong key="b">Brand</strong>,     "Dashboard, Campaign Reports, Exports, Insights, for their allowed campaigns only"],
+                [<strong key="ag">Agency</strong>,   "Dashboard, Campaign Reports, Publisher Performance, Exports, for their allowed campaigns and publishers"],
+                [<strong key="p">Publisher</strong>, "Dashboard, Publisher Performance, filtered to their own publisher data"],
               ]}
             />
           </Accordion>
@@ -457,9 +494,9 @@ export default function FanometrixGuidePage() {
           <Accordion title="Creating an account">
             <Steps items={[
               <span key="1">Go to <strong>User Management</strong> and click <strong>+ New Account</strong></span>,
-              <span key="2">Set a <strong>Username</strong> — letters, numbers, underscores and hyphens. Login is not case-sensitive.</span>,
-              <span key="3">Click <strong>⚡ Generate Temporary Password</strong>. Copy the credentials — the password is shown only once.</span>,
-              <span key="4">Leave <strong>Force password change on first login</strong> ticked — the user sets their own permanent password on first login.</span>,
+              <span key="2">Set a <strong>Username</strong>, letters, numbers, underscores and hyphens. Login is not case-sensitive.</span>,
+              <span key="3">Click <strong>⚡ Generate Temporary Password</strong>. Copy the credentials, the password is shown only once.</span>,
+              <span key="4">Leave <strong>Force password change on first login</strong> ticked, the user sets their own permanent password on first login.</span>,
               <span key="5">Select <strong>Access Rights</strong> and enter the <strong>Organisation Name</strong>.</span>,
               <span key="6">Optionally set <strong>Campaign Access</strong> and <strong>Publisher Access</strong> to restrict the account to specific data.</span>,
             ]} />
@@ -467,7 +504,7 @@ export default function FanometrixGuidePage() {
 
           <Accordion title="Password policy">
             <CheckList items={[
-              "Passwords are stored as hashed values only — never visible to admins",
+              "Passwords are stored as hashed values only, never visible to admins",
               "Use Generate Temporary Password to create a strong random password",
               "Share credentials via Teams, Slack, email or WhatsApp",
               "The user sets their own permanent password on first login",
@@ -478,10 +515,10 @@ export default function FanometrixGuidePage() {
       </Section>
 
       {/* ─────────────────────────────────────────── */}
-      {/* 7. Reporting                               */}
+      {/* 8. Reporting                               */}
       {/* ─────────────────────────────────────────── */}
-      <Section>
-        <SectionLabel>Section 7</SectionLabel>
+      <Section gray>
+        <SectionLabel>Section 8</SectionLabel>
         <H2>Reporting</H2>
         <Subtitle>Every response is stored and linked to the exact campaign that served it. Filter and segment by campaign, publisher, placement, country, device and more.</Subtitle>
 
@@ -516,11 +553,11 @@ export default function FanometrixGuidePage() {
       </Section>
 
       {/* ─────────────────────────────────────────── */}
-      {/* 8. Quick Reference                         */}
+      {/* 9. Quick Reference                         */}
       {/* ─────────────────────────────────────────── */}
-      <Section gray>
+      <Section>
         <div style={{ textAlign: "center", marginBottom: 40 }}>
-          <SectionLabel>Section 8</SectionLabel>
+          <SectionLabel>Section 9</SectionLabel>
           <H2>Quick Reference</H2>
         </div>
 
@@ -534,6 +571,7 @@ export default function FanometrixGuidePage() {
                 ["Campaigns with responses cannot be deleted",                      "Protects reporting integrity"],
                 ["Only draft/scheduled campaigns with 0 responses can be deleted",  "Prevents accidental data loss"],
                 ["One campaign = one publisher",                                    "Use Campaign Groups for multi-publisher research"],
+                ["Deleting a Research Project never deletes its campaigns",         "They keep running until archived or deleted individually"],
                 ["Group embed serves only Live campaigns",                          "Paused/closed campaigns are skipped automatically"],
                 ["Passwords are write-only",                                        "Admin can set or reset but never view passwords"],
               ]}
@@ -544,9 +582,10 @@ export default function FanometrixGuidePage() {
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               {[
                 { q: "Can I use the same survey in two campaigns at once?",           a: "Yes. A survey is a template. You can attach it to as many campaigns as you like, all running simultaneously. Responses are separated by campaign in reporting." },
-                { q: "What happens if all campaigns in a group are paused?",           a: "The embed renders blank — publishers see an empty ad slot. As soon as any campaign becomes eligible again, the embed starts serving automatically." },
+                { q: "What happens if all campaigns in a group are paused?",           a: "The embed renders blank, publishers see an empty ad slot. As soon as any campaign becomes eligible again, the embed starts serving automatically." },
                 { q: "Can I change the survey attached to a live campaign?",           a: "Yes, by editing the campaign. It's usually safer to close the old campaign and create a new one to avoid mixing question sets in reporting." },
                 { q: "How do I give a client access to their campaign data only?",     a: "When creating their account, use Campaign Access to select only the campaigns they should see. Their dashboard and reports are filtered automatically." },
+                { q: "What happens if I delete a Research Project?",                    a: "Its campaigns are not affected and keep running exactly as they were. If any are still active you'll be asked to confirm before the project is deleted." },
               ].map(({ q, a }) => (
                 <div key={q} style={{ padding: "14px 16px", background: "#fff", borderRadius: 10, border: "1px solid #E5E7EB" }}>
                   <p style={{ fontWeight: 600, fontSize: 13, color: N, marginBottom: 6 }}>{q}</p>

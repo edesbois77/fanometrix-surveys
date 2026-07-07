@@ -25,22 +25,22 @@ export async function POST(req: NextRequest) {
   }
 
   const hashed_password = await bcrypt.hash(password, 10);
+  const now = new Date().toISOString();
 
   const { error } = await supabaseAdmin
     .from("users")
-    .update({ hashed_password, force_password_change: false })
+    .update({ hashed_password, force_password_change: false, password_changed_at: now })
     .eq("id", session.sub);
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  // Issue a refreshed JWT with forcePasswordChange cleared
+  // Issue a refreshed JWT with forcePasswordChange cleared. Role is
+  // carried forward unchanged here purely as middleware's coarse routing
+  // hint — the next API call re-fetches it live from the database
+  // regardless (see lib/auth-server.ts).
   const newToken = await signJwt({
-    sub:                 session.sub,
-    username:            session.username,
-    role:                session.role,
-    organisationName:    session.organisationName,
-    allowedCampaignIds:  session.allowedCampaignIds,
-    allowedPublisherIds: session.allowedPublisherIds,
+    sub: session.sub,
+    role: session.role,
     forcePasswordChange: false,
   });
 

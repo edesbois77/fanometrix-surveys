@@ -1,11 +1,14 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 const NAVY    = "#0B1929";
 const GREY    = "#6B7280";
 const BORDER  = "#E5E7EB";
 const SURFACE = "#F1F2F5";
+
+// How long each slide stays on screen before auto-advancing — long enough to read a short description.
+const AUTOPLAY_MS = 5500;
 
 type Item = { label: string; body: string; icon: React.ReactNode };
 
@@ -26,6 +29,19 @@ export function BuiltForCarousel({ items }: { items: Item[] }) {
     const idx = Math.round(el.scrollLeft / el.clientWidth);
     setActive(Math.min(items.length - 1, Math.max(0, idx)));
   };
+
+  // Auto-advance on a timer; restarts from whatever slide is currently active,
+  // so any manual swipe/arrow/dot interaction naturally resets the countdown.
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const el = scrollerRef.current;
+      if (!el) return;
+      const next = (active + 1) % items.length;
+      const card = el.children[next] as HTMLElement | undefined;
+      if (card) el.scrollTo({ left: card.offsetLeft, behavior: "smooth" });
+    }, AUTOPLAY_MS);
+    return () => clearTimeout(timer);
+  }, [active, items.length]);
 
   return (
     <div>

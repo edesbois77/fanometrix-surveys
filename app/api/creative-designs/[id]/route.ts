@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
-import { requireSession } from "@/lib/auth";
+import { requireUser } from "@/lib/auth-server";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await requireSession(req, ["admin"]);
+    await requireUser(req, ["admin"]);
   } catch (err) {
     return err as Response;
   }
@@ -12,21 +12,27 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const { id } = await params;
   const { data, error } = await supabaseAdmin
     .from("creative_designs")
-    .select("*, publishers(name)")
+    .select("*")
     .eq("id", id)
     .is("deleted_at", null)
     .single();
 
   if (error || !data) return NextResponse.json({ error: "Design not found." }, { status: 404 });
 
+  let publisherName: string | null = null;
+  if (data.publisher_org_id) {
+    const { data: org } = await supabaseAdmin.from("organisations").select("name").eq("id", data.publisher_org_id).single();
+    publisherName = org?.name ?? null;
+  }
+
   return NextResponse.json({
-    data: { ...data, publisher_name: (data as { publishers?: { name: string } | null }).publishers?.name ?? null },
+    data: { ...data, publisher_name: publisherName },
   });
 }
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await requireSession(req, ["admin"]);
+    await requireUser(req, ["admin"]);
   } catch (err) {
     return err as Response;
   }
@@ -36,7 +42,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
   const {
     deleted_at: _da, created_at: _ca, updated_at: _ua, slug: _sl,
-    publisher_name: _pn, publishers: _p, is_system: _is,
+    publisher_name: _pn, is_system: _is,
     ...safe
   } = body as Record<string, unknown>;
 
@@ -59,26 +65,32 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   if (theme === "publisher") {
     safe.sub_theme = null;
   } else if (theme) {
-    safe.publisher_id = null;
+    safe.publisher_org_id = null;
   }
 
   const { data, error } = await supabaseAdmin
     .from("creative_designs")
     .update({ ...safe, updated_at: new Date().toISOString() })
     .eq("id", id)
-    .select("*, publishers(name)")
+    .select("*")
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
+  let publisherName: string | null = null;
+  if (data.publisher_org_id) {
+    const { data: org } = await supabaseAdmin.from("organisations").select("name").eq("id", data.publisher_org_id).single();
+    publisherName = org?.name ?? null;
+  }
+
   return NextResponse.json({
-    data: { ...data, publisher_name: (data as { publishers?: { name: string } | null }).publishers?.name ?? null },
+    data: { ...data, publisher_name: publisherName },
   });
 }
 
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await requireSession(req, ["admin"]);
+    await requireUser(req, ["admin"]);
   } catch (err) {
     return err as Response;
   }

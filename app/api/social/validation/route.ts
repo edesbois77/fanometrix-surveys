@@ -1,6 +1,6 @@
 // Returns distribution stats and sample mentions for the Validation page.
 import { NextRequest, NextResponse } from "next/server";
-import { requireSession } from "@/lib/auth";
+import { requireUser } from "@/lib/auth-server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
 function dist<T extends string>(items: T[]): { label: T; count: number; pct: number }[] {
@@ -13,7 +13,7 @@ function dist<T extends string>(items: T[]): { label: T; count: number; pct: num
 }
 
 export async function GET(req: NextRequest) {
-  try { await requireSession(req, ["admin"]); } catch (err) { return err as Response; }
+  try { await requireUser(req, ["admin"]); } catch (err) { return err as Response; }
 
   const searchId = req.nextUrl.searchParams.get("search_id");
   const limit    = Math.min(parseInt(req.nextUrl.searchParams.get("limit") ?? "200"), 500);

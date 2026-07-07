@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import Papa from "papaparse";
 import { AdminShell } from "@/app/components/AdminShell";
+import { useSession } from "@/app/components/SessionProvider";
+import { DrawerSection } from "@/app/components/DrawerSection";
 import { generateGroupName, generateGroupSlug } from "@/lib/naming";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -11,8 +13,9 @@ type CampaignGroup = {
   group_id: string;
   name: string;
   description: string | null;
-  publisher: string | null;
-  brand_name: string | null;
+  publisher_org_id: string | null;
+  brand_org_id: string | null;
+  agency_org_id: string | null;
   research_theme: string | null;
   year: string | null;
   status: "draft" | "live" | "paused" | "closed" | "archived";
@@ -29,7 +32,7 @@ type CampaignOption = {
   id: string;
   campaign_id: string;
   campaign_name: string;
-  brand_name: string;
+  brand_org_id: string | null;
   status: string;
   effective_status: string;
 };
@@ -70,10 +73,12 @@ function CampaignSelector({
   options,
   selected,
   onChange,
+  orgName,
 }: {
   options: CampaignOption[];
   selected: string[];
   onChange: (ids: string[]) => void;
+  orgName: (id: string | null) => string;
 }) {
   const [search, setSearch]   = useState("");
   const [open,   setOpen]     = useState(false);
@@ -93,7 +98,7 @@ function CampaignSelector({
 
   const remaining = options.filter(o =>
     !selected.includes(o.id) &&
-    (`${o.campaign_name} ${o.brand_name}`).toLowerCase().includes(search.toLowerCase())
+    (`${o.campaign_name} ${orgName(o.brand_org_id)}`).toLowerCase().includes(search.toLowerCase())
   );
 
   const selectedOptions = selected.map(id => options.find(o => o.id === id)).filter(Boolean) as CampaignOption[];
@@ -114,7 +119,7 @@ function CampaignSelector({
         <div className="flex flex-wrap gap-1.5 mb-2">
           {selectedOptions.map(o => (
             <span key={o.id} className="inline-flex items-center gap-1 text-xs bg-[#0B1929]/8 text-[#0B1929] border border-[#0B1929]/15 px-2.5 py-1 rounded-full">
-              {o.campaign_name} — {o.brand_name}
+              {o.campaign_name} — {orgName(o.brand_org_id)}
               <button type="button" onClick={() => remove(o.id)} className="text-gray-400 hover:text-gray-700 leading-none ml-0.5">×</button>
             </span>
           ))}
@@ -141,7 +146,7 @@ function CampaignSelector({
                   onMouseDown={e => { e.preventDefault(); add(o.id); }}
                   className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 transition-colors">
                   <span className="text-gray-900">{o.campaign_name}</span>
-                  <span className="text-gray-400 ml-1">— {o.brand_name}</span>
+                  <span className="text-gray-400 ml-1">— {orgName(o.brand_org_id)}</span>
                   <span className={`ml-2 text-xs px-1.5 py-0.5 rounded-full capitalize ${STATUS_COLOURS[o.effective_status ?? o.status] ?? "bg-gray-100 text-gray-500"}`}>
                     {o.effective_status ?? o.status}
                   </span>
@@ -160,8 +165,9 @@ type GroupForm = {
   group_id:       string;
   name:           string;
   description:    string;
-  publisher:      string;
-  brand_name:     string;
+  publisher_org_id: string;
+  brand_org_id:   string;
+  agency_org_id:  string;
   research_theme: string;
   year:           string;
   status:         CampaignGroup["status"];
@@ -172,16 +178,18 @@ type GroupForm = {
 };
 
 const BLANK_FORM: GroupForm = {
-  group_id: "", name: "", description: "", publisher: "",
-  brand_name: "", research_theme: "", year: String(new Date().getFullYear()),
+  group_id: "", name: "", description: "", publisher_org_id: "",
+  brand_org_id: "", agency_org_id: "", research_theme: "", year: String(new Date().getFullYear()),
   status: "draft", rotation: "equal",
   start_date: "", end_date: "", campaign_ids: [],
 };
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function CampaignGroupsPage() {
+  const { user } = useSession();
   const [groups,   setGroups]   = useState<CampaignGroup[]>([]);
   const [campaigns, setCampaigns] = useState<CampaignOption[]>([]);
+  const [orgs,     setOrgs]     = useState<{ id: string; name: string; type: "publisher" | "agency" | "brand" | "internal" }[]>([]);
   const [loading,  setLoading]  = useState(true);
 
   const [activeTab, setActiveTab] = useState<"active" | "closed" | "archived">("active");
@@ -209,16 +217,24 @@ export default function CampaignGroupsPage() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const [grpRes, camRes] = await Promise.all([
+    const [grpRes, camRes, orgRes] = await Promise.all([
       fetch("/api/campaign-groups"),
       fetch("/api/campaigns"),
+      fetch("/api/organisations"),
     ]);
     setGroups((await grpRes.json()).data ?? []);
     setCampaigns((await camRes.json()).data ?? []);
+    setOrgs((await orgRes.json()).data ?? []);
     setLoading(false);
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  const publisherOrgs = useMemo(() => orgs.filter(o => o.type === "publisher"), [orgs]);
+  const brandOrgs      = useMemo(() => orgs.filter(o => o.type === "brand"), [orgs]);
+  const agencyOrgs      = useMemo(() => orgs.filter(o => o.type === "agency"), [orgs]);
+  const orgById = useMemo(() => new Map(orgs.map(o => [o.id, o])), [orgs]);
+  const orgName = useCallback((id: string | null) => (id ? orgById.get(id)?.name ?? "" : ""), [orgById]);
 
   // Tab buckets
   const activeGroups   = useMemo(() => groups.filter(g => !["closed", "archived"].includes(g.status)), [groups]);
@@ -227,12 +243,16 @@ export default function CampaignGroupsPage() {
 
   // Option lists for the Publisher/Brand filters — derived from all loaded groups.
   const publisherFilterOptions = useMemo(() =>
-    Array.from(new Set(groups.map(g => g.publisher).filter((p): p is string => !!p))).sort((a, b) => a.localeCompare(b)),
-    [groups]);
+    Array.from(new Set(groups.map(g => g.publisher_org_id).filter((p): p is string => !!p)))
+      .map(id => ({ id, name: orgName(id) }))
+      .sort((a, b) => a.name.localeCompare(b.name)),
+    [groups, orgName]);
 
   const brandFilterOptions = useMemo(() =>
-    Array.from(new Set(groups.map(g => g.brand_name).filter((b): b is string => !!b))).sort((a, b) => a.localeCompare(b)),
-    [groups]);
+    Array.from(new Set(groups.map(g => g.brand_org_id).filter((b): b is string => !!b)))
+      .map(id => ({ id, name: orgName(id) }))
+      .sort((a, b) => a.name.localeCompare(b.name)),
+    [groups, orgName]);
 
   const displayed = useMemo(() => {
     let list =
@@ -262,8 +282,8 @@ export default function CampaignGroupsPage() {
       list = list.filter(g => new Date(g.created_at) >= cut);
     }
 
-    if (publisherFilter !== "all") list = list.filter(g => g.publisher === publisherFilter);
-    if (brandFilter !== "all")     list = list.filter(g => g.brand_name === brandFilter);
+    if (publisherFilter !== "all") list = list.filter(g => g.publisher_org_id === publisherFilter);
+    if (brandFilter !== "all")     list = list.filter(g => g.brand_org_id === brandFilter);
 
     if (search.trim()) {
       const q = search.toLowerCase();
@@ -271,8 +291,8 @@ export default function CampaignGroupsPage() {
         g.name.toLowerCase().includes(q) ||
         g.group_id.toLowerCase().includes(q) ||
         (g.description ?? "").toLowerCase().includes(q) ||
-        (g.brand_name ?? "").toLowerCase().includes(q) ||
-        (g.publisher ?? "").toLowerCase().includes(q)
+        orgName(g.brand_org_id).toLowerCase().includes(q) ||
+        orgName(g.publisher_org_id).toLowerCase().includes(q)
       );
     }
 
@@ -282,7 +302,7 @@ export default function CampaignGroupsPage() {
       case "az":     return [...list].sort((a, b) => a.name.localeCompare(b.name));
       default:       return list;
     }
-  }, [activeGroups, closedGroups, archivedGroups, activeTab, statusFilter, usageFilter, dateFilter, publisherFilter, brandFilter, sortBy, search]);
+  }, [activeGroups, closedGroups, archivedGroups, activeTab, statusFilter, usageFilter, dateFilter, publisherFilter, brandFilter, sortBy, search, orgName]);
 
   // Eligible campaigns for the selector (not deleted, not archived/closed)
   const selectableCampaigns = useMemo(() =>
@@ -292,7 +312,11 @@ export default function CampaignGroupsPage() {
   // ── Drawer helpers ─────────────────────────────────────────────────────────
   function openCreate() {
     setEditingId(null);
-    setForm({ ...BLANK_FORM });
+    const isPublisher = user?.role === "publisher";
+    setForm({
+      ...BLANK_FORM,
+      publisher_org_id: isPublisher ? (user?.organisationId ?? "") : "",
+    });
     setError("");
     setDrawerOpen(true);
   }
@@ -303,8 +327,9 @@ export default function CampaignGroupsPage() {
       group_id:       g.group_id,
       name:           g.name,
       description:    g.description ?? "",
-      publisher:      g.publisher ?? "",
-      brand_name:     g.brand_name ?? "",
+      publisher_org_id: g.publisher_org_id ?? "",
+      brand_org_id:   g.brand_org_id ?? "",
+      agency_org_id:  g.agency_org_id ?? "",
       research_theme: g.research_theme ?? "",
       year:           g.year ?? String(new Date().getFullYear()),
       status:         g.status,
@@ -319,12 +344,13 @@ export default function CampaignGroupsPage() {
 
   function autoSlug() {
     setForm(f => {
-      const name = generateGroupName(f.brand_name, f.research_theme, f.year);
-      const slug = generateGroupSlug(f.brand_name, f.research_theme, f.year);
+      const brandName = orgName(f.brand_org_id || null);
+      const name = generateGroupName(brandName, f.research_theme, f.year);
+      const slug = generateGroupSlug(brandName, f.research_theme, f.year);
       return {
         ...f,
         name:     name || f.name,
-        group_id: slug || generateGroupId(f.name, f.publisher),
+        group_id: slug || generateGroupId(f.name, orgName(f.publisher_org_id || null)),
       };
     });
   }
@@ -332,14 +358,16 @@ export default function CampaignGroupsPage() {
   async function handleSave() {
     if (!form.name.trim())     { setError("Group name is required.");   return; }
     if (!form.group_id.trim()) { setError("Group slug is required.");   return; }
-    if (!form.publisher.trim()) { setError("Publisher is required.");   return; }
+    if (!form.publisher_org_id) { setError("Publisher is required.");   return; }
     setError(""); setSaving(true);
 
     const payload = {
       group_id:     form.group_id.toLowerCase().replace(/\s+/g, "_").replace(/[^a-z0-9_]/g, ""),
       name:         form.name,
       description:  form.description || null,
-      publisher:    form.publisher,
+      publisher_org_id: form.publisher_org_id || null,
+      brand_org_id: form.brand_org_id || null,
+      agency_org_id: form.agency_org_id || null,
       status:       form.status,
       rotation:     form.rotation,
       start_date:   form.start_date || null,
@@ -390,13 +418,13 @@ export default function CampaignGroupsPage() {
       const campaignNames = g.campaign_ids
         .map(id => campaigns.find(c => c.id === id))
         .filter(Boolean)
-        .map(c => `${c!.campaign_name} (${c!.brand_name})`)
+        .map(c => `${c!.campaign_name} (${orgName(c!.brand_org_id)})`)
         .join("; ");
       return {
         "Group Name":       g.name,
         "Slug":             g.group_id,
         "Description":      g.description ?? "",
-        "Publisher":        g.publisher ?? "",
+        "Publisher":        orgName(g.publisher_org_id),
         "Status":           g.status,
         "Rotation":         g.rotation,
         "Start Date":       d(g.start_date),
@@ -443,13 +471,57 @@ export default function CampaignGroupsPage() {
               </button>
             </div>
           </div>
-          <div className="bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 flex gap-2.5 items-start">
-            <span className="text-gray-400 flex-shrink-0 text-sm mt-0.5">ℹ</span>
-            <p className="text-sm text-gray-500 leading-relaxed">
-              Bundle multiple campaigns into one embed code. Useful when several surveys or campaign
-              variants need to rotate across the same publisher placement.
-            </p>
-          </div>
+          <details className="group bg-gray-50 w-full">
+            <summary className="cursor-pointer select-none list-none py-3">
+              <p className="text-sm text-gray-500 leading-relaxed">
+                Bundle multiple campaigns into one embed code. Useful when several surveys or campaign
+                variants need to rotate across the same publisher placement.{" "}
+                <span className="font-semibold inline-flex items-center gap-1" style={{ color: GOLD }}>
+                  Expand to find out more
+                  <span className="inline-block transition-transform group-open:rotate-90">›</span>
+                </span>
+              </p>
+            </summary>
+            <div className="pb-4 pt-3 mt-1 border-t border-gray-200 text-sm text-gray-600 leading-relaxed space-y-4">
+              <div>
+                <p className="font-semibold text-gray-700 mb-1">When to use a Campaign Group</p>
+                <ul className="list-disc pl-5 space-y-1">
+                  <li>You want to run multiple surveys on the same publisher placement at the same time</li>
+                  <li>You want to rotate between surveys without asking the publisher to update their embed code</li>
+                  <li>You want a fallback ready if one campaign pauses or closes mid-flight</li>
+                  <li>You want to run one survey across multiple publishers, one campaign per publisher, grouped together</li>
+                </ul>
+              </div>
+              <div>
+                <p className="font-semibold text-gray-700 mb-1">How rotation works</p>
+                <ul className="list-disc pl-5 space-y-1">
+                  <li><strong>Equal</strong>: every eligible campaign has the same chance each time the embed loads. The default, and right for most cases.</li>
+                  <li><strong>Weighted</strong>: campaigns with a higher weight value get served more often.</li>
+                  <li><strong>Priority</strong>: the eligible campaign with the lowest priority number always serves first, others only kick in as backups.</li>
+                </ul>
+              </div>
+              <div>
+                <p className="font-semibold text-gray-700 mb-1">What makes a campaign eligible to serve</p>
+                <p className="mb-1">Every time the embed loads, Fanometrix checks each campaign in the group:</p>
+                <ul className="list-disc pl-5 space-y-1">
+                  <li>The group itself must be Live and within its date range</li>
+                  <li>The campaign must be Live and within its own start/end dates</li>
+                  <li>The campaign must not have already reached its target response count</li>
+                  <li>The campaign&apos;s survey must exist, not be deleted, and pass validation</li>
+                </ul>
+                <p className="mt-1 text-gray-500">If nothing in the group is eligible, the embed just renders blank, publishers see an empty ad slot, not an error.</p>
+              </div>
+              <div>
+                <p className="font-semibold text-gray-700 mb-1">Getting the most from it</p>
+                <p>Copy the embed code directly from the group card, the publisher only needs to add it once. From there, you can add or remove campaigns, change the rotation type, weights, or priority, or pause the whole group at any time, without asking the publisher to touch anything.</p>
+              </div>
+              <a href="/fanometrix-guide" target="_blank" rel="noopener noreferrer"
+                className="text-xs font-semibold inline-flex items-center gap-1" style={{ color: NAVY }}>
+                Read the full Fanometrix Guide
+                <span className="text-[10px] opacity-60">↗</span>
+              </a>
+            </div>
+          </details>
         </div>
 
         {/* Search + Filters */}
@@ -496,7 +568,7 @@ export default function CampaignGroupsPage() {
               className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A] text-gray-600">
               <option value="all">All Publishers</option>
               {publisherFilterOptions.map(p => (
-                <option key={p} value={p}>{p}</option>
+                <option key={p.id} value={p.id}>{p.name}</option>
               ))}
             </select>
 
@@ -504,7 +576,7 @@ export default function CampaignGroupsPage() {
               className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A] text-gray-600">
               <option value="all">All Brands</option>
               {brandFilterOptions.map(b => (
-                <option key={b} value={b}>{b}</option>
+                <option key={b.id} value={b.id}>{b.name}</option>
               ))}
             </select>
 
@@ -566,8 +638,8 @@ export default function CampaignGroupsPage() {
 
               {/* Metadata */}
               <div className="flex flex-wrap gap-1.5 mt-2 mb-2">
-                {g.publisher && (
-                  <span className="text-xs bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full">{g.publisher}</span>
+                {orgName(g.publisher_org_id) && (
+                  <span className="text-xs bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full">{orgName(g.publisher_org_id)}</span>
                 )}
                 <span className="text-xs bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full">{ROTATION_LABELS[g.rotation]}</span>
               </div>
@@ -664,124 +736,144 @@ export default function CampaignGroupsPage() {
               <button onClick={() => setDrawerOpen(false)} className="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-6 space-y-5">
+            <div className="flex-1 overflow-y-auto p-6 space-y-4">
 
-              {/* ── Name Builder ── */}
-              <div className="bg-gray-50 border border-gray-100 rounded-xl p-4 space-y-3">
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Name Builder</p>
+              <DrawerSection step={1} title="Group Identity" subtitle="Name, slug, and description for this group.">
+                <div className="bg-gray-50 border border-gray-100 rounded-xl p-4 space-y-3">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Name Builder</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Field label="Brand">
+                      <select
+                        value={form.brand_org_id}
+                        onChange={e => setForm(f => ({ ...f, brand_org_id: e.target.value }))}
+                        className={INP}
+                      >
+                        <option value="">— Select brand —</option>
+                        {brandOrgs.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
+                      </select>
+                    </Field>
+                    <Field label="Research Theme">
+                      <input value={form.research_theme} onChange={e => setForm(f => ({ ...f, research_theme: e.target.value }))}
+                        className={INP} placeholder="Fan Understanding" />
+                    </Field>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Field label="Year">
+                      <input value={form.year} onChange={e => setForm(f => ({ ...f, year: e.target.value }))}
+                        className={INP} placeholder={String(new Date().getFullYear())} maxLength={9} />
+                    </Field>
+                    <div className="flex items-end">
+                      <button type="button" onClick={autoSlug}
+                        className="w-full text-xs font-semibold px-3 py-2 rounded-lg border-2 border-[#D7B87A] text-[#0B1929] hover:bg-[#FBF5E8] transition-colors">
+                        Auto Generate Name &amp; Slug
+                      </button>
+                    </div>
+                  </div>
+                  {/* Live preview */}
+                  {(form.brand_org_id || form.research_theme) && (() => {
+                    const preview = generateGroupName(orgName(form.brand_org_id || null), form.research_theme, form.year);
+                    return preview ? (
+                      <p className="text-xs text-gray-500 bg-white border border-gray-200 rounded-lg px-3 py-2 font-mono">
+                        {preview}
+                      </p>
+                    ) : null;
+                  })()}
+                </div>
+
+                <Field label="Group Name *">
+                  <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+                    className={INP} placeholder="Carlsberg | Fan Understanding | Global | 2026" />
+                </Field>
+
+                <Field label="Group Slug *">
+                  <div className="flex gap-2">
+                    <input value={form.group_id}
+                      onChange={e => setForm(f => ({ ...f, group_id: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, "") }))}
+                      className={`flex-1 ${INP} font-mono`} placeholder="carlsberg_wave1_fotmob" />
+                    <button onClick={autoSlug} className="text-xs border border-gray-200 text-gray-600 hover:bg-gray-50 px-3 rounded-lg">Auto</button>
+                  </div>
+                  <p className="text-xs text-gray-400 mt-1">Used in embed URLs: /embed?group=<em>slug</em></p>
+                </Field>
+
+                <Field label="Description">
+                  <input value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+                    className={INP} placeholder="Optional" />
+                </Field>
+              </DrawerSection>
+
+              <DrawerSection step={2} title="Publisher &amp; Schedule" subtitle="Who this group serves, and when.">
                 <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className={LBL}>Brand</label>
-                    <input value={form.brand_name} onChange={e => setForm(f => ({ ...f, brand_name: e.target.value }))}
-                      className={INP} placeholder="Carlsberg" />
-                  </div>
-                  <div>
-                    <label className={LBL}>Research Theme</label>
-                    <input value={form.research_theme} onChange={e => setForm(f => ({ ...f, research_theme: e.target.value }))}
-                      className={INP} placeholder="Fan Understanding" />
-                  </div>
+                  <Field label="Publisher *">
+                    <select
+                      value={form.publisher_org_id}
+                      onChange={e => setForm(f => ({ ...f, publisher_org_id: e.target.value }))}
+                      disabled={user?.role === "publisher"}
+                      className={`${INP} ${user?.role === "publisher" ? "bg-gray-50 text-gray-500" : ""}`}
+                    >
+                      <option value="">— Select publisher —</option>
+                      {publisherOrgs.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
+                    </select>
+                    {user?.role === "publisher" && (
+                      <p className="text-xs text-gray-400 mt-1">Locked to your organisation.</p>
+                    )}
+                  </Field>
+                  <Field label="Agency">
+                    <select
+                      value={form.agency_org_id}
+                      onChange={e => setForm(f => ({ ...f, agency_org_id: e.target.value }))}
+                      className={INP}
+                    >
+                      <option value="">— None —</option>
+                      {agencyOrgs.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
+                    </select>
+                  </Field>
+                  <Field label="Status">
+                    <select value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value as CampaignGroup["status"] }))}
+                      className={INP}>
+                      {(["draft","live","paused","closed","archived"] as const).map(s => (
+                        <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>
+                      ))}
+                    </select>
+                  </Field>
                 </div>
+
                 <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className={LBL}>Year</label>
-                    <input value={form.year} onChange={e => setForm(f => ({ ...f, year: e.target.value }))}
-                      className={INP} placeholder={String(new Date().getFullYear())} maxLength={9} />
-                  </div>
-                  <div className="flex items-end">
-                    <button type="button" onClick={autoSlug}
-                      className="w-full text-xs font-semibold px-3 py-2 rounded-lg border-2 border-[#D7B87A] text-[#0B1929] hover:bg-[#FBF5E8] transition-colors">
-                      Auto Generate Name &amp; Slug
-                    </button>
-                  </div>
+                  <Field label="Start Date">
+                    <input type="date" value={form.start_date}
+                      onChange={e => setForm(f => ({ ...f, start_date: e.target.value }))}
+                      className={INP} />
+                  </Field>
+                  <Field label="End Date">
+                    <input type="date" value={form.end_date}
+                      min={form.start_date || undefined}
+                      onChange={e => setForm(f => ({ ...f, end_date: e.target.value }))}
+                      className={INP} />
+                  </Field>
                 </div>
-                {/* Live preview */}
-                {(form.brand_name || form.research_theme) && (() => {
-                  const preview = generateGroupName(form.brand_name, form.research_theme, form.year);
-                  return preview ? (
-                    <p className="text-xs text-gray-500 bg-white border border-gray-200 rounded-lg px-3 py-2 font-mono">
-                      {preview}
-                    </p>
-                  ) : null;
-                })()}
-              </div>
+              </DrawerSection>
 
-              <div>
-                <label className={LBL}>Group Name *</label>
-                <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-                  className={INP} placeholder="Carlsberg | Fan Understanding | Global | 2026" />
-              </div>
-
-              <div>
-                <label className={LBL}>Group Slug *</label>
-                <div className="flex gap-2">
-                  <input value={form.group_id}
-                    onChange={e => setForm(f => ({ ...f, group_id: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, "") }))}
-                    className={`flex-1 ${INP} font-mono`} placeholder="carlsberg_wave1_fotmob" />
-                  <button onClick={autoSlug} className="text-xs border border-gray-200 text-gray-600 hover:bg-gray-50 px-3 rounded-lg">Auto</button>
-                </div>
-                <p className="text-xs text-gray-400 mt-1">Used in embed URLs: /embed?group=<em>slug</em></p>
-              </div>
-
-              <div>
-                <label className={LBL}>Description</label>
-                <input value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
-                  className={INP} placeholder="Optional" />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className={LBL}>Publisher *</label>
-                  <input value={form.publisher} onChange={e => setForm(f => ({ ...f, publisher: e.target.value }))}
-                    className={INP} placeholder="e.g. FotMob" />
-                </div>
-                <div>
-                  <label className={LBL}>Status</label>
-                  <select value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value as CampaignGroup["status"] }))}
+              <DrawerSection step={3} title="Rotation &amp; Campaigns" subtitle="How campaigns are chosen, and which ones are in this group." prominent>
+                <Field label="Rotation Type">
+                  <select value={form.rotation} onChange={e => setForm(f => ({ ...f, rotation: e.target.value as CampaignGroup["rotation"] }))}
                     className={INP}>
-                    {(["draft","live","paused","closed","archived"] as const).map(s => (
-                      <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>
-                    ))}
+                    <option value="equal">Equal, random from eligible campaigns</option>
+                    <option value="weighted">Weighted, random proportional to weight</option>
+                    <option value="priority">Priority, highest-priority eligible campaign</option>
                   </select>
-                </div>
-              </div>
+                </Field>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className={LBL}>Start Date</label>
-                  <input type="date" value={form.start_date}
-                    onChange={e => setForm(f => ({ ...f, start_date: e.target.value }))}
-                    className={INP} />
-                </div>
-                <div>
-                  <label className={LBL}>End Date</label>
-                  <input type="date" value={form.end_date}
-                    min={form.start_date || undefined}
-                    onChange={e => setForm(f => ({ ...f, end_date: e.target.value }))}
-                    className={INP} />
-                </div>
-              </div>
-
-              <div>
-                <label className={LBL}>Rotation Type</label>
-                <select value={form.rotation} onChange={e => setForm(f => ({ ...f, rotation: e.target.value as CampaignGroup["rotation"] }))}
-                  className={INP}>
-                  <option value="equal">Equal — random from eligible campaigns</option>
-                  <option value="weighted">Weighted — random proportional to weight</option>
-                  <option value="priority">Priority — highest-priority eligible campaign</option>
-                </select>
-              </div>
-
-              <div>
-                <label className={LBL}>Campaigns in Group</label>
-                <CampaignSelector
-                  options={selectableCampaigns}
-                  selected={form.campaign_ids}
-                  onChange={ids => setForm(f => ({ ...f, campaign_ids: ids }))}
-                />
-                <p className="text-xs text-gray-400 mt-1.5">
-                  Only live campaigns within their date range and below target will be served. Others are skipped at embed time.
-                </p>
-              </div>
+                <Field label="Campaigns in Group">
+                  <CampaignSelector
+                    options={selectableCampaigns}
+                    selected={form.campaign_ids}
+                    onChange={ids => setForm(f => ({ ...f, campaign_ids: ids }))}
+                    orgName={orgName}
+                  />
+                  <p className="text-xs text-gray-400 mt-1.5">
+                    Only live campaigns within their date range and below target will be served. Others are skipped at embed time.
+                  </p>
+                </Field>
+              </DrawerSection>
 
               {error && (
                 <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-2.5">
@@ -816,3 +908,12 @@ export default function CampaignGroupsPage() {
 
 const INP = "w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A]";
 const LBL = "text-xs font-semibold text-gray-500 uppercase tracking-wide block mb-1.5";
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <label className={LBL}>{label}</label>
+      {children}
+    </div>
+  );
+}

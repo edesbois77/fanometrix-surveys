@@ -1,7 +1,7 @@
 // CSV import endpoint — saves mentions then AI-classifies each one.
 // Expected CSV columns: platform, market, author, source_url, content, published_at
 import { NextRequest, NextResponse } from "next/server";
-import { requireSession } from "@/lib/auth";
+import { requireUser } from "@/lib/auth-server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { buildClassificationPrompt, FOOTBALL_TOPICS, type Sentiment } from "@/lib/social-taxonomy";
 
@@ -56,7 +56,7 @@ function fallback(content: string) {
 }
 
 export async function POST(req: NextRequest) {
-  try { await requireSession(req, ["admin"]); } catch (err) { return err as Response; }
+  try { await requireUser(req, ["admin"]); } catch (err) { return err as Response; }
 
   const body = await req.json();
   const { rows, search_id }: { rows: CsvRow[]; search_id?: string } = body;

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
-import { requireSession } from "@/lib/auth";
+import { requireUser } from "@/lib/auth-server";
+import { visibleResourceIds } from "@/lib/access";
 
 type ProjectStats = {
   project_id: string;
@@ -10,35 +11,10 @@ type ProjectStats = {
   total_responses: number;
 };
 
-/** Brand/agency users only ever see projects tied to their own audience. */
-async function scopeToUser<T extends { project_id: string; brand_name: string | null }>(
-  projects: T[],
-  role: "brand" | "agency",
-  userId: string
-): Promise<T[]> {
-  const { data: user } = await supabaseAdmin
-    .from("users")
-    .select("associated_brand, associated_projects")
-    .eq("id", userId)
-    .single();
-
-  const assocProjects = ((user?.associated_projects ?? []) as string[]).map(p => p.toLowerCase());
-  const assocBrand = ((user?.associated_brand ?? "") as string).toLowerCase();
-
-  return projects.filter(p => {
-    const idMatch = assocProjects.includes(p.project_id.toLowerCase());
-    if (role === "brand") {
-      const brandMatch = !!assocBrand && !!p.brand_name && p.brand_name.toLowerCase() === assocBrand;
-      return idMatch || brandMatch;
-    }
-    return idMatch; // agency: spans multiple brands, so only explicit project assignment counts
-  });
-}
-
 export async function GET(req: NextRequest) {
   let session;
   try {
-    session = await requireSession(req, ["admin", "brand", "agency"]);
+    session = await requireUser(req, ["admin", "brand", "agency", "publisher"]);
   } catch (err) {
     return err as Response;
   }
@@ -58,8 +34,12 @@ export async function GET(req: NextRequest) {
   for (const s of (stats ?? []) as ProjectStats[]) statsMap[s.project_id] = s;
 
   let visible = projects ?? [];
-  if (session.role === "brand" || session.role === "agency") {
-    visible = await scopeToUser(visible, session.role, session.sub);
+  if (session.role !== "admin") {
+    const ids = await visibleResourceIds(session, "research_project");
+    if (ids !== null) {
+      const allowed = new Set(ids);
+      visible = visible.filter(p => allowed.has(p.id));
+    }
   }
 
   const data = visible.map(p => {
@@ -81,8 +61,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  let session;
   try {
-    await requireSession(req, ["admin"]);
+    session = await requireUser(req, ["admin", "publisher"]);
   } catch (err) {
     return err as Response;
   }
@@ -96,6 +77,12 @@ export async function POST(req: NextRequest) {
     total_responses: _tr, completion_pct: _cp,
     ...safe
   } = body;
+
+  // Publisher accounts can only ever target their own organisation —
+  // enforced here regardless of what the UI sent.
+  if (session.role === "publisher") {
+    safe.publisher_org_ids = session.organisationId ? [session.organisationId] : [];
+  }
 
   const { data, error } = await supabaseAdmin
     .from("research_projects")
