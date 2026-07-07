@@ -5,7 +5,10 @@ import { toSlugPart } from "@/lib/naming";
 
 export async function GET(req: NextRequest) {
   try {
-    await requireUser(req, ["admin"]);
+    // Publishers get read-only access — they can pick an existing design
+    // on Campaigns/Research Projects, but authoring new ones (POST/PUT/
+    // DELETE below, and the Creative Lab builder page) stays admin-only.
+    await requireUser(req, ["admin", "publisher"]);
   } catch (err) {
     return err as Response;
   }

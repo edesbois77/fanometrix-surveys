@@ -1498,15 +1498,16 @@ export default function CampaignsPage() {
                 </Field>
               </DrawerSection>
 
-              {isAdmin && (
-                <DrawerSection step={5} title="Creative Design" subtitle="Visual design applied to this campaign's survey MPU.">
-                  <p className="text-right -mt-1">
-                    <a href="/creative-lab/designs" target="_blank" rel="noopener"
-                      className="text-xs font-medium underline"
-                      style={{ color: "#D7B87A" }}>
-                      Browse all designs →
-                    </a>
-                  </p>
+              <DrawerSection step={5} title="Creative Design" subtitle="Visual design applied to this campaign's survey MPU.">
+                  {isAdmin && (
+                    <p className="text-right -mt-1">
+                      <a href="/creative-lab/designs" target="_blank" rel="noopener"
+                        className="text-xs font-medium underline"
+                        style={{ color: "#D7B87A" }}>
+                        Browse all designs →
+                      </a>
+                    </p>
+                  )}
 
                   {selectedProject ? (
                     <InheritableField
@@ -1535,7 +1536,6 @@ export default function CampaignsPage() {
 
                   <CreativeDesignPreview designId={editing.creative_design} />
                 </DrawerSection>
-              )}
 
               {error && <p className="text-red-500 text-xs">{error}</p>}
             </div>

@@ -1079,22 +1079,20 @@ export default function ResearchProjectsPage() {
                 </Field>
               </DrawerSection>
 
-              {isAdmin && (
-                <DrawerSection
-                  step={5}
-                  title="Creative Configuration"
-                  subtitle="Default design applied to every generated deployment — each can still override individually."
-                >
-                  <CreativeDesignPicker
-                    value={editing.creative_design ?? null}
-                    onChange={v => setEditing(x => ({ ...x, creative_design: v }))}
-                  />
-                  <p className="text-xs text-gray-400 leading-relaxed">
-                    Leave unset to use the standard production creative.
-                  </p>
-                  <CreativeDesignPreview designId={editing.creative_design} />
-                </DrawerSection>
-              )}
+              <DrawerSection
+                step={5}
+                title="Creative Configuration"
+                subtitle="Default design applied to every generated deployment — each can still override individually."
+              >
+                <CreativeDesignPicker
+                  value={editing.creative_design ?? null}
+                  onChange={v => setEditing(x => ({ ...x, creative_design: v }))}
+                />
+                <p className="text-xs text-gray-400 leading-relaxed">
+                  Leave unset to use the standard production creative.
+                </p>
+                <CreativeDesignPreview designId={editing.creative_design} />
+              </DrawerSection>
 
               {error && <p className="text-red-500 text-xs">{error}</p>}
             </div>
