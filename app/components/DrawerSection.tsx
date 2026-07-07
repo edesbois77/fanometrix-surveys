@@ -9,7 +9,7 @@ export function DrawerSection({
   step, title, subtitle, prominent = false, children,
 }: { step: number; title: string; subtitle?: string; prominent?: boolean; children: React.ReactNode }) {
   return (
-    <div className={`rounded-xl border overflow-hidden ${prominent ? "border-[#D7B87A] bg-[#FBF5E8]/50" : "border-gray-100 bg-white"}`}>
+    <div className={`rounded-xl border ${prominent ? "border-[#D7B87A] bg-[#FBF5E8]/50" : "border-gray-100 bg-white"}`}>
       <div className="px-4 pt-4 pb-2 flex items-start gap-2.5">
         <span
           className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold mt-0.5 ${
