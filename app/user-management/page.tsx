@@ -48,7 +48,7 @@ function relativeTime(iso: string | null): string {
 
 function formatDate(iso: string | null): string {
   if (!iso) return "—";
-  return new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+  return new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "2-digit" });
 }
 
 function fullName(u: User): string {
@@ -444,51 +444,51 @@ export default function UserManagementPage() {
         </div>
 
         {/* Table */}
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden overflow-x-auto">
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
           {loading ? (
             <div className="p-8 text-center text-gray-400 text-sm">Loading…</div>
           ) : filtered.length === 0 ? (
             <div className="p-8 text-center text-gray-400 text-sm">No accounts match your filters.</div>
           ) : (
-            <table className="w-full text-sm">
+            <table className="w-full text-sm table-fixed">
               <thead>
                 <tr className="border-b border-gray-100 text-xs text-gray-400 uppercase tracking-wide">
-                  <th className="text-left px-5 py-3 font-semibold">Name</th>
-                  <th className="text-left px-5 py-3 font-semibold">Email</th>
-                  <th className="text-left px-5 py-3 font-semibold">Organisation</th>
-                  <th className="text-left px-5 py-3 font-semibold hidden lg:table-cell">Org Type</th>
-                  <th className="text-left px-5 py-3 font-semibold">Role</th>
-                  <th className="text-left px-5 py-3 font-semibold hidden md:table-cell">Access Scope</th>
-                  <th className="text-left px-5 py-3 font-semibold">Status</th>
-                  <th className="text-left px-5 py-3 font-semibold hidden lg:table-cell">Last Login</th>
-                  <th className="text-left px-5 py-3 font-semibold hidden xl:table-cell">Created</th>
-                  <th className="text-left px-5 py-3 font-semibold hidden xl:table-cell">Updated</th>
-                  <th className="px-5 py-3" />
+                  <th className="text-left px-3 py-3 font-semibold w-[13%]">Name</th>
+                  <th className="text-left px-3 py-3 font-semibold w-[16%]">Email</th>
+                  <th className="text-left px-3 py-3 font-semibold w-[13%]">Organisation</th>
+                  <th className="text-left px-3 py-3 font-semibold w-[11%]">Role</th>
+                  <th className="text-left px-3 py-3 font-semibold w-[10%]">Status</th>
+                  <th className="text-left px-3 py-3 font-semibold w-[10%] hidden lg:table-cell">Last Login</th>
+                  <th className="text-left px-3 py-3 font-semibold w-[9%] hidden xl:table-cell">Created</th>
+                  <th className="text-left px-3 py-3 font-semibold w-[9%] hidden xl:table-cell">Updated</th>
+                  <th className="px-3 py-3 w-[9%]" />
                 </tr>
               </thead>
               <tbody>
                 {filtered.map(u => (
                   <tr key={u.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
-                    <td className="px-5 py-3 font-medium text-gray-800">{fullName(u) || <span className="text-gray-300">—</span>}</td>
-                    <td className="px-5 py-3 text-gray-600 font-mono text-xs">{u.work_email}</td>
-                    <td className="px-5 py-3 text-gray-600">{u.organisations?.name ?? <span className="text-gray-300">—</span>}</td>
-                    <td className="px-5 py-3 text-gray-500 hidden lg:table-cell">{u.organisations ? ORG_TYPE_LABELS[u.organisations.type] : "—"}</td>
-                    <td className="px-5 py-3">
-                      <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${ROLE_COLOURS[u.role]}`}>
+                    <td className="px-3 py-3 font-medium text-gray-800 truncate" title={fullName(u)}>{fullName(u) || <span className="text-gray-300">—</span>}</td>
+                    <td className="px-3 py-3 text-gray-600 font-mono text-xs truncate" title={u.work_email}>{u.work_email}</td>
+                    <td className="px-3 py-3 text-gray-600 truncate" title={u.organisations?.name ?? ""}>
+                      {u.organisations?.name ?? <span className="text-gray-300">—</span>}
+                      {u.organisations && <span className="block text-xs text-gray-400">{ORG_TYPE_LABELS[u.organisations.type]}</span>}
+                    </td>
+                    <td className="px-3 py-3">
+                      <span className={`text-xs font-semibold px-2.5 py-1 rounded-full whitespace-nowrap ${ROLE_COLOURS[u.role]}`}>
                         {ROLE_LABELS[u.role]}
                       </span>
+                      <span className="block text-xs text-gray-400 mt-0.5 truncate">{accessScopeLabel(u)}</span>
                     </td>
-                    <td className="px-5 py-3 text-gray-500 hidden md:table-cell">{accessScopeLabel(u)}</td>
-                    <td className="px-5 py-3">
-                      <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${STATUS_COLOURS[u.status]}`}>
+                    <td className="px-3 py-3">
+                      <span className={`text-xs font-medium px-2.5 py-1 rounded-full whitespace-nowrap ${STATUS_COLOURS[u.status]}`}>
                         {STATUS_LABELS[u.status]}
                       </span>
                     </td>
-                    <td className="px-5 py-3 text-gray-400 text-xs hidden lg:table-cell">{relativeTime(u.last_login_at)}</td>
-                    <td className="px-5 py-3 text-gray-400 text-xs hidden xl:table-cell">{formatDate(u.created_at)}</td>
-                    <td className="px-5 py-3 text-gray-400 text-xs hidden xl:table-cell">{formatDate(u.updated_at)}</td>
-                    <td className="px-5 py-3">
-                      <div className="flex items-center gap-3 justify-end">
+                    <td className="px-3 py-3 text-gray-400 text-xs hidden lg:table-cell whitespace-nowrap">{relativeTime(u.last_login_at)}</td>
+                    <td className="px-3 py-3 text-gray-400 text-xs hidden xl:table-cell whitespace-nowrap">{formatDate(u.created_at)}</td>
+                    <td className="px-3 py-3 text-gray-400 text-xs hidden xl:table-cell whitespace-nowrap">{formatDate(u.updated_at)}</td>
+                    <td className="px-3 py-3">
+                      <div className="flex items-center gap-2 justify-end">
                         <button onClick={() => openEdit(u)} className="text-xs text-gray-500 hover:text-gray-800 transition-colors">
                           Edit
                         </button>
