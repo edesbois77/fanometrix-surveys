@@ -55,6 +55,14 @@ function fullName(u: User): string {
   return [u.first_name, u.last_name].filter(Boolean).join(" ").trim();
 }
 
+function Meta({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <span className="text-xs text-gray-500">
+      {label}: <span className="text-gray-700">{value}</span>
+    </span>
+  );
+}
+
 function accessScopeLabel(u: { role: Role; access_scope: AccessScope }): string {
   if (u.access_scope === "organisation_wide") return u.role === "publisher" ? "Publisher-wide" : "Organisation-wide";
   return "Selected Access";
@@ -443,69 +451,55 @@ export default function UserManagementPage() {
           </div>
         </div>
 
-        {/* Table */}
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-          {loading ? (
-            <div className="p-8 text-center text-gray-400 text-sm">Loading…</div>
-          ) : filtered.length === 0 ? (
-            <div className="p-8 text-center text-gray-400 text-sm">No accounts match your filters.</div>
-          ) : (
-            <table className="w-full text-sm table-fixed">
-              <thead>
-                <tr className="border-b border-gray-100 text-xs text-gray-400 uppercase tracking-wide">
-                  <th className="text-left px-3 py-3 font-semibold w-[13%]">Name</th>
-                  <th className="text-left px-3 py-3 font-semibold w-[16%]">Email</th>
-                  <th className="text-left px-3 py-3 font-semibold w-[13%]">Organisation</th>
-                  <th className="text-left px-3 py-3 font-semibold w-[11%]">Role</th>
-                  <th className="text-left px-3 py-3 font-semibold w-[10%]">Status</th>
-                  <th className="text-left px-3 py-3 font-semibold w-[10%] hidden lg:table-cell">Last Login</th>
-                  <th className="text-left px-3 py-3 font-semibold w-[9%] hidden xl:table-cell">Created</th>
-                  <th className="text-left px-3 py-3 font-semibold w-[9%] hidden xl:table-cell">Updated</th>
-                  <th className="px-3 py-3 w-[9%]" />
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map(u => (
-                  <tr key={u.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
-                    <td className="px-3 py-3 font-medium text-gray-800 truncate" title={fullName(u)}>{fullName(u) || <span className="text-gray-300">—</span>}</td>
-                    <td className="px-3 py-3 text-gray-600 font-mono text-xs truncate" title={u.work_email}>{u.work_email}</td>
-                    <td className="px-3 py-3 text-gray-600 truncate" title={u.organisations?.name ?? ""}>
-                      {u.organisations?.name ?? <span className="text-gray-300">—</span>}
-                      {u.organisations && <span className="block text-xs text-gray-400">{ORG_TYPE_LABELS[u.organisations.type]}</span>}
-                    </td>
-                    <td className="px-3 py-3">
-                      <span className={`text-xs font-semibold px-2.5 py-1 rounded-full whitespace-nowrap ${ROLE_COLOURS[u.role]}`}>
-                        {ROLE_LABELS[u.role]}
-                      </span>
-                      <span className="block text-xs text-gray-400 mt-0.5 truncate">{accessScopeLabel(u)}</span>
-                    </td>
-                    <td className="px-3 py-3">
-                      <span className={`text-xs font-medium px-2.5 py-1 rounded-full whitespace-nowrap ${STATUS_COLOURS[u.status]}`}>
-                        {STATUS_LABELS[u.status]}
-                      </span>
-                    </td>
-                    <td className="px-3 py-3 text-gray-400 text-xs hidden lg:table-cell whitespace-nowrap">{relativeTime(u.last_login_at)}</td>
-                    <td className="px-3 py-3 text-gray-400 text-xs hidden xl:table-cell whitespace-nowrap">{formatDate(u.created_at)}</td>
-                    <td className="px-3 py-3 text-gray-400 text-xs hidden xl:table-cell whitespace-nowrap">{formatDate(u.updated_at)}</td>
-                    <td className="px-3 py-3">
-                      <div className="flex items-center gap-2 justify-end">
-                        <button onClick={() => openEdit(u)} className="text-xs text-gray-500 hover:text-gray-800 transition-colors">
-                          Edit
-                        </button>
-                        <button onClick={() => toggleStatus(u)}
-                          className={`text-xs font-medium transition-colors ${
-                            u.status === "disabled" ? "text-green-500 hover:text-green-700" : "text-red-400 hover:text-red-600"
-                          }`}>
-                          {u.status === "disabled" ? "Enable" : "Disable"}
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
+        {/* Accounts */}
+        {loading ? (
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-8 text-center text-gray-400 text-sm">Loading…</div>
+        ) : filtered.length === 0 ? (
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-8 text-center text-gray-400 text-sm">No accounts match your filters.</div>
+        ) : (
+          <div className="space-y-3">
+            {filtered.map(u => (
+              <div key={u.id} className="bg-white border border-gray-100 rounded-xl p-5 shadow-sm hover:border-gray-200 transition-colors">
+                <div className="flex items-start justify-between gap-3 mb-2.5">
+                  <p className="font-semibold text-gray-900">{fullName(u) || <span className="text-gray-300">Unnamed account</span>}</p>
+                  <span className={`text-xs font-medium px-2.5 py-1 rounded-full flex-shrink-0 whitespace-nowrap ${STATUS_COLOURS[u.status]}`}>
+                    {STATUS_LABELS[u.status]}
+                  </span>
+                </div>
+
+                <div className="flex flex-wrap gap-x-4 gap-y-1.5 mb-2">
+                  <Meta label="Email" value={u.work_email} />
+                  <Meta label="Organisation" value={u.organisations ? `${u.organisations.name} (${ORG_TYPE_LABELS[u.organisations.type]})` : "—"} />
+                  <Meta label="Role" value={
+                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${ROLE_COLOURS[u.role]}`}>{ROLE_LABELS[u.role]}</span>
+                  } />
+                  <Meta label="Access Rights" value={accessScopeLabel(u)} />
+                </div>
+
+                <div className="flex flex-wrap gap-x-4 gap-y-1.5 mb-3">
+                  <Meta label="Created" value={formatDate(u.created_at)} />
+                  <Meta label="Last Login" value={relativeTime(u.last_login_at)} />
+                  <Meta label="Last Updated" value={formatDate(u.updated_at)} />
+                </div>
+
+                <div className="flex items-center gap-3 pt-3 border-t border-gray-50">
+                  <button onClick={() => openEdit(u)}
+                    className="text-xs border border-gray-200 text-gray-600 hover:bg-gray-50 px-3 py-1.5 rounded-lg transition-colors">
+                    Edit
+                  </button>
+                  <button onClick={() => toggleStatus(u)}
+                    className={`text-xs border px-3 py-1.5 rounded-lg transition-colors ${
+                      u.status === "disabled"
+                        ? "border-green-200 text-green-700 hover:bg-green-50"
+                        : "border-red-100 text-red-400 hover:bg-red-50"
+                    }`}>
+                    {u.status === "disabled" ? "Enable" : "Disable"}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* ── Create / Edit Drawer ── */}
