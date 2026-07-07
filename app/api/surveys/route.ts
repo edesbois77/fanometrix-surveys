@@ -27,6 +27,8 @@ export async function GET(req: NextRequest) {
       campaign_count:      (st?.campaign_count      as number) ?? 0,
       live_campaign_count: (st?.live_campaign_count  as number) ?? 0,
       response_count:      (st?.response_count       as number) ?? 0,
+      last_used_at:        (st?.last_used_at         as string | null) ?? null,
+      last_response_at:    (st?.last_response_at     as string | null) ?? null,
     };
   });
 

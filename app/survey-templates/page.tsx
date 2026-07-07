@@ -483,7 +483,7 @@ export default function SurveysPage() {
   const [usageFilter,   setUsageFilter]   = useState<"all" | "unused" | "used" | "live">("all");
   const [createdFilter, setCreatedFilter] = useState<"all" | "today" | "7days" | "30days">("all");
   const [languageFilter, setLanguageFilter] = useState<string>("all");
-  const [sortBy,        setSortBy]        = useState<"recent" | "oldest" | "az">("recent");
+  const [sortBy,        setSortBy]        = useState<"recent" | "oldest" | "az" | "lastUsed">("recent");
 
   // Preview modal
   const [previewSurvey, setPreviewSurvey] = useState<Survey | null>(null);
@@ -676,6 +676,13 @@ export default function SurveysPage() {
       case "recent": return [...list].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
       case "oldest": return [...list].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
       case "az":     return [...list].sort((a, b) => a.name.localeCompare(b.name));
+      case "lastUsed":
+        return [...list].sort((a, b) => {
+          if (!a.last_used_at && !b.last_used_at) return 0;
+          if (!a.last_used_at) return 1;   // never-called surveys sink to the bottom
+          if (!b.last_used_at) return -1;
+          return new Date(b.last_used_at).getTime() - new Date(a.last_used_at).getTime();
+        });
       default:       return list;
     }
   }, [surveys, activeTab, statusFilter, usageFilter, createdFilter, languageFilter, sortBy, search, activeSurveys, archivedSurveys, deletedSurveys]);
@@ -1035,10 +1042,10 @@ export default function SurveysPage() {
               onChange={e => setCreatedFilter(e.target.value as typeof createdFilter)}
               className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A] text-gray-600"
             >
-              <option value="all">Any time</option>
-              <option value="today">Today</option>
-              <option value="7days">Last 7 days</option>
-              <option value="30days">Last 30 days</option>
+              <option value="all">Any time (created)</option>
+              <option value="today">Created today</option>
+              <option value="7days">Created in last 7 days</option>
+              <option value="30days">Created in last 30 days</option>
             </select>
 
             <select
@@ -1057,8 +1064,13 @@ export default function SurveysPage() {
               onChange={e => setSortBy(e.target.value as typeof sortBy)}
               className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A] text-gray-600"
             >
-              <option value="recent">Most recent</option>
-              <option value="oldest">Oldest first</option>
+              <optgroup label="Sort by created date">
+                <option value="recent">Most recently created</option>
+                <option value="oldest">Oldest created first</option>
+              </optgroup>
+              <optgroup label="Sort by usage">
+                <option value="lastUsed">Last used by a campaign</option>
+              </optgroup>
               <option value="az">A–Z</option>
             </select>
           </div>
