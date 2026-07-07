@@ -654,11 +654,17 @@ export default function ResearchProjectsPage() {
                     <StatusBadge status={p.status as CampaignStatus} />
                   </div>
 
-                  <div className="flex flex-wrap gap-1.5 mt-2">
+                  <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                    <span className="text-xs text-gray-400">Study Type:</span>
                     <span className="text-xs bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full">{studyTypeLabel(p.study_type)}</span>
-                    {p.tags.map(t => (
-                      <span key={t} className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">{t}</span>
-                    ))}
+                    {p.tags.length > 0 && (
+                      <>
+                        <span className="text-xs text-gray-400 ml-2">Tags:</span>
+                        {p.tags.map(t => (
+                          <span key={t} className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">{t}</span>
+                        ))}
+                      </>
+                    )}
                   </div>
 
                   <div className="flex flex-wrap gap-x-4 gap-y-1 mt-3">
