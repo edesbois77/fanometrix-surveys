@@ -482,6 +482,7 @@ export default function SurveysPage() {
   const [statusFilter,  setStatusFilter]  = useState<"all" | "draft" | "ready">("all");
   const [usageFilter,   setUsageFilter]   = useState<"all" | "unused" | "used" | "live">("all");
   const [createdFilter, setCreatedFilter] = useState<"all" | "today" | "7days" | "30days">("all");
+  const [languageFilter, setLanguageFilter] = useState<string>("all");
   const [sortBy,        setSortBy]        = useState<"recent" | "oldest" | "az">("recent");
 
   // Preview modal
@@ -628,6 +629,14 @@ export default function SurveysPage() {
   const archivedSurveys = useMemo(() => surveys.filter(s => s.status === "archived"), [surveys]);
   const deletedSurveys  = useMemo(() => surveys.filter(s => s.status === "deleted"),  [surveys]);
 
+  // Option list for the Language filter — only languages actually enabled on
+  // at least one loaded survey, so the dropdown stays short and relevant.
+  const languageFilterOptions = useMemo(() => {
+    const codes = new Set<string>();
+    for (const s of surveys) for (const code of s.enabled_languages ?? ["en"]) codes.add(code);
+    return SUPPORTED_LANGUAGES.filter(l => codes.has(l.code));
+  }, [surveys]);
+
   const displayed = useMemo(() => {
     let list: Survey[];
     if (activeTab === "active")        list = activeSurveys;
@@ -650,6 +659,10 @@ export default function SurveysPage() {
       list = list.filter(s => new Date(s.created_at) >= cutoff);
     }
 
+    if (languageFilter !== "all") {
+      list = list.filter(s => (s.enabled_languages ?? ["en"]).includes(languageFilter));
+    }
+
     if (search.trim()) {
       const q = search.toLowerCase();
       list = list.filter(s =>
@@ -665,7 +678,7 @@ export default function SurveysPage() {
       case "az":     return [...list].sort((a, b) => a.name.localeCompare(b.name));
       default:       return list;
     }
-  }, [surveys, activeTab, statusFilter, usageFilter, createdFilter, sortBy, search, activeSurveys, archivedSurveys, deletedSurveys]);
+  }, [surveys, activeTab, statusFilter, usageFilter, createdFilter, languageFilter, sortBy, search, activeSurveys, archivedSurveys, deletedSurveys]);
 
   // ── Usage modal ───────────────────────────────────────────────────────────
   async function openUsageModal(s: Survey) {
@@ -1026,6 +1039,17 @@ export default function SurveysPage() {
               <option value="today">Today</option>
               <option value="7days">Last 7 days</option>
               <option value="30days">Last 30 days</option>
+            </select>
+
+            <select
+              value={languageFilter}
+              onChange={e => setLanguageFilter(e.target.value)}
+              className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A] text-gray-600"
+            >
+              <option value="all">All Languages</option>
+              {languageFilterOptions.map(l => (
+                <option key={l.code} value={l.code}>{l.label}</option>
+              ))}
             </select>
 
             <select
