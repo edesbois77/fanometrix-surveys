@@ -211,6 +211,10 @@ function DeploymentsList({ project, surveys, refreshToken, orgName }: { project:
 export default function ResearchProjectsPage() {
   const { user } = useSession();
   const isAdmin = user?.role === "admin";
+  // Publishers can create and manage their own Research Projects — anything
+  // an admin sets up is already fully hidden from them (see lib/access.ts),
+  // so any project a publisher can see here is guaranteed to be their own.
+  const canManage = isAdmin || user?.role === "publisher";
 
   const [projects, setProjects] = useState<ResearchProject[]>([]);
   const [surveys, setSurveys] = useState<Survey[]>([]);
@@ -538,7 +542,7 @@ export default function ResearchProjectsPage() {
                 {projects.length} project{projects.length !== 1 ? "s" : ""}
               </p>
             </div>
-            {isAdmin && (
+            {canManage && (
               <button onClick={openCreate}
                 className="text-sm font-semibold px-4 py-2 rounded-lg"
                 style={{ background: "#D7B87A", color: "#0B1929" }}>
@@ -672,7 +676,7 @@ export default function ResearchProjectsPage() {
           <div className="text-center py-20 text-gray-400">
             <p className="text-4xl mb-3">◎</p>
             <p className="font-medium">No research projects</p>
-            {isAdmin && <p className="text-sm mt-1">Create your first research project to get started.</p>}
+            {canManage && <p className="text-sm mt-1">Create your first research project to get started.</p>}
           </div>
         )}
 
@@ -758,7 +762,7 @@ export default function ResearchProjectsPage() {
                   )}
                 </button>
 
-                {isAdmin && (
+                {canManage && (
                   <div className="px-5 pb-4 space-y-3">
                     <div className="flex flex-wrap gap-1.5 items-center">
                       <span className="inline-flex items-center gap-1">

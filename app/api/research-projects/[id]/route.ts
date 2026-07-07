@@ -89,12 +89,20 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   let session;
   try {
-    session = await requireUser(req, ["admin"]);
+    session = await requireUser(req, ["admin", "publisher"]);
   } catch (err) {
     return err as Response;
   }
 
   const { id } = await params;
+
+  // A publisher can only ever delete projects they can see — admin-created
+  // ones are already fully hidden from them (lib/access.ts), so this is
+  // effectively "their own projects only".
+  if (session.role !== "admin" && !(await canAccess(session, "research_project", id))) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   const { searchParams } = new URL(req.url);
   const force = searchParams.get("force") === "true";
   const now = new Date().toISOString();
