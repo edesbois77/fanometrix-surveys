@@ -940,16 +940,17 @@ export default function CampaignsPage() {
         {/* Select all + bulk action bar */}
         {!loading && displayed.length > 0 && (() => {
           const selectableIds = displayed.filter(c => !isLockedByAdminFor(c)).map(c => c.id);
+          if (selectableIds.length === 0) return null;
           return (
             <div className="flex items-center justify-between mb-3 text-sm">
               <label className="flex items-center gap-2 text-gray-500 cursor-pointer select-none">
                 <input
                   type="checkbox"
-                  checked={selectableIds.length > 0 && selectableIds.every(id => selectedIds.has(id))}
+                  checked={selectableIds.every(id => selectedIds.has(id))}
                   onChange={() => toggleSelectAll(selectableIds)}
                   className="w-4 h-4 accent-[#0B1929]"
                 />
-                Select all {displayed.length}
+                Select all {selectableIds.length}
               </label>
             </div>
           );
