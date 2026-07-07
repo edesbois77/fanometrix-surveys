@@ -483,7 +483,7 @@ export default function SurveysPage() {
   const [usageFilter,   setUsageFilter]   = useState<"all" | "unused" | "used" | "live">("all");
   const [createdFilter, setCreatedFilter] = useState<"all" | "today" | "7days" | "30days">("all");
   const [languageFilter, setLanguageFilter] = useState<string>("all");
-  const [sortBy,        setSortBy]        = useState<"recent" | "oldest" | "az" | "lastUsed">("recent");
+  const [sortBy,        setSortBy]        = useState<"recent" | "oldest" | "az" | "lastResponse">("recent");
 
   // Preview modal
   const [previewSurvey, setPreviewSurvey] = useState<Survey | null>(null);
@@ -676,12 +676,12 @@ export default function SurveysPage() {
       case "recent": return [...list].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
       case "oldest": return [...list].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
       case "az":     return [...list].sort((a, b) => a.name.localeCompare(b.name));
-      case "lastUsed":
+      case "lastResponse":
         return [...list].sort((a, b) => {
-          if (!a.last_used_at && !b.last_used_at) return 0;
-          if (!a.last_used_at) return 1;   // never-called surveys sink to the bottom
-          if (!b.last_used_at) return -1;
-          return new Date(b.last_used_at).getTime() - new Date(a.last_used_at).getTime();
+          if (!a.last_response_at && !b.last_response_at) return 0;
+          if (!a.last_response_at) return 1;   // surveys with no responses sink to the bottom
+          if (!b.last_response_at) return -1;
+          return new Date(b.last_response_at).getTime() - new Date(a.last_response_at).getTime();
         });
       default:       return list;
     }
@@ -1069,7 +1069,7 @@ export default function SurveysPage() {
                 <option value="oldest">Oldest created first</option>
               </optgroup>
               <optgroup label="Sort by usage">
-                <option value="lastUsed">Last used by a campaign</option>
+                <option value="lastResponse">Most recent response</option>
               </optgroup>
               <option value="az">A–Z</option>
             </select>
@@ -1160,6 +1160,15 @@ export default function SurveysPage() {
                         <span className="text-amber-600">Archived: {formatDate(s.archived_at)}</span>
                       </>
                     )}
+
+                    {s.last_response_at && formatRelativeTime(s.last_response_at) && (
+                      <>
+                        <span className="text-gray-200">·</span>
+                        <span title={formatDatetime(s.last_response_at)}>
+                          Last response: {formatRelativeTime(s.last_response_at)}
+                        </span>
+                      </>
+                    )}
                   </div>
 
                   {/* Row 2: usage stats */}
@@ -1180,22 +1189,6 @@ export default function SurveysPage() {
                         <span className="text-gray-200">·</span>
                         <span className="text-green-600 font-medium">
                           Serving in: {s.live_campaign_count} live campaign{s.live_campaign_count !== 1 ? "s" : ""}
-                        </span>
-                      </>
-                    )}
-
-                    {s.last_used_at && (
-                      <>
-                        <span className="text-gray-200">·</span>
-                        <span>Last used: {formatDate(s.last_used_at)}</span>
-                      </>
-                    )}
-
-                    {s.last_response_at && formatRelativeTime(s.last_response_at) && (
-                      <>
-                        <span className="text-gray-200">·</span>
-                        <span title={formatDatetime(s.last_response_at)}>
-                          Last response: {formatRelativeTime(s.last_response_at)}
                         </span>
                       </>
                     )}
