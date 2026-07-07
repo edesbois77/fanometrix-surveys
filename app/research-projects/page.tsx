@@ -8,6 +8,7 @@ import { MultiSelect } from "@/app/components/MultiSelect";
 import { CreativeDesignPicker } from "@/app/components/CreativeDesignPicker";
 import { CreativeDesignPreview } from "@/app/components/CreativeDesignPreview";
 import { DrawerSection } from "@/app/components/DrawerSection";
+import { InfoTooltip } from "@/app/components/InfoTooltip";
 import { STATUS_META, type CampaignStatus } from "@/lib/campaign-status";
 import {
   STUDY_TYPES, STUDY_TYPE_LABELS, studyTypeLabel,
@@ -707,19 +708,25 @@ export default function ResearchProjectsPage() {
                 {isAdmin && (
                   <div className="px-5 pb-4 space-y-3">
                     <div className="flex flex-wrap gap-1.5 items-center">
-                      <button
-                        onClick={() => handleGenerate(p)}
-                        disabled={!canGenerate || isGenerating}
-                        title={canGenerate ? "" : `In Edit: ${generateBlockedReasons.join(", ")}`}
-                        className="text-xs font-semibold px-3 py-1.5 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed"
-                        style={{ background: "#0B1929", color: "#D7B87A" }}
-                      >
-                        {isGenerating ? "Generating…" : "Generate Deployments"}
-                      </button>
-                      <button onClick={() => openEdit(p)}
-                        className="text-xs border border-gray-200 text-gray-600 hover:bg-gray-50 px-3 py-1.5 rounded-lg transition-colors">
-                        Edit
-                      </button>
+                      <span className="inline-flex items-center gap-1">
+                        <button
+                          onClick={() => handleGenerate(p)}
+                          disabled={!canGenerate || isGenerating}
+                          title={canGenerate ? "" : `In Edit: ${generateBlockedReasons.join(", ")}`}
+                          className="text-xs font-semibold px-3 py-1.5 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed"
+                          style={{ background: "#0B1929", color: "#D7B87A" }}
+                        >
+                          {isGenerating ? "Generating…" : "Generate Deployments"}
+                        </button>
+                        <InfoTooltip text="Creates a campaign for each Publisher × Country combination on this project. Safe to click again later — existing campaigns are skipped, only new or removed-then-re-added combinations are created or restored. It never deletes campaigns for publishers/countries you've since removed." />
+                      </span>
+                      <span className="inline-flex items-center gap-1">
+                        <button onClick={() => openEdit(p)}
+                          className="text-xs border border-gray-200 text-gray-600 hover:bg-gray-50 px-3 py-1.5 rounded-lg transition-colors">
+                          Edit
+                        </button>
+                        <InfoTooltip text="Changes this project's own settings (publishers, countries, dates, survey, etc.). It never creates, deletes, or renames campaigns — click Generate Deployments afterward to actually create campaigns for any new publisher/country combinations." />
+                      </span>
                       <button onClick={() => handleDelete(p)}
                         className="text-xs border border-red-100 text-red-400 hover:bg-red-50 px-3 py-1.5 rounded-lg transition-colors">
                         Delete
