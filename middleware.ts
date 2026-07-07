@@ -50,12 +50,13 @@ const ADMIN_AND_PUBLISHER_PREFIXES = [
   "/campaigns",
   "/campaign-groups",
   "/api/campaign-groups",
+  "/survey-templates",
+  "/api/surveys",
 ];
 
 // Routes only admins may access
 const ADMIN_ONLY_PREFIXES = [
   "/analysis",
-  "/survey-templates",
   "/campaign-deployment",
   "/reporting",
   "/looker-templates",
@@ -74,7 +75,6 @@ const ADMIN_ONLY_PREFIXES = [
   "/api/users",
   "/api/admin",
   "/api/social",
-  "/api/surveys",
   "/api/demo",
 ];
 

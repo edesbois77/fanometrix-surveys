@@ -4,8 +4,9 @@ import { requireUser } from "@/lib/auth-server";
 import { validateSurvey } from "@/lib/survey-validation";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  let session;
   try {
-    await requireUser(req);
+    session = await requireUser(req);
   } catch (err) {
     return err as Response;
   }
@@ -13,18 +14,31 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const { id } = await params;
   const { data, error } = await supabaseAdmin.from("surveys").select("*").eq("id", id).single();
   if (error) return NextResponse.json({ error: error.message }, { status: 404 });
+
+  if (session.role !== "admin" && data.organisation_id !== session.organisationId) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   return NextResponse.json({ data });
 }
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   let session;
   try {
-    session = await requireUser(req, ["admin"]);
+    session = await requireUser(req, ["admin", "publisher"]);
   } catch (err) {
     return err as Response;
   }
 
   const { id } = await params;
+
+  if (session.role !== "admin") {
+    const { data: existing } = await supabaseAdmin.from("surveys").select("organisation_id").eq("id", id).single();
+    if (!existing || existing.organisation_id !== session.organisationId) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+  }
+
   const body = await req.json();
   const now = new Date().toISOString();
 
@@ -33,7 +47,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     _action,
     id: _id, created_at: _ca, updated_at: _ua,
     archived_at: _aa, deleted_at: _da, deleted_by: _db,
-    delete_reason: _dr, created_by: _cb,
+    delete_reason: _dr, created_by: _cb, organisation_id: _oid,
     campaign_count: _cc, live_campaign_count: _lcc, response_count: _rc,
     ...rest
   } = body;
@@ -95,7 +109,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   let session;
   try {
-    session = await requireUser(req, ["admin"]);
+    session = await requireUser(req, ["admin", "publisher"]);
   } catch (err) {
     return err as Response;
   }
@@ -104,6 +118,19 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   const { searchParams } = new URL(req.url);
   const permanent = searchParams.get("permanent") === "true";
   const now = new Date().toISOString();
+
+  // Permanent (hard) delete stays admin-only, matching the same restriction
+  // on other resources' destructive-permanent actions.
+  if (permanent && session.role !== "admin") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  if (session.role !== "admin") {
+    const { data: existing } = await supabaseAdmin.from("surveys").select("organisation_id").eq("id", id).single();
+    if (!existing || existing.organisation_id !== session.organisationId) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+  }
 
   if (permanent) {
     // Hard delete — only allowed if the survey is already soft-deleted

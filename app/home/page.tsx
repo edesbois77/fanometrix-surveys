@@ -259,6 +259,14 @@ function NavCard({
   );
 }
 
+function initials(user: { firstName: string | null; lastName: string | null; workEmail: string }): string {
+  const first = user.firstName?.trim()?.[0];
+  const last  = user.lastName?.trim()?.[0];
+  if (first && last) return `${first}${last}`.toUpperCase();
+  if (first) return first.toUpperCase();
+  return user.workEmail.trim()[0]?.toUpperCase() ?? "?";
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function HomePage() {
   const { user, loading } = useSession();
@@ -276,16 +284,26 @@ export default function HomePage() {
       <div className="p-4 md:p-6 max-w-5xl mx-auto">
 
         {/* ── Welcome header ── */}
-        <div className="mb-6">
-          {loading ? (
-            <div className="h-8 w-48 bg-gray-100 rounded-lg animate-pulse mb-2" />
-          ) : (
-            <h1 className="text-2xl font-bold mb-0.5" style={{ color: "#0B1929" }}>
-              Welcome back{user ? `, ${user.firstName || user.workEmail}` : ""}.
-            </h1>
-          )}
+        <div className="mb-6 flex items-start justify-between gap-4">
+          <div>
+            {loading ? (
+              <div className="h-8 w-48 bg-gray-100 rounded-lg animate-pulse mb-2" />
+            ) : (
+              <h1 className="text-2xl font-bold mb-0.5" style={{ color: "#0B1929" }}>
+                Welcome back{user ? `, ${user.firstName || user.workEmail}` : ""}.
+              </h1>
+            )}
+            {user && (
+              <p className="text-sm text-gray-400 capitalize">{user.role}</p>
+            )}
+          </div>
           {user && (
-            <p className="text-sm text-gray-400 capitalize">{user.role}</p>
+            <div
+              title={[user.firstName, user.lastName].filter(Boolean).join(" ") || user.workEmail}
+              className="flex-shrink-0 w-10 h-10 rounded-full bg-gray-200 text-gray-600 flex items-center justify-center text-sm font-semibold"
+            >
+              {initials(user)}
+            </div>
           )}
         </div>
 

@@ -256,7 +256,10 @@ export default function ResearchProjectsPage() {
 
   useEffect(() => { load(); }, [load]);
 
-  const orgPublishers = useMemo(() => orgs.filter(o => o.type === "publisher"), [orgs]);
+  const orgPublishers = useMemo(() => {
+    const all = orgs.filter(o => o.type === "publisher");
+    return user?.role === "publisher" ? all.filter(o => o.id === user.organisationId) : all;
+  }, [orgs, user?.role, user?.organisationId]);
   const orgBrands      = useMemo(() => orgs.filter(o => o.type === "brand"), [orgs]);
   const orgAgencies      = useMemo(() => orgs.filter(o => o.type === "agency"), [orgs]);
   const orgById = useMemo(() => new Map(orgs.map(o => [o.id, o])), [orgs]);

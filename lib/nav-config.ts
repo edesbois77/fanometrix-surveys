@@ -56,7 +56,7 @@ export const NAV_ITEMS: NavItemConfig[] = [
     description: "Create and manage reusable survey templates for fan campaigns.",
     cta: "Manage Surveys",
     section: "platform",
-    roles: ["admin"],
+    roles: ["admin", "publisher"],
     navGroup: "surveys",
   },
   {
@@ -338,9 +338,9 @@ export function getHomeNavItems(role: UserRole): NavItemConfig[] {
   );
 }
 
-/** Items for a specific nav group */
-export function getNavGroupItems(group: NavGroup): NavItemConfig[] {
-  return NAV_ITEMS.filter(item => item.navGroup === group);
+/** Items for a specific nav group, visible to the given role */
+export function getNavGroupItems(group: NavGroup, role: UserRole): NavItemConfig[] {
+  return NAV_ITEMS.filter(item => item.navGroup === group && item.roles.includes(role));
 }
 
 /** Developer section — alphabetically sorted, admin only */

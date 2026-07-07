@@ -416,7 +416,10 @@ export default function CampaignsPage() {
     }
   }, [campaigns, deletedCampaigns, activeTab, statusFilter, usageFilter, dateFilter, countryFilter, publisherFilter, brandFilter, sortBy, search, activeCampaigns, closedCampaigns, archivedCampaigns, orgName]);
 
-  const publisherOrgs = useMemo(() => orgs.filter(o => o.type === "publisher"), [orgs]);
+  const publisherOrgs = useMemo(() => {
+    const all = orgs.filter(o => o.type === "publisher");
+    return user?.role === "publisher" ? all.filter(o => o.id === user.organisationId) : all;
+  }, [orgs, user?.role, user?.organisationId]);
   const brandOrgs      = useMemo(() => orgs.filter(o => o.type === "brand"), [orgs]);
   const agencyOrgs      = useMemo(() => orgs.filter(o => o.type === "agency"), [orgs]);
 

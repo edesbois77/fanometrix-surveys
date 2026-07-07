@@ -155,9 +155,10 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
               </>
             )}
 
-            {/* Admin: Surveys + Social Listening — collapsible sections */}
-            {!loading && isAdmin && ADMIN_SIDEBAR_SECTIONS.map(({ heading, group }) => {
-              const items   = getNavGroupItems(group);
+            {/* Surveys + Social Listening — collapsible sections, filtered to
+                whatever the current role can see (empty groups render nothing) */}
+            {!loading && user && ADMIN_SIDEBAR_SECTIONS.map(({ heading, group }) => {
+              const items   = getNavGroupItems(group, user.role as UserRole);
               const isOpen  = openSections[group] ?? true;
               if (!items.length) return null;
               return (
