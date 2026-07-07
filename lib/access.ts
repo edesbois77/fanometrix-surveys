@@ -50,9 +50,10 @@ async function orgWideResourceIds(organisationId: string, resourceType: Resource
     case "campaign": {
       // Deliberately not filtered by created_by_admin — a campaign an
       // admin sets up that targets this organisation is still something
-      // physically running on their platform, so it stays visible
-      // (read-only, labelled "Set up by Fanometrix" in the UI — enforced
-      // in app/api/campaigns/[id]/route.ts's PUT/DELETE handlers).
+      // physically running on their platform, so it stays visible for
+      // monitoring, labelled "Set up by Fanometrix" in the UI, fully
+      // read-only (no edit, delete, or status actions) — enforced in
+      // app/api/campaigns/[id]/route.ts and .../actions/route.ts.
       const { data } = await supabaseAdmin
         .from("campaigns")
         .select("id")

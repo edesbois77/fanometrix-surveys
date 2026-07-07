@@ -22,11 +22,10 @@ export async function POST(
 
   const { id } = await params;
 
-  // Status actions (go live, pause, close, archive, restore) stay
-  // available to a publisher even on a campaign an admin set up for
-  // them — they need to actually run what's deployed on their platform.
-  // Only content edits (PUT) and delete are blocked for those — see
-  // app/api/campaigns/[id]/route.ts.
+  // A publisher can only ever act on campaigns they can see, and never on
+  // one an admin set up — that's read-only for them (labelled "Set up by
+  // Fanometrix" in the UI), same restriction as content edits and delete.
+  // See app/api/campaigns/[id]/route.ts.
   if (session.role !== "admin" && !(await canAccess(session, "campaign", id))) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
@@ -46,12 +45,16 @@ export async function POST(
 
   const { data: campaign, error: fetchError } = await supabase
     .from("campaigns")
-    .select("id, brand_org_id, campaign_name, status")
+    .select("id, brand_org_id, campaign_name, status, created_by_admin")
     .eq("id", id)
     .single();
 
   if (fetchError || !campaign) {
     return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
+  }
+
+  if (session.role !== "admin" && campaign.created_by_admin) {
+    return NextResponse.json({ error: "This campaign was set up by the Fanometrix team and can't be changed." }, { status: 403 });
   }
 
   let brandName = "";

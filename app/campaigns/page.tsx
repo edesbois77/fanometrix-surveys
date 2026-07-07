@@ -247,6 +247,10 @@ function CampaignPreviewModal({ campaign, onClose }: { campaign: Campaign; onClo
 export default function CampaignsPage() {
   const { user } = useSession();
   const isAdmin = user?.role === "admin";
+  const isLockedByAdminFor = useCallback(
+    (c: Campaign) => c.created_by_admin && !isAdmin,
+    [isAdmin]
+  );
   const designNames = useCreativeDesignNames();
 
   // Data
@@ -934,19 +938,22 @@ export default function CampaignsPage() {
         </div>
 
         {/* Select all + bulk action bar */}
-        {!loading && displayed.length > 0 && (
-          <div className="flex items-center justify-between mb-3 text-sm">
-            <label className="flex items-center gap-2 text-gray-500 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={displayed.every(c => selectedIds.has(c.id))}
-                onChange={() => toggleSelectAll(displayed.map(c => c.id))}
-                className="w-4 h-4 accent-[#0B1929]"
-              />
-              Select all {displayed.length}
-            </label>
-          </div>
-        )}
+        {!loading && displayed.length > 0 && (() => {
+          const selectableIds = displayed.filter(c => !isLockedByAdminFor(c)).map(c => c.id);
+          return (
+            <div className="flex items-center justify-between mb-3 text-sm">
+              <label className="flex items-center gap-2 text-gray-500 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={selectableIds.length > 0 && selectableIds.every(id => selectedIds.has(id))}
+                  onChange={() => toggleSelectAll(selectableIds)}
+                  className="w-4 h-4 accent-[#0B1929]"
+                />
+                Select all {displayed.length}
+              </label>
+            </div>
+          );
+        })()}
 
         {selectedIds.size > 0 && (
           <div className="sticky top-2 z-10 bg-[#0B1929] text-white rounded-xl px-4 py-3 mb-4 flex flex-wrap items-center gap-2 shadow-lg">
@@ -997,12 +1004,12 @@ export default function CampaignsPage() {
         <div className="space-y-3">
           {displayed.map(c => {
             const isDeleted = !!c.deleted_at;
-            const actions   = isDeleted ? [] : availableActions(c.effective_status ?? c.status as CampaignStatus);
+            const isLockedByAdmin = isLockedByAdminFor(c);
+            const actions   = isDeleted || isLockedByAdmin ? [] : availableActions(c.effective_status ?? c.status as CampaignStatus);
             // Live/paused campaigns cannot be deleted to prevent accidental loss of active data.
             // All other statuses can be deleted; responses are preserved in the DB.
             const isLiveOrPaused = c.effective_status === "live" || c.effective_status === "paused"
               || c.status === "live" || c.status === "paused";
-            const isLockedByAdmin = c.created_by_admin && user?.role !== "admin";
             const canDelete  = !isDeleted && !isLiveOrPaused && !isLockedByAdmin;
             const hasResponses = c.response_count > 0;
             const deleteTitle = isLockedByAdmin
@@ -1015,12 +1022,16 @@ export default function CampaignsPage() {
               <div key={c.id} className={`bg-white border rounded-xl p-5 shadow-sm transition-colors flex gap-3 ${
                 isDeleted ? "border-gray-100 opacity-75" : "border-gray-100 hover:border-gray-200"
               }`}>
-                <input
-                  type="checkbox"
-                  checked={selectedIds.has(c.id)}
-                  onChange={() => toggleSelect(c.id)}
-                  className="w-4 h-4 mt-1 accent-[#0B1929] flex-shrink-0"
-                />
+                {isLockedByAdmin ? (
+                  <div className="w-4 h-4 mt-1 flex-shrink-0" title="Set up by the Fanometrix team — can't be selected for bulk actions." />
+                ) : (
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.has(c.id)}
+                    onChange={() => toggleSelect(c.id)}
+                    className="w-4 h-4 mt-1 accent-[#0B1929] flex-shrink-0"
+                  />
+                )}
                 <div className="flex-1 min-w-0">
                 {isDeleted ? (
                   /* ── Deleted card ── */
@@ -1071,7 +1082,7 @@ export default function CampaignsPage() {
                         {/* Metadata chips */}
                         <div className="flex flex-wrap gap-1.5 mt-2">
                           {isLockedByAdmin && (
-                            <span className="text-xs bg-amber-50 text-amber-700 px-2 py-0.5 rounded-full" title="Set up by the Fanometrix team — you can run it, but can't edit or delete it.">
+                            <span className="text-xs bg-amber-50 text-amber-700 px-2 py-0.5 rounded-full" title="Set up by the Fanometrix team — read-only.">
                               Set up by Fanometrix
                             </span>
                           )}
