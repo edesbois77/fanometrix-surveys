@@ -5,7 +5,8 @@
 // via the shared useIntelligenceReview hook. See
 // lib/intelligence/analysts/analyseSurvey.ts for the analyst and
 // app/api/surveys/[id]/insights/* for the backing routes.
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useIntelligenceReview, type IntelligenceReviewAdapter } from "@/lib/intelligence/useIntelligenceReview";
 import type { SurveyIntelligenceReport } from "@/lib/intelligence/analysts/analyseSurvey";
 
@@ -17,6 +18,25 @@ const MIN_RESPONSES = 50;
 type Status = "draft" | "edited" | "approved" | "published";
 
 type SurveyForModal = { id: string; name: string; response_count: number };
+
+// Same set/colours as survey-templates/page.tsx's CAMPAIGN_STATUS_COLOURS —
+// kept local since that map isn't exported, but must stay visually
+// consistent with how campaign status reads everywhere else.
+const CAMPAIGN_STATUS_COLOURS: Record<string, string> = {
+  draft:     "bg-gray-100 text-gray-600",
+  scheduled: "bg-blue-100 text-blue-700",
+  live:      "bg-green-100 text-green-700",
+  paused:    "bg-yellow-100 text-yellow-700",
+  closed:    "bg-gray-100 text-gray-500",
+  archived:  "bg-amber-100 text-amber-700",
+};
+
+type CampaignSummary = {
+  id: string;
+  campaign_name: string;
+  status: string;
+  response_count: number;
+};
 
 function StatusBadge({ status }: { status: Status }) {
   const map: Record<Status, { label: string; className: string; style?: React.CSSProperties }> = {
@@ -161,6 +181,22 @@ export function SurveyIntelligenceModal({ survey, onClose }: { survey: SurveyFor
 
   const notEnoughData = !row && !loading && survey.response_count < MIN_RESPONSES;
 
+  // Only needed to make the empty state useful (which campaign(s), if any,
+  // are collecting responses for this survey) — fetched independently of
+  // the review workflow, same pattern as the conversation page's `search`.
+  const [campaigns, setCampaigns] = useState<CampaignSummary[] | null>(null);
+
+  useEffect(() => {
+    if (!notEnoughData) return;
+    let cancelled = false;
+    fetch(`/api/surveys/${survey.id}/campaigns`)
+      .then(r => r.json())
+      .then(json => { if (!cancelled) setCampaigns(json.data ?? []); });
+    return () => { cancelled = true; };
+  }, [survey.id, notEnoughData]);
+
+  const progressPct = Math.min(100, Math.round((survey.response_count / MIN_RESPONSES) * 100));
+
   function onBackdrop(e: React.MouseEvent<HTMLDivElement>) {
     if (e.target === e.currentTarget) onClose();
   }
@@ -198,10 +234,78 @@ export function SurveyIntelligenceModal({ survey, onClose }: { survey: SurveyFor
               <h3 className="text-lg font-bold text-white mb-2">
                 {survey.response_count} of {MIN_RESPONSES} minimum responses collected
               </h3>
-              <p className="text-sm text-white/60 max-w-sm mx-auto leading-relaxed">
+              <p className="text-sm text-white/60 max-w-sm mx-auto leading-relaxed mb-5">
                 Fanometrix requires at least {MIN_RESPONSES} responses before generating an AI intelligence
                 summary, so findings reflect a statistically meaningful sample rather than a handful of answers.
               </p>
+
+              {/* Progress bar */}
+              <div className="max-w-sm mx-auto mb-6">
+                <div className="h-2 rounded-full bg-white/10 overflow-hidden">
+                  <div
+                    className="h-full rounded-full transition-all duration-500"
+                    style={{ width: `${progressPct}%`, background: "#D7B87A" }}
+                  />
+                </div>
+                <p className="text-xs text-white/40 mt-1.5">{progressPct}% of the way there</p>
+              </div>
+
+              {/* Campaign context + CTAs */}
+              {campaigns === null ? (
+                <div className="w-5 h-5 border-2 border-white/30 border-t-transparent rounded-full animate-spin mx-auto" />
+              ) : campaigns.length === 0 ? (
+                <div className="border-t border-white/10 pt-5 max-w-sm mx-auto">
+                  <p className="text-sm text-white/70 mb-4">
+                    This survey isn&apos;t attached to any campaign yet — responses can only be
+                    collected once it&apos;s deployed to a publisher.
+                  </p>
+                  <Link
+                    href="/research-projects"
+                    className="inline-block text-sm font-semibold px-5 py-2.5 rounded-xl"
+                    style={{ background: "#D7B87A", color: "#0B1929" }}
+                  >
+                    Deploy This Survey →
+                  </Link>
+                </div>
+              ) : (
+                <div className="border-t border-white/10 pt-5 text-left max-w-sm mx-auto">
+                  <p className="text-xs font-semibold text-white/50 uppercase tracking-wide mb-3">
+                    Collecting responses via
+                  </p>
+                  <div className="space-y-2 mb-5">
+                    {campaigns.map(c => (
+                      <Link
+                        key={c.id}
+                        href={`/campaigns/${c.id}`}
+                        className="flex items-center justify-between gap-3 bg-white/5 hover:bg-white/10 rounded-lg px-3 py-2.5 transition-colors"
+                      >
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-white truncate">{c.campaign_name}</p>
+                          <span className={`inline-block mt-1 text-[10px] font-semibold px-2 py-0.5 rounded-full capitalize ${CAMPAIGN_STATUS_COLOURS[c.status] ?? "bg-gray-100 text-gray-600"}`}>
+                            {c.status}
+                          </span>
+                        </div>
+                        <span className="text-xs text-white/50 flex-shrink-0">{c.response_count.toLocaleString()} responses</span>
+                      </Link>
+                    ))}
+                  </div>
+                  <div className="flex gap-2 justify-center">
+                    <Link
+                      href={`/campaigns/${campaigns[0].id}`}
+                      className="text-sm font-semibold px-4 py-2 rounded-lg text-center"
+                      style={{ background: "#D7B87A", color: "#0B1929" }}
+                    >
+                      View Campaign
+                    </Link>
+                    <Link
+                      href="/dashboard"
+                      className="text-sm border border-white/20 text-white/80 hover:bg-white/10 px-4 py-2 rounded-lg transition-colors text-center"
+                    >
+                      Open Dashboard
+                    </Link>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
