@@ -11,6 +11,7 @@ import {
 } from "@/lib/survey-locale";
 import { generateStudyName, studyTypeLabel } from "@/lib/naming";
 import { NameBuilder } from "@/app/components/NameBuilder";
+import { SurveyIntelligenceModal } from "@/app/components/SurveyIntelligenceModal";
 
 // ─── MPU colours ─────────────────────────────────────────────────────────────
 const NAVY = "#071B2F";
@@ -506,6 +507,9 @@ export default function SurveysPage() {
   const [usageSurvey,    setUsageSurvey]    = useState<Survey | null>(null);
   const [modalCampaigns, setModalCampaigns] = useState<ModalCampaign[] | null>(null);
   const [loadingModal,   setLoadingModal]   = useState(false);
+
+  // Intelligence modal
+  const [intelligenceSurvey, setIntelligenceSurvey] = useState<Survey | null>(null);
 
   // Edit drawer
   const [drawerOpen,           setDrawerOpen]           = useState(false);
@@ -1291,6 +1295,13 @@ export default function SurveysPage() {
                   {/* Action buttons */}
                   <div className="flex gap-2 mt-4 flex-wrap">
                     <button
+                      onClick={() => setIntelligenceSurvey(s)}
+                      className="text-xs border border-gray-200 text-gray-600 hover:bg-gray-50 px-3 py-1.5 rounded-lg transition-colors"
+                    >
+                      Intelligence
+                    </button>
+
+                    <button
                       onClick={() => openEdit(s)}
                       className="text-xs border border-gray-200 text-gray-600 hover:bg-gray-50 px-3 py-1.5 rounded-lg transition-colors"
                     >
@@ -1389,6 +1400,14 @@ export default function SurveysPage() {
           campaigns={modalCampaigns}
           loading={loadingModal}
           onClose={() => { setUsageSurvey(null); setModalCampaigns(null); }}
+        />
+      )}
+
+      {/* ── Survey Intelligence Modal ── */}
+      {intelligenceSurvey && (
+        <SurveyIntelligenceModal
+          survey={intelligenceSurvey}
+          onClose={() => setIntelligenceSurvey(null)}
         />
       )}
 
