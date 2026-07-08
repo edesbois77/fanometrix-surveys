@@ -19,18 +19,6 @@ type Status = "draft" | "edited" | "approved" | "published";
 
 type SurveyForModal = { id: string; name: string; response_count: number };
 
-// Same set/colours as survey-templates/page.tsx's CAMPAIGN_STATUS_COLOURS —
-// kept local since that map isn't exported, but must stay visually
-// consistent with how campaign status reads everywhere else.
-const CAMPAIGN_STATUS_COLOURS: Record<string, string> = {
-  draft:     "bg-gray-100 text-gray-600",
-  scheduled: "bg-blue-100 text-blue-700",
-  live:      "bg-green-100 text-green-700",
-  paused:    "bg-yellow-100 text-yellow-700",
-  closed:    "bg-gray-100 text-gray-500",
-  archived:  "bg-amber-100 text-amber-700",
-};
-
 type CampaignSummary = {
   id: string;
   campaign_name: string;
@@ -196,6 +184,8 @@ export function SurveyIntelligenceModal({ survey, onClose }: { survey: SurveyFor
   }, [survey.id, notEnoughData]);
 
   const progressPct = Math.min(100, Math.round((survey.response_count / MIN_RESPONSES) * 100));
+  const activeCampaigns = campaigns?.filter(c => c.status === "live") ?? [];
+  const closedCampaigns = campaigns?.filter(c => c.status !== "live") ?? [];
 
   function onBackdrop(e: React.MouseEvent<HTMLDivElement>) {
     if (e.target === e.currentTarget) onClose();
@@ -228,36 +218,38 @@ export function SurveyIntelligenceModal({ survey, onClose }: { survey: SurveyFor
 
           {notEnoughData && (
             <div className="bg-[#0B1929] rounded-2xl p-8 text-center">
+              {/* Evidence Progress — the primary message */}
               <p className="text-xs font-semibold tracking-widest uppercase mb-3" style={{ color: "#D7B87A" }}>
-                Not Enough Data Yet
+                Evidence Progress
               </p>
-              <h3 className="text-lg font-bold text-white mb-2">
-                {survey.response_count} of {MIN_RESPONSES} minimum responses collected
+              <h3 className="text-2xl font-bold text-white mb-1">
+                {survey.response_count} of {MIN_RESPONSES} responses collected
               </h3>
-              <p className="text-sm text-white/60 max-w-sm mx-auto leading-relaxed mb-5">
-                Fanometrix requires at least {MIN_RESPONSES} responses before generating an AI intelligence
-                summary, so findings reflect a statistically meaningful sample rather than a handful of answers.
-              </p>
+              <p className="text-xs text-white/40 mb-5">{progressPct}% of the way to Intelligence</p>
 
-              {/* Progress bar */}
-              <div className="max-w-sm mx-auto mb-6">
+              <div className="max-w-sm mx-auto mb-5">
                 <div className="h-2 rounded-full bg-white/10 overflow-hidden">
                   <div
                     className="h-full rounded-full transition-all duration-500"
                     style={{ width: `${progressPct}%`, background: "#D7B87A" }}
                   />
                 </div>
-                <p className="text-xs text-white/40 mt-1.5">{progressPct}% of the way there</p>
               </div>
 
-              {/* Campaign context + CTAs */}
+              <p className="text-sm text-white/60 max-w-sm mx-auto leading-relaxed">
+                Fanometrix is building evidence from every response to this survey. Once it reaches a
+                statistically meaningful sample, the Intelligence Engine will turn it into a client-ready
+                summary — key findings, notable differences and recommended actions.
+              </p>
+
+              {/* Survey Deployments — secondary, supports the primary message rather than competing with it */}
               {campaigns === null ? (
-                <div className="w-5 h-5 border-2 border-white/30 border-t-transparent rounded-full animate-spin mx-auto" />
+                <div className="w-5 h-5 border-2 border-white/30 border-t-transparent rounded-full animate-spin mx-auto mt-6" />
               ) : campaigns.length === 0 ? (
-                <div className="border-t border-white/10 pt-5 max-w-sm mx-auto">
-                  <p className="text-sm text-white/70 mb-4">
-                    This survey isn&apos;t attached to any campaign yet — responses can only be
-                    collected once it&apos;s deployed to a publisher.
+                <div className="border-t border-white/10 mt-6 pt-5 max-w-sm mx-auto">
+                  <p className="text-xs text-white/50 mb-3">
+                    This survey isn&apos;t deployed to a campaign yet — evidence can only be gathered
+                    once it&apos;s live on publisher inventory.
                   </p>
                   <Link
                     href="/research-projects"
@@ -268,41 +260,75 @@ export function SurveyIntelligenceModal({ survey, onClose }: { survey: SurveyFor
                   </Link>
                 </div>
               ) : (
-                <div className="border-t border-white/10 pt-5 text-left max-w-sm mx-auto">
-                  <p className="text-xs font-semibold text-white/50 uppercase tracking-wide mb-3">
-                    Collecting responses via
+                <div className="border-t border-white/10 mt-6 pt-4 text-left max-w-sm mx-auto">
+                  <p className="text-[11px] font-semibold text-white/40 uppercase tracking-wide mb-2.5">
+                    Survey Deployments
                   </p>
-                  <div className="space-y-2 mb-5">
-                    {campaigns.map(c => (
-                      <Link
-                        key={c.id}
-                        href={`/campaigns/${c.id}`}
-                        className="flex items-center justify-between gap-3 bg-white/5 hover:bg-white/10 rounded-lg px-3 py-2.5 transition-colors"
-                      >
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium text-white truncate">{c.campaign_name}</p>
-                          <span className={`inline-block mt-1 text-[10px] font-semibold px-2 py-0.5 rounded-full capitalize ${CAMPAIGN_STATUS_COLOURS[c.status] ?? "bg-gray-100 text-gray-600"}`}>
-                            {c.status}
+
+                  {activeCampaigns.length > 0 && (
+                    <div className="space-y-1 mb-2">
+                      {activeCampaigns.map(c => (
+                        <Link
+                          key={c.id}
+                          href={`/campaigns/${c.id}`}
+                          className="flex items-center justify-between gap-2 text-xs px-2.5 py-2 rounded-lg hover:bg-white/5 transition-colors"
+                        >
+                          <span className="flex items-center gap-2 min-w-0">
+                            <span className="w-1.5 h-1.5 rounded-full bg-green-400 flex-shrink-0" />
+                            <span className="text-white/90 truncate">{c.campaign_name}</span>
                           </span>
-                        </div>
-                        <span className="text-xs text-white/50 flex-shrink-0">{c.response_count.toLocaleString()} responses</span>
+                          <span className="text-white/50 flex-shrink-0" style={{ fontVariantNumeric: "tabular-nums" }}>
+                            {c.response_count.toLocaleString()}
+                          </span>
+                        </Link>
+                      ))}
+                    </div>
+                  )}
+
+                  {closedCampaigns.length > 0 && (
+                    <div className="space-y-0.5 mb-2 opacity-50">
+                      <p className="text-[10px] text-white/50 uppercase tracking-wide px-2.5 mt-1.5 mb-1">Closed</p>
+                      {closedCampaigns.map(c => (
+                        <Link
+                          key={c.id}
+                          href={`/campaigns/${c.id}`}
+                          className="flex items-center justify-between gap-2 text-xs px-2.5 py-1.5 rounded-lg hover:bg-white/5 transition-colors"
+                        >
+                          <span className="text-white/60 truncate">{c.campaign_name}</span>
+                          <span className="text-white/40 flex-shrink-0" style={{ fontVariantNumeric: "tabular-nums" }}>
+                            {c.response_count.toLocaleString()}
+                          </span>
+                        </Link>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="flex gap-2 justify-center mt-4">
+                    {activeCampaigns.length > 0 ? (
+                      <>
+                        <Link
+                          href={`/campaigns/${activeCampaigns[0].id}`}
+                          className="text-sm font-semibold px-4 py-2 rounded-lg text-center"
+                          style={{ background: "#D7B87A", color: "#0B1929" }}
+                        >
+                          View Active Campaign
+                        </Link>
+                        <Link
+                          href="/dashboard"
+                          className="text-sm border border-white/20 text-white/80 hover:bg-white/10 px-4 py-2 rounded-lg transition-colors text-center"
+                        >
+                          Open Dashboard
+                        </Link>
+                      </>
+                    ) : (
+                      <Link
+                        href="/research-projects"
+                        className="text-sm font-semibold px-4 py-2 rounded-lg text-center"
+                        style={{ background: "#D7B87A", color: "#0B1929" }}
+                      >
+                        Deploy Another Campaign →
                       </Link>
-                    ))}
-                  </div>
-                  <div className="flex gap-2 justify-center">
-                    <Link
-                      href={`/campaigns/${campaigns[0].id}`}
-                      className="text-sm font-semibold px-4 py-2 rounded-lg text-center"
-                      style={{ background: "#D7B87A", color: "#0B1929" }}
-                    >
-                      View Campaign
-                    </Link>
-                    <Link
-                      href="/dashboard"
-                      className="text-sm border border-white/20 text-white/80 hover:bg-white/10 px-4 py-2 rounded-lg transition-colors text-center"
-                    >
-                      Open Dashboard
-                    </Link>
+                    )}
                   </div>
                 </div>
               )}
