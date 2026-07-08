@@ -1,15 +1,21 @@
 "use client";
 
-import { useState, useEffect, use } from "react";
+import { useState, useEffect, useCallback, use } from "react";
 import Link from "next/link";
 import { AdminShell } from "@/app/components/AdminShell";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 
+type RedditStatus = "not_collected" | "collecting" | "completed" | "failed";
 type Search = {
   id: string; name: string; entity_type: string; research_goal: string;
   description: string | null; status: string; markets: string[];
   platforms: string[]; frequency: string;
   social_keywords: { keyword: string; keyword_type: string }[];
+  reddit_subreddits: string[];
+  reddit_collection_status: RedditStatus;
+  reddit_last_collected_at: string | null;
+  reddit_mentions_collected: number;
+  reddit_collection_error: string | null;
 };
 type Stats = {
   total: number; positive_pct: number; neutral_pct: number; negative_pct: number;
@@ -24,28 +30,81 @@ const STATUS_COLOURS: Record<string, string> = {
   Draft: "bg-gray-100 text-gray-600", Active: "bg-green-100 text-green-700",
   Paused: "bg-amber-100 text-amber-700", Archived: "bg-red-100 text-red-500",
 };
+const REDDIT_STATUS_COLOURS: Record<RedditStatus, string> = {
+  not_collected: "bg-gray-100 text-gray-600",
+  collecting:    "bg-blue-100 text-blue-700",
+  completed:     "bg-green-100 text-green-700",
+  failed:        "bg-red-100 text-red-600",
+};
+const REDDIT_STATUS_LABELS: Record<RedditStatus, string> = {
+  not_collected: "Not collected",
+  collecting:    "Collecting…",
+  completed:     "Completed",
+  failed:        "Failed",
+};
 
 export default function SearchDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  const [search,    setSearch]    = useState<Search | null>(null);
-  const [stats,     setStats]     = useState<Stats | null>(null);
-  const [summaries, setSummaries] = useState<Summary[]>([]);
-  const [loading,   setLoading]   = useState(true);
+  const [search,         setSearch]         = useState<Search | null>(null);
+  const [stats,          setStats]          = useState<Stats | null>(null);
+  const [summaries,      setSummaries]      = useState<Summary[]>([]);
+  const [loading,        setLoading]        = useState(true);
+  const [subredditInput, setSubredditInput] = useState("");
+  const [savingSubs,     setSavingSubs]     = useState(false);
+  const [collecting,     setCollecting]     = useState(false);
+  const [toast,          setToast]          = useState<{ msg: string; ok: boolean } | null>(null);
 
-  useEffect(() => {
+  function showToast(msg: string, ok = true) {
+    setToast({ msg, ok });
+    setTimeout(() => setToast(null), 4000);
+  }
+
+  const load = useCallback(async () => {
     if (!id) return;
-    Promise.all([
-      fetch(`/api/social/searches`).then(r => r.json()),
-      fetch(`/api/social/stats?search_id=${id}`).then(r => r.json()),
-      fetch(`/api/social/reports?search_id=${id}`).then(r => r.json()),
-    ]).then(([sJson, statsJson, reportJson]) => {
+    try {
+      const [sJson, statsJson, reportJson] = await Promise.all([
+        fetch(`/api/social/searches`).then(r => r.json()),
+        fetch(`/api/social/stats?search_id=${id}`).then(r => r.json()),
+        fetch(`/api/social/reports?search_id=${id}`).then(r => r.json()),
+      ]);
       const found = (sJson.data ?? []).find((s: Search) => s.id === id);
       setSearch(found ?? null);
+      setSubredditInput((found?.reddit_subreddits ?? []).join(", "));
       setStats(statsJson);
       setSummaries(reportJson.recentSummaries ?? []);
+    } catch {
+      setSearch(null);
+    } finally {
       setLoading(false);
-    }).catch(() => setLoading(false));
+    }
   }, [id]);
+
+  useEffect(() => { load(); }, [load]);
+
+  async function handleSaveSubreddits() {
+    if (!search) return;
+    const subs = subredditInput.split(",").map(s => s.trim().replace(/^\/?r\//i, "")).filter(Boolean);
+    setSavingSubs(true);
+    const res = await fetch(`/api/social/searches/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reddit_subreddits: subs }),
+    });
+    setSavingSubs(false);
+    if (res.ok) { showToast("Subreddits saved."); load(); }
+    else { const j = await res.json(); showToast(j.error ?? "Failed to save subreddits.", false); }
+  }
+
+  async function handleCollectReddit() {
+    setCollecting(true);
+    showToast("Fetching Reddit posts & comments…");
+    const res  = await fetch(`/api/social/searches/${id}/collect-reddit`, { method: "POST" });
+    const json = await res.json();
+    setCollecting(false);
+    if (res.ok) showToast(`✓ Fetched ${json.fetched}, saved ${json.saved} new (${json.skipped} already collected).`);
+    else showToast(json.error ?? "Reddit collection failed.", false);
+    load();
+  }
 
   if (loading) return (
     <AdminShell>
@@ -121,6 +180,53 @@ export default function SearchDetailPage({ params }: { params: Promise<{ id: str
             <p className="text-sm text-gray-700">{search.platforms.join(", ") || "All"}</p>
             <p className="text-xs text-gray-400 mt-1">{search.frequency}</p>
           </div>
+        </div>
+
+        {/* Reddit Collection */}
+        <div className="bg-white border border-gray-100 rounded-xl p-5 shadow-sm mb-6">
+          <div className="flex items-start justify-between gap-4 flex-wrap mb-4">
+            <div>
+              <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                <h3 className="text-sm font-semibold text-gray-900">Reddit Collection</h3>
+                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${REDDIT_STATUS_COLOURS[search.reddit_collection_status] ?? REDDIT_STATUS_COLOURS.not_collected}`}>
+                  {REDDIT_STATUS_LABELS[search.reddit_collection_status] ?? "Not collected"}
+                </span>
+              </div>
+              <div className="flex gap-4 text-xs text-gray-400 flex-wrap">
+                <span>Source: Reddit</span>
+                <span>{search.reddit_mentions_collected ?? 0} mentions collected</span>
+                <span>Last collected: {search.reddit_last_collected_at ? new Date(search.reddit_last_collected_at).toLocaleString() : "Never"}</span>
+              </div>
+              {search.reddit_collection_status === "failed" && search.reddit_collection_error && (
+                <p className="text-xs text-red-500 mt-1.5">{search.reddit_collection_error}</p>
+              )}
+            </div>
+            <button onClick={handleCollectReddit}
+              disabled={collecting || !search.reddit_subreddits?.length}
+              className="text-xs font-semibold px-4 py-2 rounded-lg disabled:opacity-40 flex-shrink-0"
+              style={{ background: "#D7B87A", color: "#0B1929" }}
+              title={!search.reddit_subreddits?.length ? "Add a target subreddit first" : undefined}>
+              {collecting ? "Fetching…" : "Fetch Reddit Data"}
+            </button>
+          </div>
+
+          <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block mb-1.5">Target Subreddits</label>
+          <div className="flex gap-2">
+            <input value={subredditInput} onChange={e => setSubredditInput(e.target.value)}
+              className="flex-1 border border-gray-200 rounded-xl px-3 py-1.5 text-sm focus:outline-none focus:border-[#D7B87A]"
+              placeholder="e.g. soccer, LiverpoolFC, PremierLeague (comma-separated, no r/)" />
+            <button onClick={handleSaveSubreddits} disabled={savingSubs}
+              className="text-xs font-semibold px-3 py-1.5 rounded-lg border-2 border-[#D7B87A] text-[#0B1929] hover:bg-[#FBF5E8] disabled:opacity-40">
+              {savingSubs ? "Saving…" : "Save"}
+            </button>
+          </div>
+          {(search.reddit_subreddits ?? []).length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mt-2">
+              {search.reddit_subreddits.map(sr => (
+                <span key={sr} className="text-xs bg-gray-50 border border-gray-200 px-2 py-0.5 rounded-full text-gray-600">r/{sr}</span>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* KPI */}
@@ -251,6 +357,12 @@ export default function SearchDetailPage({ params }: { params: Promise<{ id: str
           </div>
         )}
       </div>
+
+      {toast && (
+        <div className={`fixed bottom-6 right-6 z-50 px-5 py-3 rounded-xl shadow-lg text-sm font-medium ${toast.ok ? "bg-green-600 text-white" : "bg-red-600 text-white"}`}>
+          {toast.ok ? "✓" : "✕"} {toast.msg}
+        </div>
+      )}
     </AdminShell>
   );
 }
