@@ -3,9 +3,20 @@
 import { useState, useEffect, use, useCallback, useRef } from "react";
 import Link from "next/link";
 import { AdminShell } from "@/app/components/AdminShell";
-import type { InsightReport } from "@/app/api/social/insights/route";
+import type { InsightReport } from "@/lib/intelligence/analysts/analyseConversation";
 
 type Search = { id: string; name: string; entity_type: string; research_goal: string };
+type Status = "draft" | "edited" | "approved" | "published";
+type SummaryRow = {
+  id:             string;
+  content:        InsightReport;
+  edited_content: InsightReport | null;
+  status:         Status;
+  generated_at:   string;
+  reviewed_by:    string | null;
+  reviewed_at:    string | null;
+  published_at:   string | null;
+};
 
 // ── PowerPoint export (client-side via pptxgenjs) ────────────────────────────
 async function exportPowerPoint(search: Search, report: InsightReport) {
@@ -116,38 +127,187 @@ function Section({ title, accent, children }: { title: string; accent: string; c
   );
 }
 
+function StatusBadge({ status }: { status: Status }) {
+  const map: Record<Status, { label: string; className: string; style?: React.CSSProperties }> = {
+    draft:     { label: "Draft",     className: "bg-gray-100 text-gray-600" },
+    edited:    { label: "Edited",    className: "bg-amber-100 text-amber-700" },
+    approved:  { label: "Approved",  className: "bg-green-100 text-green-700" },
+    published: { label: "Published", className: "", style: { background: "#D7B87A", color: "#0B1929" } },
+  };
+  const s = map[status];
+  return <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${s.className}`} style={s.style}>{s.label}</span>;
+}
+
+// ── Edit-mode field widgets ──────────────────────────────────────────────────
+function ListField({ items, onChange, addLabel }: { items: string[]; onChange: (items: string[]) => void; addLabel: string }) {
+  return (
+    <div>
+      <div className="space-y-2">
+        {items.map((item, i) => (
+          <div key={i} className="flex items-start gap-2">
+            <textarea value={item} rows={2}
+              onChange={e => onChange(items.map((it, j) => (j === i ? e.target.value : it)))}
+              className="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-[#D7B87A]" />
+            <button onClick={() => onChange(items.filter((_, j) => j !== i))} className="text-gray-400 hover:text-red-400 px-1 pt-1.5">×</button>
+          </div>
+        ))}
+      </div>
+      <button onClick={() => onChange([...items, ""])} className="mt-2 text-xs font-semibold text-[#0B1929] hover:underline">
+        + Add {addLabel}
+      </button>
+    </div>
+  );
+}
+
+function MarketDifferencesField({ items, onChange }: {
+  items: InsightReport["market_differences"];
+  onChange: (items: InsightReport["market_differences"]) => void;
+}) {
+  return (
+    <div className="space-y-3">
+      {items.map((md, i) => (
+        <div key={i} className="border border-gray-100 rounded-xl p-3 bg-gray-50/50">
+          <div className="flex gap-2 mb-2 items-center">
+            <input value={md.markets.join(", ")} placeholder="Markets, e.g. IN, GB"
+              onChange={e => onChange(items.map((it, j) => (j === i ? { ...it, markets: e.target.value.split(",").map(s => s.trim()).filter(Boolean) } : it)))}
+              className="w-40 border border-gray-200 rounded-lg px-2 py-1 text-xs focus:outline-none focus:border-[#D7B87A]" />
+            <button onClick={() => onChange(items.filter((_, j) => j !== i))} className="text-gray-400 hover:text-red-400 px-1 ml-auto">×</button>
+          </div>
+          <textarea value={md.finding} rows={2} placeholder="Finding"
+            onChange={e => onChange(items.map((it, j) => (j === i ? { ...it, finding: e.target.value } : it)))}
+            className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-[#D7B87A]" />
+        </div>
+      ))}
+      <button onClick={() => onChange([...items, { finding: "", markets: [] }])} className="text-xs font-semibold text-[#0B1929] hover:underline">
+        + Add market difference
+      </button>
+    </div>
+  );
+}
+
+function RecommendedActionsField({ items, onChange }: {
+  items: InsightReport["recommended_actions"];
+  onChange: (items: InsightReport["recommended_actions"]) => void;
+}) {
+  return (
+    <div className="space-y-3">
+      {items.map((a, i) => (
+        <div key={i} className="border border-gray-100 rounded-xl p-3 bg-gray-50/50">
+          <div className="flex gap-2 mb-2 items-center">
+            <input value={a.action} placeholder="Recommended action"
+              onChange={e => onChange(items.map((it, j) => (j === i ? { ...it, action: e.target.value } : it)))}
+              className="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-sm font-medium focus:outline-none focus:border-[#D7B87A]" />
+            <button onClick={() => onChange(items.filter((_, j) => j !== i))} className="text-gray-400 hover:text-red-400 px-1">×</button>
+          </div>
+          <textarea value={a.rationale} rows={2} placeholder="Rationale"
+            onChange={e => onChange(items.map((it, j) => (j === i ? { ...it, rationale: e.target.value } : it)))}
+            className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-[#D7B87A]" />
+        </div>
+      ))}
+      <button onClick={() => onChange([...items, { action: "", rationale: "" }])} className="text-xs font-semibold text-[#0B1929] hover:underline">
+        + Add recommended action
+      </button>
+    </div>
+  );
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 export default function InsightsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  const [search,    setSearch]    = useState<Search | null>(null);
-  const [report,    setReport]    = useState<InsightReport | null>(null);
-  const [generating,setGenerating]= useState(false);
-  const [error,     setError]     = useState("");
-  const [exporting, setExporting] = useState<"pdf" | "pptx" | "csv" | null>(null);
+  const [search,     setSearch]     = useState<Search | null>(null);
+  const [row,        setRow]        = useState<SummaryRow | null>(null);
+  const [draft,      setDraft]      = useState<InsightReport | null>(null);
+  const [editing,    setEditing]    = useState(false);
+  const [loading,    setLoading]    = useState(true);
+  const [generating, setGenerating] = useState(false);
+  const [saving,     setSaving]     = useState(false);
+  const [approving,  setApproving]  = useState(false);
+  const [publishing, setPublishing] = useState(false);
+  const [error,      setError]      = useState("");
+  const [confirmRegen, setConfirmRegen] = useState(false);
+  const [exporting,  setExporting]  = useState<"pdf" | "pptx" | "csv" | null>(null);
   const printRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    fetch("/api/social/searches").then(r => r.json()).then(j => {
-      const found = (j.data ?? []).find((s: Search) => s.id === id);
-      setSearch(found ?? null);
-    });
+  const load = useCallback(async () => {
+    if (!id) return;
+    setLoading(true);
+    const [sJson, iJson] = await Promise.all([
+      fetch("/api/social/searches").then(r => r.json()),
+      fetch(`/api/social/insights?search_id=${id}`).then(r => r.json()),
+    ]);
+    setSearch((sJson.data ?? []).find((s: Search) => s.id === id) ?? null);
+    setRow(iJson.data ?? null);
+    setLoading(false);
   }, [id]);
 
-  const generate = useCallback(async () => {
-    if (!id) return;
+  useEffect(() => { load(); }, [load]);
+
+  const current: InsightReport | null = row ? (row.edited_content ?? row.content) : null;
+  const busy = generating || saving || approving || publishing;
+
+  async function generate(confirm = false) {
     setGenerating(true); setError("");
     const res  = await fetch("/api/social/insights", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ search_id: id, confirm }),
+    });
+    const json = await res.json();
+    setGenerating(false);
+    if (res.status === 409) { setConfirmRegen(true); return; }
+    if (res.ok) { setRow(json.data); setEditing(false); setDraft(null); }
+    else setError(json.error ?? "Failed to generate insights.");
+  }
+
+  function startEditing() {
+    if (!current) return;
+    setDraft(current);
+    setEditing(true);
+  }
+
+  function cancelEditing() {
+    setDraft(null);
+    setEditing(false);
+  }
+
+  async function saveEdits() {
+    if (!draft) return;
+    setSaving(true); setError("");
+    const res  = await fetch("/api/social/insights/edit", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ search_id: id, edited_content: draft }),
+    });
+    const json = await res.json();
+    setSaving(false);
+    if (res.ok) { setRow(json.data); setEditing(false); setDraft(null); }
+    else setError(json.error ?? "Failed to save edits.");
+  }
+
+  async function approveSummary() {
+    setApproving(true); setError("");
+    const res  = await fetch("/api/social/insights/approve", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ search_id: id }),
     });
     const json = await res.json();
-    setGenerating(false);
-    if (res.ok) setReport(json);
-    else setError(json.error ?? "Failed to generate insights.");
-  }, [id]);
+    setApproving(false);
+    if (res.ok) setRow(json.data);
+    else setError(json.error ?? "Failed to approve.");
+  }
+
+  async function publishSummary() {
+    setPublishing(true); setError("");
+    const res  = await fetch("/api/social/insights/publish", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ search_id: id }),
+    });
+    const json = await res.json();
+    setPublishing(false);
+    if (res.ok) setRow(json.data);
+    else setError(json.error ?? "Failed to publish.");
+  }
 
   async function handleExport(format: "csv" | "pptx" | "pdf") {
-    if (!report || !search) return;
+    if (!current || !search) return;
     setExporting(format);
 
     if (format === "csv") {
@@ -159,55 +319,95 @@ export default function InsightsPage({ params }: { params: Promise<{ id: string 
     } else if (format === "pdf") {
       window.print();
     } else if (format === "pptx") {
-      await exportPowerPoint(search, report);
+      await exportPowerPoint(search, current);
     }
 
     setExporting(null);
   }
-
-  const SENT_COLOUR = { positive: "#22C55E", neutral: "#9CA3AF", negative: "#EF4444" };
 
   return (
     <AdminShell>
       <div className="p-4 md:p-6 max-w-4xl mx-auto" ref={printRef}>
 
         {/* Header */}
-        <div className="flex items-start justify-between mb-6 print:hidden">
+        <div className="flex items-start justify-between mb-6 print:hidden flex-wrap gap-3">
           <div>
             <Link href={`/social-listening/searches/${id}`} className="text-xs text-gray-400 hover:text-gray-600">← Search Detail</Link>
-            <h1 className="text-2xl font-bold text-gray-900 mt-1">
-              {search?.name ?? "…"} — Insights
-            </h1>
+            <div className="flex items-center gap-2 mt-1 flex-wrap">
+              <h1 className="text-2xl font-bold text-gray-900">{search?.name ?? "…"} — Insights</h1>
+              {row && <StatusBadge status={row.status} />}
+            </div>
             <p className="text-sm text-gray-400 mt-0.5">Client-ready intelligence report</p>
           </div>
-          <div className="flex items-center gap-2">
-            {report && (
-              <>
-                <button onClick={() => handleExport("csv")} disabled={!!exporting}
+
+          {!editing ? (
+            <div className="flex items-center gap-2 flex-wrap">
+              {current && (
+                <>
+                  <button onClick={() => handleExport("csv")} disabled={!!exporting}
+                    className="text-xs border border-gray-200 px-3 py-1.5 rounded-lg text-gray-600 hover:bg-gray-50 disabled:opacity-50">
+                    {exporting === "csv" ? "…" : "Export CSV"}
+                  </button>
+                  <button onClick={() => handleExport("pdf")} disabled={!!exporting}
+                    className="text-xs border border-gray-200 px-3 py-1.5 rounded-lg text-gray-600 hover:bg-gray-50 disabled:opacity-50">
+                    {exporting === "pdf" ? "…" : "Export PDF"}
+                  </button>
+                  <button onClick={() => handleExport("pptx")} disabled={!!exporting}
+                    className="text-xs font-semibold px-3 py-1.5 rounded-lg disabled:opacity-50"
+                    style={{ background: "#D7B87A", color: "#0B1929" }}>
+                    {exporting === "pptx" ? "Generating…" : "Export PPTX"}
+                  </button>
+                </>
+              )}
+              {row && (
+                <button onClick={startEditing} disabled={busy}
                   className="text-xs border border-gray-200 px-3 py-1.5 rounded-lg text-gray-600 hover:bg-gray-50 disabled:opacity-50">
-                  {exporting === "csv" ? "…" : "Export CSV"}
+                  Edit
                 </button>
-                <button onClick={() => handleExport("pdf")} disabled={!!exporting}
-                  className="text-xs border border-gray-200 px-3 py-1.5 rounded-lg text-gray-600 hover:bg-gray-50 disabled:opacity-50">
-                  {exporting === "pdf" ? "…" : "Export PDF"}
+              )}
+              {row && row.status !== "published" && (
+                <button onClick={approveSummary} disabled={busy || row.status === "approved"}
+                  className="text-xs font-semibold border-2 border-green-600 text-green-700 px-3 py-1.5 rounded-lg hover:bg-green-50 disabled:opacity-40">
+                  {approving ? "Approving…" : row.status === "approved" ? "Approved ✓" : "Approve"}
                 </button>
-                <button onClick={() => handleExport("pptx")} disabled={!!exporting}
-                  className="text-xs font-semibold px-3 py-1.5 rounded-lg disabled:opacity-50"
-                  style={{ background: "#D7B87A", color: "#0B1929" }}>
-                  {exporting === "pptx" ? "Generating…" : "Export PPTX"}
+              )}
+              {row && (
+                <button onClick={publishSummary} disabled={busy || row.status !== "approved"}
+                  title={row.status !== "approved" && row.status !== "published" ? "Approve this summary first" : undefined}
+                  className="text-xs font-semibold px-3 py-1.5 rounded-lg disabled:opacity-40"
+                  style={{ background: "#0B1929", color: "#D7B87A" }}>
+                  {publishing ? "Publishing…" : row.status === "published" ? "Published ✓" : "Publish"}
                 </button>
-              </>
-            )}
-            <button onClick={generate} disabled={generating}
-              className="text-sm font-semibold px-4 py-2 rounded-lg disabled:opacity-50"
-              style={{ background: "#0B1929", color: "#D7B87A" }}>
-              {generating ? "Generating…" : report ? "Regenerate" : "Generate Insights"}
-            </button>
-          </div>
+              )}
+              <button onClick={() => generate(false)} disabled={busy}
+                className="text-sm font-semibold px-4 py-2 rounded-lg disabled:opacity-50"
+                style={{ background: "#0B1929", color: "#D7B87A" }}>
+                {generating ? "Generating…" : row ? "Regenerate" : "Generate Insights"}
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <button onClick={cancelEditing} disabled={saving}
+                className="text-xs border border-gray-200 px-3 py-1.5 rounded-lg text-gray-600 hover:bg-gray-50 disabled:opacity-50">
+                Cancel
+              </button>
+              <button onClick={saveEdits} disabled={saving}
+                className="text-sm font-semibold px-4 py-2 rounded-lg disabled:opacity-50"
+                style={{ background: "#0B1929", color: "#D7B87A" }}>
+                {saving ? "Saving…" : "Save"}
+              </button>
+            </div>
+          )}
         </div>
 
         {/* State messages */}
-        {!report && !generating && !error && (
+        {loading && (
+          <div className="bg-white border border-gray-100 rounded-2xl p-10 text-center shadow-sm">
+            <div className="w-8 h-8 border-4 border-[#D7B87A] border-t-transparent rounded-full animate-spin mx-auto" />
+          </div>
+        )}
+
+        {!loading && !row && !generating && (
           <div className="bg-[#0B1929] rounded-2xl p-10 text-center">
             <p className="text-xs font-semibold tracking-widest uppercase mb-3" style={{ color: "#D7B87A" }}>
               Insight Validation Dashboard
@@ -217,9 +417,9 @@ export default function InsightsPage({ params }: { params: Promise<{ id: string 
             </h2>
             <p className="text-sm text-white/60 max-w-md mx-auto leading-relaxed mb-6">
               Fanometrix analyses every classified mention and produces structured insights:
-              positive drivers, concerns, market differences and recommended actions — written for brands, clubs and agencies.
+              positive drivers, concerns, market differences and recommended actions, written for brands, clubs and agencies.
             </p>
-            <button onClick={generate}
+            <button onClick={() => generate(false)}
               className="text-sm font-semibold px-6 py-3 rounded-xl"
               style={{ background: "#D7B87A", color: "#0B1929" }}>
               Generate Insights →
@@ -236,109 +436,151 @@ export default function InsightsPage({ params }: { params: Promise<{ id: string 
         )}
 
         {error && (
-          <div className="bg-red-50 border border-red-100 rounded-xl p-5 text-center">
+          <div className="bg-red-50 border border-red-100 rounded-xl p-5 text-center mb-4">
             <p className="text-sm text-red-600">{error}</p>
           </div>
         )}
 
-        {report && (
+        {!generating && row && current && (
           <div className="space-y-5 print:space-y-4">
 
             {/* Print header */}
             <div className="hidden print:block mb-6">
               <p className="text-xs font-bold tracking-widest uppercase" style={{ color: "#D7B87A" }}>Fanometrix — Football Conversation Intelligence</p>
               <h1 className="text-3xl font-bold mt-1" style={{ color: "#0B1929" }}>{search?.name}</h1>
-              <p className="text-sm text-gray-500 mt-0.5">{search?.entity_type} · {search?.research_goal} · {report.mention_count.toLocaleString()} mentions analysed</p>
+              <p className="text-sm text-gray-500 mt-0.5">{search?.entity_type} · {search?.research_goal} · {current.mention_count.toLocaleString()} mentions analysed</p>
             </div>
 
             {/* Headline */}
             <div className="rounded-2xl p-6 text-center" style={{ background: "#0B1929" }}>
               <p className="text-xs font-semibold tracking-widest uppercase mb-2" style={{ color: "#D7B87A" }}>
-                {report.mention_count.toLocaleString()} mentions · {new Date(report.generated_at).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}
+                {current.mention_count.toLocaleString()} mentions · {new Date(row.generated_at).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}
               </p>
-              <h2 className="text-2xl font-bold text-white leading-tight">{report.headline}</h2>
+              {editing && draft ? (
+                <input value={draft.headline} onChange={e => setDraft({ ...draft, headline: e.target.value })}
+                  className="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-xl font-bold text-white text-center placeholder-white/40 focus:outline-none focus:border-[#D7B87A]" />
+              ) : (
+                <h2 className="text-2xl font-bold text-white leading-tight">{current.headline}</h2>
+              )}
             </div>
 
             {/* Executive Summary */}
             <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm">
               <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-3">Executive Summary</p>
-              <p className="text-base text-gray-800 leading-relaxed">{report.executive_summary}</p>
+              {editing && draft ? (
+                <textarea value={draft.executive_summary} rows={3}
+                  onChange={e => setDraft({ ...draft, executive_summary: e.target.value })}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-base text-gray-800 focus:outline-none focus:border-[#D7B87A]" />
+              ) : (
+                <p className="text-base text-gray-800 leading-relaxed">{current.executive_summary}</p>
+              )}
             </div>
 
             {/* Positive Drivers */}
             <Section title="Key Positive Drivers" accent="#22C55E">
-              <div className="space-y-3">
-                {report.positive_drivers.map((d, i) => (
-                  <div key={i} className="flex items-start gap-3">
-                    <div className="w-6 h-6 rounded-full bg-green-100 text-green-700 text-xs font-bold flex items-center justify-center flex-shrink-0 mt-0.5">
-                      {i + 1}
+              {editing && draft ? (
+                <ListField items={draft.positive_drivers} addLabel="driver" onChange={items => setDraft({ ...draft, positive_drivers: items })} />
+              ) : (
+                <div className="space-y-3">
+                  {current.positive_drivers.map((d, i) => (
+                    <div key={i} className="flex items-start gap-3">
+                      <div className="w-6 h-6 rounded-full bg-green-100 text-green-700 text-xs font-bold flex items-center justify-center flex-shrink-0 mt-0.5">
+                        {i + 1}
+                      </div>
+                      <p className="text-sm text-gray-700 leading-relaxed">{d}</p>
                     </div>
-                    <p className="text-sm text-gray-700 leading-relaxed">{d}</p>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </Section>
 
             {/* Key Concerns */}
             <Section title="Key Concerns" accent="#EF4444">
-              <div className="space-y-3">
-                {report.key_concerns.map((c, i) => (
-                  <div key={i} className="flex items-start gap-3">
-                    <div className="w-6 h-6 rounded-full bg-red-100 text-red-600 text-xs font-bold flex items-center justify-center flex-shrink-0 mt-0.5">
-                      {i + 1}
+              {editing && draft ? (
+                <ListField items={draft.key_concerns} addLabel="concern" onChange={items => setDraft({ ...draft, key_concerns: items })} />
+              ) : (
+                <div className="space-y-3">
+                  {current.key_concerns.map((c, i) => (
+                    <div key={i} className="flex items-start gap-3">
+                      <div className="w-6 h-6 rounded-full bg-red-100 text-red-600 text-xs font-bold flex items-center justify-center flex-shrink-0 mt-0.5">
+                        {i + 1}
+                      </div>
+                      <p className="text-sm text-gray-700 leading-relaxed">{c}</p>
                     </div>
-                    <p className="text-sm text-gray-700 leading-relaxed">{c}</p>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </Section>
 
             {/* Fastest Growing Topics */}
             <Section title="Fastest Growing Topics" accent="#D7B87A">
-              <div className="flex flex-wrap gap-2">
-                {report.fastest_growing_topics.map((t, i) => (
-                  <div key={i} className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-2.5 text-sm text-gray-800 leading-relaxed max-w-sm">
-                    {t}
-                  </div>
-                ))}
-              </div>
+              {editing && draft ? (
+                <ListField items={draft.fastest_growing_topics} addLabel="topic" onChange={items => setDraft({ ...draft, fastest_growing_topics: items })} />
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {current.fastest_growing_topics.map((t, i) => (
+                    <div key={i} className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-2.5 text-sm text-gray-800 leading-relaxed max-w-sm">
+                      {t}
+                    </div>
+                  ))}
+                </div>
+              )}
             </Section>
 
             {/* Market Differences */}
             <Section title="Market Intelligence" accent="#5B6CFA">
-              <div className="space-y-4">
-                {report.market_differences.map((md, i) => (
-                  <div key={i} className="border border-indigo-100 rounded-xl p-4 bg-indigo-50/30">
-                    <div className="flex gap-1.5 mb-2 flex-wrap">
-                      {md.markets.map(m => (
-                        <span key={m} className="text-xs font-semibold bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">{m}</span>
-                      ))}
+              {editing && draft ? (
+                <MarketDifferencesField items={draft.market_differences} onChange={items => setDraft({ ...draft, market_differences: items })} />
+              ) : (
+                <div className="space-y-4">
+                  {current.market_differences.map((md, i) => (
+                    <div key={i} className="border border-indigo-100 rounded-xl p-4 bg-indigo-50/30">
+                      <div className="flex gap-1.5 mb-2 flex-wrap">
+                        {md.markets.map(m => (
+                          <span key={m} className="text-xs font-semibold bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">{m}</span>
+                        ))}
+                      </div>
+                      <p className="text-sm text-gray-700 leading-relaxed">{md.finding}</p>
                     </div>
-                    <p className="text-sm text-gray-700 leading-relaxed">{md.finding}</p>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </Section>
 
             {/* Recommended Actions */}
             <Section title="Recommended Actions" accent="#D7B87A">
-              <div className="space-y-4">
-                {report.recommended_actions.map((a, i) => (
-                  <div key={i} className="border border-gray-100 rounded-xl p-4 bg-gray-50/50">
-                    <div className="flex items-start gap-3">
-                      <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold text-white mt-0.5"
-                        style={{ background: "#D7B87A", color: "#0B1929" }}>
-                        {i + 1}
-                      </div>
-                      <div>
-                        <p className="text-sm font-semibold text-gray-900 mb-1">{a.action}</p>
-                        <p className="text-xs text-gray-500 leading-relaxed">{a.rationale}</p>
+              {editing && draft ? (
+                <RecommendedActionsField items={draft.recommended_actions} onChange={items => setDraft({ ...draft, recommended_actions: items })} />
+              ) : (
+                <div className="space-y-4">
+                  {current.recommended_actions.map((a, i) => (
+                    <div key={i} className="border border-gray-100 rounded-xl p-4 bg-gray-50/50">
+                      <div className="flex items-start gap-3">
+                        <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold mt-0.5"
+                          style={{ background: "#D7B87A", color: "#0B1929" }}>
+                          {i + 1}
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold text-gray-900 mb-1">{a.action}</p>
+                          <p className="text-xs text-gray-500 leading-relaxed">{a.rationale}</p>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </Section>
+
+            {/* Review trail */}
+            {!editing && (row.reviewed_by || row.published_at) && (
+              <div className="text-xs text-gray-400 text-center">
+                {row.reviewed_by && row.reviewed_at && (
+                  <span>Approved by {row.reviewed_by} on {new Date(row.reviewed_at).toLocaleDateString("en-GB")}</span>
+                )}
+                {row.reviewed_by && row.published_at && <span> · </span>}
+                {row.published_at && <span>Published {new Date(row.published_at).toLocaleDateString("en-GB")}</span>}
+              </div>
+            )}
 
             {/* Footer */}
             <div className="text-center py-4 text-xs text-gray-300 print:block">
@@ -348,6 +590,28 @@ export default function InsightsPage({ params }: { params: Promise<{ id: string 
           </div>
         )}
       </div>
+
+      {/* Regenerate confirmation */}
+      {confirmRegen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm">
+            <h2 className="text-lg font-bold text-gray-900 mb-2">Regenerate summary?</h2>
+            <p className="text-sm text-gray-500 mb-5">
+              This search already has a {row?.status} summary. Regenerating replaces it with a new AI draft and resets its status to Draft, any edits or approval will be lost.
+            </p>
+            <div className="flex gap-3">
+              <button onClick={() => setConfirmRegen(false)}
+                className="flex-1 border border-gray-200 text-gray-600 text-sm font-medium py-2.5 rounded-xl">
+                Cancel
+              </button>
+              <button onClick={() => { setConfirmRegen(false); generate(true); }}
+                className="flex-1 text-sm font-semibold py-2.5 rounded-xl" style={{ background: "#0B1929", color: "#D7B87A" }}>
+                Regenerate
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Print styles */}
       <style>{`
