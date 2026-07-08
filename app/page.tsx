@@ -7,7 +7,7 @@ import { APP_URL } from "@/lib/env";
 export const metadata: Metadata = {
   title: "Fanometrix — Football Fan Intelligence",
   description:
-    "Fanometrix combines fan surveys, conversation intelligence and industry research to help publishers, brands, agencies and rights holders better understand football supporters.",
+    "Fanometrix is a football intelligence platform that combines proprietary fan research, public conversation intelligence and industry evidence to help brands, agencies, publishers and rights holders make better decisions.",
 };
 
 // ─── Design tokens ────────────────────────────────────────────────────────
@@ -147,9 +147,9 @@ export default function PublicHomePage() {
                 className="hero-fade-up leading-[1.75] mb-8 mx-auto lg:mx-0"
                 style={{ animationDelay: "0.18s", fontSize: "clamp(15px, 1.6vw, 17px)", color: GREY, maxWidth: 440 }}
               >
-                Fanometrix combines fan surveys, conversation intelligence and industry
-                research to help publishers, brands, agencies and rights holders better
-                understand football supporters.
+                Fanometrix is a football intelligence platform that combines proprietary
+                fan research, public conversation intelligence and industry evidence to
+                help brands, agencies, publishers and rights holders make better decisions.
               </p>
 
               <div className="hero-fade-up flex flex-wrap gap-3.5 justify-center lg:justify-start" style={{ animationDelay: "0.3s" }}>
