@@ -88,7 +88,7 @@ const COMMERCIAL_MODELS = [
     featured: true,
     tag: "Recommended",
     title: "House Inventory Partnership",
-    body: "The publisher provides available house inventory to run Fanometrix surveys. In return, they receive:",
+    body: "As the publisher you provide available house inventory to run Fanometrix surveys. In return, you receive:",
     bullets: [
       "Free Fanometrix platform access",
       "Unlimited surveys across your own inventory",
