@@ -83,7 +83,7 @@ const RECEIVE_CARDS = [
 ];
 
 const IMPLEMENTATION_STEPS = [
-  { label: "Create Survey", image: "/Survey.webp" },
+  { label: "Create Survey", image: "/Survey.webp", hoverPanMs: 9000 },
   { label: "Generate Tag",  image: "/Tags.webp" },
   { label: "Traffic MPU",   image: "/MPU.webp" },
   { label: "View Results",  image: "/for-publishers-view-results.png" },
@@ -466,7 +466,7 @@ export default function ForPublishersPage() {
           </p>
 
           <div className="max-w-[1160px] mx-auto grid sm:grid-cols-2 gap-6 mb-14">
-            {IMPLEMENTATION_STEPS.map(({ label, image }, i) => (
+            {IMPLEMENTATION_STEPS.map(({ label, image, hoverPanMs = 4000 }, i) => (
               <div
                 key={label}
                 className="group scroll-fade-up bg-white rounded-2xl border overflow-hidden transition-all duration-200 hover:border-[#D7B87A] hover:-translate-y-1 hover:shadow-lg"
@@ -483,7 +483,8 @@ export default function ForPublishersPage() {
                   <img
                     src={image}
                     alt={`${label} — real Fanometrix product screenshot`}
-                    className="w-full h-full object-cover object-top transition-[object-position] duration-[4000ms] ease-in-out group-hover:object-bottom"
+                    className="w-full h-full object-cover object-top ease-in-out group-hover:object-bottom"
+                    style={{ transitionProperty: "object-position", transitionDuration: `${hoverPanMs}ms` }}
                   />
                   <div className="absolute inset-x-0 bottom-0 h-12 pointer-events-none bg-gradient-to-t from-black/10 to-transparent" />
                 </div>
