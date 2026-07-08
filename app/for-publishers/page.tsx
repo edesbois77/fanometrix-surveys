@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { ScrollFadeObserver } from "@/app/components/ScrollFadeObserver";
+import { ImageProtection } from "@/app/components/ImageProtection";
 import { APP_URL } from "@/lib/env";
 
 export const metadata: Metadata = {
@@ -655,6 +656,7 @@ export default function ForPublishersPage() {
         </section>
 
         <ScrollFadeObserver />
+        <ImageProtection />
       </main>
 
       {/* ── Footer ── */}
