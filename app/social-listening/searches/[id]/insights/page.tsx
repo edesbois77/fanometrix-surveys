@@ -1,22 +1,13 @@
 "use client";
 
-import { useState, useEffect, use, useCallback, useRef } from "react";
+import { useState, useEffect, use, useMemo, useRef } from "react";
 import Link from "next/link";
 import { AdminShell } from "@/app/components/AdminShell";
 import type { InsightReport } from "@/lib/intelligence/analysts/analyseConversation";
+import { useIntelligenceReview, type IntelligenceReviewAdapter } from "@/lib/intelligence/useIntelligenceReview";
 
 type Search = { id: string; name: string; entity_type: string; research_goal: string };
 type Status = "draft" | "edited" | "approved" | "published";
-type SummaryRow = {
-  id:             string;
-  content:        InsightReport;
-  edited_content: InsightReport | null;
-  status:         Status;
-  generated_at:   string;
-  reviewed_by:    string | null;
-  reviewed_at:    string | null;
-  published_at:   string | null;
-};
 
 // ── PowerPoint export (client-side via pptxgenjs) ────────────────────────────
 async function exportPowerPoint(search: Search, report: InsightReport) {
@@ -214,97 +205,76 @@ function RecommendedActionsField({ items, onChange }: {
 // ── Page ──────────────────────────────────────────────────────────────────────
 export default function InsightsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  const [search,     setSearch]     = useState<Search | null>(null);
-  const [row,        setRow]        = useState<SummaryRow | null>(null);
-  const [draft,      setDraft]      = useState<InsightReport | null>(null);
-  const [editing,    setEditing]    = useState(false);
-  const [loading,    setLoading]    = useState(true);
-  const [generating, setGenerating] = useState(false);
-  const [saving,     setSaving]     = useState(false);
-  const [approving,  setApproving]  = useState(false);
-  const [publishing, setPublishing] = useState(false);
-  const [error,      setError]      = useState("");
-  const [confirmRegen, setConfirmRegen] = useState(false);
-  const [exporting,  setExporting]  = useState<"pdf" | "pptx" | "csv" | null>(null);
+
+  // Search context — independent of the review workflow, so it's loaded
+  // separately rather than through the shared hook.
+  const [search,        setSearch]        = useState<Search | null>(null);
+  const [searchLoading, setSearchLoading] = useState(true);
+  const [exporting,     setExporting]     = useState<"pdf" | "pptx" | "csv" | null>(null);
   const printRef = useRef<HTMLDivElement>(null);
 
-  const load = useCallback(async () => {
+  useEffect(() => {
     if (!id) return;
-    setLoading(true);
-    const [sJson, iJson] = await Promise.all([
-      fetch("/api/social/searches").then(r => r.json()),
-      fetch(`/api/social/insights?search_id=${id}`).then(r => r.json()),
-    ]);
-    setSearch((sJson.data ?? []).find((s: Search) => s.id === id) ?? null);
-    setRow(iJson.data ?? null);
-    setLoading(false);
+    setSearchLoading(true);
+    fetch("/api/social/searches").then(r => r.json()).then(json => {
+      setSearch((json.data ?? []).find((s: Search) => s.id === id) ?? null);
+      setSearchLoading(false);
+    });
   }, [id]);
 
-  useEffect(() => { load(); }, [load]);
+  const adapter: IntelligenceReviewAdapter<InsightReport> = useMemo(() => ({
+    fetchCurrent: async () => {
+      const res  = await fetch(`/api/social/insights?search_id=${id}`);
+      const json = await res.json();
+      return json.data ?? null;
+    },
+    generate: async confirm => {
+      const res  = await fetch("/api/social/insights", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ search_id: id, confirm }),
+      });
+      const json = await res.json();
+      if (res.status === 409) return { ok: false, error: json.error, requiresConfirm: true };
+      if (!res.ok) return { ok: false, error: json.error ?? "Failed to generate insights." };
+      return { ok: true, data: json.data };
+    },
+    saveEdit: async editedContent => {
+      const res  = await fetch("/api/social/insights/edit", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ search_id: id, edited_content: editedContent }),
+      });
+      const json = await res.json();
+      if (!res.ok) return { ok: false, error: json.error ?? "Failed to save edits." };
+      return { ok: true, data: json.data };
+    },
+    approve: async () => {
+      const res  = await fetch("/api/social/insights/approve", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ search_id: id }),
+      });
+      const json = await res.json();
+      if (!res.ok) return { ok: false, error: json.error ?? "Failed to approve." };
+      return { ok: true, data: json.data };
+    },
+    publish: async () => {
+      const res  = await fetch("/api/social/insights/publish", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ search_id: id }),
+      });
+      const json = await res.json();
+      if (!res.ok) return { ok: false, error: json.error ?? "Failed to publish." };
+      return { ok: true, data: json.data };
+    },
+  }), [id]);
 
-  const current: InsightReport | null = row ? (row.edited_content ?? row.content) : null;
-  const busy = generating || saving || approving || publishing;
+  const {
+    row, draft, editing, loading: reviewLoading, generating, saving, approving, publishing, error, confirmRegen,
+    current, busy,
+    setDraft, setConfirmRegen,
+    generate, startEditing, cancelEditing, saveEdits, approveSummary, publishSummary,
+  } = useIntelligenceReview<InsightReport>(adapter, [id]);
 
-  async function generate(confirm = false) {
-    setGenerating(true); setError("");
-    const res  = await fetch("/api/social/insights", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ search_id: id, confirm }),
-    });
-    const json = await res.json();
-    setGenerating(false);
-    if (res.status === 409) { setConfirmRegen(true); return; }
-    if (res.ok) { setRow(json.data); setEditing(false); setDraft(null); }
-    else setError(json.error ?? "Failed to generate insights.");
-  }
-
-  function startEditing() {
-    if (!current) return;
-    setDraft(current);
-    setEditing(true);
-  }
-
-  function cancelEditing() {
-    setDraft(null);
-    setEditing(false);
-  }
-
-  async function saveEdits() {
-    if (!draft) return;
-    setSaving(true); setError("");
-    const res  = await fetch("/api/social/insights/edit", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ search_id: id, edited_content: draft }),
-    });
-    const json = await res.json();
-    setSaving(false);
-    if (res.ok) { setRow(json.data); setEditing(false); setDraft(null); }
-    else setError(json.error ?? "Failed to save edits.");
-  }
-
-  async function approveSummary() {
-    setApproving(true); setError("");
-    const res  = await fetch("/api/social/insights/approve", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ search_id: id }),
-    });
-    const json = await res.json();
-    setApproving(false);
-    if (res.ok) setRow(json.data);
-    else setError(json.error ?? "Failed to approve.");
-  }
-
-  async function publishSummary() {
-    setPublishing(true); setError("");
-    const res  = await fetch("/api/social/insights/publish", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ search_id: id }),
-    });
-    const json = await res.json();
-    setPublishing(false);
-    if (res.ok) setRow(json.data);
-    else setError(json.error ?? "Failed to publish.");
-  }
+  const loading = reviewLoading || searchLoading;
 
   async function handleExport(format: "csv" | "pptx" | "pdf") {
     if (!current || !search) return;

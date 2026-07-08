@@ -1,9 +1,11 @@
 // Shared types for the AI Intelligence Layer — persisted, reviewable
 // AI-generated research output (research_summaries), reused across
-// Conversation Intelligence today and Survey Intelligence / Reports
-// later. See supabase-migration-068.sql for the backing table.
+// Conversation Intelligence and Survey Intelligence, with Reports and
+// cross-source synthesis to follow. See supabase-migration-068.sql (table)
+// and supabase-migration-069.sql (source_type widened to include 'survey')
+// for the backing schema.
 
-export type IntelligenceSourceType = "conversation_search";
+export type IntelligenceSourceType = "conversation_search" | "survey";
 export type IntelligenceOutputType = "research_summary";
 export type IntelligenceStatus = "draft" | "edited" | "approved" | "published";
 
