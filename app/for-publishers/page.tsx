@@ -83,9 +83,9 @@ const RECEIVE_CARDS = [
 ];
 
 const IMPLEMENTATION_STEPS = [
-  { label: "Create Survey", image: "/for-publishers-create-survey.png" },
-  { label: "Generate Tag",  image: "/for-publishers-generate-tag.png" },
-  { label: "Traffic MPU",   image: "/for-publishers-traffic-mpu.png" },
+  { label: "Create Survey", image: "/Survey.webp" },
+  { label: "Generate Tag",  image: "/Tags.webp" },
+  { label: "Traffic MPU",   image: "/MPU.webp" },
   { label: "View Results",  image: "/for-publishers-view-results.png" },
 ];
 
