@@ -83,6 +83,68 @@ const RECEIVE_CARDS = [
   },
 ];
 
+const COMMERCIAL_MODELS = [
+  {
+    featured: true,
+    tag: "Recommended",
+    title: "House Inventory Partnership",
+    body: "The publisher provides available house inventory to run Fanometrix surveys. In return, they receive:",
+    bullets: [
+      "Free Fanometrix platform access",
+      "Unlimited surveys across your own inventory",
+      "Your own audience intelligence dashboard",
+      "Network benchmarking",
+      "Ongoing product updates",
+    ],
+    footer: "No licence fees. No media costs. No money changes hands.",
+    icon: (
+      <>
+        <path d="m11 17 2 2a1 1 0 1 0 3-3" />
+        <path d="m14 14 2.5 2.5a1 1 0 1 0 3-3l-3.88-3.88a3 3 0 0 0-4.24 0l-.88.88a1 1 0 1 1-3-3l2.81-2.81a5.79 5.79 0 0 1 7.06-.87l.47.28a2 2 0 0 0 1.42.25L21 4" />
+        <path d="m21 3 1 11h-2" />
+        <path d="M3 3 2 14l6.5 6.5a1 1 0 1 0 3-3" />
+        <path d="M3 4h8" />
+      </>
+    ),
+  },
+  {
+    featured: false,
+    tag: null,
+    title: "Paid Research Campaigns",
+    body: "Brands and agencies commission Fanometrix research at scale. We purchase media across participating publisher partners to collect responses.",
+    bullets: [
+      "Publisher earns media revenue",
+      "Fanometrix works with each publisher to set up campaigns and manage reporting",
+      "Fanometrix delivers audience intelligence",
+      "Brands receive actionable insights",
+    ],
+    footer: "Everyone benefits from every campaign.",
+    icon: (
+      <>
+        <path d="M3 3v18h18" />
+        <path d="M18 17V9" />
+        <path d="M13 17V5" />
+        <path d="M8 17v-3" />
+      </>
+    ),
+  },
+  {
+    featured: false,
+    tag: null,
+    title: "Advanced Intelligence",
+    body: "Publishers can subscribe to additional intelligence services beyond survey insights. Examples include:",
+    bullets: [
+      "Conversation Intelligence",
+      "Industry reports",
+      "Cross-market benchmarking",
+      "Custom research",
+      "AI-powered audience insights",
+    ],
+    footer: "Available as an optional subscription.",
+    icon: <path d="M22 12h-4l-3 9L9 3l-3 9H2" />,
+  },
+];
+
 const IMPLEMENTATION_STEPS = [
   { label: "Create Survey", image: "/Survey.webp", hoverPanMs: 9000 },
   { label: "Generate Tag",  image: "/Tags.webp" },
@@ -100,12 +162,14 @@ const NO_FRICTION = [
   "No incentives required",
 ];
 
-const COMMITMENT_ROWS = [
-  { label: "Inventory",        value: "House inventory" },
-  { label: "Format",           value: "300×250 MPU" },
-  { label: "Frequency Cap",    value: "2–3 monthly" },
-  { label: "Engineering Time", value: "15 minutes" },
-  { label: "Commercial Cost",  value: "£0" },
+const IMPLEMENTATION_ROWS = [
+  { label: "Inventory",         value: "House inventory" },
+  { label: "Creative Format",   value: "300×250 MPU" },
+  { label: "Frequency",         value: "2–3 exposures per user" },
+  { label: "Engineering Time",  value: "~15 minutes" },
+  { label: "SDK",               value: "Not required" },
+  { label: "App Changes",       value: "None" },
+  { label: "Privacy",           value: "Anonymous by design" },
 ];
 
 const CREATIVE_FLEXIBILITY = [
@@ -441,6 +505,71 @@ export default function ForPublishersPage() {
           </div>
         </section>
 
+        {/* ── Commercial Model ── */}
+        <section className="border-t border-gray-100 bg-white pt-[clamp(64px,8vw,104px)] pb-[clamp(64px,8vw,104px)] px-5 sm:px-10">
+          <div className="text-center max-w-[720px] mx-auto mb-16">
+            <SectionEyebrow>Commercial Model</SectionEyebrow>
+            <h2
+              className="scroll-fade-up font-bold leading-[1.15] tracking-tight mx-auto"
+              style={{ fontSize: "clamp(26px, 3.6vw, 42px)", color: NAVY, letterSpacing: "-0.02em", transitionDelay: "0.1s", maxWidth: 640 }}
+            >
+              Three Ways To Partner
+            </h2>
+            <p
+              className="scroll-fade-up leading-[1.75] mt-5 mx-auto"
+              style={{ fontSize: "clamp(15px, 1.6vw, 17px)", color: GREY, maxWidth: 620, transitionDelay: "0.2s" }}
+            >
+              Fanometrix is designed to be flexible. Whether you&apos;re contributing inventory, running research
+              campaigns or looking for deeper intelligence, there is a partnership model that fits.
+            </p>
+          </div>
+
+          <div className="max-w-[1180px] mx-auto flex flex-wrap justify-center items-stretch gap-6">
+            {COMMERCIAL_MODELS.map(({ featured, tag, title, body, bullets, footer, icon }, i) => (
+              <div
+                key={title}
+                className="scroll-fade-up bg-white rounded-2xl p-9 flex flex-col transition-all duration-200 hover:-translate-y-1 hover:shadow-lg"
+                style={{
+                  flex: "1 1 320px",
+                  maxWidth: 370,
+                  border: featured ? `2px solid ${GOLD}` : `1px solid ${BORDER}`,
+                  boxShadow: featured ? "0 12px 32px rgba(11,25,41,0.08)" : undefined,
+                  transitionDelay: `${i * 0.1}s`,
+                }}
+              >
+                <div className="flex items-center justify-between mb-6">
+                  <div className="w-12 h-12 rounded-full flex items-center justify-center shrink-0" style={{ background: SURFACE }}>
+                    <svg viewBox="0 0 24 24" width={21} height={21} fill="none" stroke={NAVY} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
+                      {icon}
+                    </svg>
+                  </div>
+                  {tag && (
+                    <span
+                      className="text-[11px] font-bold uppercase tracking-[0.1em] px-3 py-1 rounded-full"
+                      style={{ background: GOLD, color: NAVY }}
+                    >
+                      {tag}
+                    </span>
+                  )}
+                </div>
+                <h3 className="text-[19px] font-bold mb-3 tracking-[-0.01em]" style={{ color: NAVY }}>{title}</h3>
+                <p className="text-sm leading-relaxed mb-5" style={{ color: GREY }}>{body}</p>
+                <ul className="space-y-3 mb-7">
+                  {bullets.map(item => (
+                    <li key={item} className="flex items-start gap-2.5 text-sm" style={{ color: NAVY }}>
+                      <span className="w-1.5 h-1.5 rounded-full shrink-0 mt-1.5" style={{ background: GOLD }} />
+                      <span className="font-semibold">{item}</span>
+                    </li>
+                  ))}
+                </ul>
+                <div className="mt-auto rounded-xl px-4 py-3.5" style={{ background: "rgba(215,184,122,0.1)" }}>
+                  <p className="text-sm font-bold leading-snug" style={{ color: NAVY }}>{footer}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+
         {/* ── Simplicity ── */}
         <section className="border-t border-gray-100 bg-white pt-[clamp(64px,8vw,104px)] pb-[clamp(56px,7vw,96px)] px-5 sm:px-10">
           <div className="text-center max-w-[760px] mx-auto mb-8">
@@ -498,15 +627,15 @@ export default function ForPublishersPage() {
           </div>
         </section>
 
-        {/* ── Publisher Commitment ── */}
+        {/* ── Implementation Details ── */}
         <section className="border-t border-gray-100 pt-[clamp(56px,7vw,96px)] pb-[clamp(56px,7vw,96px)] px-5 sm:px-10" style={{ background: BG_SOFT }}>
           <div className="text-center max-w-[720px] mx-auto mb-14">
-            <SectionEyebrow>Publisher Commitment</SectionEyebrow>
+            <SectionEyebrow>Implementation</SectionEyebrow>
             <h2
               className="scroll-fade-up font-bold leading-tight tracking-tight"
               style={{ fontSize: "clamp(26px, 3.2vw, 40px)", color: NAVY, letterSpacing: "-0.02em", transitionDelay: "0.1s" }}
             >
-              Small Contribution. Huge Value.
+              Minimal Effort. Maximum Insight.
             </h2>
           </div>
 
@@ -514,7 +643,7 @@ export default function ForPublishersPage() {
             className="scroll-fade-up max-w-[680px] mx-auto bg-white rounded-2xl border shadow-sm overflow-hidden"
             style={{ borderColor: BORDER, transitionDelay: "0.15s" }}
           >
-            {COMMITMENT_ROWS.map((row, i) => (
+            {IMPLEMENTATION_ROWS.map((row, i) => (
               <div
                 key={row.label}
                 className="flex items-center justify-between px-8 sm:px-10 py-5"
@@ -527,8 +656,8 @@ export default function ForPublishersPage() {
           </div>
 
           <p className="scroll-fade-up text-center text-sm leading-relaxed mt-8 max-w-[520px] mx-auto" style={{ color: GREY, transitionDelay: "0.3s" }}>
-            These are typical starting points, not requirements. Inventory, frequency and participation
-            levels remain entirely under your control.
+            These are typical implementation guidelines rather than fixed requirements. Inventory volumes,
+            deployment schedules and participation levels remain entirely under your control.
           </p>
         </section>
 
