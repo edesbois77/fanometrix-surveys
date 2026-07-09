@@ -9,16 +9,20 @@ import { CreativeDesignPicker } from "@/app/components/CreativeDesignPicker";
 import { CreativeDesignPreview } from "@/app/components/CreativeDesignPreview";
 import { DrawerSection } from "@/app/components/DrawerSection";
 import { InfoTooltip } from "@/app/components/InfoTooltip";
+import { PublisherCountryPicker } from "@/app/components/PublisherCountryPicker";
+import { GenerateDeploymentsCard } from "@/app/components/GenerateDeploymentsCard";
 import { STATUS_META, type CampaignStatus } from "@/lib/campaign-status";
 import {
   studyTypeLabel,
   generateStudyName, generateStudySlug,
 } from "@/lib/naming";
 import { NameBuilder } from "@/app/components/NameBuilder";
-import { countryOptions, countryByCode } from "@/lib/countries";
+import { countryByCode } from "@/lib/countries";
 import { isSurveyValidForReady } from "@/lib/survey-validation";
 import { getCompletedLanguages, type LocalisedQuestion, type LocalisedText, type LangCode } from "@/lib/survey-locale";
 import { expectedSurveyLanguage, LANGUAGE_DISPLAY_NAMES } from "@/lib/locales";
+import { missingLanguageCountries, languageLabel } from "@/lib/survey-language-readiness";
+import { generateDeployments } from "@/lib/generate-deployments";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type ResearchProject = {
@@ -71,13 +75,6 @@ type Deployment = {
   response_count: number;
   effective_target_responses: number | null;
   effective_survey_id: string | null;
-};
-
-type GenerateResult = {
-  created: Array<{ publisher: string; country: string; campaign_id: string }>;
-  restored: Array<{ publisher: string; country: string; campaign_id: string }>;
-  skipped_existing: Array<{ publisher: string; country: string }>;
-  failed: Array<{ publisher: string; country: string; reason: string }>;
 };
 
 const PAGE_SIZE = 25;
@@ -230,8 +227,6 @@ export default function ResearchProjectsPage() {
   const [sortBy,          setSortBy]          = useState<"recent" | "oldest" | "az">("recent");
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  const [generating, setGenerating] = useState<Record<string, boolean>>({});
-  const [generateResults, setGenerateResults] = useState<Record<string, GenerateResult>>({});
   const [refreshTokens, setRefreshTokens] = useState<Record<string, number>>({});
 
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -324,26 +319,21 @@ export default function ResearchProjectsPage() {
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()),
     [surveys]);
 
-  // Countries whose expected survey language isn't fully translated in the selected survey.
-  // A country whose expected language isn't one Fanometrix can even author surveys in yet
-  // (e.g. Italian) is always reported as missing — there's no way it could be complete.
-  function missingLanguageCountries(surveyId: string | null | undefined, countryCodes: string[] | undefined) {
+  // A survey's completed languages, looked up from the already-loaded full
+  // surveys list — the input the shared missingLanguageCountries() check
+  // needs. Kept local to this page because only pages with admin/publisher-
+  // scoped access to full survey content can resolve it this way (see
+  // app/api/research-projects/[id]/route.ts for why the Workspace resolves
+  // this server-side instead).
+  const completedLanguagesFor = useCallback((surveyId: string | null | undefined): LangCode[] => {
     const survey = surveys.find(s => s.id === surveyId);
-    if (!survey || !countryCodes?.length) return [];
-    const completed = getCompletedLanguages({ questions: survey.questions ?? [], thank_you_title: survey.thank_you_title, thank_you_body: survey.thank_you_body });
-    return countryCodes
-      .map(code => ({ code, lang: expectedSurveyLanguage(code) }))
-      .filter(({ lang }) => !completed.includes(lang as LangCode));
-  }
-
-  function languageLabel(code: string) {
-    return LANGUAGE_DISPLAY_NAMES[code] ?? code;
-  }
+    if (!survey) return [];
+    return getCompletedLanguages({ questions: survey.questions ?? [], thank_you_title: survey.thank_you_title, thank_you_body: survey.thank_you_body });
+  }, [surveys]);
 
   const editingMismatches = useMemo(
-    () => missingLanguageCountries(editing.survey_id, editing.country_codes),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [editing.survey_id, editing.country_codes, surveys]
+    () => missingLanguageCountries(completedLanguagesFor(editing.survey_id), editing.country_codes),
+    [completedLanguagesFor, editing.survey_id, editing.country_codes]
   );
 
   const editingCanGenerate =
@@ -487,7 +477,17 @@ export default function ResearchProjectsPage() {
     if (!saved) return;
     setDrawerOpen(false);
     load();
-    await handleGenerate(saved);
+    // editingCanGenerate already gates this button's disabled state (including
+    // the language-mismatch check), so no need to re-check before calling —
+    // same shared endpoint wrapper the GenerateDeploymentsCard uses.
+    const outcome = await generateDeployments(saved.id);
+    if (!outcome.ok) { showToast(outcome.error, false); return; }
+    const parts = [`${outcome.data.created.length} created`];
+    if (outcome.data.restored.length > 0) parts.push(`${outcome.data.restored.length} restored`);
+    showToast(parts.join(", ") + ".");
+    setRefreshTokens(t => ({ ...t, [saved.id]: (t[saved.id] ?? 0) + 1 }));
+    setExpandedId(saved.id);
+    load();
   }
 
   async function handleDelete(p: ResearchProject, force = false) {
@@ -503,32 +503,6 @@ export default function ResearchProjectsPage() {
       return;
     }
     showToast("Research project deleted.");
-    load();
-  }
-
-  async function handleGenerate(p: ResearchProject) {
-    // Hard block — mirrors the server-side check in generate-deployments.
-    // The button is disabled in this state too; this only matters if the
-    // underlying data changed since the card last rendered.
-    const mismatches = missingLanguageCountries(p.survey_id, p.country_codes);
-    if (mismatches.length > 0) {
-      const lines = mismatches.map(({ code, lang }) => `${code} → ${languageLabel(lang)} version required`).join(", ");
-      showToast(`Cannot generate — survey language mismatch (${lines}). Fix in Edit first.`, false);
-      return;
-    }
-
-    setGenerating(g => ({ ...g, [p.id]: true }));
-    setGenerateResults(r => { const n = { ...r }; delete n[p.id]; return n; });
-    const res = await fetch(`/api/research-projects/${p.id}/generate-deployments`, { method: "POST" });
-    const json = await res.json();
-    setGenerating(g => ({ ...g, [p.id]: false }));
-    if (!res.ok) { showToast(json.error ?? "Failed to generate deployments.", false); return; }
-    setGenerateResults(r => ({ ...r, [p.id]: json.data }));
-    const parts = [`${json.data.created.length} created`];
-    if (json.data.restored.length > 0) parts.push(`${json.data.restored.length} restored`);
-    showToast(parts.join(", ") + ".");
-    setRefreshTokens(t => ({ ...t, [p.id]: (t[p.id] ?? 0) + 1 }));
-    if (expandedId !== p.id) setExpandedId(p.id);
     load();
   }
 
@@ -686,17 +660,7 @@ export default function ResearchProjectsPage() {
           {displayed.map(p => {
             const expanded = expandedId === p.id;
             const possibleCombos = p.publisher_org_ids.length * p.country_codes.length;
-            const projectMismatches = missingLanguageCountries(p.survey_id, p.country_codes);
-            const canGenerate = p.publisher_org_ids.length > 0 && p.country_codes.length > 0 && !!p.survey_id && projectMismatches.length === 0;
-            const generateBlockedReasons = [
-              p.publisher_org_ids.length === 0 && "add publishers",
-              p.country_codes.length === 0 && "add countries",
-              !p.survey_id && "select a survey",
-              p.survey_id && projectMismatches.length > 0 &&
-                `fix survey language mismatch (${projectMismatches.map(({ code, lang }) => `${code} → ${languageLabel(lang)}`).join(", ")})`,
-            ].filter(Boolean) as string[];
-            const result = generateResults[p.id];
-            const isGenerating = generating[p.id] ?? false;
+            const projectMismatches = missingLanguageCountries(completedLanguagesFor(p.survey_id), p.country_codes);
 
             return (
               <div key={p.id} className="bg-white border border-gray-100 rounded-xl shadow-sm overflow-hidden">
@@ -764,21 +728,35 @@ export default function ResearchProjectsPage() {
                   )}
                 </button>
 
+                <div className="px-5 pb-3 -mt-1">
+                  <Link
+                    href={`/research-projects/${p.id}`}
+                    className="text-xs font-semibold text-[#0B1929] hover:underline"
+                  >
+                    Open Workspace →
+                  </Link>
+                </div>
+
                 {canManage && (
                   <div className="px-5 pb-4 space-y-3">
+                    <GenerateDeploymentsCard
+                      projectId={p.id}
+                      publisherOrgIds={p.publisher_org_ids}
+                      countryCodes={p.country_codes}
+                      surveyId={p.survey_id}
+                      deploymentCount={p.deployment_count}
+                      completedLanguages={completedLanguagesFor(p.survey_id)}
+                      blockedPrefix="In Edit"
+                      onGenerated={result => {
+                        const parts = [`${result.created.length} created`];
+                        if (result.restored.length > 0) parts.push(`${result.restored.length} restored`);
+                        showToast(parts.join(", ") + ".");
+                        setRefreshTokens(t => ({ ...t, [p.id]: (t[p.id] ?? 0) + 1 }));
+                        if (expandedId !== p.id) setExpandedId(p.id);
+                        load();
+                      }}
+                    />
                     <div className="flex flex-wrap gap-1.5 items-center">
-                      <span className="inline-flex items-center gap-1">
-                        <button
-                          onClick={() => handleGenerate(p)}
-                          disabled={!canGenerate || isGenerating}
-                          title={canGenerate ? "" : `In Edit: ${generateBlockedReasons.join(", ")}`}
-                          className="text-xs font-semibold px-3 py-1.5 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed"
-                          style={{ background: "#0B1929", color: "#D7B87A" }}
-                        >
-                          {isGenerating ? "Generating…" : "Generate Deployments"}
-                        </button>
-                        <InfoTooltip text="Creates a campaign for each Publisher × Country combination on this project. Safe to click again later — existing campaigns are skipped, only new or removed-then-re-added combinations are created or restored. It never deletes campaigns for publishers/countries you've since removed." />
-                      </span>
                       <span className="inline-flex items-center gap-1">
                         <button onClick={() => openEdit(p)}
                           className="text-xs border border-gray-200 text-gray-600 hover:bg-gray-50 px-3 py-1.5 rounded-lg transition-colors">
@@ -790,34 +768,7 @@ export default function ResearchProjectsPage() {
                         className="text-xs border border-red-100 text-red-400 hover:bg-red-50 px-3 py-1.5 rounded-lg transition-colors">
                         Delete
                       </button>
-                      {canGenerate && p.deployment_count < possibleCombos && (
-                        <span className="text-xs text-amber-600">
-                          {possibleCombos - p.deployment_count} deployment{possibleCombos - p.deployment_count !== 1 ? "s" : ""} pending
-                        </span>
-                      )}
                     </div>
-
-                    {result && (
-                      <div className="text-xs space-y-1 bg-gray-50 border border-gray-100 rounded-lg p-3">
-                        <p className="text-green-700">✓ {result.created.length} created</p>
-                        {result.restored.length > 0 && (
-                          <p className="text-green-700">↺ {result.restored.length} restored (previously deleted)</p>
-                        )}
-                        {result.skipped_existing.length > 0 && (
-                          <p className="text-gray-400">– {result.skipped_existing.length} already existed</p>
-                        )}
-                        {result.failed.length > 0 && (
-                          <div className="text-red-500">
-                            <p>✕ {result.failed.length} failed:</p>
-                            <ul className="list-disc list-inside">
-                              {result.failed.map((f, i) => (
-                                <li key={i}>{f.publisher} / {f.country}: {f.reason}</li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
-                      </div>
-                    )}
                   </div>
                 )}
 
@@ -910,77 +861,16 @@ export default function ResearchProjectsPage() {
                 subtitle={'Every publisher × country combination becomes one deployment campaign when you click "Generate Deployments".'}
                 prominent
               >
-                <Field label="Publishers">
-                  <MultiSelect
-                    options={orgPublishers.map(o => ({ value: o.id, label: o.name }))}
-                    selected={editing.publisher_org_ids ?? []}
-                    onChange={ids => setEditing(x => ({ ...x, publisher_org_ids: ids }))}
-                    placeholder="Select publishers…"
-                    strict
-                    disabled={user?.role === "publisher"}
-                    helperText={user?.role === "publisher" ? "Locked to your organisation." : undefined}
-                    unmatchedMessage={s => `"${s}" is not a recognised publisher — add it in Organisations first.`}
-                  />
-                </Field>
-                <Field label="Countries">
-                  <MultiSelect
-                    options={countryOptions()}
-                    selected={editing.country_codes ?? []}
-                    onChange={v => setEditing(x => ({ ...x, country_codes: v }))}
-                    placeholder="Select countries…"
-                    strict
-                    unmatchedMessage={s => `"${s}" is not a recognised country.`}
-                  />
-                </Field>
-                {(editing.publisher_org_ids?.length ?? 0) > 0 && (editing.country_codes?.length ?? 0) > 0 && (
-                  <>
-                    <div className="bg-white border border-[#D7B87A] rounded-lg px-3 py-3 flex items-center justify-center gap-3">
-                      <div className="text-center">
-                        <p className="text-2xl font-bold text-[#0B1929]">{editing.publisher_org_ids!.length}</p>
-                        <p className="text-xs text-gray-500">Publisher{editing.publisher_org_ids!.length !== 1 ? "s" : ""}</p>
-                      </div>
-                      <span className="text-xl text-gray-300">×</span>
-                      <div className="text-center">
-                        <p className="text-2xl font-bold text-[#0B1929]">{editing.country_codes!.length}</p>
-                        <p className="text-xs text-gray-500">Countr{editing.country_codes!.length === 1 ? "y" : "ies"}</p>
-                      </div>
-                      <span className="text-xl text-gray-300">=</span>
-                      <div className="text-center">
-                        <p className="text-2xl font-bold text-[#0B1929]">{editing.publisher_org_ids!.length * editing.country_codes!.length}</p>
-                        <p className="text-xs font-semibold text-[#0B1929]">Deployments</p>
-                      </div>
-                    </div>
-
-                    <details className="group">
-                      <summary className="cursor-pointer select-none list-none text-xs font-semibold text-[#0B1929] flex items-center gap-1.5">
-                        <span className="transition-transform group-open:rotate-90">›</span>
-                        Preview deployment matrix
-                      </summary>
-                      <div className="mt-2 overflow-x-auto border border-gray-200 rounded-lg">
-                        <table className="w-full text-xs">
-                          <thead>
-                            <tr className="bg-gray-50">
-                              <th className="text-left px-3 py-2 font-semibold text-gray-500 whitespace-nowrap">Publisher</th>
-                              {editing.country_codes!.map(code => (
-                                <th key={code} className="px-2 py-2 font-semibold text-gray-500 whitespace-nowrap">{code}</th>
-                              ))}
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {editing.publisher_org_ids!.map(id => (
-                              <tr key={id} className="border-t border-gray-100">
-                                <td className="px-3 py-1.5 font-medium text-gray-700 whitespace-nowrap">{orgName(id)}</td>
-                                {editing.country_codes!.map(code => (
-                                  <td key={code} className="text-center text-[#0B1929]">✓</td>
-                                ))}
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </details>
-                  </>
-                )}
+                <PublisherCountryPicker
+                  publisherOptions={orgPublishers}
+                  publisherOrgIds={editing.publisher_org_ids ?? []}
+                  onPublisherOrgIdsChange={ids => setEditing(x => ({ ...x, publisher_org_ids: ids }))}
+                  publishersDisabled={user?.role === "publisher"}
+                  publishersHelperText={user?.role === "publisher" ? "Locked to your organisation." : undefined}
+                  countryCodes={editing.country_codes ?? []}
+                  onCountryCodesChange={v => setEditing(x => ({ ...x, country_codes: v }))}
+                  orgName={orgName}
+                />
               </DrawerSection>
 
               <DrawerSection

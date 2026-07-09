@@ -1,6 +1,8 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import Papa from "papaparse";
 import { AdminShell } from "@/app/components/AdminShell";
 import { DrawerSection } from "@/app/components/DrawerSection";
@@ -484,6 +486,27 @@ const BLANK_FIELDS: EditFields = {
   status: "draft", is_template: false,
 };
 
+// Reads the ?createForProject= / ?editSurveyForProject= query params a
+// Research Project's evidence journey (Phase 2, Steps 2–3) navigates here
+// with — the former to create a new survey, the latter to fix an existing
+// attached survey's translations from the Workspace's Deployment Readiness
+// step. Isolated in its own component so only this leaf needs the
+// useSearchParams() Suspense boundary, not the whole (otherwise
+// statically-rendered) page.
+function EvidenceLinkReader({
+  onCreateForProject, onEditSurveyForProject,
+}: {
+  onCreateForProject: (projectId: string | null) => void;
+  onEditSurveyForProject: (projectId: string | null) => void;
+}) {
+  const searchParams = useSearchParams();
+  const createForProject = searchParams.get("createForProject");
+  const editSurveyForProject = searchParams.get("editSurveyForProject");
+  useEffect(() => { onCreateForProject(createForProject); }, [createForProject, onCreateForProject]);
+  useEffect(() => { onEditSurveyForProject(editSurveyForProject); }, [editSurveyForProject, onEditSurveyForProject]);
+  return null;
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 export default function SurveysPage() {
   // Data
@@ -521,6 +544,69 @@ export default function SurveysPage() {
   const [editorLang,           setEditorLang]           = useState<LangCode>("en");
   const [translating,          setTranslating]          = useState(false);
   const [toast,                setToast]                = useState<{ msg: string; ok: boolean } | null>(null);
+
+  // Evidence Orchestration (Phase 2, Step 2) — set when this create drawer
+  // was auto-opened from a Research Project's "Create Evidence" flow, so
+  // handleSave() knows to attach the new survey back to that project and
+  // return there, instead of the normal stay-on-page save.
+  const router = useRouter();
+  const [linkedProjectId,   setLinkedProjectId]   = useState<string | null>(null);
+  const [linkedProjectName, setLinkedProjectName] = useState<string | null>(null);
+  const [autoLinkActive,    setAutoLinkActive]     = useState(false);
+  const autoOpenedRef = useRef(false);
+
+  useEffect(() => {
+    if (!linkedProjectId || autoOpenedRef.current) return;
+    autoOpenedRef.current = true;
+    (async () => {
+      const res = await fetch(`/api/research-projects/${linkedProjectId}`);
+      if (!res.ok) return;
+      const { data: proj } = await res.json();
+      setLinkedProjectName(proj.project_name);
+      // Pre-fill from the project so the new survey's name follows the same
+      // Topic | Type | Brand | Agency convention the project itself uses.
+      setFields({
+        ...BLANK_FIELDS,
+        questions: [BLANK_Q()],
+        topic: proj.topic ?? "",
+        study_type: proj.study_type ?? "custom",
+        brand_org_id: proj.brand_org_id ?? "",
+        agency_org_id: proj.agency_org_id ?? "",
+      });
+      setEditingId(null);
+      setEditingOriginalStatus(null);
+      setFormError("");
+      setEditorLang("en");
+      setAutoLinkActive(true);
+      setDrawerOpen(true);
+    })();
+  }, [linkedProjectId]);
+
+  // Deployment Readiness (Phase 2, Step 3) "Add translations" remediation —
+  // opens the project's already-attached survey for editing (not a new
+  // create), and returns to the Workspace on save instead of the normal
+  // stay-on-page save, so the wizard can re-check language coverage.
+  const [editForProjectId,   setEditForProjectId]   = useState<string | null>(null);
+  const [editForProjectName, setEditForProjectName] = useState<string | null>(null);
+  const [editLinkActive,     setEditLinkActive]     = useState(false);
+  const autoEditOpenedRef = useRef(false);
+
+  useEffect(() => {
+    if (!editForProjectId || autoEditOpenedRef.current) return;
+    autoEditOpenedRef.current = true;
+    (async () => {
+      const projRes = await fetch(`/api/research-projects/${editForProjectId}`);
+      if (!projRes.ok) return;
+      const { data: proj } = await projRes.json();
+      setEditForProjectName(proj.project_name);
+      if (!proj.survey_id) return;
+      const surveyRes = await fetch(`/api/surveys/${proj.survey_id}`);
+      if (!surveyRes.ok) return;
+      const { data: survey } = await surveyRes.json();
+      openEdit(survey);
+      setEditLinkActive(true);
+    })();
+  }, [editForProjectId]);
 
   function showToast(msg: string, ok = true) {
     setToast({ msg, ok });
@@ -731,10 +817,14 @@ export default function SurveysPage() {
     setEditingOriginalStatus(null);
     setFormError("");
     setEditorLang("en");
+    setAutoLinkActive(false);
+    setEditLinkActive(false);
     setDrawerOpen(true);
   }
 
   function openEdit(s: Survey) {
+    setAutoLinkActive(false);
+    setEditLinkActive(false);
     setEditingOriginalStatus(s.status);
     setFields({
       name:           s.name,
@@ -820,13 +910,39 @@ export default function SurveysPage() {
 
     setSaving(false);
 
+    const json = await res.json().catch(() => ({}));
+
     if (!res.ok) {
-      const json = await res.json().catch(() => ({}));
       setFormError(json.error ?? "Failed to save survey. Please try again.");
       return; // keep drawer open so the user sees the error
     }
 
     setDrawerOpen(false);
+
+    // Evidence Orchestration (Phase 2, Step 2): a survey created via a
+    // Research Project's "Create Evidence" flow attaches back to the
+    // project that started it automatically, then returns there — the
+    // user should never have to manually reconnect it.
+    if (autoLinkActive && linkedProjectId) {
+      const newSurveyId = json.data?.id;
+      if (newSurveyId) {
+        await fetch(`/api/research-projects/${linkedProjectId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ survey_id: newSurveyId }),
+        });
+      }
+      router.push(`/research-projects/${linkedProjectId}?evidenceAdded=1`);
+      return;
+    }
+
+    // Deployment Readiness (Phase 2, Step 3): editing the project's already-
+    // attached survey to add a missing translation — nothing to attach,
+    // just return so the Workspace wizard can re-check language coverage.
+    if (editLinkActive && editForProjectId) {
+      router.push(`/research-projects/${editForProjectId}?evidenceAdded=1`);
+      return;
+    }
 
     if (autoDowngraded) {
       setToast({ msg: "Survey has validation issues and was moved back to Draft.", ok: false });
@@ -988,7 +1104,32 @@ export default function SurveysPage() {
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <AdminShell>
+      <Suspense fallback={null}>
+        <EvidenceLinkReader onCreateForProject={setLinkedProjectId} onEditSurveyForProject={setEditForProjectId} />
+      </Suspense>
       <div className="p-4 md:p-6 max-w-6xl mx-auto">
+
+        {linkedProjectName && linkedProjectId && (
+          <div className="mb-4 rounded-xl px-4 py-3 flex items-center justify-between gap-3" style={{ background: "#0B1929" }}>
+            <p className="text-sm text-white">
+              Creating a survey for <span className="font-semibold" style={{ color: "#D7B87A" }}>{linkedProjectName}</span> — it will be attached automatically once saved.
+            </p>
+            <Link href={`/research-projects/${linkedProjectId}`} className="text-xs font-semibold underline flex-shrink-0" style={{ color: "#D7B87A" }}>
+              Cancel and return
+            </Link>
+          </div>
+        )}
+
+        {editForProjectName && editForProjectId && (
+          <div className="mb-4 rounded-xl px-4 py-3 flex items-center justify-between gap-3" style={{ background: "#0B1929" }}>
+            <p className="text-sm text-white">
+              Editing the survey for <span className="font-semibold" style={{ color: "#D7B87A" }}>{editForProjectName}</span> — add the missing language, then save to continue.
+            </p>
+            <Link href={`/research-projects/${editForProjectId}`} className="text-xs font-semibold underline flex-shrink-0" style={{ color: "#D7B87A" }}>
+              Cancel and return
+            </Link>
+          </div>
+        )}
 
         {/* ── Page header ── */}
         <div className="mb-5">

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { requireUser } from "@/lib/auth-server";
 import { canAccess } from "@/lib/access";
+import { getCompletedLanguages } from "@/lib/survey-locale";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   let session;
@@ -24,7 +25,49 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  return NextResponse.json({ data });
+  // Same rollup the list endpoint exposes (vw_research_project_stats), keyed
+  // by project_id — kept in sync here so the detail page never has to
+  // re-derive deployment/response totals from raw campaigns itself.
+  const [{ data: stats }, { data: survey }, { data: surveyStats }] = await Promise.all([
+    supabaseAdmin.from("vw_research_project_stats").select("*").eq("project_id", data.project_id).maybeSingle(),
+    data.survey_id
+      ? supabaseAdmin.from("surveys").select("id, name, status, questions, thank_you_title, thank_you_body").eq("id", data.survey_id).single()
+      : Promise.resolve({ data: null }),
+    data.survey_id
+      ? supabaseAdmin.from("vw_survey_stats").select("response_count").eq("id", data.survey_id).maybeSingle()
+      : Promise.resolve({ data: null }),
+  ]);
+
+  const totalResponses = stats?.total_responses ?? 0;
+  const target = data.target_responses ?? null;
+  const completionPct = target && target > 0 ? Math.round((totalResponses / target) * 100) : null;
+
+  return NextResponse.json({
+    data: {
+      ...data,
+      deployment_count: stats?.deployment_count ?? 0,
+      publisher_count: stats?.publisher_count ?? 0,
+      country_count: stats?.country_count ?? 0,
+      total_responses: totalResponses,
+      completion_pct: completionPct,
+      // Server-resolved regardless of the caller's own survey ownership —
+      // access to this survey summary is granted by the research project
+      // access check above, not by /api/surveys' organisation scoping
+      // (which would otherwise hide it from brand/agency viewers). Only the
+      // derived completed_languages ships, not the raw question content —
+      // the Workspace's Deployment Readiness step needs the former, never
+      // the latter.
+      survey: survey ? {
+        id: survey.id, name: survey.name, status: survey.status,
+        response_count: surveyStats?.response_count ?? 0,
+        completed_languages: getCompletedLanguages({
+          questions: survey.questions ?? [],
+          thank_you_title: survey.thank_you_title,
+          thank_you_body: survey.thank_you_body,
+        }),
+      } : null,
+    },
+  });
 }
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
