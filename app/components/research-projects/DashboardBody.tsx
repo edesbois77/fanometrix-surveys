@@ -48,7 +48,7 @@ export function DashboardBody() {
         projectId={project.id}
         isSimulated={project.research_mode === "simulated"}
         hasEvidence={project.evidence.length > 0}
-        onScrollToResearchSources={() => router.push(`/research-projects/${projectId}/sources`)}
+        onScrollToResearchSources={() => router.push(`/research-projects/${projectId}/execution`)}
         surveys={surveyEvidence.map(item => ({
           evidence_id: item.evidence_id, name: item.survey.name, response_count: item.survey.response_count,
           target_responses: item.survey.target_responses ?? project.simulation_info?.surveyResponseTarget ?? null,

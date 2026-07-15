@@ -36,7 +36,8 @@ type LifecycleKey = "research_question" | "dashboard" | "evidence" | "intelligen
 
 const AREAS: Area[] = [
   { key: "overview",   label: "Overview",               kind: "route",  segment: "overview" },
-  { key: "sources",    label: "Sources",                kind: "route",  segment: "sources",     stageKey: "evidence" },
+  { key: "research",   label: "Research",               kind: "route",  segment: "research",    stageKey: "evidence" },
+  { key: "execution",  label: "Execution",              kind: "route",  segment: "execution",   stageKey: "dashboard" },
   { key: "dashboard",  label: "Dashboard",              kind: "route",  segment: "dashboard",   stageKey: "dashboard" },
   { key: "analysis",   label: "Analysis",               kind: "route",  segment: "analysis",    stageKey: "intelligence" },
   { key: "outputs",    label: "Outputs",                kind: "route",  segment: "outputs",     stageKey: "report" },
@@ -58,7 +59,8 @@ export function ProjectShell() {
   const base = `/research-projects/${id}`;
   // All six areas are route-backed now; Activity and Settings remain utilities.
   // The base URL redirects to Overview, so anything not matched is Overview.
-  const activeKey = pathname.endsWith("/sources") ? "sources"
+  const activeKey = pathname.endsWith("/research") ? "research"
+    : pathname.endsWith("/execution") ? "execution"
     : pathname.endsWith("/dashboard") ? "dashboard"
     : pathname.endsWith("/analysis") ? "analysis"
     : pathname.endsWith("/outputs") ? "outputs"

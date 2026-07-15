@@ -328,7 +328,7 @@ export function WorkspaceBodyContent() {
             </div>
           </div>
           <div className="mt-4 flex flex-wrap gap-4 border-t border-gray-100 pt-3">
-            <Link href={`/research-projects/${projectId}/sources`} className="text-xs font-semibold text-[#0B1929] hover:underline">View Sources →</Link>
+            <Link href={`/research-projects/${projectId}/research`} className="text-xs font-semibold text-[#0B1929] hover:underline">View Research →</Link>
             <Link href={`/research-projects/${projectId}/dashboard`} className="text-xs font-semibold text-[#0B1929] hover:underline">View full Dashboard →</Link>
           </div>
         </SectionCard>

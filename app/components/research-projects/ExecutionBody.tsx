@@ -1,52 +1,43 @@
 "use client";
 
-// The Sources area body — the real Research Project's source-management
-// surface, at /research-projects/[id]/sources. Everything about a project's
-// research assets lives here: Research Sources (Surveys, Conversation
-// Searches, Documents), each survey's own Research Target, Creative Design and
-// nested Campaigns / Create Campaign / Create Multiple / deployment
-// generation, and the project-level read-only Campaign Groups view. The
-// cross-source Collection dashboard is its own Dashboard area now
-// (DashboardBody); it is no longer rendered here.
+// The Execution area body — the operational workspace, at
+// /research-projects/[id]/execution. This is "how are we collecting the
+// research?": the per-source cards with everything needed to launch and manage
+// collection — each survey's Research Target, Creative Design and nested
+// Campaigns / Create Campaign / Create Multiple / deployment generation / Run
+// Research — plus the project-level read-only Campaign Groups view.
 //
-// This is a relocation, not a rebuild: the section components
-// (ResearchSourcesSection, CampaignGroupsSection), the modals (AddEvidenceModal,
-// DeploymentWizardModal, AttachExisting*Modal) and the CampaignsManager /
-// GenerateDeploymentsCard they nest are all reused unchanged. The handlers,
-// expand/collapse state, deleted-campaigns loading, toasts and the
-// specialist-tool return journeys (evidenceAdded / campaignAdded / returned)
-// were moved here from the single-page workspace body verbatim, so external
-// round trips (survey create/edit, search create, campaign create, "Open →")
-// continue to land on Sources.
+// This is a relocation of today's Sources operational surface, not a rebuild:
+// ResearchSourcesSection, CampaignGroupsSection, the DeploymentWizardModal and
+// the CampaignsManager / GenerateDeploymentsCard they nest are reused unchanged,
+// as are the handlers, expand/collapse state, deleted-campaigns loading and the
+// campaignAdded / returned / evidenceAdded(survey→wizard) return journeys.
 //
-// Ownership model preserved: campaigns, Research Target and Creative Design
-// stay attached to their individual survey source (no separate Fieldwork
-// area); Campaign Groups stays a project-level read-only view that deep-links
-// to the standalone editor.
+// Choosing WHICH research methods to use — attaching or creating sources — is
+// the Research area's job, not this one. So there is no "add source" modal
+// here: the "Add Research Source" affordance routes to /research, and the
+// deployment wizard's "need evidence" fallback does the same.
 //
 // Chromeless: AdminShell, the ProjectProvider data layer and the project
 // header + navigation are provided by the (workspace) shell layout. Product
-// Walkthrough is unaffected — it keeps its own single-page WalkthroughBody
-// with its own copy of these sections and handlers.
+// Walkthrough is unaffected — it keeps its own single-page WalkthroughBody.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useSession } from "@/app/components/SessionProvider";
-import { AttachExistingSurveyModal } from "@/app/components/research-projects/AttachExistingSurveyModal";
-import { AttachExistingConversationSearchModal } from "@/app/components/research-projects/AttachExistingConversationSearchModal";
-import { AttachExistingDocumentModal } from "@/app/components/research-projects/AttachExistingDocumentModal";
 import type { Campaign } from "@/app/components/campaigns/types";
 import { formatRelativeTime } from "@/lib/format-relative-time";
 import { CollapsedSummary } from "@/app/components/research-projects/Shell";
+import { PageIntro } from "@/app/components/research-projects/PageIntro";
 import { ResearchSourcesSection } from "@/app/components/research-projects/ResearchSourcesSection";
 import { CampaignGroupsSection } from "@/app/components/research-projects/CampaignGroupsSection";
 import { useResearchProject, type EvidenceItem } from "@/app/components/research-projects/ProjectProvider";
 import {
   SURVEY_STATUS_META, SOCIAL_SEARCH_STATUS_META, EVIDENCE_TYPE_PLURAL,
-  AddEvidenceModal, DeploymentWizardModal,
+  DeploymentWizardModal,
 } from "@/app/components/research-projects/workspace-shared";
 
-export function SourcesBody() {
+export function ExecutionBody() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user } = useSession();
@@ -59,10 +50,6 @@ export function SourcesBody() {
     loadingDeletedCampaigns, loading, error, load, loadDeletedCampaigns,
   } = useResearchProject();
 
-  const [evidenceModalOpen, setEvidenceModalOpen] = useState(false);
-  const [attachExistingOpen, setAttachExistingOpen] = useState(false);
-  const [attachExistingSearchOpen, setAttachExistingSearchOpen] = useState(false);
-  const [attachExistingDocumentOpen, setAttachExistingDocumentOpen] = useState(false);
   const [wizardOpen, setWizardOpen] = useState(false);
   const [wizardPresetSurveyId, setWizardPresetSurveyId] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
@@ -84,57 +71,48 @@ export function SourcesBody() {
     setTimeout(() => setToast(null), 4000);
   }
 
-  // Evidence Orchestration: "Add Research Source" and "Add translations" both
-  // redirect back here with ?evidenceAdded=1 once Survey's specialist workflow
-  // (creation or edit) has completed — this continues the journey into the
-  // deployment wizard rather than stopping, since only Survey evidence powers
-  // Campaigns/the Deployment Wizard. Conversation Search's create-flow
-  // redirects with ?evidenceAdded=social_search instead — it has no deployment
-  // concept, so it only needs a toast + reload, not the wizard. (The bare
-  // project URL forwards these params to /sources, see [id]/page.tsx.)
+  // A newly created survey (from Research's specialist workflow) returns with
+  // ?evidenceAdded=1 and continues here into the deployment wizard, since only
+  // survey evidence powers Campaigns/deployment. (The bare project URL forwards
+  // ?evidenceAdded=1 to /execution; ?evidenceAdded=social_search goes to
+  // /research instead — see [id]/page.tsx.)
   const evidenceAddedHandledRef = useRef(false);
   useEffect(() => {
-    const added = searchParams.get("evidenceAdded");
-    if (!added) return;
+    if (searchParams.get("evidenceAdded") !== "1") return;
     if (!project || evidenceAddedHandledRef.current) return;
     evidenceAddedHandledRef.current = true;
-    router.replace(`/research-projects/${id}/sources`);
+    router.replace(`/research-projects/${id}/execution`);
     load();
-    if (added === "1") {
-      setToast("Survey saved, continuing deployment setup.");
-      setWizardOpen(true);
-    } else {
-      setToast("Conversation search saved.");
-    }
+    setToast("Survey saved, continuing deployment setup.");
+    setWizardOpen(true);
   }, [searchParams, id, project, router, load]);
 
   // Create Campaign — deep-linked to the Campaigns page, returns here with
-  // ?campaignAdded=1. Nothing further to continue into (unlike Research
-  // Sources), just a toast and a refreshed Campaigns list.
+  // ?campaignAdded=1. Just a toast and a refreshed Campaigns list.
   const campaignAddedHandledRef = useRef(false);
   useEffect(() => {
     if (searchParams.get("campaignAdded") !== "1") return;
     if (!project || campaignAddedHandledRef.current) return;
     campaignAddedHandledRef.current = true;
     setToast("Campaign created.");
-    router.replace(`/research-projects/${id}/sources`);
+    router.replace(`/research-projects/${id}/execution`);
     load();
   }, [searchParams, id, project, router, load]);
 
-  // Plain "Open →" from a Research Source card — a simple return, no wizard.
+  // Plain "Open →" from a Research Source card / campaign editor — a simple
+  // return, no wizard.
   const returnedHandledRef = useRef(false);
   useEffect(() => {
     if (searchParams.get("returned") !== "1") return;
     if (!project || returnedHandledRef.current) return;
     returnedHandledRef.current = true;
     setToast("Welcome back.");
-    router.replace(`/research-projects/${id}/sources`);
+    router.replace(`/research-projects/${id}/execution`);
     load();
   }, [searchParams, id, project, router, load]);
 
   const orgName = (orgId: string | null) => (orgId ? orgs.find(o => o.id === orgId)?.name ?? "" : "");
   const orgPublishers = orgs.filter(o => o.type === "publisher" && (user?.role !== "publisher" || o.id === user.organisationId));
-  const orgBrands = orgs.filter(o => o.type === "brand");
 
   if (loading && !project) return (
     <div className="p-6 flex items-center justify-center h-64">
@@ -160,9 +138,6 @@ export function SourcesBody() {
 
   const evidenceTypeCounts: Record<string, number> = {};
   for (const e of project.evidence) evidenceTypeCounts[e.evidence_type] = (evidenceTypeCounts[e.evidence_type] ?? 0) + 1;
-  // Collapsed-card summary — grouped by evidence type (e.g. "Surveys: 2
-  // Surveys, 1 Draft, 1 Ready"). Each wired-up evidence type carries its own
-  // status breakdown; not-yet-real types just show their count.
   const surveyStatusCounts: Record<string, number> = {};
   for (const e of surveyEvidence) {
     const s = e.survey!.status;
@@ -201,59 +176,10 @@ export function SourcesBody() {
     load();
   }
 
-  async function handleAttachExisting(surveyId: string) {
-    const res = await fetch(`/api/research-projects/${projectId}/evidence`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ evidence_type: "survey", evidence_id: surveyId, source: "existing" }),
-    });
-    if (!res.ok) {
-      const json = await res.json().catch(() => ({}));
-      showToast(json.error ?? "Failed to attach survey.");
-      return;
-    }
-    setAttachExistingOpen(false);
-    showToast("Survey attached.");
-    load();
-  }
-
-  async function handleAttachExistingSearch(searchId: string) {
-    const res = await fetch(`/api/research-projects/${projectId}/evidence`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ evidence_type: "social_search", evidence_id: searchId, source: "existing" }),
-    });
-    if (!res.ok) {
-      const json = await res.json().catch(() => ({}));
-      showToast(json.error ?? "Failed to attach conversation search.");
-      return;
-    }
-    setAttachExistingSearchOpen(false);
-    showToast("Conversation search attached.");
-    load();
-  }
-
-  async function handleAttachExistingDocument(documentId: string) {
-    const res = await fetch(`/api/research-projects/${projectId}/evidence`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ evidence_type: "document", evidence_id: documentId, source: "existing" }),
-    });
-    if (!res.ok) {
-      const json = await res.json().catch(() => ({}));
-      showToast(json.error ?? "Failed to attach document.");
-      return;
-    }
-    setAttachExistingDocumentOpen(false);
-    showToast("Document attached.");
-    load();
-  }
-
   // "Run Research" — server resolves the source's type/id from evidenceRowId
-  // itself (research_project_evidence.id) and does the actual generation; this
-  // just fires it and refreshes. A 409 ("already running") is expected if the
-  // poll effect hasn't caught up yet — treated as a no-op, not an error, since
-  // load() will converge either way.
+  // itself and does the actual generation; this just fires it and refreshes. A
+  // 409 ("already running") is expected if the poll effect hasn't caught up yet
+  // — treated as a no-op, not an error, since load() will converge either way.
   async function handleRunResearch(evidenceRowId: string) {
     const res = await fetch(`/api/research-projects/${projectId}/evidence/generate`, {
       method: "POST",
@@ -267,9 +193,6 @@ export function SourcesBody() {
     load();
   }
 
-  // Scoped to a specific survey — each Survey card's own "+ Create Campaign"
-  // already knows exactly which survey it's for, so there's no longer a "which
-  // survey?" picker to show here.
   function handleCreateCampaignClick(evidenceId: string) {
     router.push(`/campaigns?createForProject=${projectId}&surveyId=${evidenceId}`);
   }
@@ -282,6 +205,7 @@ export function SourcesBody() {
   return (
     <>
       <div className="p-4 md:p-6 max-w-5xl mx-auto space-y-4">
+        <PageIntro>Configure, deploy and run your research across all selected evidence sources.</PageIntro>
 
         <ResearchSourcesSection
           projectId={projectId}
@@ -339,7 +263,7 @@ export function SourcesBody() {
           isLockedByAdminFor={isLockedByAdminFor}
           expandedIds={expandedSourceIds}
           onToggleExpand={toggleSourceExpanded}
-          onAddResearchSource={() => setEvidenceModalOpen(true)}
+          onAddResearchSource={() => router.push(`/research-projects/${projectId}/research`)}
           onLoadDeletedCampaigns={loadDeletedCampaigns}
           onReloadCampaigns={load}
           onEditCampaign={c => router.push(`/campaigns?editCampaignId=${c.id}&returnTo=${projectId}`)}
@@ -392,49 +316,9 @@ export function SourcesBody() {
           campaigns={campaigns}
           orgs={orgs}
           surveyNameById={new Map(surveyEvidence.map(e => [e.evidence_id, e.survey.name]))}
-          returnTo={`/research-projects/${project.id}/sources`}
+          returnTo={`/research-projects/${project.id}/execution`}
         />
       </div>
-
-      {evidenceModalOpen && (
-        <AddEvidenceModal
-          projectId={project.id}
-          onClose={() => setEvidenceModalOpen(false)}
-          onAttachExisting={type => {
-            if (type === "survey") setAttachExistingOpen(true);
-            if (type === "social_search") setAttachExistingSearchOpen(true);
-            if (type === "document") setAttachExistingDocumentOpen(true);
-          }}
-        />
-      )}
-
-      {attachExistingOpen && (
-        <AttachExistingSurveyModal
-          excludeSurveyIds={surveyEvidence.map(e => e.evidence_id)}
-          orgName={orgName}
-          orgBrands={orgBrands}
-          isSimulated={project.research_mode === "simulated"}
-          onClose={() => setAttachExistingOpen(false)}
-          onAttach={handleAttachExisting}
-        />
-      )}
-
-      {attachExistingSearchOpen && (
-        <AttachExistingConversationSearchModal
-          excludeSearchIds={conversationSearchEvidence.map(e => e.evidence_id)}
-          isSimulated={project.research_mode === "simulated"}
-          onClose={() => setAttachExistingSearchOpen(false)}
-          onAttach={handleAttachExistingSearch}
-        />
-      )}
-
-      {attachExistingDocumentOpen && (
-        <AttachExistingDocumentModal
-          excludeDocumentIds={project.evidence.filter(e => e.evidence_type === "document").map(e => e.evidence_id)}
-          onClose={() => setAttachExistingDocumentOpen(false)}
-          onAttach={handleAttachExistingDocument}
-        />
-      )}
 
       {wizardOpen && (
         <DeploymentWizardModal
@@ -445,7 +329,7 @@ export function SourcesBody() {
           publishersDisabled={user?.role === "publisher"}
           publishersHelperText={user?.role === "publisher" ? "Locked to your organisation." : undefined}
           onClose={() => { setWizardOpen(false); setWizardPresetSurveyId(null); }}
-          onNeedEvidence={() => { setWizardOpen(false); setEvidenceModalOpen(true); }}
+          onNeedEvidence={() => { setWizardOpen(false); router.push(`/research-projects/${projectId}/research`); }}
           onComplete={result => {
             const parts = [`${result.created.length} created`];
             if (result.restored.length > 0) parts.push(`${result.restored.length} restored`);
