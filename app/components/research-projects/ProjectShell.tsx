@@ -38,7 +38,7 @@ type LifecycleKey = "research_question" | "evidence" | "intelligence" | "report"
 const AREAS: Area[] = [
   { key: "overview",   label: "Overview",               kind: "route",  segment: "overview" },
   { key: "design",     label: "Design",                 kind: "route",  segment: "design",     stageKey: "research_question" },
-  { key: "sources",    label: "Sources",                kind: "anchor", anchor: "evidence",     stageKey: "evidence" },
+  { key: "sources",    label: "Sources",                kind: "route",  segment: "sources",     stageKey: "evidence" },
   { key: "analysis",   label: "Analysis",               kind: "anchor", anchor: "intelligence", stageKey: "intelligence" },
   { key: "outputs",    label: "Outputs",                kind: "anchor", anchor: "reports",      stageKey: "report" },
   { key: "conclusion", label: "Conclusion & Knowledge", kind: "anchor", anchor: "conclusion",   stageKey: "conclusion" },
@@ -57,9 +57,11 @@ export function ProjectShell() {
   const { project, campaigns } = useResearchProject();
 
   const base = `/research-projects/${id}`;
-  // Only Overview and Design are area routes today; the base URL redirects to
-  // Overview, so anything that isn't Design is treated as Overview.
-  const activeKey = pathname.endsWith("/design") ? "design" : "overview";
+  // Overview, Design and Sources are area routes today; the base URL redirects
+  // to Overview, so anything that isn't Design or Sources is treated as Overview.
+  const activeKey = pathname.endsWith("/sources") ? "sources"
+    : pathname.endsWith("/design") ? "design"
+    : "overview";
 
   const hasActiveCampaign = campaigns.some(c => c.effective_status === "live" || c.effective_status === "paused");
   const projectStatus = project ? computeProjectStatus(project, hasActiveCampaign) : null;
