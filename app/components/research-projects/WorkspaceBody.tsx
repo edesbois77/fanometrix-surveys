@@ -25,6 +25,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useSession } from "@/app/components/SessionProvider";
+import { ResearchProjectEditDrawer, type ResearchProjectBriefFields } from "@/app/components/research-projects/ResearchProjectEditDrawer";
 import { studyTypeLabel } from "@/lib/naming";
 import { researchSubjectLabel } from "@/lib/research-subjects";
 import { formatRelativeTime } from "@/lib/format-relative-time";
@@ -62,9 +63,10 @@ export function WorkspaceBodyContent() {
   const isAdmin = user?.role === "admin";
   const canManage = isAdmin || user?.role === "publisher";
 
-  const { project, campaigns, loading, error, load } = useResearchProject();
+  const { project, orgs, campaigns, loading, error, load } = useResearchProject();
 
   const [toast, setToast] = useState<string | null>(null);
+  const [editingBrief, setEditingBrief] = useState<Partial<ResearchProjectBriefFields> | null>(null);
 
   // Project Information — edit mode for the settings subset (Confidentiality,
   // Version). Owner/Created/Last Updated/Status stay permanently read-only —
@@ -142,11 +144,30 @@ export function WorkspaceBodyContent() {
   // a nested function's own scope.
   const p = project;
 
+  const orgBrands = orgs.filter(o => o.type === "brand");
+  const orgAgencies = orgs.filter(o => o.type === "agency");
+  const orgName = (orgId: string | null) => (orgId ? orgs.find(o => o.id === orgId)?.name ?? "" : "");
+
   const hasActiveCampaign = campaigns.some(c => c.effective_status === "live" || c.effective_status === "paused");
   const projectStatus = computeProjectStatus(project, hasActiveCampaign);
 
   const stages = computeLifecycleStages(project);
   const progress = computeResearchProgress(stages);
+
+  // Source-type breakdown for the Overview snapshot — derived from the project's
+  // own evidence list, not a second dashboard computation.
+  const surveyCount = project.evidence.filter(e => e.evidence_type === "survey").length;
+  const searchCount = project.evidence.filter(e => e.evidence_type === "social_search").length;
+  const docCount = project.evidence.filter(e => e.evidence_type === "document").length;
+
+  function openEditBrief() {
+    setEditingBrief({
+      id: p.id, project_id: p.project_id,
+      topic: p.topic, research_question: p.research_question, research_subject: p.research_subject,
+      brand_org_id: p.brand_org_id, agency_org_id: p.agency_org_id, study_type: p.study_type,
+      objective: p.objective, tags: p.tags,
+    });
+  }
 
   function openProjectInfoEdit() {
     setDraftConfidentiality(p.confidentiality);
@@ -215,35 +236,38 @@ export function WorkspaceBodyContent() {
         {/* Permanent — no dismiss, no collapse. See Platform Contract §02/§03. */}
         {project.research_mode === "simulated" && <SimulatedBanner />}
 
-        {/* ── Overview summary — the project's research question, objective and
-            a source/progress rollup. Project identity (name, status,
-            breadcrumb) now lives in the persistent shell header, and editing
-            the brief now lives on the Design area, so neither is repeated
-            here. */}
-        <div id="hero" className="bg-white border border-gray-100 rounded-xl shadow-sm scroll-mt-4">
+        {/* ── Research Brief — the question this project investigates and its
+            objective, edited through the shared brief drawer. Project identity
+            (name, status, breadcrumb) lives in the persistent shell header;
+            project classification (Brand, Agency, Type, Category) lives in
+            Project Information below; the source/collection rollup lives in
+            Research Snapshot. Nothing is duplicated across them. */}
+        <div id="hero" className="bg-white border border-gray-100 rounded-xl shadow-sm overflow-hidden scroll-mt-4">
+          <div className="flex items-center justify-between gap-3 px-5 py-3.5" style={{ background: "#0B1929" }}>
+            <h2 className="text-sm font-bold text-white uppercase tracking-wide">Research Brief</h2>
+            {canManage && (
+              <button onClick={openEditBrief}
+                className="text-xs font-semibold border border-white/20 text-white/80 hover:bg-white/10 px-3 py-1.5 rounded-lg transition-colors">
+                Edit Research Brief
+              </button>
+            )}
+          </div>
           <div className="p-6">
             <div className="bg-gray-50 border border-gray-100 rounded-lg px-4 py-3 mb-3">
               <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Research Question</p>
               {project.research_question ? (
                 <p className="text-base font-medium text-gray-900 leading-relaxed">{project.research_question}</p>
               ) : (
-                <p className="text-sm text-gray-400">No research question set, edit the project to add one.</p>
+                <p className="text-sm text-gray-400">No research question set{canManage ? ", edit the brief to add one." : "."}</p>
               )}
             </div>
 
             {project.objective && (
-              <div className="bg-gray-50 border border-gray-100 rounded-lg px-4 py-3 mb-4">
+              <div className="bg-gray-50 border border-gray-100 rounded-lg px-4 py-3">
                 <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Objective</p>
                 <p className="text-base font-medium text-gray-900 leading-relaxed">{project.objective}</p>
               </div>
             )}
-
-            <div className="border-t border-gray-100 pt-4 flex flex-wrap gap-x-6 gap-y-2 text-xs text-gray-500">
-              <span><span className="text-gray-400">Research Sources </span>{project.evidence.length}</span>
-              <span><span className="text-gray-400">Research Progress </span>{progress.label}</span>
-              <span><span className="text-gray-400">Research Type </span>{studyTypeLabel(project.study_type)}</span>
-              <span><span className="text-gray-400">Research Category </span>{researchSubjectLabel(project.research_subject)}</span>
-            </div>
           </div>
         </div>
 
@@ -298,17 +322,68 @@ export function WorkspaceBodyContent() {
           </div>
         </div>
 
-        {/* ── Project Information — the home for every project-level fact and
-            setting: metadata, and Status (always derived, never manual).
-            The Research Target lives in the Campaigns section instead —
-            it's a campaign-collection setting, not project metadata. */}
+        {/* ── Research Snapshot — a lightweight, read-only rollup derived from
+            the project's own top-level totals, with a route to the full
+            Dashboard. This is NOT a second dashboard: the real cross-source
+            collection dashboard is the Dashboard area. */}
+        <SectionCard
+          id="snapshot"
+          title="Research Snapshot"
+          info={
+            <InfoContent title="A quick read on where the research is.">
+              <p>Overall progress, the sources being used and headline collection numbers — pulled from this project&apos;s own totals.</p>
+              <p className="mt-1.5">Open the Dashboard for the full cross-source collection view.</p>
+            </InfoContent>
+          }
+          cta={
+            <Link href={`/research-projects/${projectId}/dashboard`}
+              className="text-xs font-semibold border border-white/20 text-white/80 hover:bg-white/10 px-3 py-1.5 rounded-lg transition-colors">
+              View full Dashboard →
+            </Link>
+          }
+          summary={
+            <CollapsedSummary groups={[
+              { label: "Progress", parts: [progress.label] },
+              { label: "Sources", parts: [`${project.evidence.length}`] },
+            ]} />
+          }
+        >
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
+            <div>
+              <p className="text-xs text-gray-400 uppercase tracking-wide mb-0.5">Research Progress</p>
+              <p className="text-gray-700">{progress.label}</p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-400 uppercase tracking-wide mb-0.5">Research Sources</p>
+              <p className="text-gray-700">{project.evidence.length}</p>
+              <p className="text-[10px] text-gray-400 mt-0.5">{surveyCount} survey{surveyCount !== 1 ? "s" : ""}, {searchCount} search{searchCount !== 1 ? "es" : ""}, {docCount} document{docCount !== 1 ? "s" : ""}</p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-400 uppercase tracking-wide mb-0.5">Total Responses</p>
+              <p className="text-gray-700">{project.total_responses.toLocaleString()}</p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-400 uppercase tracking-wide mb-0.5">Deployments</p>
+              <p className="text-gray-700">{project.deployment_count}</p>
+            </div>
+          </div>
+          <div className="mt-4 flex flex-wrap gap-4 border-t border-gray-100 pt-3">
+            <Link href={`/research-projects/${projectId}/sources`} className="text-xs font-semibold text-[#0B1929] hover:underline">View Sources →</Link>
+            <Link href={`/research-projects/${projectId}/dashboard`} className="text-xs font-semibold text-[#0B1929] hover:underline">View full Dashboard →</Link>
+          </div>
+        </SectionCard>
+
+        {/* ── Project Information — project-level facts and classification:
+            metadata, derived Status, and the Brand / Agency / Research Type /
+            Research Category classification (edited via the Research Brief
+            above, shown here read-only). */}
         <SectionCard
           id="project-info"
           title="Project Information"
           info={
-            <InfoContent title="Project-level facts, all in one place.">
-              <p>Owner, Status, Created/Updated dates, Confidentiality and Version for this project.</p>
-              <p className="mt-1.5">Status updates automatically from what&apos;s happening in Campaigns below, it&apos;s never set manually here. The Research Target lives in Campaigns too, since it&apos;s a campaign-collection setting rather than project metadata.</p>
+            <InfoContent title="Project-level facts and classification, all in one place.">
+              <p>Owner, Status, Created/Updated dates, Confidentiality and Version, plus the project&apos;s Brand, Agency, Research Type and Research Category.</p>
+              <p className="mt-1.5">Status is derived automatically, never set manually here. Classification is edited via the Research Brief above; the per-survey Research Target lives on each survey in Sources.</p>
             </InfoContent>
           }
           cta={canManage && !editingProjectInfo && (
@@ -332,6 +407,22 @@ export function WorkspaceBodyContent() {
             <div>
               <p className="text-xs text-gray-400 uppercase tracking-wide mb-0.5">Status</p>
               <ProjectStatusBadge status={projectStatus} />
+            </div>
+            <div>
+              <p className="text-xs text-gray-400 uppercase tracking-wide mb-0.5">Brand</p>
+              <p className="text-gray-700">{orgName(project.brand_org_id) || "—"}</p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-400 uppercase tracking-wide mb-0.5">Agency</p>
+              <p className="text-gray-700">{orgName(project.agency_org_id) || "—"}</p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-400 uppercase tracking-wide mb-0.5">Research Type</p>
+              <p className="text-gray-700">{studyTypeLabel(project.study_type)}</p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-400 uppercase tracking-wide mb-0.5">Research Category</p>
+              <p className="text-gray-700">{researchSubjectLabel(project.research_subject)}</p>
             </div>
             <div>
               <p className="text-xs text-gray-400 uppercase tracking-wide mb-0.5">Created</p>
@@ -403,6 +494,17 @@ export function WorkspaceBodyContent() {
         </SectionCard>
 
       </div>
+
+      {editingBrief && (
+        <ResearchProjectEditDrawer
+          initial={editingBrief}
+          orgBrands={orgBrands}
+          orgAgencies={orgAgencies}
+          orgName={orgName}
+          onClose={() => setEditingBrief(null)}
+          onSaved={() => { setEditingBrief(null); showToast("Research Brief updated."); load(); }}
+        />
+      )}
 
       {toast && (
         <div className="fixed bottom-6 right-6 z-50 px-5 py-3 rounded-xl shadow-lg text-sm font-medium bg-green-600 text-white">
