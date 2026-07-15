@@ -29,7 +29,6 @@ import { studyTypeLabel } from "@/lib/naming";
 import { researchSubjectLabel } from "@/lib/research-subjects";
 import { formatRelativeTime, formatRelativeDay } from "@/lib/format-relative-time";
 import { computeLifecycleStages, computeResearchProgress } from "@/lib/research-project-lifecycle";
-import { computeReportReadiness } from "@/lib/report-readiness";
 import { computeProjectStatus, PROJECT_STATUS_META } from "@/lib/research-project-status";
 import { SimulatedBanner } from "@/app/components/simulation/SimulatedBanner";
 import { SimulatedBadge } from "@/app/components/simulation/SimulatedBadge";
@@ -37,7 +36,6 @@ import { SimulationInformationPanel } from "@/app/components/simulation/Simulati
 import { SectionCard, EmptyState, CollapsedSummary, InfoContent } from "@/app/components/research-projects/Shell";
 import { ConclusionSection } from "@/app/components/research-projects/ConclusionSection";
 import { KnowledgeSection } from "@/app/components/research-projects/KnowledgeSection";
-import { ReportsSection } from "@/app/components/research-projects/ReportsSection";
 import { getWorkspaceScrollTarget, clearWorkspaceScrollTarget } from "@/lib/workspace-scroll";
 import { useResearchProject, type ActivityRow } from "@/app/components/research-projects/ProjectProvider";
 import { STAGE_STATE_META, ProjectStatusBadge } from "@/app/components/research-projects/workspace-shared";
@@ -159,7 +157,6 @@ export function WorkspaceBodyContent() {
 
   const hasActiveCampaign = campaigns.some(c => c.effective_status === "live" || c.effective_status === "paused");
   const projectStatus = computeProjectStatus(project, hasActiveCampaign);
-  const reportReadiness = computeReportReadiness(project.evidence);
 
   const stages = computeLifecycleStages(project);
   const progress = computeResearchProgress(stages);
@@ -293,14 +290,17 @@ export function WorkspaceBodyContent() {
                         // Sections that have moved to their own area route are
                         // navigated to rather than scrolled to (their anchor
                         // isn't on this page): Research Sources + Dashboard →
-                        // Sources, Intelligence → Analysis. The rest still
-                        // scroll in-page. (This whole tracker is superseded by
-                        // the shell nav and is removed once Overview is finalised.)
+                        // Sources, Intelligence → Analysis, Report → Outputs.
+                        // The rest still scroll in-page. (This whole tracker is
+                        // superseded by the shell nav and is removed once
+                        // Overview is finalised.)
                         stage.sectionId === "evidence" || stage.sectionId === "dashboard"
                           ? router.push(`/research-projects/${projectId}/sources`)
                           : stage.sectionId === "intelligence"
                             ? router.push(`/research-projects/${projectId}/analysis`)
-                            : scrollToSection(stage.sectionId!)
+                            : stage.sectionId === "reports"
+                              ? router.push(`/research-projects/${projectId}/outputs`)
+                              : scrollToSection(stage.sectionId!)
                       }
                       className="transition-transform hover:scale-105"
                     >
@@ -417,17 +417,6 @@ export function WorkspaceBodyContent() {
             <SimulationInformationPanel info={project.simulation_info} />
           )}
         </SectionCard>
-
-        <ReportsSection
-          projectId={projectId}
-          basePath={`/research-projects/${projectId}`}
-          isSimulated={project.research_mode === "simulated"}
-          reportStatus={project.report_status}
-          reportStale={project.report_stale}
-          reportReadiness={reportReadiness}
-          fullResearchReportStatus={project.full_research_report_status}
-          articleStatus={project.article_status}
-        />
 
         <ConclusionSection
           projectId={project.id}

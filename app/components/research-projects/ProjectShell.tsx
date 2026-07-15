@@ -40,7 +40,7 @@ const AREAS: Area[] = [
   { key: "design",     label: "Design",                 kind: "route",  segment: "design",     stageKey: "research_question" },
   { key: "sources",    label: "Sources",                kind: "route",  segment: "sources",     stageKey: "evidence" },
   { key: "analysis",   label: "Analysis",               kind: "route",  segment: "analysis",    stageKey: "intelligence" },
-  { key: "outputs",    label: "Outputs",                kind: "anchor", anchor: "reports",      stageKey: "report" },
+  { key: "outputs",    label: "Outputs",                kind: "route",  segment: "outputs",     stageKey: "report" },
   { key: "conclusion", label: "Conclusion & Knowledge", kind: "anchor", anchor: "conclusion",   stageKey: "conclusion" },
 ];
 
@@ -57,11 +57,12 @@ export function ProjectShell() {
   const { project, campaigns } = useResearchProject();
 
   const base = `/research-projects/${id}`;
-  // Overview, Design, Sources and Analysis are area routes today; the base URL
-  // redirects to Overview, so anything that isn't Design/Sources/Analysis is
-  // treated as Overview.
+  // Overview, Design, Sources, Analysis and Outputs are area routes today; the
+  // base URL redirects to Overview, so anything that isn't Design/Sources/
+  // Analysis/Outputs is treated as Overview.
   const activeKey = pathname.endsWith("/sources") ? "sources"
     : pathname.endsWith("/analysis") ? "analysis"
+    : pathname.endsWith("/outputs") ? "outputs"
     : pathname.endsWith("/design") ? "design"
     : "overview";
 

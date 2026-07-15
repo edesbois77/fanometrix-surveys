@@ -71,6 +71,13 @@ export default function ExecutiveReportPage() {
   // (/research-projects/[id]) or Product Walkthrough (/product-walkthrough/[id]).
   // API calls below still address the shared /api/research-projects/[id] routes.
   const projectBase = pathname?.startsWith("/product-walkthrough") ? `/product-walkthrough/${id}` : `/research-projects/${id}`;
+  // The Reports chain is a child of the Outputs area in the real workspace,
+  // but sits on the single Product Walkthrough page. Return to the right
+  // parent (only the single-page walkthrough needs the scroll-target restore;
+  // the Outputs route lands with the report cards already at the top).
+  const isWalkthrough = pathname?.startsWith("/product-walkthrough") ?? false;
+  const backHref = isWalkthrough ? `${projectBase}#reports` : `${projectBase}/outputs`;
+  const backLabel = isWalkthrough ? "← Back to Workspace" : "← Back to Outputs";
   const [project, setProject] = useState<ProjectForReport | null>(null);
   const [loadingProject, setLoadingProject] = useState(true);
   const [showCoverageConfirm, setShowCoverageConfirm] = useState(false);
@@ -222,12 +229,12 @@ export default function ExecutiveReportPage() {
         <div className="flex items-start justify-between mb-6 print:hidden flex-wrap gap-3">
           <div>
             <Link
-              href={`${projectBase}#reports`}
+              href={backHref}
               scroll={false}
-              onClick={() => setWorkspaceScrollTarget("reports")}
+              onClick={() => { if (isWalkthrough) setWorkspaceScrollTarget("reports"); }}
               className="text-xs text-gray-400 hover:text-gray-600"
             >
-              ← Back to Workspace
+              {backLabel}
             </Link>
             <div className="flex items-center gap-2 mt-1 flex-wrap">
               <h1 className="text-2xl font-bold text-gray-900">Executive Report</h1>
