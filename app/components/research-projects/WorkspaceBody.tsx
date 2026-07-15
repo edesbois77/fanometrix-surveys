@@ -33,6 +33,7 @@ import { computeProjectStatus, PROJECT_STATUS_META } from "@/lib/research-projec
 import { SimulatedBanner } from "@/app/components/simulation/SimulatedBanner";
 import { SimulationInformationPanel } from "@/app/components/simulation/SimulationInformationPanel";
 import { SectionCard, CollapsedSummary, InfoContent } from "@/app/components/research-projects/Shell";
+import { PageIntro } from "@/app/components/research-projects/PageIntro";
 import { getWorkspaceScrollTarget, clearWorkspaceScrollTarget } from "@/lib/workspace-scroll";
 import { useResearchProject } from "@/app/components/research-projects/ProjectProvider";
 import { ProjectStatusBadge } from "@/app/components/research-projects/workspace-shared";
@@ -154,6 +155,30 @@ export function WorkspaceBodyContent() {
   const searchCount = project.evidence.filter(e => e.evidence_type === "social_search").length;
   const docCount = project.evidence.filter(e => e.evidence_type === "document").length;
 
+  // ── Next Recommended Action — the single most useful thing to do next,
+  // derived from where the project actually is in its lifecycle. It walks the
+  // same stages the progress bar counts (question → sources → collection →
+  // analysis → reports → conclusion) and returns the first incomplete one,
+  // pointing to the area that advances it. No backend involved — this reads
+  // only state already loaded above. The CTA either navigates to the relevant
+  // area or, for the very first step, opens the Research Brief editor in place
+  // (defining the question is an Overview action, not another page).
+  const stage = (key: string) => stages.find(s => s.key === key)?.state;
+  const nextAction: { title: string; body: string; ctaLabel: string; href?: string; onClick?: () => void; done?: boolean } =
+    !project.research_question?.trim()
+      ? { title: "Define your research question", body: "Set the question and objective this project will answer — everything else follows from it.", ctaLabel: "Edit Research Brief", onClick: openEditBrief }
+    : project.evidence.length === 0
+      ? { title: "Choose your research methods", body: "Select the evidence sources — surveys, conversation intelligence or library documents — that will answer your question.", ctaLabel: "Go to Research →", href: `/research-projects/${projectId}/research` }
+    : project.total_responses === 0 && project.deployment_count === 0
+      ? { title: "Deploy and run your research", body: "Configure and launch your sources to start collecting data.", ctaLabel: "Go to Execution →", href: `/research-projects/${projectId}/execution` }
+    : stage("intelligence") !== "complete"
+      ? { title: "Analyse your findings", body: "Explore results from every source and capture the key insights emerging from your research.", ctaLabel: "Go to Analysis →", href: `/research-projects/${projectId}/analysis` }
+    : stage("report") !== "complete"
+      ? { title: "Communicate your findings", body: "Generate the reports and articles that present your research to stakeholders.", ctaLabel: "Go to Outputs →", href: `/research-projects/${projectId}/outputs` }
+    : stage("conclusion") !== "complete"
+      ? { title: "Capture your conclusion", body: "Record the final, evidence-backed answer to your research question.", ctaLabel: "Go to Conclusion →", href: `/research-projects/${projectId}/conclusion` }
+    : { title: "This research is complete", body: "Your conclusion is published and retained as knowledge. Review it any time.", ctaLabel: "View Conclusion →", href: `/research-projects/${projectId}/conclusion`, done: true };
+
   function openEditBrief() {
     setEditingBrief({
       id: p.id, project_id: p.project_id,
@@ -227,6 +252,8 @@ export function WorkspaceBodyContent() {
     <>
       <div className="p-4 md:p-6 max-w-5xl mx-auto space-y-4">
 
+        <PageIntro>Define the research question, objectives and monitor overall project progress.</PageIntro>
+
         {/* Permanent — no dismiss, no collapse. See Platform Contract §02/§03. */}
         {project.research_mode === "simulated" && <SimulatedBanner />}
 
@@ -284,6 +311,38 @@ export function WorkspaceBodyContent() {
             </div>
             <p className="text-[11px] text-gray-400 mt-1">{progress.completed} of {progress.total} stages complete</p>
           </div>
+        </div>
+
+        {/* ── Next Recommended Action — the "what should I do next?" answer.
+            Derived above from lifecycle state; a single, unambiguous prompt with
+            one route into the area that advances the project. Styled distinctly
+            (navy panel, gold accent) so it's the first thing the eye lands on
+            after Status. Read-only Overview: the CTA navigates elsewhere or opens
+            the brief editor — no collection/analysis work happens here. */}
+        <div className="rounded-xl shadow-sm overflow-hidden flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-5 px-5 py-4"
+          style={{ background: "#0B1929" }}>
+          <div className="flex-1 min-w-0">
+            <p className="text-[11px] font-semibold uppercase tracking-wide mb-1" style={{ color: "#D7B87A" }}>
+              {nextAction.done ? "Project Complete" : "Next Recommended Action"}
+            </p>
+            <p className="text-sm font-bold text-white leading-snug">{nextAction.title}</p>
+            <p className="text-xs text-white/60 leading-relaxed mt-0.5">{nextAction.body}</p>
+          </div>
+          {nextAction.href ? (
+            <Link href={nextAction.href}
+              className="shrink-0 text-xs font-semibold px-4 py-2 rounded-lg transition-colors self-start sm:self-auto"
+              style={{ background: "#D7B87A", color: "#0B1929" }}>
+              {nextAction.ctaLabel}
+            </Link>
+          ) : (
+            canManage && (
+              <button onClick={nextAction.onClick}
+                className="shrink-0 text-xs font-semibold px-4 py-2 rounded-lg transition-colors self-start sm:self-auto"
+                style={{ background: "#D7B87A", color: "#0B1929" }}>
+                {nextAction.ctaLabel}
+              </button>
+            )
+          )}
         </div>
 
         {/* ── Research Snapshot — a lightweight, read-only rollup derived from
