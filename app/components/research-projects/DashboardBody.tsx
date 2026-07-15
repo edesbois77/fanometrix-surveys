@@ -1,10 +1,12 @@
 "use client";
 
-// The Dashboard area body — the project-level cross-source collection
-// dashboard, at /research-projects/[id]/dashboard. It is the full Collection
-// view (coverage, per-source progress, survey responses, conversation volumes,
-// campaign state) that previously sat inside Sources; Overview now shows only
-// a lightweight snapshot with a link here.
+// The Dashboard area body — the operational heartbeat of the project, at
+// /research-projects/[id]/dashboard. It answers "what is happening right now?":
+// the full live-collection view (coverage, per-source progress, survey
+// responses, conversation volumes, campaign state) across every active evidence
+// source. This is where users monitor research in progress — not where they
+// configure it (Execution) or analyse what it found (Analysis). Overview shows
+// only a lightweight snapshot with a link here.
 //
 // Relocation only: DashboardSection is reused exactly as before — this is the
 // single dashboard implementation, not a second one. It is built to grow
@@ -19,6 +21,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useResearchProject, type EvidenceItem } from "@/app/components/research-projects/ProjectProvider";
 import { DashboardSection } from "@/app/components/research-projects/DashboardSection";
+import { PageIntro } from "@/app/components/research-projects/PageIntro";
 
 export function DashboardBody() {
   const router = useRouter();
@@ -44,6 +47,7 @@ export function DashboardBody() {
 
   return (
     <div className="p-4 md:p-6 max-w-5xl mx-auto space-y-4">
+      <PageIntro>Monitor live research performance, response volumes and data collection across all active evidence sources.</PageIntro>
       <DashboardSection
         projectId={project.id}
         isSimulated={project.research_mode === "simulated"}
