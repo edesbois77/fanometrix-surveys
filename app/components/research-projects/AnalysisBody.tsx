@@ -28,6 +28,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useResearchProject, type EvidenceItem } from "@/app/components/research-projects/ProjectProvider";
 import { AnalysisView } from "@/app/components/research-projects/AnalysisView";
+import { PageIntro } from "@/app/components/research-projects/PageIntro";
 
 export function AnalysisBody() {
   const router = useRouter();
@@ -56,6 +57,7 @@ export function AnalysisBody() {
 
   return (
     <div className="p-4 md:p-6 max-w-5xl mx-auto space-y-4">
+      <PageIntro>Explore findings from every research source and identify key insights.</PageIntro>
       <AnalysisView
         surveys={surveyEvidence.map(item => ({
           evidence_id: item.evidence_id,
