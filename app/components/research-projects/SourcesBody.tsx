@@ -285,6 +285,7 @@ export function SourcesBody() {
 
         <ResearchSourcesSection
           projectId={projectId}
+          groupByType
           isSimulated={project.research_mode === "simulated"}
           isProductWalkthrough={false}
           canManage={canManage}

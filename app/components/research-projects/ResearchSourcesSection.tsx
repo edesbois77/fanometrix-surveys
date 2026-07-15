@@ -539,6 +539,7 @@ export function ResearchSourcesSection({
   onCreateCampaign, onCreateMultipleCampaigns, onRemoveSurveyEvidence, onRemoveConversationSearchEvidence,
   onRemoveDocumentEvidence,
   onSaveResearchTarget, onSaveCreativeDesign, onRunResearch, formatRelativeTime,
+  groupByType = false,
 }: {
   projectId: string;
   isSimulated: boolean;
@@ -578,7 +579,66 @@ export function ResearchSourcesSection({
   onSaveCreativeDesign: (evidenceId: string, design: string | null) => Promise<{ ok: boolean; error?: string }>;
   onRunResearch: (evidenceRowId: string) => Promise<void>;
   formatRelativeTime: (iso: string) => string;
+  /** Research-Project opt-in: group the three source types under clear
+   * per-type headings ("Surveys", "Conversation Searches", "Industry
+   * Research") instead of one flat list. Defaults to false so Product
+   * Walkthrough (which does not pass it) renders exactly as before. */
+  groupByType?: boolean;
 }) {
+  const surveyCards = surveys.map(s => (
+    <SurveyCard
+      key={s.evidence_id}
+      s={s}
+      projectId={projectId}
+      isSimulated={isSimulated}
+      isProductWalkthrough={isProductWalkthrough}
+      canManage={canManage}
+      collapsed={!expandedIds.has(s.evidence_id)}
+      onToggleCollapse={() => onToggleExpand(s.evidence_id)}
+      campaigns={campaigns}
+      deletedCampaigns={deletedCampaigns}
+      orgs={orgs}
+      loading={loading}
+      loadingDeletedCampaigns={loadingDeletedCampaigns}
+      isLockedByAdminFor={isLockedByAdminFor}
+      onLoadDeletedCampaigns={onLoadDeletedCampaigns}
+      onReloadCampaigns={onReloadCampaigns}
+      onEditCampaign={onEditCampaign}
+      onCreateCampaign={onCreateCampaign}
+      onCreateMultipleCampaigns={onCreateMultipleCampaigns}
+      onRemoveSurveyEvidence={onRemoveSurveyEvidence}
+      onSaveResearchTarget={onSaveResearchTarget}
+      onSaveCreativeDesign={onSaveCreativeDesign}
+      onRunResearch={onRunResearch}
+    />
+  ));
+  const searchCards = conversationSearches.map(cs => (
+    <ConversationSearchCard
+      key={cs.id}
+      cs={cs}
+      projectId={projectId}
+      isSimulated={isSimulated}
+      isProductWalkthrough={isProductWalkthrough}
+      canManage={canManage}
+      mentionTarget={mentionTarget}
+      collapsed={!expandedIds.has(cs.evidence_id)}
+      onToggleCollapse={() => onToggleExpand(cs.evidence_id)}
+      onRemoveConversationSearchEvidence={onRemoveConversationSearchEvidence}
+      onRunResearch={onRunResearch}
+      formatRelativeTime={formatRelativeTime}
+    />
+  ));
+  const documentCards = documents.map(d => (
+    <DocumentCard
+      key={d.evidence_row_id}
+      d={d}
+      canManage={canManage}
+      collapsed={!expandedIds.has(d.evidence_id)}
+      onToggleCollapse={() => onToggleExpand(d.evidence_id)}
+      onRemoveDocumentEvidence={onRemoveDocumentEvidence}
+    />
+  ));
+
   return (
     <SectionCard
       id="evidence"
@@ -596,63 +656,36 @@ export function ResearchSourcesSection({
     >
       {!hasAnyEvidence ? (
         <EmptyState>No research sources attached to this research project yet, add one to start collecting evidence.</EmptyState>
+      ) : groupByType ? (
+        // Research-Project view: one clearly-labelled group per source type, so
+        // it reads at a glance what evidence has been attached. Only source
+        // types that actually exist are shown. Campaigns stay nested inside
+        // their survey card; Campaign Groups remain their own separate section.
+        <div className="space-y-5">
+          {surveys.length > 0 && (
+            <div>
+              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Surveys <span className="text-gray-400 font-normal">({surveys.length})</span></h3>
+              <div className="space-y-3">{surveyCards}</div>
+            </div>
+          )}
+          {conversationSearches.length > 0 && (
+            <div>
+              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Conversation Searches <span className="text-gray-400 font-normal">({conversationSearches.length})</span></h3>
+              <div className="space-y-3">{searchCards}</div>
+            </div>
+          )}
+          {documents.length > 0 && (
+            <div>
+              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Industry Research <span className="text-gray-400 font-normal">({documents.length})</span></h3>
+              <div className="space-y-3">{documentCards}</div>
+            </div>
+          )}
+        </div>
       ) : (
         <div className="space-y-3">
-          {surveys.map(s => (
-            <SurveyCard
-              key={s.evidence_id}
-              s={s}
-              projectId={projectId}
-              isSimulated={isSimulated}
-              isProductWalkthrough={isProductWalkthrough}
-              canManage={canManage}
-              collapsed={!expandedIds.has(s.evidence_id)}
-              onToggleCollapse={() => onToggleExpand(s.evidence_id)}
-              campaigns={campaigns}
-              deletedCampaigns={deletedCampaigns}
-              orgs={orgs}
-              loading={loading}
-              loadingDeletedCampaigns={loadingDeletedCampaigns}
-              isLockedByAdminFor={isLockedByAdminFor}
-              onLoadDeletedCampaigns={onLoadDeletedCampaigns}
-              onReloadCampaigns={onReloadCampaigns}
-              onEditCampaign={onEditCampaign}
-              onCreateCampaign={onCreateCampaign}
-              onCreateMultipleCampaigns={onCreateMultipleCampaigns}
-              onRemoveSurveyEvidence={onRemoveSurveyEvidence}
-              onSaveResearchTarget={onSaveResearchTarget}
-              onSaveCreativeDesign={onSaveCreativeDesign}
-              onRunResearch={onRunResearch}
-            />
-          ))}
-
-          {conversationSearches.map(cs => (
-            <ConversationSearchCard
-              key={cs.id}
-              cs={cs}
-              projectId={projectId}
-              isSimulated={isSimulated}
-              isProductWalkthrough={isProductWalkthrough}
-              canManage={canManage}
-              mentionTarget={mentionTarget}
-              collapsed={!expandedIds.has(cs.evidence_id)}
-              onToggleCollapse={() => onToggleExpand(cs.evidence_id)}
-              onRemoveConversationSearchEvidence={onRemoveConversationSearchEvidence}
-              onRunResearch={onRunResearch}
-              formatRelativeTime={formatRelativeTime}
-            />
-          ))}
-
-          {documents.map(d => (
-            <DocumentCard
-              key={d.evidence_row_id}
-              d={d}
-              canManage={canManage}
-              collapsed={!expandedIds.has(d.evidence_id)}
-              onToggleCollapse={() => onToggleExpand(d.evidence_id)}
-              onRemoveDocumentEvidence={onRemoveDocumentEvidence}
-            />
-          ))}
+          {surveyCards}
+          {searchCards}
+          {documentCards}
         </div>
       )}
     </SectionCard>
