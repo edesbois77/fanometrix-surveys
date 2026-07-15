@@ -25,7 +25,7 @@
 import Link from "next/link";
 import { useResearchProject } from "@/app/components/research-projects/ProjectProvider";
 import { computeReportReadiness } from "@/lib/report-readiness";
-import { ReportsSection } from "@/app/components/research-projects/ReportsSection";
+import { OutputsView } from "@/app/components/research-projects/OutputsView";
 
 export function OutputsBody() {
   const { project, loading, error } = useResearchProject();
@@ -47,10 +47,9 @@ export function OutputsBody() {
 
   return (
     <div className="p-4 md:p-6 max-w-5xl mx-auto space-y-4">
-      <ReportsSection
+      <OutputsView
         projectId={projectId}
         basePath={`/research-projects/${projectId}`}
-        isSimulated={project.research_mode === "simulated"}
         reportStatus={project.report_status}
         reportStale={project.report_stale}
         reportReadiness={reportReadiness}
