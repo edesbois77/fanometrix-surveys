@@ -362,7 +362,7 @@ export function VariantA({ theme = DEFAULT_THEME, simulatedHoverGridIdx, onEvent
         boxShadow: theme.outerShadow,
       }}
       role="region"
-      aria-label="Fan survey — Variant A"
+      aria-label="Fan survey, Variant A"
     >
       {showPrivacy && (
         <PrivacyOverlay

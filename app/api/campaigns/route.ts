@@ -7,6 +7,7 @@ import {
   computeStatusWithReason,
   type CampaignForStatus,
 } from "@/lib/campaign-status";
+import { logActivity } from "@/lib/research-project-activity";
 
 export async function GET(req: NextRequest) {
   let session;
@@ -62,7 +63,18 @@ export async function GET(req: NextRequest) {
     .select("*, surveys(name)")
     .order("created_at", { ascending: false });
 
-  if (researchProjectId) query = query.eq("research_project_id", researchProjectId);
+  if (researchProjectId) {
+    // Scoped to one project's own Workspace — that project already gates
+    // whether its campaigns are simulated (a real project can only ever
+    // have real campaigns, migration 084's trigger guarantees it), so no
+    // extra filter needed here.
+    query = query.eq("research_project_id", researchProjectId);
+  } else {
+    // The platform-wide list (standalone Campaigns page) — Demo Projects'
+    // campaigns are never mixed in by default, same reasoning as the
+    // Research Projects list.
+    query = query.eq("is_simulated", false);
+  }
 
   if (session.role !== "admin") {
     const ids = await visibleResourceIds(session, "campaign");
@@ -114,6 +126,25 @@ export async function GET(req: NextRequest) {
     for (const p of projects ?? []) projectsById[p.id] = p;
   }
 
+  // Research Target / Creative Design (migration 094) — survey-scoped, not
+  // project-level. Keyed by (research_project_id, evidence_id) since the
+  // same survey can be attached to different projects with different
+  // targets/creative in each. research_projects.target_responses/
+  // creative_design (above) are deprecated and no longer used as the
+  // fallback here — only start_date/end_date/archive_after_days/tags still
+  // inherit from the project.
+  const evidenceTargetByKey = new Map<string, { target_responses: number | null; creative_design: string | null }>();
+  if (projectIds.length > 0) {
+    const { data: evidenceRows } = await supabaseAdmin
+      .from("research_project_evidence")
+      .select("research_project_id, evidence_id, target_responses, creative_design")
+      .eq("evidence_type", "survey")
+      .in("research_project_id", projectIds);
+    for (const e of evidenceRows ?? []) {
+      evidenceTargetByKey.set(`${e.research_project_id}:${e.evidence_id}`, e);
+    }
+  }
+
   const now = new Date();
 
   const enriched = await Promise.all(
@@ -127,11 +158,14 @@ export async function GET(req: NextRequest) {
       const { effective, reason, isAutoTransition } = detail;
 
       const effective_survey_id = c.survey_id ?? project?.survey_id ?? null;
+      const surveyEvidence = c.research_project_id && effective_survey_id
+        ? evidenceTargetByKey.get(`${c.research_project_id}:${effective_survey_id}`)
+        : undefined;
       const effective_start_date = c.start_date ?? project?.start_date ?? null;
       const effective_end_date = c.end_date ?? project?.end_date ?? null;
-      const effective_target_responses = c.target_responses ?? project?.target_responses ?? null;
+      const effective_target_responses = c.target_responses ?? surveyEvidence?.target_responses ?? null;
       const effective_tags = (c.tags && c.tags.length > 0) ? c.tags : (project?.tags ?? []);
-      const effective_creative_design = c.creative_design ?? project?.creative_design ?? null;
+      const effective_creative_design = c.creative_design ?? surveyEvidence?.creative_design ?? null;
 
       const inherited = project ? {
         survey_id:          c.survey_id == null,
@@ -231,12 +265,22 @@ export async function POST(req: NextRequest) {
   }
   safe.created_by_admin = session.role === "admin";
 
-  const { data, error } = await supabase
+  // supabaseAdmin, not the anon-key client — campaigns has no RLS of its own
+  // (access control here is entirely the app-layer checks above), but
+  // migration 084's campaigns_project_provenance_match trigger needs to read
+  // research_projects (deny_all_anon RLS) to validate is_simulated, and the
+  // anon-key client can't see that table at all. See migration 093.
+  const { data, error } = await supabaseAdmin
     .from("campaigns")
     .insert([{ ...safe, updated_at: new Date().toISOString() }])
     .select()
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  if (data.research_project_id) {
+    await logActivity(data.research_project_id, "project_updated", `Campaign "${data.campaign_name}" created.`, session.workEmail);
+  }
+
   return NextResponse.json({ data });
 }

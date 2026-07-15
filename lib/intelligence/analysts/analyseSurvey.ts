@@ -6,7 +6,9 @@
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { completeJSON } from "@/lib/intelligence/openai";
 import { IntelligenceError } from "@/lib/intelligence/types";
+import { clampReferences } from "@/lib/intelligence/validate-references";
 import type { LocalisedQuestion } from "@/lib/survey-locale";
+import type { StructuredEvidenceBlock } from "@/lib/intelligence/structured-evidence";
 
 // Below this, a synthesized narrative claim reads as more authoritative
 // than the evidence supports — worst-case (p=0.5) 95% margin of error is
@@ -21,9 +23,32 @@ export type SurveyIntelligenceReport = {
   executive_summary:   string;
   key_findings:        string[];
   notable_differences: { finding: string; segments: string[] }[];
-  recommended_actions: { action: string; rationale: string }[];
+  recommended_actions: {
+    action: string;
+    rationale: string;
+    /** AI-tagged 0-based indices into key_findings — same evidence-to-action
+     * trace Executive Report recommendations already carry. A recommendation
+     * with no finding behind it doesn't belong in this report. */
+    based_on_findings: number[];
+  }[];
   generated_at:        string;
   response_count:      number;
+  // Computed directly from the response rows, never model-generated —
+  // "where did this evidence actually come from," not an LLM's own
+  // account of it. Stored on the report so it stays accurate to the
+  // exact data this specific generation ran against, even if the
+  // survey's campaigns/publishers change later.
+  sources_summary: {
+    publishers:  string[];               // top publisher names, most responses first
+    countries:   string[];               // top country names, most responses first
+    date_range:  { from: string; to: string } | null;
+  };
+  /** Exact, frozen quantitative data exposed through the shared
+   * lib/intelligence/structured-evidence.ts contract — for downstream
+   * exact-statistic citation and charting (Editorial Article today)
+   * without a consumer needing to know this survey's own aggregation
+   * logic. See that file's header for why the shape is deliberately flat. */
+  structured_evidence: StructuredEvidenceBlock[];
 };
 
 type QuestionSummary = { text: string; options: { label: string; count: number; pct: number }[] };
@@ -65,25 +90,36 @@ Question 1 answer breakdown by country:
 ${summary.countryBreakdown.map(cb => `${cb.country}: ${cb.options.map(o => `${o.label} ${o.pct}%`).join(", ")}`).join("\n") || "- (not enough country spread)"}
 
 YOUR TASK:
-Write a structured intelligence report. Use client-ready language — write as you would present to Carlsberg, Liverpool FC, Nike or a Premier League rights holder. Do NOT write statistics — write insights and implications.
+Write a structured intelligence report. Use polished, senior, client-ready language suitable for presentation to a major brand, agency, publisher or rights holder. Ground every finding in the actual data above — cite the specific percentage or count that supports it, never a bare qualitative claim with no number behind it.
+
+Each field has a distinct job, do not blur them together:
+- "key_findings" is the evidence itself, what the data shows.
+- "notable_differences" is a segment/market contrast, only include it if it adds a comparison not already stated in key_findings, do not restate a key finding with a segment tag attached.
+- "recommended_actions" is what the client should do about it, every action must cite "based_on_findings", the 0-based index/indices into key_findings that justify it. Do not invent a recommendation that has no finding behind it.
+
+EVIDENCE SPECIFICITY, non-negotiable — the options above are what respondents actually chose between, nothing more specific than that:
+- Every recommendation must pass a test before it can name a specific execution (a particular initiative, format or programme): does the data above show respondents actually chose or responded to that specific thing, not just a broader option? If yes, name it, and say so plainly in the rationale. If the data only shows a broader option, a problem or an opportunity (e.g. respondents favour "matchday experiences" as an option, or dislike is high in one country) without establishing what specific execution would work, do not invent one, recommend that the client investigate, test or validate specific approaches instead. A specific recommendation is valuable and encouraged when the evidence genuinely supports it, this rule exists to stop invented specificity, not to make every recommendation vague.
+- Every percentage above is scoped to the exact question and option it was computed for, or, for Question 1, to the specific country in "answer breakdown by country" if you're citing that. "By Fan Segment" and "By Publisher" are response counts only, with no percentage broken out for them. Never attach a question's overall percentage to a specific segment, publisher or country as if it were measured for that narrower group, unless that group's own percentage is what's actually shown above (e.g. the per-country breakdown for Question 1).
+- "By Country", "By Fan Segment" and "By Publisher" show how many responses came from each group, that is sample composition, not evidence of audience size, popularity or value. Never describe the group with the most responses as "most popular", "most valuable" or a "priority" audience/segment/publisher on response count alone, more responses from a group only means more of that group happened to answer this survey. A popularity, value or priority claim must come from what that group actually said (its own percentages), never from how many of them are in the sample.
 
 Return ONLY valid JSON:
 {
   "headline": "One punchy, specific headline summarising the most important finding (max 15 words)",
   "executive_summary": "2-3 sentences. The single most important story in this data. What does this mean for the client?",
   "key_findings": [
-    "3-5 specific findings from the response data. Written as client-ready insights, not statistics. E.g. 'Fans strongly favour matchday experiences over digital content, suggesting investment in physical activations will outperform app features.'"
+    "3-5 specific findings, each citing the real percentage or count it's based on. E.g. '68% of fans favoured matchday experiences over digital content (vs. 22% for app features), suggesting investment in physical activations will outperform app features.'"
   ],
   "notable_differences": [
     {
-      "finding": "A specific, actionable difference between segments — markets, fan segments or publishers. E.g. 'Indian fans significantly prioritise streaming access over UK fans, who focus on matchday experience.'",
+      "finding": "A specific, actionable difference between segments, markets, fan segments or publishers, not already covered in key_findings. E.g. 'Indian fans significantly prioritise streaming access over UK fans, who focus on matchday experience.'",
       "segments": ["IN", "GB"]
     }
   ],
   "recommended_actions": [
     {
-      "action": "Specific recommended action for the client (a brand, club or agency)",
-      "rationale": "Why — based on the data"
+      "action": "A specific action if the data directly supports one, otherwise a recommendation to investigate, test or validate specific approaches",
+      "rationale": "Why, based on the data",
+      "based_on_findings": [0, 2]
     }
   ]
 }
@@ -94,16 +130,23 @@ Write as a senior analyst. Be specific, insightful and commercially relevant. Ne
 export async function analyseSurvey(surveyId: string): Promise<SurveyIntelligenceReport> {
   const { data: survey } = await supabaseAdmin
     .from("surveys")
-    .select("name, topic, study_type, questions")
+    .select("name, topic, study_type, questions, is_simulated")
     .eq("id", surveyId)
     .single();
 
   if (!survey) throw new IntelligenceError(404, "Survey not found");
 
+  // is_demo is overloaded: for a REAL survey it means "test/QA noise,
+  // exclude it" (the Phase 0 fix). For a SIMULATED survey, every
+  // legitimate response is is_demo=true by design (migration 084's
+  // asymmetric trigger requires it) — filtering those out would leave a
+  // simulated survey with zero analysable evidence. The two survey
+  // types need opposite filters on the same column, not the same one.
   const { data: responses } = await supabaseAdmin
     .from("responses")
-    .select("q1, q2, q3, country, fan_segment, publisher")
-    .eq("survey_id", surveyId);
+    .select("q1, q2, q3, country, fan_segment, publisher, created_at")
+    .eq("survey_id", surveyId)
+    .eq("is_demo", survey.is_simulated);
 
   const all = responses ?? [];
   if (all.length < MIN_RESPONSES) {
@@ -192,7 +235,7 @@ export async function analyseSurvey(surveyId: string): Promise<SurveyIntelligenc
     countryBreakdown,
   };
 
-  const report = await completeJSON<Omit<SurveyIntelligenceReport, "generated_at" | "response_count">>({
+  const report = await completeJSON<Omit<SurveyIntelligenceReport, "generated_at" | "response_count" | "sources_summary" | "structured_evidence">>({
     prompt: buildSurveyPrompt(
       { name: survey.name, topic: survey.topic, study_type: survey.study_type },
       summary
@@ -202,5 +245,65 @@ export async function analyseSurvey(surveyId: string): Promise<SurveyIntelligenc
     maxTokens:   2048,
   });
 
-  return { ...report, generated_at: new Date().toISOString(), response_count: all.length };
+  const dates = all.map(r => r.created_at as string).filter(Boolean).sort();
+  const sourcesSummary = {
+    publishers: byPublisher.map(p => p.label),
+    countries:  byCountry.map(c => c.label),
+    date_range: dates.length ? { from: dates[0], to: dates[dates.length - 1] } : null,
+  };
+
+  // Reshapes numbers already computed above (never re-derived, never
+  // model-generated) into the shared structured-evidence contract — this
+  // is the "smallest correct implementation" for downstream exact-statistic
+  // reuse: freeze what's already sitting in memory instead of discarding it.
+  const structured_evidence: StructuredEvidenceBlock[] = [
+    ...questionSummaries.map((q, i): StructuredEvidenceBlock => ({
+      id:                    `q${i + 1}`,
+      source_type:           "survey",
+      source_id:             surveyId,
+      source_label:          survey.name,
+      title:                 q.text,
+      unit:                  "percent",
+      suggested_chart_type:  "pie",
+      series:                q.options.map(o => ({ label: o.label, value: o.pct })),
+    })),
+    ...countryBreakdown.map((cb): StructuredEvidenceBlock => ({
+      id:                    `q1_by_${cb.country}`,
+      source_type:           "survey",
+      source_id:             surveyId,
+      source_label:          survey.name,
+      title:                 firstQuestion?.text.en ?? "Question 1",
+      subtitle:              "By country",
+      scope:                 cb.country,
+      unit:                  "percent",
+      suggested_chart_type:  "bar",
+      series:                cb.options.map(o => ({ label: o.label, value: o.pct })),
+    })),
+    ...(byCountry.length ? [{
+      id:                    "responses_by_country",
+      source_type:           "survey" as const,
+      source_id:             surveyId,
+      source_label:          survey.name,
+      title:                 "Responses by country",
+      unit:                  "count" as const,
+      suggested_chart_type:  "bar" as const,
+      series:                byCountry.map(c => ({ label: c.label, value: c.count })),
+    }] : []),
+  ];
+
+  // A hallucinated or out-of-range based_on_findings index must never
+  // reach storage or the screen as if it were real evidence.
+  const recommended_actions = report.recommended_actions.map(a => ({
+    ...a,
+    based_on_findings: clampReferences(a.based_on_findings, report.key_findings.length),
+  }));
+
+  return {
+    ...report,
+    recommended_actions,
+    generated_at: new Date().toISOString(),
+    response_count: all.length,
+    sources_summary: sourcesSummary,
+    structured_evidence,
+  };
 }

@@ -4,31 +4,25 @@ import Link from "next/link";
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { AdminShell } from "@/app/components/AdminShell";
 import { useSession } from "@/app/components/SessionProvider";
-import { MultiSelect } from "@/app/components/MultiSelect";
-import { CreativeDesignPicker } from "@/app/components/CreativeDesignPicker";
-import { CreativeDesignPreview } from "@/app/components/CreativeDesignPreview";
-import { DrawerSection } from "@/app/components/DrawerSection";
 import { InfoTooltip } from "@/app/components/InfoTooltip";
-import { PublisherCountryPicker } from "@/app/components/PublisherCountryPicker";
-import { GenerateDeploymentsCard } from "@/app/components/GenerateDeploymentsCard";
+import { ResearchProjectEditDrawer, type ResearchProjectBriefFields } from "@/app/components/research-projects/ResearchProjectEditDrawer";
 import { STATUS_META, type CampaignStatus } from "@/lib/campaign-status";
-import {
-  studyTypeLabel,
-  generateStudyName, generateStudySlug,
-} from "@/lib/naming";
-import { NameBuilder } from "@/app/components/NameBuilder";
+import { computeProjectStatus, PROJECT_STATUS_META, type ProjectStatus } from "@/lib/research-project-status";
+import { studyTypeLabel } from "@/lib/naming";
 import { countryByCode } from "@/lib/countries";
-import { isSurveyValidForReady } from "@/lib/survey-validation";
 import { getCompletedLanguages, type LocalisedQuestion, type LocalisedText, type LangCode } from "@/lib/survey-locale";
 import { expectedSurveyLanguage, LANGUAGE_DISPLAY_NAMES } from "@/lib/locales";
-import { missingLanguageCountries, languageLabel } from "@/lib/survey-language-readiness";
-import { generateDeployments } from "@/lib/generate-deployments";
+import { formatRelativeTime } from "@/lib/format-relative-time";
+import { researchSubjectLabel } from "@/lib/research-subjects";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type ResearchProject = {
   id: string;
   project_id: string;
   project_name: string;
+  research_question: string | null;
+  objective: string | null;
+  research_subject: string | null;
   brand_org_id: string | null;
   agency_org_id: string | null;
   study_type: string;
@@ -44,12 +38,20 @@ type ResearchProject = {
   status: string;
   publisher_org_ids: string[];
   country_codes: string[];
+  confidentiality: string | null;
+  version: string | null;
+  completed_at: string | null;
+  archived_at: string | null;
+  target_reached_at: string | null;
   deleted_at: string | null;
   deleted_by: string | null;
   created_at: string;
+  updated_at: string;
   deployment_count: number;
   total_responses: number;
   completion_pct: number | null;
+  last_response_at: string | null;
+  has_active_campaign: boolean;
 };
 
 type Survey = {
@@ -79,16 +81,8 @@ type Deployment = {
 
 const PAGE_SIZE = 25;
 
-const BLANK: Partial<ResearchProject> = {
-  project_id: "", project_name: "", brand_org_id: null, agency_org_id: null, study_type: "fan_understanding",
-  topic: "", tags: [], description: "",
-  start_date: null, end_date: null, survey_id: null,
-  target_responses: null, archive_after_days: null, creative_design: null, status: "draft",
-  publisher_org_ids: [], country_codes: [],
-};
-
-function StatusBadge({ status }: { status: CampaignStatus }) {
-  const m = STATUS_META[status] ?? STATUS_META.draft;
+function ProjectStatusBadge({ status }: { status: ProjectStatus }) {
+  const m = PROJECT_STATUS_META[status];
   return (
     <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full whitespace-nowrap ${m.bg} ${m.text}`}>
       <span className="text-[9px]">{m.dot}</span>{m.label}
@@ -96,19 +90,12 @@ function StatusBadge({ status }: { status: CampaignStatus }) {
   );
 }
 
-function formatDate(d: string | null): string {
-  if (!d) return "—";
-  return new Date(d).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
-}
-
-const INP = "w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A]";
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function DeploymentStatusBadge({ status }: { status: CampaignStatus }) {
+  const m = STATUS_META[status] ?? STATUS_META.draft;
   return (
-    <div>
-      <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block mb-1.5">{label}</label>
-      {children}
-    </div>
+    <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full whitespace-nowrap ${m.bg} ${m.text}`}>
+      <span className="text-[9px]">{m.dot}</span>{m.label}
+    </span>
   );
 }
 
@@ -155,7 +142,7 @@ function DeploymentsList({ project, surveys, refreshToken, orgName }: { project:
       </p>
       {loading && <p className="text-xs text-gray-400">Loading…</p>}
       {!loading && deployments && deployments.length === 0 && (
-        <p className="text-xs text-gray-400">No deployments yet. Use "Generate Deployments" above to create them.</p>
+        <p className="text-xs text-gray-400">No deployments yet, generate them from this project&apos;s Workspace.</p>
       )}
       {!loading && deployments && deployments.length > 0 && (
         <div className="space-y-2">
@@ -177,7 +164,7 @@ function DeploymentsList({ project, surveys, refreshToken, orgName }: { project:
                   )}
                 </div>
                 <div className="text-right flex-shrink-0">
-                  <StatusBadge status={(d.effective_status ?? d.status) as CampaignStatus} />
+                  <DeploymentStatusBadge status={(d.effective_status ?? d.status) as CampaignStatus} />
                   <p className="text-xs text-gray-400 mt-1">
                     {d.response_count.toLocaleString()}{d.effective_target_responses ? ` / ${d.effective_target_responses.toLocaleString()}` : ""} responses
                   </p>
@@ -218,7 +205,7 @@ export default function ResearchProjectsPage() {
   const [orgs, setOrgs] = useState<{ id: string; name: string; type: "publisher" | "agency" | "brand" | "internal" }[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const [statusFilter,    setStatusFilter]    = useState<"all" | CampaignStatus>("all");
+  const [statusFilter,    setStatusFilter]    = useState<"all" | ProjectStatus>("all");
   const [usageFilter,     setUsageFilter]     = useState<"all" | "no_responses" | "has_responses" | "target_reached" | "end_reached">("all");
   const [dateFilter,      setDateFilter]      = useState<"all" | "today" | "7days" | "30days">("all");
   const [countryFilter,   setCountryFilter]   = useState<string>("all");
@@ -227,12 +214,7 @@ export default function ResearchProjectsPage() {
   const [sortBy,          setSortBy]          = useState<"recent" | "oldest" | "az">("recent");
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  const [refreshTokens, setRefreshTokens] = useState<Record<string, number>>({});
-
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const [editing, setEditing] = useState<Partial<ResearchProject>>(BLANK);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
+  const [editingProject, setEditingProject] = useState<Partial<ResearchProjectBriefFields> | null>(null);
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
 
   function showToast(msg: string, ok = true) {
@@ -243,7 +225,10 @@ export default function ResearchProjectsPage() {
   const load = useCallback(async () => {
     setLoading(true);
     const [projRes, surRes, orgRes] = await Promise.all([
-      fetch("/api/research-projects"),
+      // Demo Projects live in their own area, never mixed into the real
+      // Research Projects list — explicit filter, not a default that
+      // could silently start including simulated rows.
+      fetch("/api/research-projects?research_mode=real"),
       fetch("/api/surveys"),
       fetch("/api/organisations"),
     ]);
@@ -255,10 +240,6 @@ export default function ResearchProjectsPage() {
 
   useEffect(() => { load(); }, [load]);
 
-  const orgPublishers = useMemo(() => {
-    const all = orgs.filter(o => o.type === "publisher");
-    return user?.role === "publisher" ? all.filter(o => o.id === user.organisationId) : all;
-  }, [orgs, user?.role, user?.organisationId]);
   const orgBrands      = useMemo(() => orgs.filter(o => o.type === "brand"), [orgs]);
   const orgAgencies      = useMemo(() => orgs.filter(o => o.type === "agency"), [orgs]);
   const orgById = useMemo(() => new Map(orgs.map(o => [o.id, o])), [orgs]);
@@ -269,7 +250,6 @@ export default function ResearchProjectsPage() {
     for (const p of projects) for (const t of p.tags ?? []) set.add(t);
     return Array.from(set).sort();
   }, [projects]);
-  const tagOptions = useMemo(() => existingTags.map(t => ({ value: t, label: t })), [existingTags]);
 
   // Most-reused tags across all projects — surfaced as one-click suggestions so
   // similar studies converge on the same tag instead of near-duplicate variants
@@ -308,49 +288,10 @@ export default function ResearchProjectsPage() {
       .sort((a, b) => a.name.localeCompare(b.name)),
     [projects, orgName]);
 
-  // Surveys selectable as a project's inherited survey — same readiness gate as the Campaigns drawer.
-  // Most recently created first, so the newest survey is always easiest to find.
-  const selectableSurveys = useMemo(() => surveys
-    .filter(s => {
-      if (s.status === "draft") return true;
-      if (s.status === "ready") return isSurveyValidForReady(s);
-      return false;
-    })
-    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()),
-    [surveys]);
-
-  // A survey's completed languages, looked up from the already-loaded full
-  // surveys list — the input the shared missingLanguageCountries() check
-  // needs. Kept local to this page because only pages with admin/publisher-
-  // scoped access to full survey content can resolve it this way (see
-  // app/api/research-projects/[id]/route.ts for why the Workspace resolves
-  // this server-side instead).
-  const completedLanguagesFor = useCallback((surveyId: string | null | undefined): LangCode[] => {
-    const survey = surveys.find(s => s.id === surveyId);
-    if (!survey) return [];
-    return getCompletedLanguages({ questions: survey.questions ?? [], thank_you_title: survey.thank_you_title, thank_you_body: survey.thank_you_body });
-  }, [surveys]);
-
-  const editingMismatches = useMemo(
-    () => missingLanguageCountries(completedLanguagesFor(editing.survey_id), editing.country_codes),
-    [completedLanguagesFor, editing.survey_id, editing.country_codes]
-  );
-
-  const editingCanGenerate =
-    (editing.publisher_org_ids?.length ?? 0) > 0 && (editing.country_codes?.length ?? 0) > 0 &&
-    !!editing.survey_id && editingMismatches.length === 0;
-  const editingBlockedReasons = [
-    (editing.publisher_org_ids?.length ?? 0) === 0 && "add publishers",
-    (editing.country_codes?.length ?? 0) === 0 && "add countries",
-    !editing.survey_id && "select a survey",
-    editing.survey_id && editingMismatches.length > 0 &&
-      `fix survey language mismatch (${editingMismatches.map(({ code, lang }) => `${code} → ${languageLabel(lang)}`).join(", ")})`,
-  ].filter(Boolean) as string[];
-
   const displayed = useMemo(() => {
     let list = projects;
 
-    if (statusFilter !== "all") list = list.filter(p => p.status === statusFilter);
+    if (statusFilter !== "all") list = list.filter(p => computeProjectStatus(p, p.has_active_campaign) === statusFilter);
 
     if (usageFilter === "no_responses")   list = list.filter(p => p.total_responses === 0);
     if (usageFilter === "has_responses")  list = list.filter(p => p.total_responses > 0);
@@ -396,97 +337,25 @@ export default function ResearchProjectsPage() {
 
   // ── Drawer helpers ─────────────────────────────────────────────────────────
   function openCreate() {
-    const isPublisher = user?.role === "publisher";
-    setEditing({
-      ...BLANK,
-      publisher_org_ids: isPublisher && user?.organisationId ? [user.organisationId] : [],
+    setEditingProject({
+      topic: "", research_question: "", research_subject: null,
+      brand_org_id: null, agency_org_id: null, study_type: "fan_understanding",
+      objective: "", tags: [],
     });
-    setError("");
-    setDrawerOpen(true);
   }
 
   function openEdit(p: ResearchProject) {
-    const { deployment_count: _dc, total_responses: _tr, completion_pct: _cp,
-            deleted_at: _da, deleted_by: _db,
-            ...rest } = p;
-    setEditing({ ...rest });
-    setError("");
-    setDrawerOpen(true);
-  }
-
-  // Auto-update name + slug from Topic/Brand/Agency/Type while the drawer is open.
-  useEffect(() => {
-    if (!drawerOpen) return;
-    const label = studyTypeLabel(editing.study_type ?? "");
-    const brand = orgName(editing.brand_org_id ?? null);
-    const agency = orgName(editing.agency_org_id ?? null);
-    const name = generateStudyName(editing.topic ?? "", label, brand, agency);
-    const slug = generateStudySlug(editing.topic ?? "", label, brand, agency);
-    if (name || slug) {
-      setEditing(e => ({
-        ...e,
-        project_name: name || e.project_name,
-        project_id: slug || e.project_id,
-      }));
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editing.brand_org_id, editing.agency_org_id, editing.topic, editing.study_type, drawerOpen, orgName]);
-
-  function autoId() {
-    setEditing(e => {
-      const label = studyTypeLabel(e.study_type ?? "");
-      const brand = orgName(e.brand_org_id ?? null);
-      const agency = orgName(e.agency_org_id ?? null);
-      const name = generateStudyName(e.topic ?? "", label, brand, agency);
-      const slug = generateStudySlug(e.topic ?? "", label, brand, agency);
-      return { ...e, project_name: name || e.project_name, project_id: slug || e.project_id };
+    setEditingProject({
+      id: p.id, project_id: p.project_id,
+      topic: p.topic, research_question: p.research_question, research_subject: p.research_subject,
+      brand_org_id: p.brand_org_id, agency_org_id: p.agency_org_id, study_type: p.study_type,
+      objective: p.objective, tags: p.tags,
     });
   }
 
-  /** Validates and persists the drawer's current state. Returns the saved row, or null on failure (with `error` set). */
-  async function saveProject(): Promise<ResearchProject | null> {
-    if (!editing.project_name?.trim()) { setError("Project name is required."); return null; }
-    if (!editing.project_id?.trim()) { setError("Project ID is required."); return null; }
-    if (!editing.study_type) { setError("Study type is required."); return null; }
-    if (editing.start_date && editing.end_date && editing.start_date > editing.end_date) {
-      setError("Start date cannot be after end date."); return null;
-    }
-    setError(""); setSaving(true);
-
-    const url = editing.id ? `/api/research-projects/${editing.id}` : "/api/research-projects";
-    const method = editing.id ? "PUT" : "POST";
-    const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(editing) });
-    const json = await res.json();
-    setSaving(false);
-
-    if (!res.ok) { setError(json.error ?? "Failed to save."); return null; }
-    return json.data as ResearchProject;
-  }
-
-  async function handleSave() {
-    const wasNew = !editing.id;
-    const saved = await saveProject();
-    if (!saved) return;
-    setDrawerOpen(false);
+  function handleSaved(wasNew: boolean) {
+    setEditingProject(null);
     showToast(wasNew ? "Research project created." : "Research project updated.");
-    load();
-  }
-
-  async function handleSaveAndGenerate() {
-    const saved = await saveProject();
-    if (!saved) return;
-    setDrawerOpen(false);
-    load();
-    // editingCanGenerate already gates this button's disabled state (including
-    // the language-mismatch check), so no need to re-check before calling —
-    // same shared endpoint wrapper the GenerateDeploymentsCard uses.
-    const outcome = await generateDeployments(saved.id);
-    if (!outcome.ok) { showToast(outcome.error, false); return; }
-    const parts = [`${outcome.data.created.length} created`];
-    if (outcome.data.restored.length > 0) parts.push(`${outcome.data.restored.length} restored`);
-    showToast(parts.join(", ") + ".");
-    setRefreshTokens(t => ({ ...t, [saved.id]: (t[saved.id] ?? 0) + 1 }));
-    setExpandedId(saved.id);
     load();
   }
 
@@ -529,7 +398,7 @@ export default function ResearchProjectsPage() {
           <details className="group bg-gray-50 w-full">
             <summary className="cursor-pointer select-none list-none py-3">
               <p className="text-sm text-gray-500 leading-relaxed">
-                Select the publishers and countries for a study, then click <strong>Generate Deployments</strong> to create every publisher × country campaign automatically, instead of creating each one by hand.{" "}
+                Start with the research question you&apos;re trying to answer, everything else, from evidence to deployment, happens inside the project&apos;s Workspace.{" "}
                 <span className="font-semibold inline-flex items-center gap-1" style={{ color: "#D7B87A" }}>
                   Expand to find out more
                   <span className="inline-block transition-transform group-open:rotate-90">›</span>
@@ -539,25 +408,20 @@ export default function ResearchProjectsPage() {
             <div className="pb-4 pt-3 mt-1 border-t border-gray-200 text-sm text-gray-600 leading-relaxed space-y-4">
               <div>
                 <p className="font-semibold text-gray-700 mb-1">What a Research Project is</p>
-                <p>It&apos;s the easy way to set up a whole batch of campaigns at once instead of one at a time. Pick the publishers, countries, survey, dates, and target responses for a study, and a Research Project builds the full grid of campaigns for every publisher × country combination automatically.</p>
+                <p>It&apos;s the container for a piece of research, a research question, who it&apos;s for, and what &quot;done&quot; looks like. Evidence (surveys and, eventually, other sources), AI Intelligence, Reports and Knowledge all build up inside it over time.</p>
               </div>
               <div>
                 <p className="font-semibold text-gray-700 mb-1">Setting one up</p>
                 <ul className="list-disc pl-5 space-y-1">
-                  <li>Click + Create Research Project and fill in the brand/topic, theme, and year, the project name and ID generate automatically</li>
-                  <li>Choose the Publishers and Countries the study should run in</li>
-                  <li>Pick a Survey, and optionally set default dates and a target response count</li>
-                  <li>Click Generate Deployments to create a campaign for every publisher × country combination</li>
+                  <li>Click + Create Research Project and write the research question this project exists to answer</li>
+                  <li>Classify it, Research Category, Research Type, Brand and Agency</li>
+                  <li>Optionally add an Objective and Tags</li>
+                  <li>Open the project&apos;s Workspace to add Evidence and set Project Information, that&apos;s where surveys, publishers, countries, the Research Target, and deployment generation all happen now</li>
                 </ul>
               </div>
               <div>
-                <p className="font-semibold text-gray-700 mb-1">Edit vs. Generate Deployments</p>
-                <p><strong>Edit</strong> changes the project&apos;s own settings only, it never creates, deletes, or rewrites a campaign. <strong>Generate Deployments</strong> is the action that actually creates the campaigns, based on whichever publishers and countries are set at the time you click it.</p>
-                <p className="mt-1 text-gray-500">It&apos;s safe to click Generate Deployments again later: campaigns that already exist are left untouched, only newly added combinations are created. If you remove a publisher or country afterward, its campaign keeps running and needs to be archived or deleted by hand, it isn&apos;t removed automatically.</p>
-              </div>
-              <div>
-                <p className="font-semibold text-gray-700 mb-1">Defaults vs. overrides</p>
-                <p>Survey, dates, target responses, and tags set on the project act as defaults for every campaign generated from it. A campaign only follows the project&apos;s value while its own field is left blank, the moment someone sets that field directly on a campaign, it locks to that value and stops following the project.</p>
+                <p className="font-semibold text-gray-700 mb-1">Edit vs. the Workspace</p>
+                <p><strong>Edit</strong> here changes the project&apos;s own research brief only, it never creates, deletes, or rewrites a campaign. Publishers, countries, survey selection, the Research Target and <strong>Generate Deployments</strong> all live inside <strong>Open Project</strong> now, alongside the evidence they belong to. A project&apos;s Status is never set manually, it reflects whether it has active campaigns, has reached its Research Target, or has been closed/archived.</p>
               </div>
               <div>
                 <p className="font-semibold text-gray-700 mb-1">Deleting a project</p>
@@ -589,10 +453,8 @@ export default function ResearchProjectsPage() {
               className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A] text-gray-600">
               <option value="all">All Statuses</option>
               <option value="draft">Draft</option>
-              <option value="scheduled">Scheduled</option>
-              <option value="live">Live</option>
-              <option value="paused">Paused</option>
-              <option value="closed">Closed</option>
+              <option value="active">Active</option>
+              <option value="complete">Complete</option>
               <option value="archived">Archived</option>
             </select>
 
@@ -659,8 +521,7 @@ export default function ResearchProjectsPage() {
         <div className="space-y-3">
           {displayed.map(p => {
             const expanded = expandedId === p.id;
-            const possibleCombos = p.publisher_org_ids.length * p.country_codes.length;
-            const projectMismatches = missingLanguageCountries(completedLanguagesFor(p.survey_id), p.country_codes);
+            const status = computeProjectStatus(p, p.has_active_campaign);
 
             return (
               <div key={p.id} className="bg-white border border-gray-100 rounded-xl shadow-sm overflow-hidden">
@@ -671,15 +532,17 @@ export default function ResearchProjectsPage() {
                   <div className="flex items-start justify-between gap-3 mb-1">
                     <div className="min-w-0 flex-1">
                       <p className="font-semibold text-gray-900 truncate">{p.project_name}</p>
-                      {p.description && (
-                        <p className="text-xs text-gray-400 mt-0.5 truncate">{p.description}</p>
+                      {p.research_question && (
+                        <p className="text-xs text-gray-400 mt-0.5 truncate">{p.research_question}</p>
                       )}
                     </div>
-                    <StatusBadge status={p.status as CampaignStatus} />
+                    <ProjectStatusBadge status={status} />
                   </div>
 
                   <div className="flex flex-wrap items-center gap-1.5 mt-2">
-                    <span className="text-xs text-gray-400">Study Type:</span>
+                    {p.research_subject && (
+                      <span className="text-xs bg-amber-50 text-amber-700 px-2 py-0.5 rounded-full">{researchSubjectLabel(p.research_subject)}</span>
+                    )}
                     <span className="text-xs bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full">{studyTypeLabel(p.study_type)}</span>
                     {p.tags.length > 0 && (
                       <>
@@ -692,88 +555,38 @@ export default function ResearchProjectsPage() {
                   </div>
 
                   <div className="flex flex-wrap gap-x-4 gap-y-1 mt-3">
-                    <Stat label="Publishers" value={p.publisher_org_ids.length} />
-                    <Stat label="Countries" value={p.country_codes.length} />
-                    <Stat label="Deployments" value={possibleCombos > 0 ? `${p.deployment_count} / ${possibleCombos}` : p.deployment_count} />
-                    <Stat label="Responses" value={p.target_responses ? `${p.total_responses.toLocaleString()} / ${p.target_responses.toLocaleString()}` : p.total_responses.toLocaleString()} />
+                    <Stat label="Evidence" value={p.survey_id ? 1 : 0} />
+                    <Stat label="Last Updated" value={formatRelativeTime(p.last_response_at ?? p.updated_at)} />
                   </div>
-
-                  {!p.survey_id && (
-                    <p className="text-xs font-semibold text-red-600 mt-2 flex items-center gap-1">
-                      🚩 No survey selected — deployments cannot be generated until one is set.
-                    </p>
-                  )}
-
-                  {p.survey_id && projectMismatches.length > 0 && (
-                    <p className="text-xs font-semibold text-red-600 mt-2 flex items-center gap-1">
-                      🚩 Survey language mismatch ({projectMismatches.map(({ code, lang }) => `${code} → ${languageLabel(lang)}`).join(", ")}) — deployments cannot be generated until fixed.
-                    </p>
-                  )}
-
-                  {(p.start_date || p.end_date) && (
-                    <p className="text-xs text-gray-400 mt-1.5">{formatDate(p.start_date)} → {p.end_date ? formatDate(p.end_date) : "ongoing"}</p>
-                  )}
-
-                  {p.target_responses !== null && (
-                    <div className="mt-2.5 space-y-1.5 max-w-sm">
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="text-gray-400">completion</span>
-                        <span className="font-semibold text-gray-700">{p.completion_pct ?? 0}%</span>
-                      </div>
-                      <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                        <div className="h-full rounded-full transition-all duration-500"
-                          style={{ width: `${Math.min(100, p.completion_pct ?? 0)}%`, background: (p.completion_pct ?? 0) >= 100 ? "#10b981" : (p.completion_pct ?? 0) >= 75 ? "#D7B87A" : "#0B1929" }} />
-                      </div>
-                    </div>
-                  )}
                 </button>
 
-                <div className="px-5 pb-3 -mt-1">
+                <div className="px-5 pb-4 flex flex-wrap items-center gap-2 -mt-1">
                   <Link
                     href={`/research-projects/${p.id}`}
-                    className="text-xs font-semibold text-[#0B1929] hover:underline"
+                    className="text-xs font-semibold px-3 py-1.5 rounded-lg"
+                    style={{ background: "#0B1929", color: "#D7B87A" }}
                   >
-                    Open Workspace →
+                    Open Project →
                   </Link>
-                </div>
-
-                {canManage && (
-                  <div className="px-5 pb-4 space-y-3">
-                    <GenerateDeploymentsCard
-                      projectId={p.id}
-                      publisherOrgIds={p.publisher_org_ids}
-                      countryCodes={p.country_codes}
-                      surveyId={p.survey_id}
-                      deploymentCount={p.deployment_count}
-                      completedLanguages={completedLanguagesFor(p.survey_id)}
-                      blockedPrefix="In Edit"
-                      onGenerated={result => {
-                        const parts = [`${result.created.length} created`];
-                        if (result.restored.length > 0) parts.push(`${result.restored.length} restored`);
-                        showToast(parts.join(", ") + ".");
-                        setRefreshTokens(t => ({ ...t, [p.id]: (t[p.id] ?? 0) + 1 }));
-                        if (expandedId !== p.id) setExpandedId(p.id);
-                        load();
-                      }}
-                    />
-                    <div className="flex flex-wrap gap-1.5 items-center">
+                  {canManage && (
+                    <>
                       <span className="inline-flex items-center gap-1">
                         <button onClick={() => openEdit(p)}
                           className="text-xs border border-gray-200 text-gray-600 hover:bg-gray-50 px-3 py-1.5 rounded-lg transition-colors">
                           Edit
                         </button>
-                        <InfoTooltip text="Changes this project's own settings (publishers, countries, dates, survey, etc.). It never creates, deletes, or renames campaigns — click Generate Deployments afterward to actually create campaigns for any new publisher/country combinations." />
+                        <InfoTooltip text="Changes this project's own research brief only. It never creates, deletes, or renames campaigns, Evidence, Publishers, Countries, the Research Target, and Generate Deployments all live inside Open Project now." />
                       </span>
                       <button onClick={() => handleDelete(p)}
                         className="text-xs border border-red-100 text-red-400 hover:bg-red-50 px-3 py-1.5 rounded-lg transition-colors">
                         Delete
                       </button>
-                    </div>
-                  </div>
-                )}
+                    </>
+                  )}
+                </div>
 
                 {expanded && (
-                  <DeploymentsList project={p} surveys={surveys} refreshToken={refreshTokens[p.id] ?? 0} orgName={orgName} />
+                  <DeploymentsList project={p} surveys={surveys} refreshToken={0} orgName={orgName} />
                 )}
               </div>
             );
@@ -781,227 +594,17 @@ export default function ResearchProjectsPage() {
         </div>
       </div>
 
-      {/* ── Edit / Create Drawer ──────────────────────────────────────────────── */}
-      {drawerOpen && (
-        <div className="fixed inset-0 z-50 flex">
-          <div className="flex-1 bg-black/40" onClick={() => setDrawerOpen(false)} />
-          <div className="w-full sm:w-[480px] bg-white flex flex-col shadow-2xl overflow-hidden">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-              <h2 className="font-bold text-gray-900">{editing.id ? "Edit Research Project" : "Create Research Project"}</h2>
-              <button onClick={() => setDrawerOpen(false)} className="text-gray-400 hover:text-gray-600 text-xl">×</button>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-6 space-y-5">
-
-              <DrawerSection step={1} title="Research Project Identity" subtitle="What this project is and how it's classified.">
-                <NameBuilder
-                  topic={editing.topic ?? ""}
-                  onTopicChange={v => setEditing(x => ({ ...x, topic: v }))}
-                  brandOrgId={editing.brand_org_id ?? ""}
-                  onBrandChange={v => setEditing(x => ({ ...x, brand_org_id: v || null }))}
-                  brandOptions={orgBrands}
-                  agencyOrgId={editing.agency_org_id ?? ""}
-                  onAgencyChange={v => setEditing(x => ({ ...x, agency_org_id: v || null }))}
-                  agencyOptions={orgAgencies}
-                  studyType={editing.study_type ?? "fan_understanding"}
-                  onStudyTypeChange={v => setEditing(x => ({ ...x, study_type: v }))}
-                  onAutoGenerate={autoId}
-                  preview={generateStudyName(
-                    editing.topic ?? "", studyTypeLabel(editing.study_type ?? ""),
-                    orgName(editing.brand_org_id ?? null), orgName(editing.agency_org_id ?? null)
-                  )}
-                />
-
-                <Field label="Project Name *">
-                  <input value={editing.project_name ?? ""} onChange={e => setEditing(x => ({ ...x, project_name: e.target.value }))}
-                    className={INP} placeholder="Women's World Cup | Fan Understanding | Carlsberg" />
-                </Field>
-
-                <Field label="Project ID *">
-                  <input value={editing.project_id ?? ""} onChange={e => setEditing(x => ({ ...x, project_id: e.target.value }))}
-                    className={`${INP} font-mono`} placeholder="womens_world_cup_fan_understanding_carlsberg" />
-                </Field>
-
-                <Field label="Tags">
-                  {popularTags.filter(t => !(editing.tags ?? []).includes(t)).length > 0 && (
-                    <div className="flex flex-wrap gap-1.5 mb-2">
-                      <span className="text-xs text-gray-400 mr-0.5 mt-1">Reuse:</span>
-                      {popularTags.filter(t => !(editing.tags ?? []).includes(t)).map(t => (
-                        <button
-                          key={t}
-                          type="button"
-                          onClick={() => setEditing(x => ({ ...x, tags: [...(x.tags ?? []), t] }))}
-                          className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-600 px-2.5 py-1 rounded-full transition-colors"
-                        >
-                          + {t}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                  <MultiSelect
-                    options={tagOptions}
-                    selected={editing.tags ?? []}
-                    onChange={v => setEditing(x => ({ ...x, tags: v }))}
-                    placeholder="Search or create a tag…"
-                    helperText="Type to see matching tags used on other projects, or create a new one. Tags become available to every future project once created."
-                    allowCreate
-                    createLabel={t => `+ Create tag: "${t}"`}
-                  />
-                </Field>
-
-                <Field label="Description">
-                  <input value={editing.description ?? ""} onChange={e => setEditing(x => ({ ...x, description: e.target.value }))}
-                    className={INP} placeholder="Optional" />
-                </Field>
-              </DrawerSection>
-
-              <DrawerSection
-                step={2}
-                title="Deployment Matrix"
-                subtitle={'Every publisher × country combination becomes one deployment campaign when you click "Generate Deployments".'}
-                prominent
-              >
-                <PublisherCountryPicker
-                  publisherOptions={orgPublishers}
-                  publisherOrgIds={editing.publisher_org_ids ?? []}
-                  onPublisherOrgIdsChange={ids => setEditing(x => ({ ...x, publisher_org_ids: ids }))}
-                  publishersDisabled={user?.role === "publisher"}
-                  publishersHelperText={user?.role === "publisher" ? "Locked to your organisation." : undefined}
-                  countryCodes={editing.country_codes ?? []}
-                  onCountryCodesChange={v => setEditing(x => ({ ...x, country_codes: v }))}
-                  orgName={orgName}
-                />
-              </DrawerSection>
-
-              <DrawerSection
-                step={3}
-                title="Survey Configuration"
-                subtitle="The survey inherited by every generated deployment, validated against the countries selected above."
-                prominent
-              >
-                <Field label="Project Survey">
-                  {selectableSurveys.length === 0 ? (
-                    <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5">
-                      <p className="text-xs text-amber-700">
-                        No surveys are available to select yet.
-                      </p>
-                      <Link href="/survey-templates" target="_blank" className="text-xs font-medium underline text-amber-800">
-                        Create one in Surveys →
-                      </Link>
-                    </div>
-                  ) : (
-                    <select value={editing.survey_id ?? ""} onChange={e => setEditing(x => ({ ...x, survey_id: e.target.value || null }))}
-                      className={INP}>
-                      <option value="">None selected</option>
-                      {selectableSurveys.map(s => (
-                        <option key={s.id} value={s.id}>{s.name}</option>
-                      ))}
-                    </select>
-                  )}
-                  <p className="text-xs text-gray-400 mt-1.5 leading-relaxed">
-                    This is the primary survey inherited by every generated deployment, unless an individual deployment overrides it.
-                  </p>
-                </Field>
-
-                {editingMismatches.length > 0 ? (
-                  <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2.5 space-y-1">
-                    <p className="text-xs font-semibold text-red-700">🚩 Survey language mismatch detected</p>
-                    <p className="text-xs text-red-700">
-                      The selected survey does not contain language versions for all selected deployment countries.
-                    </p>
-                    <ul className="text-xs text-red-700 list-disc list-inside">
-                      {editingMismatches.map(({ code, lang }) => (
-                        <li key={code}>{code} → {languageLabel(lang)} version required</li>
-                      ))}
-                    </ul>
-                    <p className="text-xs text-red-600">
-                      You can still save this project, but Generate Deployments will be blocked until this is fixed — either add the missing translation to the survey, or remove the affected countries.
-                    </p>
-                  </div>
-                ) : editing.survey_id && (editing.country_codes?.length ?? 0) > 0 ? (
-                  <p className="text-xs font-semibold text-green-700 bg-white border border-green-200 rounded-lg px-3 py-2">
-                    ✓ This survey covers every selected country's expected language.
-                  </p>
-                ) : null}
-              </DrawerSection>
-
-              <DrawerSection step={4} title="Campaign Settings" subtitle="Defaults applied to every generated deployment — each can still be overridden individually afterward.">
-                <div className="grid grid-cols-2 gap-3">
-                  <Field label="Start Date">
-                    <input type="date" value={editing.start_date ?? ""} onChange={e => setEditing(x => ({ ...x, start_date: e.target.value || null }))}
-                      className={INP} />
-                  </Field>
-                  <Field label="End Date">
-                    <input type="date" value={editing.end_date ?? ""} min={editing.start_date ?? undefined}
-                      onChange={e => setEditing(x => ({ ...x, end_date: e.target.value || null }))}
-                      className={INP} />
-                  </Field>
-                </div>
-                {editing.start_date && editing.end_date && editing.start_date > editing.end_date && (
-                  <p className="text-xs text-red-500 -mt-1">End date must be on or after the start date.</p>
-                )}
-
-                <div className="grid grid-cols-2 gap-3">
-                  <Field label="Target Responses">
-                    <input type="number" min={1}
-                      value={editing.target_responses ?? ""}
-                      onChange={e => setEditing(x => ({ ...x, target_responses: e.target.value ? Number(e.target.value) : null }))}
-                      className={INP} placeholder="e.g. 10000 (optional)" />
-                  </Field>
-                  <Field label="Archive After (days)">
-                    <input type="number" min={1}
-                      value={editing.archive_after_days ?? ""}
-                      onChange={e => setEditing(x => ({ ...x, archive_after_days: e.target.value ? Number(e.target.value) : null }))}
-                      className={INP} placeholder="90 (optional)" />
-                  </Field>
-                </div>
-
-                <Field label="Status">
-                  <select value={editing.status ?? "draft"} onChange={e => setEditing(x => ({ ...x, status: e.target.value }))}
-                    className={INP}>
-                    {(["draft", "scheduled", "live", "paused", "closed", "archived"] as const).map(s => (
-                      <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>
-                    ))}
-                  </select>
-                  <p className="text-xs text-gray-400 mt-1.5 leading-relaxed">
-                    New deployments start in this status when generated. Existing deployments manage their own status independently afterward.
-                  </p>
-                </Field>
-              </DrawerSection>
-
-              <DrawerSection
-                step={5}
-                title="Creative Configuration"
-                subtitle="Default design applied to every generated deployment — each can still override individually."
-              >
-                <CreativeDesignPicker
-                  value={editing.creative_design ?? null}
-                  onChange={v => setEditing(x => ({ ...x, creative_design: v }))}
-                />
-                <p className="text-xs text-gray-400 leading-relaxed">
-                  Leave unset to use the standard production creative.
-                </p>
-                <CreativeDesignPreview designId={editing.creative_design} />
-              </DrawerSection>
-
-              {error && <p className="text-red-500 text-xs">{error}</p>}
-            </div>
-
-            <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-3">
-              <button onClick={() => setDrawerOpen(false)} className="text-sm text-gray-500 px-4 py-2">Cancel</button>
-              <button onClick={handleSave} disabled={saving}
-                className="text-sm font-semibold px-4 py-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-60 transition-colors">
-                {saving ? "Saving…" : "Save Project"}
-              </button>
-              <button onClick={handleSaveAndGenerate} disabled={saving || !editingCanGenerate}
-                title={editingCanGenerate ? "" : `First: ${editingBlockedReasons.join(", ")}`}
-                className="text-sm font-semibold px-5 py-2 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed"
-                style={{ background: "#0B1929", color: "#D7B87A" }}>
-                {saving ? "Saving…" : "Save & Generate Deployments"}
-              </button>
-            </div>
-          </div>
-        </div>
+      {editingProject && (
+        <ResearchProjectEditDrawer
+          initial={editingProject}
+          orgBrands={orgBrands}
+          orgAgencies={orgAgencies}
+          orgName={orgName}
+          existingTags={existingTags}
+          popularTags={popularTags}
+          onClose={() => setEditingProject(null)}
+          onSaved={() => handleSaved(!editingProject.id)}
+        />
       )}
 
       {toast && (

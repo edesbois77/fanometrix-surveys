@@ -12,11 +12,24 @@ export async function DELETE(req: NextRequest) {
   // Optional: scope deletion to a specific campaign (used by the traffic simulator cleanup)
   const campaignId = req.nextUrl.searchParams.get("campaign_id");
 
+  // This tool exists for the legacy ad-hoc demo generator (app/api/demo/
+  // generate/route.ts), whose rows are is_demo=true with no owning
+  // evidence_simulations run (evidence_simulation_id is always null there).
+  // "Run Research" (app/api/research-projects/[id]/evidence/generate/
+  // route.ts) ALSO writes is_demo=true rows (a DB trigger on simulated
+  // campaigns requires it), but those rows are tracked by a specific
+  // evidence_simulations row whose own status/lifecycle (Reset, retry)
+  // is the only place they should ever be deleted from. Without this
+  // exclusion, this tool silently deletes a live Research Project's
+  // simulated evidence while leaving its evidence_simulations row still
+  // saying "ready" — a real incident this exact exclusion is fixing.
+
   // Step 1: count demo rows before delete
   let countQuery = supabase
     .from("responses")
     .select("*", { count: "exact", head: true })
-    .eq("is_demo", true);
+    .eq("is_demo", true)
+    .is("evidence_simulation_id", null);
   if (campaignId) countQuery = countQuery.eq("campaign_id", campaignId);
 
   const { count: beforeCount, error: beforeError } = await countQuery;
@@ -32,7 +45,8 @@ export async function DELETE(req: NextRequest) {
   let deleteQuery = supabase
     .from("responses")
     .delete({ count: "exact" })
-    .eq("is_demo", true);
+    .eq("is_demo", true)
+    .is("evidence_simulation_id", null);
   if (campaignId) deleteQuery = deleteQuery.eq("campaign_id", campaignId);
   const { data, error, count } = await deleteQuery.select();
 
@@ -47,7 +61,8 @@ export async function DELETE(req: NextRequest) {
   let afterQuery = supabase
     .from("responses")
     .select("*", { count: "exact", head: true })
-    .eq("is_demo", true);
+    .eq("is_demo", true)
+    .is("evidence_simulation_id", null);
   if (campaignId) afterQuery = afterQuery.eq("campaign_id", campaignId);
   const { count: afterCount, error: afterError } = await afterQuery;
 

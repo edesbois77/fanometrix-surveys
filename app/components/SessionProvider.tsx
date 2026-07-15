@@ -11,6 +11,7 @@ export type SessionUser = {
   organisationName: string | null;
   organisationType: "publisher" | "agency" | "brand" | "internal" | null;
   accessScope: "organisation_wide" | "selected";
+  canPresentSimulations: boolean;
 };
 
 type SessionContextValue = {

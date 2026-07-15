@@ -13,7 +13,8 @@ export type CampaignAction =
   | "resume"    // Paused → Live
   | "close"     // Live / Paused → Closed (permanently stops responses)
   | "archive"   // Closed → Archived
-  | "restore";  // Archived → Closed
+  | "restore"   // Archived → Closed
+  | "reopen";   // Closed → Draft (undo an accidental close)
 
 export type CampaignForStatus = {
   status: string;
@@ -167,7 +168,7 @@ export function availableActions(status: CampaignStatus): CampaignAction[] {
     case "scheduled": return ["go_live", "pause"];
     case "live":      return ["pause", "close"];
     case "paused":    return ["resume", "close"];
-    case "closed":    return ["archive"];
+    case "closed":    return ["reopen", "archive"];
     case "archived":  return ["restore"];
   }
 }
@@ -184,6 +185,7 @@ export const ACTION_TRANSITIONS: Record<
   close:    { status: "closed",    manual_status_override: null     },
   archive:  { status: "archived",  manual_status_override: null     },
   restore:  { status: "closed",    manual_status_override: null     },
+  reopen:   { status: "draft",     manual_status_override: null     },
 };
 
 /** Badge config for each status */
@@ -207,6 +209,7 @@ export const ACTION_LABELS: Record<CampaignAction, string> = {
   close:    "Close",
   archive:  "Archive",
   restore:  "Restore",
+  reopen:   "Reopen as Draft",
 };
 
 export const ACTION_NOTIFICATIONS: Record<
@@ -220,4 +223,5 @@ export const ACTION_NOTIFICATIONS: Record<
   close:    { type: "closed",    message: n => `"${n}" has been closed.`                        },
   archive:  { type: "archived",  message: n => `"${n}" has been archived.`                      },
   restore:  { type: "restored",  message: n => `"${n}" has been restored to Closed.`            },
+  reopen:   { type: "reopened",  message: n => `"${n}" has been reopened as Draft.`             },
 };

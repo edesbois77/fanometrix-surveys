@@ -56,7 +56,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     .single();
   if (existing?.is_system && Object.keys(safe).some(k => k !== "status")) {
     return NextResponse.json(
-      { error: "System designs can't be edited directly — duplicate to create an editable variant." },
+      { error: "System designs can't be edited directly, duplicate to create an editable variant." },
       { status: 409 }
     );
   }
@@ -118,7 +118,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   const inUse = (campaignCount ?? 0) + (projectCount ?? 0);
   if (inUse > 0 && !force) {
     return NextResponse.json(
-      { error: `This design is in use by ${inUse} campaign(s)/project(s). Confirm to delete anyway — they'll keep rendering with it, it just won't be selectable for new ones.` },
+      { error: `This design is in use by ${inUse} campaign(s)/project(s). Confirm to delete anyway, they'll keep rendering with it, it just won't be selectable for new ones.` },
       { status: 409 }
     );
   }

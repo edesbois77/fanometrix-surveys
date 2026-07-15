@@ -574,7 +574,7 @@ export default function UserManagementPage() {
                 <Field label="Organisation">
                   <select value={form.organisation_id} onChange={e => setForm(f => ({ ...f, organisation_id: e.target.value }))}
                     className={INPUT}>
-                    <option value="">— No organisation —</option>
+                    <option value="">No organisation</option>
                     <option value={NEW_ORG}>+ Create New Organisation…</option>
                     {(["publisher", "agency", "brand", "internal"] as OrgType[]).map(t => (
                       orgsByType[t].length > 0 && (
@@ -661,7 +661,7 @@ export default function UserManagementPage() {
                     selected={form.grants}
                     onChange={v => setForm(f => ({ ...f, grants: v }))}
                     placeholder="Search Research Projects, Campaign Groups, Campaigns, Insights…"
-                    helperText="Granting a Research Project or Campaign Group automatically includes everything inside it — there's usually no need to also add its individual campaigns."
+                    helperText="Granting a Research Project or Campaign Group automatically includes everything inside it, there's usually no need to also add its individual campaigns."
                   />
                 </DrawerSection>
               )}

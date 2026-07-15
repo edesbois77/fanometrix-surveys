@@ -1,11 +1,23 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { AdminShell } from "@/app/components/AdminShell";
 import {
   ENTITY_TYPES, RESEARCH_GOALS, FREQUENCIES, SEARCH_STATUSES,
   KEYWORD_TYPES, PLATFORMS, MARKETS,
 } from "@/lib/social-taxonomy";
+
+// Reads the ?createForProject= query param a Research Project's "Add
+// Research Source" flow navigates here with — isolated in its own leaf
+// component so only this needs the useSearchParams() Suspense boundary,
+// mirroring app/survey-templates/page.tsx's EvidenceLinkReader.
+function EvidenceLinkReader({ onCreateForProject }: { onCreateForProject: (projectId: string | null) => void }) {
+  const searchParams = useSearchParams();
+  const createForProject = searchParams.get("createForProject");
+  useEffect(() => { onCreateForProject(createForProject); }, [createForProject, onCreateForProject]);
+  return null;
+}
 
 type Keyword = { keyword: string; keyword_type: string };
 type Search = {
@@ -28,6 +40,7 @@ const STATUS_COLOURS: Record<string, string> = {
 };
 
 export default function SearchesPage() {
+  const router = useRouter();
   const [searches,    setSearches]    = useState<Search[]>([]);
   const [loading,     setLoading]     = useState(true);
   const [showForm,    setShowForm]    = useState(false);
@@ -42,6 +55,31 @@ export default function SearchesPage() {
   const [genTarget,     setGenTarget]     = useState<Search | null>(null);
   const [genPlatforms,  setGenPlatforms]  = useState<Record<string, number>>({});
   const [toast,        setToast]        = useState<{ msg: string; ok: boolean } | null>(null);
+
+  // Evidence Orchestration — set when this create drawer was auto-opened
+  // from a Research Project's "Add Research Source" flow, so handleSave()
+  // knows to attach the new search back to that project and return there,
+  // instead of the normal stay-on-page save. Mirrors survey-templates/page.tsx.
+  const [linkedProjectId, setLinkedProjectId] = useState<string | null>(null);
+  // The linked project's research_mode — decides whether the search this
+  // creates should be marked is_simulated (so the attach that follows
+  // doesn't get rejected by the provenance trigger) and which Workspace
+  // it returns to (/product-walkthrough vs /research-projects).
+  const [linkedProjectResearchMode, setLinkedProjectResearchMode] = useState<"real" | "simulated">("real");
+  const autoOpenedRef = useRef(false);
+
+  useEffect(() => {
+    if (!linkedProjectId || autoOpenedRef.current) return;
+    autoOpenedRef.current = true;
+    (async () => {
+      const res = await fetch(`/api/research-projects/${linkedProjectId}`);
+      if (res.ok) {
+        const { data: proj } = await res.json();
+        setLinkedProjectResearchMode(proj.research_mode === "simulated" ? "simulated" : "real");
+      }
+      openCreate();
+    })();
+  }, [linkedProjectId]);
 
   function showToast(msg: string, ok = true) {
     setToast({ msg, ok });
@@ -92,15 +130,53 @@ export default function SearchesPage() {
     const url    = editId ? `/api/social/searches/${editId}` : "/api/social/searches";
     const method = editId ? "PUT" : "POST";
     const res    = await fetch(url, { method, headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...form, keywords }) });
+      body: JSON.stringify({
+        ...form, keywords,
+        // Only set on a brand-new search created for a linked project — it
+        // must inherit that project's research_mode or the evidence-attach
+        // below gets rejected by the provenance trigger. Editing an
+        // existing search never touches its provenance.
+        ...(!editId && linkedProjectId ? { is_simulated: linkedProjectResearchMode === "simulated" } : {}),
+      }) });
     setSaving(false);
-    if (res.ok) {
-      showToast(editId ? "Search updated." : "Search created.");
-      setShowForm(false); load();
-    } else {
+    if (!res.ok) {
       const j = await res.json();
       showToast(j.error ?? "Failed to save.", false);
+      return;
     }
+
+    setShowForm(false);
+
+    // Evidence Orchestration: a search created via a Research Project's "Add
+    // Research Source" flow attaches back to the project that started it,
+    // then returns there — the user should never have to manually reconnect
+    // it. Mirrors survey-templates/page.tsx's linkedProjectId handling.
+    if (linkedProjectId && !editId) {
+      const json = await res.json();
+      const newSearchId = json.data?.id;
+      const workspaceHref = linkedProjectResearchMode === "simulated"
+        ? `/product-walkthrough/${linkedProjectId}`
+        : `/research-projects/${linkedProjectId}`;
+      if (newSearchId) {
+        const attachRes = await fetch(`/api/research-projects/${linkedProjectId}/evidence`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ evidence_type: "social_search", evidence_id: newSearchId }),
+        });
+        if (!attachRes.ok) {
+          const attachJson = await attachRes.json().catch(() => ({}));
+          // Stay put rather than navigate away — a toast that fires right
+          // before router.push would just vanish with the page unmounting.
+          showToast(attachJson.error ?? "Search saved, but couldn't be attached to the project.", false);
+          return;
+        }
+      }
+      router.push(`${workspaceHref}?evidenceAdded=social_search`);
+      return;
+    }
+
+    showToast(editId ? "Search updated." : "Search created.");
+    load();
   }
 
   async function handleDelete(id: string, name: string) {
@@ -169,6 +245,9 @@ export default function SearchesPage() {
 
   return (
     <AdminShell>
+      <Suspense fallback={null}>
+        <EvidenceLinkReader onCreateForProject={setLinkedProjectId} />
+      </Suspense>
       <div className="p-4 md:p-6 max-w-5xl mx-auto">
 
         <div className="flex items-start justify-between mb-6">
@@ -176,7 +255,7 @@ export default function SearchesPage() {
             <h1 className="text-2xl font-bold text-gray-900">Searches</h1>
             <p className="text-sm text-gray-400 mt-0.5">{searches.length} search{searches.length !== 1 ? "es" : ""}</p>
             <p className="text-sm text-gray-500 mt-2 max-w-lg leading-relaxed">
-              Define what to listen for — keywords, markets and platforms.
+              Define what to listen for, keywords, markets and platforms.
               Mentions are imported and classified against each search.
             </p>
           </div>
@@ -357,7 +436,7 @@ export default function SearchesPage() {
                   <div>
                     <label className="text-xs font-semibold text-gray-600 block mb-1">Search Name *</label>
                     <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-                      className={INP} placeholder="e.g. Carlsberg — Fan Sentiment" />
+                      className={INP} placeholder="e.g. Carlsberg, Fan Sentiment" />
                   </div>
                   <div>
                     <label className="text-xs font-semibold text-gray-600 block mb-1">Description</label>

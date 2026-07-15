@@ -126,7 +126,7 @@ export default function SLReportsPage() {
             {/* Emerging Themes — AI Summaries */}
             {hasSummary && (
               <div className="bg-white border border-gray-100 rounded-xl p-5 shadow-sm">
-                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-4">Emerging Themes — AI Summaries</h3>
+                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-4">Emerging Themes, AI Summaries</h3>
                 <div className="space-y-3">
                   {(data?.recentSummaries ?? []).map((s, i) => (
                     <div key={i} className="flex items-start gap-3 py-2 border-b border-gray-50 last:border-0">

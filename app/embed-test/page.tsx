@@ -70,17 +70,17 @@ async function performHealthChecks(campaign: Campaign | null): Promise<HealthChe
   // 3. Database reachable
   try {
     const r = await fetch("/api/demo/stats");
-    checks.push({ label: "Database Reachable", ok: r.ok, detail: r.ok ? "Connected" : `HTTP ${r.status} — DB error` });
+    checks.push({ label: "Database Reachable", ok: r.ok, detail: r.ok ? "Connected" : `HTTP ${r.status}, DB error` });
   } catch {
-    checks.push({ label: "Database Reachable", ok: false, detail: "Network error — cannot reach API" });
+    checks.push({ label: "Database Reachable", ok: false, detail: "Network error, cannot reach API" });
   }
 
   // 4. Response API reachable
   try {
     const r = await fetch("/api/campaigns");
-    checks.push({ label: "Response API Reachable", ok: r.ok, detail: r.ok ? "Connected" : `HTTP ${r.status} — API error` });
+    checks.push({ label: "Response API Reachable", ok: r.ok, detail: r.ok ? "Connected" : `HTTP ${r.status}, API error` });
   } catch {
-    checks.push({ label: "Response API Reachable", ok: false, detail: "Network error — cannot reach API" });
+    checks.push({ label: "Response API Reachable", ok: false, detail: "Network error, cannot reach API" });
   }
 
   // 5. Embed URL valid
@@ -88,7 +88,7 @@ async function performHealthChecks(campaign: Campaign | null): Promise<HealthChe
   if (embedUrl) {
     try {
       const r = await fetch(embedUrl, { method: "HEAD" });
-      checks.push({ label: "Embed URL Valid", ok: r.ok, detail: r.ok ? "URL reachable" : `HTTP ${r.status} — URL returned error` });
+      checks.push({ label: "Embed URL Valid", ok: r.ok, detail: r.ok ? "URL reachable" : `HTTP ${r.status}, URL returned error` });
     } catch {
       checks.push({ label: "Embed URL Valid", ok: false, detail: "Could not reach embed URL" });
     }
@@ -111,7 +111,7 @@ async function performHealthChecks(campaign: Campaign | null): Promise<HealthChe
       // 200 = inserted; 403 = campaign not live but DB/API works
       const dbWorking = r.ok || r.status === 403;
       const detail = r.ok
-        ? "Insert succeeded — test response cleaned up"
+        ? "Insert succeeded, test response cleaned up"
         : r.status === 403
           ? `Insert API reachable (campaign not live: ${r.status})`
           : `Insert failed: HTTP ${r.status}`;
@@ -120,7 +120,7 @@ async function performHealthChecks(campaign: Campaign | null): Promise<HealthChe
         await fetch(`/api/demo/delete?campaign_id=${campaign.campaign_id}`, { method: "DELETE" });
       }
     } catch {
-      checks.push({ label: "Response Insert Working", ok: false, detail: "Network error — cannot reach submit API" });
+      checks.push({ label: "Response Insert Working", ok: false, detail: "Network error, cannot reach submit API" });
     }
   } else {
     checks.push({ label: "Response Insert Working", ok: null, detail: "Select a campaign first" });
@@ -335,7 +335,7 @@ export default function EmbedTestPage() {
       `Start Date:        ${campaign.start_date ?? "None"}`,
       `End Date:          ${campaign.end_date ?? "None"}`,
       ``,
-      `Copied from Fanometrix Embed Test — ${new Date().toISOString()}`,
+      `Copied from Fanometrix Embed Test, ${new Date().toISOString()}`,
     ].join("\n");
     navigator.clipboard.writeText(text);
     setCopied(true);
@@ -391,7 +391,7 @@ export default function EmbedTestPage() {
                   onChange={e => { setSelectedId(e.target.value); setIframeKey(k => k + 1); setPingResult(null); setHealthChecks(null); setSimResult(null); }}
                   className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A]"
                 >
-                  <option value="">— select a campaign —</option>
+                  <option value="">select a campaign</option>
                   {campaigns.map(c => (
                     <option key={c.id} value={c.id}>{orgName(c.brand_org_id)} · {c.campaign_name}</option>
                   ))}

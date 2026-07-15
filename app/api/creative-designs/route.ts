@@ -106,7 +106,7 @@ export async function POST(req: NextRequest) {
 
   if (error) {
     if (error.code === "23505") {
-      return NextResponse.json({ error: "A design with this name already exists — try a different name." }, { status: 409 });
+      return NextResponse.json({ error: "A design with this name already exists, try a different name." }, { status: 409 });
     }
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

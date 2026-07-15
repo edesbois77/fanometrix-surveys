@@ -4,7 +4,9 @@ import { useState, useEffect, use, useMemo, useRef } from "react";
 import Link from "next/link";
 import { AdminShell } from "@/app/components/AdminShell";
 import type { InsightReport } from "@/lib/intelligence/analysts/analyseConversation";
+import { normalizeInsightRow } from "@/lib/intelligence/reportCompat";
 import { useIntelligenceReview, type IntelligenceReviewAdapter } from "@/lib/intelligence/useIntelligenceReview";
+import { DualTracedRecommendationsField, FindingReferenceChips } from "@/app/components/intelligence/ReviewFields";
 
 type Search = { id: string; name: string; entity_type: string; research_goal: string };
 type Status = "draft" | "edited" | "approved" | "published";
@@ -46,7 +48,7 @@ async function exportPowerPoint(search: Search, report: InsightReport) {
   {
     const s = addSlide();
     s.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: "100%", h: 1.1, fill: { color: "22C55E" } });
-    s.addText("What's Working — Key Positive Drivers", { x: 0.5, y: 0.3, w: 12, fontSize: 18, color: WHITE, bold: true });
+    s.addText("What's Working, Key Positive Drivers", { x: 0.5, y: 0.3, w: 12, fontSize: 18, color: WHITE, bold: true });
     report.positive_drivers.forEach((d, i) => {
       const y = 1.4 + i * 1.0;
       s.addShape(pptx.ShapeType.rect, { x: 0.5, y: y + 0.1, w: 0.3, h: 0.3, fill: { color: "22C55E" } });
@@ -59,7 +61,7 @@ async function exportPowerPoint(search: Search, report: InsightReport) {
   {
     const s = addSlide();
     s.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: "100%", h: 1.1, fill: { color: "EF4444" } });
-    s.addText("Key Concerns — Risks to Monitor", { x: 0.5, y: 0.3, w: 12, fontSize: 18, color: WHITE, bold: true });
+    s.addText("Key Concerns, Risks to Monitor", { x: 0.5, y: 0.3, w: 12, fontSize: 18, color: WHITE, bold: true });
     report.key_concerns.forEach((c, i) => {
       const y = 1.4 + i * 1.0;
       s.addShape(pptx.ShapeType.rect, { x: 0.5, y: y + 0.1, w: 0.3, h: 0.3, fill: { color: "EF4444" } });
@@ -72,7 +74,7 @@ async function exportPowerPoint(search: Search, report: InsightReport) {
   {
     const s = addSlide();
     s.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: "100%", h: 1.1, fill: { color: "5B6CFA" } });
-    s.addText("Market Intelligence — Key Differences", { x: 0.5, y: 0.3, w: 12, fontSize: 18, color: WHITE, bold: true });
+    s.addText("Market Intelligence, Key Differences", { x: 0.5, y: 0.3, w: 12, fontSize: 18, color: WHITE, bold: true });
     report.market_differences.forEach((md, i) => {
       const y = 1.4 + i * 1.2;
       s.addShape(pptx.ShapeType.rect, { x: 0.5, y, w: 11.5, h: 1.0, fill: { color: LGREY }, line: { color: "E5E7EB", width: 0.5 } });
@@ -176,32 +178,6 @@ function MarketDifferencesField({ items, onChange }: {
   );
 }
 
-function RecommendedActionsField({ items, onChange }: {
-  items: InsightReport["recommended_actions"];
-  onChange: (items: InsightReport["recommended_actions"]) => void;
-}) {
-  return (
-    <div className="space-y-3">
-      {items.map((a, i) => (
-        <div key={i} className="border border-gray-100 rounded-xl p-3 bg-gray-50/50">
-          <div className="flex gap-2 mb-2 items-center">
-            <input value={a.action} placeholder="Recommended action"
-              onChange={e => onChange(items.map((it, j) => (j === i ? { ...it, action: e.target.value } : it)))}
-              className="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-sm font-medium focus:outline-none focus:border-[#D7B87A]" />
-            <button onClick={() => onChange(items.filter((_, j) => j !== i))} className="text-gray-400 hover:text-red-400 px-1">×</button>
-          </div>
-          <textarea value={a.rationale} rows={2} placeholder="Rationale"
-            onChange={e => onChange(items.map((it, j) => (j === i ? { ...it, rationale: e.target.value } : it)))}
-            className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-[#D7B87A]" />
-        </div>
-      ))}
-      <button onClick={() => onChange([...items, { action: "", rationale: "" }])} className="text-xs font-semibold text-[#0B1929] hover:underline">
-        + Add recommended action
-      </button>
-    </div>
-  );
-}
-
 // ── Page ──────────────────────────────────────────────────────────────────────
 export default function InsightsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -226,7 +202,7 @@ export default function InsightsPage({ params }: { params: Promise<{ id: string 
     fetchCurrent: async () => {
       const res  = await fetch(`/api/social/insights?search_id=${id}`);
       const json = await res.json();
-      return json.data ?? null;
+      return json.data ? normalizeInsightRow(json.data) : null;
     },
     generate: async confirm => {
       const res  = await fetch("/api/social/insights", {
@@ -236,7 +212,7 @@ export default function InsightsPage({ params }: { params: Promise<{ id: string 
       const json = await res.json();
       if (res.status === 409) return { ok: false, error: json.error, requiresConfirm: true };
       if (!res.ok) return { ok: false, error: json.error ?? "Failed to generate insights." };
-      return { ok: true, data: json.data };
+      return { ok: true, data: normalizeInsightRow(json.data) };
     },
     saveEdit: async editedContent => {
       const res  = await fetch("/api/social/insights/edit", {
@@ -245,7 +221,7 @@ export default function InsightsPage({ params }: { params: Promise<{ id: string 
       });
       const json = await res.json();
       if (!res.ok) return { ok: false, error: json.error ?? "Failed to save edits." };
-      return { ok: true, data: json.data };
+      return { ok: true, data: normalizeInsightRow(json.data) };
     },
     approve: async () => {
       const res  = await fetch("/api/social/insights/approve", {
@@ -254,7 +230,7 @@ export default function InsightsPage({ params }: { params: Promise<{ id: string 
       });
       const json = await res.json();
       if (!res.ok) return { ok: false, error: json.error ?? "Failed to approve." };
-      return { ok: true, data: json.data };
+      return { ok: true, data: normalizeInsightRow(json.data) };
     },
     publish: async () => {
       const res  = await fetch("/api/social/insights/publish", {
@@ -263,7 +239,7 @@ export default function InsightsPage({ params }: { params: Promise<{ id: string 
       });
       const json = await res.json();
       if (!res.ok) return { ok: false, error: json.error ?? "Failed to publish." };
-      return { ok: true, data: json.data };
+      return { ok: true, data: normalizeInsightRow(json.data) };
     },
   }), [id]);
 
@@ -304,7 +280,7 @@ export default function InsightsPage({ params }: { params: Promise<{ id: string 
           <div>
             <Link href={`/social-listening/searches/${id}`} className="text-xs text-gray-400 hover:text-gray-600">← Search Detail</Link>
             <div className="flex items-center gap-2 mt-1 flex-wrap">
-              <h1 className="text-2xl font-bold text-gray-900">{search?.name ?? "…"} — Insights</h1>
+              <h1 className="text-2xl font-bold text-gray-900">{search?.name ?? "…"}, Insights</h1>
               {row && <StatusBadge status={row.status} />}
             </div>
             <p className="text-sm text-gray-400 mt-0.5">Client-ready intelligence report</p>
@@ -401,7 +377,7 @@ export default function InsightsPage({ params }: { params: Promise<{ id: string 
           <div className="bg-white border border-gray-100 rounded-2xl p-10 text-center shadow-sm">
             <div className="w-8 h-8 border-4 border-[#D7B87A] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
             <p className="text-sm font-medium text-gray-700">Analysing {search?.name} mentions…</p>
-            <p className="text-xs text-gray-400 mt-1">Using GPT-4o to generate client-ready insights</p>
+            <p className="text-xs text-gray-400 mt-1">Reviewing the captured mentions to generate client-ready insights</p>
           </div>
         )}
 
@@ -416,7 +392,7 @@ export default function InsightsPage({ params }: { params: Promise<{ id: string 
 
             {/* Print header */}
             <div className="hidden print:block mb-6">
-              <p className="text-xs font-bold tracking-widest uppercase" style={{ color: "#D7B87A" }}>Fanometrix — Football Conversation Intelligence</p>
+              <p className="text-xs font-bold tracking-widest uppercase" style={{ color: "#D7B87A" }}>Fanometrix, Football Conversation Intelligence</p>
               <h1 className="text-3xl font-bold mt-1" style={{ color: "#0B1929" }}>{search?.name}</h1>
               <p className="text-sm text-gray-500 mt-0.5">{search?.entity_type} · {search?.research_goal} · {current.mention_count.toLocaleString()} mentions analysed</p>
             </div>
@@ -482,13 +458,13 @@ export default function InsightsPage({ params }: { params: Promise<{ id: string 
               )}
             </Section>
 
-            {/* Fastest Growing Topics */}
-            <Section title="Fastest Growing Topics" accent="#D7B87A">
+            {/* Notable Topics */}
+            <Section title="Notable Topics" accent="#D7B87A">
               {editing && draft ? (
-                <ListField items={draft.fastest_growing_topics} addLabel="topic" onChange={items => setDraft({ ...draft, fastest_growing_topics: items })} />
+                <ListField items={draft.notable_topics} addLabel="topic" onChange={items => setDraft({ ...draft, notable_topics: items })} />
               ) : (
                 <div className="flex flex-wrap gap-2">
-                  {current.fastest_growing_topics.map((t, i) => (
+                  {current.notable_topics.map((t, i) => (
                     <div key={i} className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-2.5 text-sm text-gray-800 leading-relaxed max-w-sm">
                       {t}
                     </div>
@@ -520,7 +496,12 @@ export default function InsightsPage({ params }: { params: Promise<{ id: string 
             {/* Recommended Actions */}
             <Section title="Recommended Actions" accent="#D7B87A">
               {editing && draft ? (
-                <RecommendedActionsField items={draft.recommended_actions} onChange={items => setDraft({ ...draft, recommended_actions: items })} />
+                <DualTracedRecommendationsField
+                  items={draft.recommended_actions}
+                  positiveDriverCount={draft.positive_drivers.length}
+                  keyConcernCount={draft.key_concerns.length}
+                  onChange={items => setDraft({ ...draft, recommended_actions: items })}
+                />
               ) : (
                 <div className="space-y-4">
                   {current.recommended_actions.map((a, i) => (
@@ -530,9 +511,13 @@ export default function InsightsPage({ params }: { params: Promise<{ id: string 
                           style={{ background: "#D7B87A", color: "#0B1929" }}>
                           {i + 1}
                         </div>
-                        <div>
+                        <div className="min-w-0">
                           <p className="text-sm font-semibold text-gray-900 mb-1">{a.action}</p>
-                          <p className="text-xs text-gray-500 leading-relaxed">{a.rationale}</p>
+                          <p className="text-xs text-gray-500 leading-relaxed mb-2">{a.rationale}</p>
+                          <div className="flex flex-wrap gap-1.5">
+                            <FindingReferenceChips indices={a.based_on_positive_drivers} label="Driver" />
+                            <FindingReferenceChips indices={a.based_on_key_concerns} label="Concern" />
+                          </div>
                         </div>
                       </div>
                     </div>

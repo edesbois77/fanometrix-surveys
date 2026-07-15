@@ -262,7 +262,7 @@ export function InsightsEngine({
       <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
         Insights
         <span className="ml-2 text-gray-300 font-normal normal-case tracking-normal">
-          — updates as filters change{onFilter ? " · click a card to filter" : ""}
+         , updates as filters change{onFilter ? " · click a card to filter" : ""}
         </span>
       </h2>
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">

@@ -7,6 +7,7 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 import type {
   IntelligenceSourceType, IntelligenceOutputType, ResearchSummaryRow,
 } from "@/lib/intelligence/types";
+import { SOURCE_TYPE_TABLE } from "@/lib/research-sources/registry";
 
 export async function getSummary<Content = unknown>(
   sourceType: IntelligenceSourceType, sourceId: string, outputType: IntelligenceOutputType
@@ -19,6 +20,51 @@ export async function getSummary<Content = unknown>(
   return data as ResearchSummaryRow<Content> | null;
 }
 
+/** Resolves is_simulated/evidence_simulation_id from the summarised
+ * source itself — never accepted from a caller, so a generated summary
+ * can never be mislabelled by a bug in the route that requested it.
+ * Mirrors the same resolution the Workspace and delete helper already use
+ * (survey/social_search/research_project/document_project). The survey and
+ * conversation_search branches are one generic lookup driven by
+ * SOURCE_TYPE_TABLE (lib/research-sources/registry.ts) — a source type
+ * whose own is_simulated concept lives on a table row keyed by this same
+ * source_id is one registry entry, not a new branch here. document_project
+ * is the one exception, kept as its own explicit branch below rather than
+ * forced into that shape: its source_id is the research_project_evidence
+ * row's own id (migration 102), not a row in any evidence table, and
+ * documents are never simulated content regardless. */
+async function resolveProvenance(
+  sourceType: IntelligenceSourceType, sourceId: string
+): Promise<{ isSimulated: boolean; evidenceSimulationId: string | null }> {
+  const table = SOURCE_TYPE_TABLE[sourceType];
+  if (table) {
+    const { data } = await supabaseAdmin.from(table).select("is_simulated").eq("id", sourceId).single();
+    return { isSimulated: !!data?.is_simulated, evidenceSimulationId: null };
+  }
+  if (sourceType === "document_project") {
+    // Uploaded documents are never simulated content, and this source_id is
+    // the research_project_evidence row's own id (migration 102), not a row
+    // in any evidence table — there's nothing to look up here, unlike the
+    // research_project case below.
+    return { isSimulated: false, evidenceSimulationId: null };
+  }
+  // research_project — the Executive Report's own source_id is the project itself.
+  const { data } = await supabaseAdmin.from("research_projects").select("research_mode").eq("id", sourceId).single();
+  const isSimulated = data?.research_mode === "simulated";
+  let evidenceSimulationId: string | null = null;
+  if (isSimulated) {
+    const { data: run } = await supabaseAdmin
+      .from("evidence_simulations").select("id").eq("research_project_id", sourceId)
+      // Legacy project-wide run only — a per-source "Run Research" row
+      // (migration 095) is never what a project-level artifact (Executive
+      // Report/Key Findings/Conclusion) gets tagged with.
+      .is("research_project_evidence_id", null)
+      .order("created_at", { ascending: false }).limit(1).maybeSingle();
+    evidenceSimulationId = run?.id ?? null;
+  }
+  return { isSimulated, evidenceSimulationId };
+}
+
 export async function saveDraft<Content>(opts: {
   sourceType:  IntelligenceSourceType;
   sourceId:    string;
@@ -27,6 +73,8 @@ export async function saveDraft<Content>(opts: {
   model:       string;
   generatedBy: string;
 }): Promise<ResearchSummaryRow<Content>> {
+  const { isSimulated, evidenceSimulationId } = await resolveProvenance(opts.sourceType, opts.sourceId);
+
   const { data, error } = await supabaseAdmin
     .from("research_summaries")
     .upsert({
@@ -42,6 +90,8 @@ export async function saveDraft<Content>(opts: {
       reviewed_by:    null,
       reviewed_at:    null,
       published_at:   null,
+      is_simulated:           isSimulated,
+      evidence_simulation_id: evidenceSimulationId,
     }, { onConflict: "source_type,source_id,output_type" })
     .select()
     .single();

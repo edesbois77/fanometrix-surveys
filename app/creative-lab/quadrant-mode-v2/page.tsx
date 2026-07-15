@@ -270,7 +270,7 @@ export default function QuadrantModeV2Page() {
           Quadrant Mode V2
         </h1>
         <p style={{ color: "rgba(255,255,255,0.35)", fontSize: 10, margin: "5px 0 0", lineHeight: 1.5 }}>
-          Internal prototype — not for production deployment
+          Internal prototype, not for production deployment
         </p>
       </div>
 
@@ -282,7 +282,7 @@ export default function QuadrantModeV2Page() {
       >
         {(["A", "B"] as Variant[]).map((v) => {
           const active = variant === v;
-          const labels: Record<Variant, string> = { A: "Variant A — Question in circle", B: "Variant B — Question above + timer" };
+          const labels: Record<Variant, string> = { A: "Variant A, Question in circle", B: "Variant B, Question above + timer" };
           return (
             <button
               key={v}

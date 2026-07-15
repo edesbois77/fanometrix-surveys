@@ -1,0 +1,40 @@
+-- Migration 093: Fix enforce_campaign_project_provenance() — invisible to RLS
+-- Run in: supabase.com → your project → SQL Editor → New query → Run
+--
+-- research_projects has a deny_all_anon RLS policy (migration 043,
+-- `USING (false)`) — correct, since every route that reads/writes
+-- research_projects uses the service-role supabaseAdmin client, which
+-- bypasses RLS entirely.
+--
+-- But migration 084's enforce_campaign_project_provenance() trigger
+-- function is SECURITY INVOKER (the Postgres default) — it runs with
+-- the privileges of whichever role performed the INSERT/UPDATE on
+-- campaigns. POST /api/campaigns and PUT /api/campaigns/[id] insert/
+-- update through the anon-key client, not supabaseAdmin, so the
+-- trigger's own internal
+--   SELECT research_mode FROM research_projects WHERE id = ...
+-- runs AS that anon role, inside the same transaction — RLS silently
+-- returns zero rows no matter what research_project_id was passed. The
+-- trigger then raises "does not reference an existing research
+-- project" — a false negative, not a real FK violation — rejecting
+-- every single campaign create/update that has research_project_id
+-- set, for real and simulated projects alike.
+--
+-- Fix: mark the function SECURITY DEFINER so its internal SELECT runs
+-- with the function owner's privileges (unaffected by deny_all_anon)
+-- regardless of which role calls it — the trigger's job is enforcement,
+-- not user-facing data access, so it should never be silently blind to
+-- the table it's enforcing against. Paired with switching the two API
+-- routes' campaigns insert/update to supabaseAdmin (app-layer fix,
+-- no migration needed) — belt and braces, matching the "both" fix
+-- chosen after this was found live-testing the Product Walkthrough
+-- Campaigns flow.
+--
+-- search_path is pinned for the same reason every SECURITY DEFINER
+-- function should pin it — prevents a role from shadowing `research_projects`
+-- with an object earlier in its own search_path.
+
+ALTER FUNCTION enforce_campaign_project_provenance() SECURITY DEFINER SET search_path = public;
+
+-- Rollback:
+--   ALTER FUNCTION enforce_campaign_project_provenance() SECURITY INVOKER SET search_path TO DEFAULT;

@@ -332,7 +332,7 @@ function BlockEditor({ block, onChange }: { block: InsightBlock; onChange: (b: I
       </div>;
 
     case "divider":
-      return <p className="text-xs text-gray-400">Visual divider line — no fields needed.</p>;
+      return <p className="text-xs text-gray-400">Visual divider line, no fields needed.</p>;
 
     default:
       return null;

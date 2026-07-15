@@ -1,9 +1,22 @@
 "use client";
 
-import { useState, useEffect, useCallback, use } from "react";
+import { useState, useEffect, useCallback, use, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { AdminShell } from "@/app/components/AdminShell";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
+import { SEARCH_STATUSES } from "@/lib/social-taxonomy";
+
+// Reads the ?returnTo= query param a Research Project's Research Sources
+// card navigates here with (its "Manage Collection →" link) — isolated in
+// its own leaf component so only this needs the useSearchParams() Suspense
+// boundary, mirroring app/survey-templates/page.tsx's EvidenceLinkReader.
+function ReturnToReader({ onReturnTo }: { onReturnTo: (projectId: string | null) => void }) {
+  const searchParams = useSearchParams();
+  const returnTo = searchParams.get("returnTo");
+  useEffect(() => { onReturnTo(returnTo); }, [returnTo, onReturnTo]);
+  return null;
+}
 
 type RedditStatus = "not_collected" | "collecting" | "completed" | "failed";
 type Search = {
@@ -45,6 +58,8 @@ const REDDIT_STATUS_LABELS: Record<RedditStatus, string> = {
 
 export default function SearchDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
+  const router = useRouter();
+  const [returnTo,       setReturnTo]       = useState<string | null>(null);
   const [search,         setSearch]         = useState<Search | null>(null);
   const [stats,          setStats]          = useState<Stats | null>(null);
   const [summaries,      setSummaries]      = useState<Summary[]>([]);
@@ -52,6 +67,7 @@ export default function SearchDetailPage({ params }: { params: Promise<{ id: str
   const [subredditInput, setSubredditInput] = useState("");
   const [savingSubs,     setSavingSubs]     = useState(false);
   const [collecting,     setCollecting]     = useState(false);
+  const [changingStatus, setChangingStatus] = useState(false);
   const [toast,          setToast]          = useState<{ msg: string; ok: boolean } | null>(null);
 
   function showToast(msg: string, ok = true) {
@@ -95,6 +111,25 @@ export default function SearchDetailPage({ params }: { params: Promise<{ id: str
     else { const j = await res.json(); showToast(j.error ?? "Failed to save subreddits.", false); }
   }
 
+  // Status was previously only editable from the list page's edit drawer —
+  // meant navigating away and back just to flip Draft → Active, the exact
+  // step a newly-attached Conversation Search needs before Run Research
+  // (Product Walkthrough) will allow generating simulated mentions.
+  // Immediate on-change commit, no separate Save step — a single field,
+  // low-risk, matching how simple a status flip should feel.
+  async function handleChangeStatus(newStatus: string) {
+    if (!search || newStatus === search.status) return;
+    setChangingStatus(true);
+    const res = await fetch(`/api/social/searches/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: newStatus }),
+    });
+    setChangingStatus(false);
+    if (res.ok) { showToast(`Status changed to ${newStatus}.`); load(); }
+    else { const j = await res.json().catch(() => ({})); showToast(j.error ?? "Failed to change status.", false); }
+  }
+
   async function handleCollectReddit() {
     setCollecting(true);
     showToast("Fetching Reddit posts & comments…");
@@ -130,16 +165,36 @@ export default function SearchDetailPage({ params }: { params: Promise<{ id: str
 
   return (
     <AdminShell>
+      <Suspense fallback={null}>
+        <ReturnToReader onReturnTo={setReturnTo} />
+      </Suspense>
       <div className="p-4 md:p-6 max-w-5xl mx-auto">
 
         {/* Header */}
         <div className="mb-6">
-          <Link href="/social-listening/searches" className="text-xs text-gray-400 hover:text-gray-600">← Searches</Link>
+          {returnTo ? (
+            <button
+              onClick={() => router.push(`/research-projects/${returnTo}?returned=1`)}
+              className="text-xs text-gray-400 hover:text-gray-600"
+            >
+              ← Back to Research Project
+            </button>
+          ) : (
+            <Link href="/social-listening/searches" className="text-xs text-gray-400 hover:text-gray-600">← Searches</Link>
+          )}
           <div className="flex items-start gap-3 mt-2">
             <div className="flex-1 min-w-0">
               <h1 className="text-2xl font-bold text-gray-900">{search.name}</h1>
               <div className="flex items-center gap-2 mt-1 flex-wrap">
-                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLOURS[search.status]}`}>{search.status}</span>
+                <select
+                  value={search.status}
+                  onChange={e => handleChangeStatus(e.target.value)}
+                  disabled={changingStatus}
+                  className={`text-xs px-2 py-0.5 rounded-full font-medium border-0 focus:outline-none focus:ring-2 focus:ring-offset-1 disabled:opacity-60 ${STATUS_COLOURS[search.status]}`}
+                  title="Change status"
+                >
+                  {SEARCH_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
                 <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full">{search.entity_type}</span>
                 <span className="text-xs bg-purple-50 text-purple-700 px-2 py-0.5 rounded-full">{search.research_goal}</span>
               </div>

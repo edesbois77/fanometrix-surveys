@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
   // whatever was true when they last logged in.
   const { data: row } = await supabaseAdmin
     .from("users")
-    .select("work_email, first_name, last_name, role, organisation_id, access_scope, status, organisations ( name, type )")
+    .select("work_email, first_name, last_name, role, organisation_id, access_scope, status, can_present_simulations, organisations ( name, type )")
     .eq("id", session.sub)
     .single();
 
@@ -33,6 +33,7 @@ export async function GET(req: NextRequest) {
       organisationName: org?.name ?? null,
       organisationType: org?.type ?? null,
       accessScope: row.access_scope,
+      canPresentSimulations: row.can_present_simulations,
     },
   });
 }

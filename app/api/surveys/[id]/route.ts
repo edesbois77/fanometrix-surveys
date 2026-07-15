@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { requireUser } from "@/lib/auth-server";
 import { validateSurvey } from "@/lib/survey-validation";
+import { logActivity } from "@/lib/research-project-activity";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   let session;
@@ -103,6 +104,17 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  // A survey isn't tied to a single project, but any Research Project
+  // currently pointing at it as its primary survey cares whether its
+  // status just changed — log against each one that does.
+  if ("status" in patch) {
+    const { data: projects } = await supabaseAdmin.from("research_projects").select("id").eq("survey_id", id);
+    for (const project of projects ?? []) {
+      await logActivity(project.id, "survey_status_changed", `Survey "${data.name}" status changed to ${data.status}.`, session.workEmail);
+    }
+  }
+
   return NextResponse.json({ data });
 }
 

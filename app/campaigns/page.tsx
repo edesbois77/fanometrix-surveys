@@ -1,23 +1,17 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { countryCodeWarning, languageCodeWarning, MARKET_REFERENCE_PAIRS, isValidCountryCode, expectedSurveyLanguage } from "@/lib/locales";
 import { SUPPORTED_LANGUAGES } from "@/lib/survey-locale";
-import Link from "next/link";
-import Papa from "papaparse";
 import { AdminShell } from "@/app/components/AdminShell";
 import { useSession } from "@/app/components/SessionProvider";
 import { CreativeDesignPicker } from "@/app/components/CreativeDesignPicker";
 import { CreativeDesignPreview } from "@/app/components/CreativeDesignPreview";
 import { DrawerSection } from "@/app/components/DrawerSection";
 import { isSurveyValidForReady } from "@/lib/survey-validation";
-import {
-  availableActions,
-  ACTION_LABELS,
-  STATUS_META,
-  type CampaignStatus,
-  type CampaignAction,
-} from "@/lib/campaign-status";
+import { CampaignsManager } from "@/app/components/campaigns/CampaignsManager";
+import type { Campaign } from "@/app/components/campaigns/types";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type Survey = {
@@ -28,63 +22,6 @@ type Survey = {
   questions?:       Array<{ text: string; options: string[] }>;
   thank_you_title?: string | Record<string, string>;
   thank_you_body?:  string | Record<string, string>;
-};
-
-type Campaign = {
-  id: string;
-  campaign_id: string;
-  campaign_name: string;
-  campaign_description: string | null;
-  start_date: string | null;
-  end_date: string | null;
-  survey_id: string | null;
-  surveys?: { name: string } | null;
-  publisher_org_id: string | null;
-  brand_org_id: string | null;
-  agency_org_id: string | null;
-  topic: string | null;
-  study_type: string;
-  country_code: string | null;
-  market: string | null;
-  survey_language: string;
-  status: string;
-  effective_status: CampaignStatus;
-  status_reason: string | null;
-  is_auto_transition: boolean;
-  response_count: number;
-  target_responses: number | null;
-  archive_after_days: number | null;
-  manual_status_override: string | null;
-  created_at: string;
-  // Soft delete
-  deleted_at: string | null;
-  deleted_by: string | null;
-  delete_reason: string | null;
-  // Creative design (optional — null = inherit from project, or the
-  // classic default creative if neither is set)
-  creative_design: string | null;
-  // Research Project link — NULL fields below mean "inherited from project"
-  research_project_id: string | null;
-  tags: string[] | null;
-  created_by_admin: boolean;
-  // API-only enrichment (resolved inheritance) — never real columns, must
-  // never be sent back on save. See the strip list in openEdit() below.
-  effective_survey_id?: string | null;
-  effective_start_date?: string | null;
-  effective_end_date?: string | null;
-  effective_target_responses?: number | null;
-  effective_archive_after_days?: number | null;
-  effective_tags?: string[];
-  effective_creative_design?: string | null;
-  inherited?: {
-    survey_id: boolean;
-    start_date: boolean;
-    end_date: boolean;
-    target_responses: boolean;
-    archive_after_days: boolean;
-    tags: boolean;
-    creative_design: boolean;
-  } | null;
 };
 
 type ResearchProjectSummary = {
@@ -101,92 +38,13 @@ type ResearchProjectSummary = {
 };
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
-import { generateCampaignName, generateCampaignSlug, studyTypeLabel } from "@/lib/naming";
-import { NameBuilder } from "@/app/components/NameBuilder";
+import Link from "next/link";
+import { STUDY_TYPES, STUDY_TYPE_LABELS } from "@/lib/naming";
 import { useCreativeDesignNames } from "@/lib/creative-designs";
-
-function generateCampaignId(brand: string, name: string): string {
-  const year = new Date().getFullYear();
-  return `${brand}_${name}_${year}`
-    .toLowerCase().replace(/\s+/g, "_").replace(/[^a-z0-9_]/g, "")
-    .replace(/__+/g, "_").replace(/^_|_$/g, "").slice(0, 80);
-}
-
-function generateDuplicateSlug(brand: string, name: string): string {
-  const year = new Date().getFullYear();
-  const rnd  = Math.random().toString(36).slice(2, 6);
-  return `${brand}_${name}_copy_${year}_${rnd}`
-    .toLowerCase().replace(/\s+/g, "_").replace(/[^a-z0-9_]/g, "")
-    .replace(/__+/g, "_").replace(/^_|_$/g, "").slice(0, 80);
-}
 
 function formatDate(d: string | null): string {
   if (!d) return "—";
   return new Date(d).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
-}
-
-const STATUS_ORDER: Record<CampaignStatus, number> = {
-  live: 0, paused: 1, scheduled: 2, draft: 3, closed: 4, archived: 5,
-};
-
-// ─── Subcomponents ────────────────────────────────────────────────────────────
-function StatusBadge({ status }: { status: CampaignStatus }) {
-  const m = STATUS_META[status];
-  return (
-    <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full whitespace-nowrap ${m.bg} ${m.text}`}>
-      <span className="text-[9px]">{m.dot}</span>{m.label}
-    </span>
-  );
-}
-
-const ACTION_STYLE: Record<string, string> = {
-  publish: "border-blue-200 text-blue-700 hover:bg-blue-50",
-  go_live: "border-green-200 text-green-700 hover:bg-green-50",
-  pause:   "border-orange-200 text-orange-700 hover:bg-orange-50",
-  resume:  "border-green-200 text-green-700 hover:bg-green-50",
-  close:   "border-gray-200 text-gray-600 hover:bg-gray-50",
-  archive: "border-gray-200 text-gray-500 hover:bg-gray-50",
-  restore: "border-blue-200 text-blue-700 hover:bg-blue-50",
-};
-
-function CampaignProgress({ c }: { c: Campaign }) {
-  const hasTarget = c.target_responses !== null && c.target_responses > 0;
-  const pct = hasTarget ? Math.min(100, Math.round((c.response_count / c.target_responses!) * 100)) : null;
-  const daysLeft = c.end_date
-    ? Math.ceil((new Date(c.end_date).getTime() - Date.now()) / 86_400_000)
-    : null;
-
-  if (!hasTarget && !c.end_date && !c.is_auto_transition) return null;
-
-  return (
-    <div className="mt-2.5 space-y-1.5">
-      {hasTarget && (
-        <>
-          <div className="flex items-center justify-between text-xs">
-            <span className="text-gray-500">{c.response_count.toLocaleString()} / {c.target_responses!.toLocaleString()} responses</span>
-            <span className="font-semibold text-gray-700">{pct}%</span>
-          </div>
-          <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-            <div className="h-full rounded-full transition-all duration-500"
-              style={{ width: `${pct}%`, background: pct! >= 100 ? "#10b981" : pct! >= 75 ? "#D7B87A" : "#0B1929" }} />
-          </div>
-        </>
-      )}
-      {!hasTarget && c.response_count > 0 && (
-        <p className="text-xs text-gray-400">{c.response_count.toLocaleString()} responses collected</p>
-      )}
-      {daysLeft !== null && c.effective_status === "live" && (
-        <p className="text-xs text-gray-400">
-          {daysLeft > 0 ? `${daysLeft} day${daysLeft !== 1 ? "s" : ""} remaining` : "Ending today"}
-        </p>
-      )}
-      {c.is_auto_transition && c.status_reason && (
-        <p className="text-xs text-amber-600 flex items-center gap-1 mt-0.5">
-          <span>⚠</span><span>{c.status_reason}</span>
-        </p>
-      )}
-    </div>
-  );
 }
 
 // ─── Blank form ───────────────────────────────────────────────────────────────
@@ -198,50 +56,26 @@ const BLANK: Partial<Campaign> = {
   research_project_id: null, tags: null,
 };
 
-// ─── Campaign preview modal ───────────────────────────────────────────────────
-function CampaignPreviewModal({ campaign, onClose }: { campaign: Campaign; onClose: () => void }) {
-  function onBackdrop(e: React.MouseEvent<HTMLDivElement>) {
-    if (e.target === e.currentTarget) onClose();
-  }
-  const designNames = useCreativeDesignNames();
-  const themeName = designNames[(campaign.effective_creative_design ?? campaign.creative_design) ?? ""];
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
-      onClick={onBackdrop}
-    >
-      <div className="flex flex-col items-center gap-4">
-        {/* Badge */}
-        <div className="bg-amber-50 border border-amber-200 rounded-xl px-5 py-3 text-center shadow">
-          <p className="text-xs font-bold text-amber-700 uppercase tracking-widest">◆ Preview Mode</p>
-          <p className="text-xs text-amber-600 mt-0.5">No responses are recorded.</p>
-          <p className="text-xs text-amber-500 mt-0.5 font-medium">{campaign.campaign_name}</p>
-          {themeName && (
-            <p className="text-xs font-semibold mt-1" style={{ color: "#0B1929" }}>
-              Creative: <span style={{ color: "#D7B87A" }}>{themeName}</span>
-            </p>
-          )}
-        </div>
-
-        {/* Embed iframe — shows real questions + correct theme */}
-        <iframe
-          src={`/embed?campaign=${campaign.campaign_id}&preview=1`}
-          width={300}
-          height={250}
-          style={{ border: "none", borderRadius: 12, display: "block",
-            boxShadow: "0 8px 40px rgba(0,0,0,0.5)" }}
-          title="Campaign creative preview"
-        />
-
-        <button
-          onClick={onClose}
-          className="text-sm text-white/60 hover:text-white transition-colors px-4 py-2"
-        >
-          ✕ Close preview
-        </button>
-      </div>
-    </div>
-  );
+// Reads the ?createForProject=&surveyId= query params a Research Project's
+// "+ Create Campaign" action navigates here with — isolated in its own
+// component so only this leaf needs the useSearchParams() Suspense boundary,
+// not the whole (otherwise statically-rendered) page.
+function CampaignLinkReader({
+  onCreateForProject, onEditCampaignId, onReturnTo,
+}: {
+  onCreateForProject: (projectId: string | null, surveyId: string | null) => void;
+  onEditCampaignId: (campaignId: string | null) => void;
+  onReturnTo: (projectId: string | null) => void;
+}) {
+  const searchParams = useSearchParams();
+  const createForProject = searchParams.get("createForProject");
+  const surveyId = searchParams.get("surveyId");
+  const editCampaignId = searchParams.get("editCampaignId");
+  const returnTo = searchParams.get("returnTo");
+  useEffect(() => { onCreateForProject(createForProject, surveyId); }, [createForProject, surveyId, onCreateForProject]);
+  useEffect(() => { onEditCampaignId(editCampaignId); }, [editCampaignId, onEditCampaignId]);
+  useEffect(() => { onReturnTo(returnTo); }, [returnTo, onReturnTo]);
+  return null;
 }
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
@@ -263,35 +97,78 @@ export default function CampaignsPage() {
   const [loading,          setLoading]          = useState(true);
   const [loadingDeleted,   setLoadingDeleted]   = useState(false);
 
-  // Toolbar
-  const [activeTab,    setActiveTab]    = useState<"active" | "closed" | "archived" | "deleted">("active");
-  const [search,       setSearch]       = useState("");
-  const [statusFilter, setStatusFilter] = useState<"all" | CampaignStatus>("all");
-  const [usageFilter,  setUsageFilter]  = useState<"all" | "no_responses" | "has_responses" | "target_reached" | "end_reached">("all");
-  const [dateFilter,   setDateFilter]   = useState<"all" | "today" | "7days" | "30days">("all");
-  const [sortBy,       setSortBy]       = useState<"recent" | "oldest" | "az" | "status">("recent");
-  const [countryFilter,   setCountryFilter]   = useState<string>("all");
-  const [publisherFilter, setPublisherFilter] = useState<string>("all");
-  const [brandFilter,     setBrandFilter]     = useState<string>("all");
-
-  // Preview modal
-  const [previewCampaign, setPreviewCampaign] = useState<Campaign | null>(null);
-
   // Edit drawer
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editing,    setEditing]    = useState<Partial<Campaign>>(BLANK);
   const [saving,     setSaving]     = useState(false);
-  const [actioning,  setActioning]  = useState<string | null>(null);
   const [error,      setError]      = useState("");
   const [toast,      setToast]      = useState<{ msg: string; ok: boolean } | null>(null);
-
-  // Bulk selection
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [bulkWorking,  setBulkWorking] = useState(false);
 
   function showToast(msg: string, ok = true) {
     setToast({ msg, ok });
     setTimeout(() => setToast(null), 4000);
+  }
+
+  // ── Research Project deep-link ("+ Create Campaign") ────────────────────────
+  // Auto-opens the create drawer pre-filled from the linked project, then, on
+  // save, returns to that project's Workspace instead of the normal
+  // stay-on-page save — the same pattern proven for Surveys' "+ Add Evidence".
+  const router = useRouter();
+  const [linkedProjectId, setLinkedProjectId] = useState<string | null>(null);
+  const [linkedSurveyId,  setLinkedSurveyId]  = useState<string | null>(null);
+  const [autoLinkActive,  setAutoLinkActive]  = useState(false);
+  const [linkedProjectResearchMode, setLinkedProjectResearchMode] = useState<"real" | "simulated">("real");
+  const autoOpenedRef = useRef(false);
+
+  useEffect(() => {
+    if (!linkedProjectId || autoOpenedRef.current) return;
+    autoOpenedRef.current = true;
+    (async () => {
+      const res = await fetch(`/api/research-projects/${linkedProjectId}`);
+      if (!res.ok) return;
+      const { data: proj } = await res.json();
+      setLinkedProjectResearchMode(proj.research_mode === "simulated" ? "simulated" : "real");
+      setEditing({
+        ...BLANK,
+        research_project_id: linkedProjectId,
+        survey_id: linkedSurveyId,
+        topic: proj.topic ?? "",
+        study_type: proj.study_type ?? "custom",
+        brand_org_id: proj.brand_org_id ?? null,
+        agency_org_id: proj.agency_org_id ?? null,
+      });
+      setError("");
+      setAutoLinkActive(true);
+      setDrawerOpen(true);
+    })();
+  }, [linkedProjectId, linkedSurveyId]);
+
+  // The Research Project Workspace's embedded Campaigns manager deep-links
+  // "Edit" here (?editCampaignId=) rather than duplicating this page's full
+  // edit drawer — opens the same drawer once the campaign list has loaded.
+  const [editCampaignId, setEditCampaignId] = useState<string | null>(null);
+  const autoEditCampaignRef = useRef(false);
+
+  useEffect(() => {
+    if (!editCampaignId || autoEditCampaignRef.current || campaigns.length === 0) return;
+    const found = campaigns.find(c => c.id === editCampaignId);
+    if (!found) return;
+    autoEditCampaignRef.current = true;
+    openEdit(found);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editCampaignId, campaigns]);
+
+  // A campaign opened from a Research Project always returns there on close
+  // *or* save — mirrors the Survey editor's returnTo behaviour, so the user
+  // is never left stranded on the standalone Campaigns page.
+  const [returnToProjectId, setReturnToProjectId] = useState<string | null>(null);
+
+  function closeDrawer() {
+    if (returnToProjectId) {
+      router.push(`/research-projects/${returnToProjectId}?returned=1`);
+      return;
+    }
+    setDrawerOpen(false);
   }
 
   // ── Load ──────────────────────────────────────────────────────────────────
@@ -319,109 +196,15 @@ export default function CampaignsPage() {
 
   useEffect(() => { load(); }, [load]);
 
-  useEffect(() => {
-    if (activeTab === "deleted" && deletedCampaigns.length === 0 && !loadingDeleted) {
-      loadDeleted();
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab]);
-
-  // ── Derived lists ──────────────────────────────────────────────────────────
-  const activeCampaigns   = useMemo(() =>
-    campaigns.filter(c => !["closed", "archived"].includes(c.effective_status)), [campaigns]);
-  const closedCampaigns   = useMemo(() =>
-    campaigns.filter(c => c.effective_status === "closed"), [campaigns]);
-  const archivedCampaigns = useMemo(() =>
-    campaigns.filter(c => c.effective_status === "archived"), [campaigns]);
-
-  // Option lists for the Country/Publisher/Brand filters — derived from all
-  // non-deleted campaigns so the dropdowns stay stable across tab switches.
-  const countryOptions = useMemo(() => {
-    const byCode = new Map<string, string>();
-    for (const c of campaigns) {
-      if (c.country_code && !byCode.has(c.country_code)) byCode.set(c.country_code, c.market || c.country_code);
-    }
-    return Array.from(byCode.entries()).sort((a, b) => a[1].localeCompare(b[1]));
-  }, [campaigns]);
+  const onLoadDeletedRequested = useCallback(() => {
+    if (deletedCampaigns.length === 0 && !loadingDeleted) loadDeleted();
+  }, [deletedCampaigns.length, loadingDeleted, loadDeleted]);
 
   // Organisations are the single source of truth for publisher/brand/agency
   // display names now — this resolves an id to its name anywhere a campaign
   // needs to show, filter, search, or generate a name/slug with one.
   const orgById = useMemo(() => new Map(orgs.map(o => [o.id, o])), [orgs]);
   const orgName = useCallback((id: string | null) => (id ? orgById.get(id)?.name ?? "" : ""), [orgById]);
-
-  const publisherOptions = useMemo(() => {
-    const ids = new Set(campaigns.map(c => c.publisher_org_id).filter((id): id is string => !!id));
-    return Array.from(ids).map(id => ({ id, name: orgName(id) })).sort((a, b) => a.name.localeCompare(b.name));
-  }, [campaigns, orgName]);
-
-  const brandOptions = useMemo(() => {
-    const ids = new Set(campaigns.map(c => c.brand_org_id).filter((id): id is string => !!id));
-    return Array.from(ids).map(id => ({ id, name: orgName(id) })).sort((a, b) => a.name.localeCompare(b.name));
-  }, [campaigns, orgName]);
-
-  const displayed = useMemo(() => {
-    let list: Campaign[] =
-      activeTab === "active"   ? activeCampaigns   :
-      activeTab === "closed"   ? closedCampaigns   :
-      activeTab === "archived" ? archivedCampaigns :
-      deletedCampaigns;
-
-    // Status sub-filter (active tab only)
-    if (activeTab === "active" && statusFilter !== "all") {
-      list = list.filter(c => c.effective_status === statusFilter);
-    }
-
-    // Usage filter
-    if (usageFilter === "no_responses")   list = list.filter(c => c.response_count === 0);
-    if (usageFilter === "has_responses")  list = list.filter(c => c.response_count > 0);
-    if (usageFilter === "target_reached") list = list.filter(c =>
-      c.target_responses !== null && c.response_count >= c.target_responses);
-    if (usageFilter === "end_reached") {
-      const now = new Date();
-      list = list.filter(c => c.end_date && new Date(c.end_date) < now);
-    }
-
-    // Date filter (created_at)
-    const now = new Date();
-    if (dateFilter === "today") {
-      list = list.filter(c => new Date(c.created_at).toDateString() === now.toDateString());
-    } else if (dateFilter === "7days") {
-      const cut = new Date(now); cut.setDate(cut.getDate() - 7);
-      list = list.filter(c => new Date(c.created_at) >= cut);
-    } else if (dateFilter === "30days") {
-      const cut = new Date(now); cut.setDate(cut.getDate() - 30);
-      list = list.filter(c => new Date(c.created_at) >= cut);
-    }
-
-    // Country / Publisher / Brand filters
-    if (countryFilter !== "all")   list = list.filter(c => c.country_code === countryFilter);
-    if (publisherFilter !== "all") list = list.filter(c => c.publisher_org_id === publisherFilter);
-    if (brandFilter !== "all")     list = list.filter(c => c.brand_org_id === brandFilter);
-
-    // Search
-    if (search.trim()) {
-      const q = search.toLowerCase();
-      list = list.filter(c =>
-        c.campaign_name.toLowerCase().includes(q) ||
-        c.campaign_id.toLowerCase().includes(q) ||
-        orgName(c.brand_org_id).toLowerCase().includes(q) ||
-        (c.topic ?? "").toLowerCase().includes(q) ||
-        orgName(c.publisher_org_id).toLowerCase().includes(q) ||
-        (c.surveys?.name ?? "").toLowerCase().includes(q) ||
-        c.effective_status.includes(q)
-      );
-    }
-
-    // Sort
-    switch (sortBy) {
-      case "recent":  return [...list].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-      case "oldest":  return [...list].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-      case "az":      return [...list].sort((a, b) => a.campaign_name.localeCompare(b.campaign_name));
-      case "status":  return [...list].sort((a, b) => STATUS_ORDER[a.effective_status] - STATUS_ORDER[b.effective_status]);
-      default:        return list;
-    }
-  }, [campaigns, deletedCampaigns, activeTab, statusFilter, usageFilter, dateFilter, countryFilter, publisherFilter, brandFilter, sortBy, search, activeCampaigns, closedCampaigns, archivedCampaigns, orgName]);
 
   const publisherOrgs = useMemo(() => {
     const all = orgs.filter(o => o.type === "publisher");
@@ -435,6 +218,36 @@ export default function CampaignsPage() {
     [researchProjects, editing.research_project_id]
   );
 
+  // Research Target / Creative Design (migration 094) — survey-scoped, not
+  // project-level, so the drawer's "Inherited: X" display for these two
+  // fields can't come from the lightweight researchProjects list (which only
+  // has the deprecated project-level columns) — it needs the specific
+  // survey's own research_project_evidence row. Archive After (days) is
+  // unaffected — that one is still genuinely project-level, still resolved
+  // from selectedProject directly below.
+  const [surveyEvidenceDefaults, setSurveyEvidenceDefaults] = useState<{ target_responses: number | null; creative_design: string | null } | null>(null);
+  useEffect(() => {
+    const projectId = editing.research_project_id;
+    const effectiveSurveyId = editing.survey_id ?? selectedProject?.survey_id ?? null;
+    if (!projectId || !effectiveSurveyId) { setSurveyEvidenceDefaults(null); return; }
+    let cancelled = false;
+    (async () => {
+      const res = await fetch(`/api/research-projects/${projectId}`);
+      if (!res.ok || cancelled) return;
+      const { data: proj } = await res.json();
+      const item = (proj.evidence ?? []).find(
+        (e: { evidence_type: string; evidence_id: string }) => e.evidence_type === "survey" && e.evidence_id === effectiveSurveyId
+      );
+      if (!cancelled) {
+        setSurveyEvidenceDefaults(item?.survey ? {
+          target_responses: item.survey.target_responses ?? null,
+          creative_design: item.survey.creative_design ?? null,
+        } : null);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [editing.research_project_id, editing.survey_id, selectedProject?.survey_id]);
+
   // ── Drawer helpers ─────────────────────────────────────────────────────────
   function openCreate() {
     const isPublisher = user?.role === "publisher";
@@ -443,6 +256,7 @@ export default function CampaignsPage() {
       publisher_org_id: isPublisher ? (user?.organisationId ?? null) : null,
     });
     setError("");
+    setAutoLinkActive(false);
     setDrawerOpen(true);
   }
 
@@ -458,31 +272,9 @@ export default function CampaignsPage() {
             ...rest } = c;
     setEditing({ ...rest });
     setError("");
+    setAutoLinkActive(false);
     setDrawerOpen(true);
   }
-
-  // Auto-update name + slug whenever any Name Builder field, Country, or
-  // Publisher changes. Runs only while the drawer is open. The Campaign
-  // Name and Campaign ID fields remain editable — any manual edit simply
-  // becomes the new value.
-  useEffect(() => {
-    if (!drawerOpen) return;
-    const topic = editing.topic ?? "";
-    const studyType = studyTypeLabel(editing.study_type ?? "");
-    const brand = orgName(editing.brand_org_id ?? null);
-    const agency = orgName(editing.agency_org_id ?? null);
-    const publisher = orgName(editing.publisher_org_id ?? null);
-    const name = generateCampaignName(topic, studyType, brand, agency, editing.country_code ?? "", publisher);
-    const slug = generateCampaignSlug(topic, studyType, brand, agency, editing.country_code ?? "", publisher);
-    if (name || slug) {
-      setEditing(e => ({
-        ...e,
-        campaign_name: name || e.campaign_name,
-        campaign_id:   slug || e.campaign_id,
-      }));
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editing.topic, editing.study_type, editing.brand_org_id, editing.agency_org_id, editing.country_code, editing.publisher_org_id, drawerOpen, orgName]);
 
   // Auto-select Survey Language to match Country Code — but only when the
   // user actually changes Country Code during this drawer session, never
@@ -503,23 +295,6 @@ export default function CampaignsPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editing.country_code, drawerOpen]);
 
-  function autoId() {
-    setEditing(e => {
-      const topic = e.topic ?? "";
-      const studyType = studyTypeLabel(e.study_type ?? "");
-      const brandName = orgName(e.brand_org_id ?? null);
-      const agencyName = orgName(e.agency_org_id ?? null);
-      const publisherName = orgName(e.publisher_org_id ?? null);
-      const name = generateCampaignName(topic, studyType, brandName, agencyName, e.country_code ?? "", publisherName);
-      const slug = generateCampaignSlug(topic, studyType, brandName, agencyName, e.country_code ?? "", publisherName);
-      return {
-        ...e,
-        campaign_name: name || e.campaign_name,
-        campaign_id:   slug || generateCampaignId(topic, e.campaign_name ?? ""),
-      };
-    });
-  }
-
   async function handleSave() {
     if (!editing.campaign_name?.trim()) { setError("Campaign name is required."); return; }
     if (!editing.campaign_id?.trim())  { setError("Campaign ID is required.");   return; }
@@ -533,224 +308,47 @@ export default function CampaignsPage() {
 
     const url    = editing.id ? `/api/campaigns/${editing.id}` : "/api/campaigns";
     const method = editing.id ? "PUT" : "POST";
+    const body   = {
+      ...editing,
+      ...(!editing.id && autoLinkActive ? { is_simulated: linkedProjectResearchMode === "simulated" } : {}),
+    };
 
-    const res  = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(editing) });
+    const res  = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     const json = await res.json();
     setSaving(false);
 
     if (!res.ok) { setError(json.error ?? "Failed to save."); return; }
+
+    if (autoLinkActive && linkedProjectId) {
+      const workspaceHref = linkedProjectResearchMode === "simulated"
+        ? `/product-walkthrough/${linkedProjectId}`
+        : `/research-projects/${linkedProjectId}`;
+      router.push(`${workspaceHref}?campaignAdded=1`);
+      return;
+    }
+
+    // Opened from a Research Project (Edit Campaign) — return there instead
+    // of the normal stay-on-page save, mirroring the Survey editor.
+    if (returnToProjectId) {
+      router.push(`/research-projects/${returnToProjectId}?returned=1`);
+      return;
+    }
+
     setDrawerOpen(false);
     showToast(editing.id ? "Campaign updated." : "Campaign created.");
     load();
   }
 
-  // ── Campaign actions ───────────────────────────────────────────────────────
-  async function handleAction(campaignId: string, action: CampaignAction) {
-    setActioning(campaignId + action);
-    const res  = await fetch(`/api/campaigns/${campaignId}/actions`, {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action }),
-    });
-    const json = await res.json();
-    setActioning(null);
-    if (!res.ok) { showToast(json.error ?? "Action failed.", false); }
-    else { showToast(`Campaign ${ACTION_LABELS[action].toLowerCase()}d.`); load(); }
-  }
-
-  async function handleDelete(c: Campaign) {
-    const hasResponses = c.response_count > 0;
-    const msg = hasResponses
-      ? `⚠️ "${c.campaign_name}" has ${c.response_count.toLocaleString()} response${c.response_count !== 1 ? "s" : ""} collected.\n\nThe response data will be preserved in the database, but this campaign will no longer appear in your active view.\n\nMove to deleted items?`
-      : `Move "${c.campaign_name}" to deleted items? It can be restored later.`;
-    if (!confirm(msg)) return;
-    const res  = await fetch(`/api/campaigns/${c.id}`, { method: "DELETE" });
-    const json = await res.json();
-    if (!res.ok) { showToast(json.error ?? "Could not delete campaign.", false); }
-    else { showToast("Campaign deleted."); load(); }
-  }
-
-  async function handleUndelete(c: Campaign) {
-    const res = await fetch(`/api/campaigns/${c.id}`, {
-      method: "PUT", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ _action: "undelete" }),
-    });
-    if (!res.ok) { showToast("Could not restore campaign.", false); return; }
-    showToast("Campaign restored to Draft.");
-    setDeletedCampaigns(prev => prev.filter(x => x.id !== c.id));
-    load();
-  }
-
-  // ── Bulk selection ──────────────────────────────────────────────────────────
-  function toggleSelect(id: string) {
-    setSelectedIds(prev => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
-  }
-
-  function toggleSelectAll(ids: string[]) {
-    setSelectedIds(prev => {
-      const allSelected = ids.length > 0 && ids.every(id => prev.has(id));
-      return allSelected ? new Set() : new Set(ids);
-    });
-  }
-
-  function clearSelection() {
-    setSelectedIds(new Set());
-  }
-
-  async function handleBulkDelete() {
-    const targets = displayed.filter(c => selectedIds.has(c.id));
-    if (!targets.length) return;
-    const blocked = targets.filter(c => c.effective_status === "live" || c.effective_status === "paused" || c.status === "live" || c.status === "paused");
-    const eligible = targets.filter(c => !blocked.includes(c));
-    if (!eligible.length) {
-      showToast("None of the selected campaigns can be deleted — live and paused campaigns must be paused or closed first.", false);
-      return;
-    }
-    const msg = blocked.length > 0
-      ? `Move ${eligible.length} campaign(s) to deleted items? ${blocked.length} live/paused campaign(s) in your selection will be skipped.`
-      : `Move ${eligible.length} campaign(s) to deleted items? They can be restored later.`;
-    if (!confirm(msg)) return;
-
-    setBulkWorking(true);
-    let succeeded = 0, failed = 0;
-    for (const c of eligible) {
-      const res = await fetch(`/api/campaigns/${c.id}`, { method: "DELETE" });
-      if (res.ok) succeeded++; else failed++;
-    }
-    setBulkWorking(false);
-
-    const parts = [`${succeeded} deleted`];
-    if (blocked.length > 0) parts.push(`${blocked.length} skipped (live/paused)`);
-    if (failed > 0) parts.push(`${failed} failed`);
-    showToast(parts.join(", "), failed === 0);
-    clearSelection();
-    load();
-  }
-
-  async function handleBulkAction(action: CampaignAction) {
-    const targets = displayed.filter(c => selectedIds.has(c.id) && availableActions(c.effective_status ?? c.status as CampaignStatus).includes(action));
-    if (!targets.length) {
-      showToast(`No selected campaigns can be ${ACTION_LABELS[action].toLowerCase()}d right now.`, false);
-      return;
-    }
-    const skipped = selectedIds.size - targets.length;
-
-    setBulkWorking(true);
-    let succeeded = 0, failed = 0;
-    for (const c of targets) {
-      const res = await fetch(`/api/campaigns/${c.id}/actions`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action }),
-      });
-      if (res.ok) succeeded++; else failed++;
-    }
-    setBulkWorking(false);
-
-    const parts = [`${succeeded} ${ACTION_LABELS[action].toLowerCase()}d`];
-    if (skipped > 0) parts.push(`${skipped} skipped (not eligible)`);
-    if (failed > 0) parts.push(`${failed} failed`);
-    showToast(parts.join(", "), failed === 0);
-    clearSelection();
-    load();
-  }
-
-  async function handleBulkRestore() {
-    const targets = deletedCampaigns.filter(c => selectedIds.has(c.id));
-    if (!targets.length) return;
-    if (!confirm(`Restore ${targets.length} campaign(s) to Draft?`)) return;
-
-    setBulkWorking(true);
-    let succeeded = 0, failed = 0;
-    for (const c of targets) {
-      const res = await fetch(`/api/campaigns/${c.id}`, {
-        method: "PUT", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ _action: "undelete" }),
-      });
-      if (res.ok) succeeded++; else failed++;
-    }
-    setBulkWorking(false);
-
-    showToast(failed > 0 ? `${succeeded} restored, ${failed} failed` : `${succeeded} campaign(s) restored to Draft.`, failed === 0);
-    clearSelection();
-    load();
-    loadDeleted();
-  }
-
-  async function handleDuplicate(c: Campaign) {
-    const slug = generateDuplicateSlug(c.topic ?? "", c.campaign_name);
-    const payload = {
-      campaign_name:     `${c.campaign_name} (Copy)`,
-      campaign_id:       slug,
-      campaign_description: c.campaign_description,
-      start_date:        null,
-      end_date:          null,
-      survey_id:         c.survey_id,
-      publisher_org_id:  c.publisher_org_id,
-      brand_org_id:      c.brand_org_id,
-      agency_org_id:     c.agency_org_id,
-      topic:             c.topic,
-      study_type:        c.study_type,
-      status:            "draft",
-      target_responses:  c.target_responses,
-      archive_after_days: c.archive_after_days,
-    };
-    const res = await fetch("/api/campaigns", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    const json = await res.json();
-    if (!res.ok) { showToast(json.error ?? "Failed to duplicate campaign.", false); return; }
-    showToast("Campaign duplicated.");
-    setActiveTab("active");
-    load();
-  }
-
-  // ── CSV export ────────────────────────────────────────────────────────────
-  function exportCSV() {
-    const d = (s: string | null | undefined) => s ? new Date(s).toISOString().slice(0, 10) : "";
-    const rows = displayed.map(c => {
-      const pct = c.target_responses
-        ? Math.round((c.response_count / c.target_responses) * 100)
-        : "";
-      return {
-        "Campaign Name":    c.campaign_name,
-        "Slug":             c.campaign_id,
-        "Topic":            c.topic ?? "",
-        "Brand":            orgName(c.brand_org_id),
-        "Agency":           orgName(c.agency_org_id),
-        "Type":             studyTypeLabel(c.study_type),
-        "Country":          c.country_code ?? "",
-        "Market":           c.market ?? "",
-        "Publisher":        orgName(c.publisher_org_id),
-        "Survey":           c.surveys?.name ?? "",
-        "Status (Stored)":  c.status,
-        "Status (Effective)": c.effective_status ?? c.status,
-        "Status Reason":    c.status_reason ?? "",
-        "Start Date":       d(c.start_date),
-        "End Date":         d(c.end_date),
-        "Target Responses": c.target_responses ?? "",
-        "Responses":        c.response_count,
-        "Progress %":       pct,
-        "Created":          d(c.created_at),
-        "Deleted Date":     d(c.deleted_at),
-        "Deleted By":       c.deleted_by ?? "",
-      };
-    });
-    const csv  = Papa.unparse(rows);
-    const link = document.createElement("a");
-    link.href     = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
-    link.download = `fanometrix-campaigns-${new Date().toISOString().slice(0, 10)}.csv`;
-    link.click();
-  }
-
   // ── Render ─────────────────────────────────────────────────────────────────
-  const totalActive = activeCampaigns.length + closedCampaigns.length + archivedCampaigns.length;
-
   return (
     <AdminShell>
+      <Suspense fallback={null}>
+        <CampaignLinkReader
+          onCreateForProject={(projectId, surveyId) => { setLinkedProjectId(projectId); setLinkedSurveyId(surveyId); }}
+          onEditCampaignId={setEditCampaignId}
+          onReturnTo={setReturnToProjectId}
+        />
+      </Suspense>
       <div className="p-4 md:p-6 max-w-6xl mx-auto">
 
         {/* Header */}
@@ -758,18 +356,9 @@ export default function CampaignsPage() {
           <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-3">
             <div>
               <h1 className="text-2xl font-bold text-gray-900">Campaigns</h1>
-              <p className="text-sm text-gray-400 mt-0.5">
-                {totalActive} campaign{totalActive !== 1 ? "s" : ""} · {activeCampaigns.filter(c => c.effective_status === "live").length} live
-              </p>
+              <p className="text-sm text-gray-400 mt-0.5">Every campaign across every research project.</p>
             </div>
             <div className="flex gap-2 sm:flex-shrink-0">
-              <button
-                onClick={exportCSV}
-                disabled={displayed.length === 0}
-                className="text-sm border border-gray-200 text-gray-700 hover:bg-gray-50 px-3 py-2 rounded-lg font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                Export CSV
-              </button>
               <button onClick={openCreate}
                 className="text-sm font-semibold px-4 py-2 rounded-lg"
                 style={{ background: "#D7B87A", color: "#0B1929" }}>
@@ -836,390 +425,76 @@ export default function CampaignsPage() {
           </details>
         </div>
 
-        {/* Search + Filters */}
-        <div className="mb-5 space-y-3">
-          <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm pointer-events-none">🔍</span>
-            <input
-              type="search"
-              placeholder="Search campaigns…"
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              className="w-full border border-gray-200 rounded-lg pl-8 pr-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A]"
-            />
-          </div>
-
-          <div className="flex flex-wrap gap-3">
-          {activeTab === "active" && (
-            <select value={statusFilter} onChange={e => setStatusFilter(e.target.value as typeof statusFilter)}
-              className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A] text-gray-600">
-              <option value="all">All Statuses</option>
-              <option value="draft">Draft</option>
-              <option value="scheduled">Scheduled</option>
-              <option value="live">Live</option>
-              <option value="paused">Paused</option>
-            </select>
-          )}
-
-          <select value={usageFilter} onChange={e => setUsageFilter(e.target.value as typeof usageFilter)}
-            className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A] text-gray-600">
-            <option value="all">All Usage</option>
-            <option value="no_responses">No responses</option>
-            <option value="has_responses">Has responses</option>
-            <option value="target_reached">Target reached</option>
-            <option value="end_reached">End date reached</option>
-          </select>
-
-          <select value={dateFilter} onChange={e => setDateFilter(e.target.value as typeof dateFilter)}
-            className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A] text-gray-600">
-            <option value="all">Any time</option>
-            <option value="today">Today</option>
-            <option value="7days">Last 7 days</option>
-            <option value="30days">Last 30 days</option>
-          </select>
-
-          <select value={countryFilter} onChange={e => setCountryFilter(e.target.value)}
-            className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A] text-gray-600">
-            <option value="all">All Countries</option>
-            {countryOptions.map(([code, label]) => (
-              <option key={code} value={code}>{label}</option>
-            ))}
-          </select>
-
-          <select value={publisherFilter} onChange={e => setPublisherFilter(e.target.value)}
-            className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A] text-gray-600">
-            <option value="all">All Publishers</option>
-            {publisherOptions.map(p => (
-              <option key={p.id} value={p.id}>{p.name}</option>
-            ))}
-          </select>
-
-          <select value={brandFilter} onChange={e => setBrandFilter(e.target.value)}
-            className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A] text-gray-600">
-            <option value="all">All Brands</option>
-            {brandOptions.map(b => (
-              <option key={b.id} value={b.id}>{b.name}</option>
-            ))}
-          </select>
-
-          <select value={sortBy} onChange={e => setSortBy(e.target.value as typeof sortBy)}
-            className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A] text-gray-600">
-            <option value="recent">Most recent</option>
-            <option value="oldest">Oldest first</option>
-            <option value="az">A–Z</option>
-            <option value="status">By status</option>
-          </select>
-          </div>
-        </div>
-
-        {/* Tabs */}
-        <div className="flex gap-0 mb-5 border-b border-gray-200">
-          {(
-            [
-              { key: "active",   label: `Active (${activeCampaigns.length})`   },
-              { key: "closed",   label: `Closed (${closedCampaigns.length})`   },
-              { key: "archived", label: `Archived (${archivedCampaigns.length})` },
-              { key: "deleted",  label: "Deleted"                              },
-            ] as const
-          ).map(({ key, label }) => (
-            <button key={key}
-              onClick={() => {
-                setActiveTab(key);
-                setStatusFilter("all"); setUsageFilter("all");
-                setDateFilter("all"); setSearch("");
-                setCountryFilter("all"); setPublisherFilter("all"); setBrandFilter("all");
-                clearSelection();
-              }}
-              className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
-                activeTab === key
-                  ? "border-[#D7B87A] text-[#0B1929]"
-                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-              }`}>
-              {label}
-            </button>
-          ))}
-        </div>
-
-        {/* Select all + bulk action bar */}
-        {!loading && displayed.length > 0 && (() => {
-          const selectableIds = displayed.filter(c => !isLockedByAdminFor(c)).map(c => c.id);
-          if (selectableIds.length === 0) return null;
-          return (
-            <div className="flex items-center justify-between mb-3 text-sm">
-              <label className="flex items-center gap-2 text-gray-500 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={selectableIds.every(id => selectedIds.has(id))}
-                  onChange={() => toggleSelectAll(selectableIds)}
-                  className="w-4 h-4 accent-[#0B1929]"
-                />
-                Select all {selectableIds.length}
-              </label>
-            </div>
-          );
-        })()}
-
-        {selectedIds.size > 0 && (
-          <div className="sticky top-2 z-10 bg-[#0B1929] text-white rounded-xl px-4 py-3 mb-4 flex flex-wrap items-center gap-2 shadow-lg">
-            <span className="text-sm font-medium mr-2">{selectedIds.size} selected</span>
-            {activeTab === "deleted" ? (
-              <button onClick={handleBulkRestore} disabled={bulkWorking}
-                className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 disabled:opacity-50 transition-colors">
-                {bulkWorking ? "Working…" : "Restore"}
-              </button>
-            ) : (
-              <>
-                {(["publish", "go_live", "pause", "resume", "close", "archive"] as CampaignAction[]).map(action => (
-                  <button key={action} onClick={() => handleBulkAction(action)} disabled={bulkWorking}
-                    className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 disabled:opacity-50 transition-colors">
-                    {bulkWorking ? "…" : ACTION_LABELS[action]}
-                  </button>
-                ))}
-                <button onClick={handleBulkDelete} disabled={bulkWorking}
-                  className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-red-500/20 text-red-200 hover:bg-red-500/30 disabled:opacity-50 transition-colors">
-                  {bulkWorking ? "…" : "Delete"}
-                </button>
-              </>
-            )}
-            <button onClick={clearSelection} className="ml-auto text-xs text-white/60 hover:text-white transition-colors">
-              Clear
-            </button>
-          </div>
-        )}
-
-        {/* List */}
-        {(loading || (activeTab === "deleted" && loadingDeleted)) && (
-          <p className="text-gray-400 text-sm">Loading…</p>
-        )}
-
-        {!loading && !(activeTab === "deleted" && loadingDeleted) && displayed.length === 0 && (
-          <div className="text-center py-20 text-gray-400">
-            <p className="text-4xl mb-3">◎</p>
-            <p className="font-medium">
-              {activeTab === "active"   ? "No active campaigns"   :
-               activeTab === "closed"   ? "No closed campaigns"   :
-               activeTab === "archived" ? "No archived campaigns" :
-                                          "No deleted campaigns"}
-            </p>
-            {activeTab === "active" && <p className="text-sm mt-1">Create your first campaign to get started.</p>}
-          </div>
-        )}
-
-        <div className="space-y-3">
-          {displayed.map(c => {
-            const isDeleted = !!c.deleted_at;
-            const isLockedByAdmin = isLockedByAdminFor(c);
-            const actions   = isDeleted || isLockedByAdmin ? [] : availableActions(c.effective_status ?? c.status as CampaignStatus);
-            // Live/paused campaigns cannot be deleted to prevent accidental loss of active data.
-            // All other statuses can be deleted; responses are preserved in the DB.
-            const isLiveOrPaused = c.effective_status === "live" || c.effective_status === "paused"
-              || c.status === "live" || c.status === "paused";
-            const canDelete  = !isDeleted && !isLiveOrPaused && !isLockedByAdmin;
-            const hasResponses = c.response_count > 0;
-            const deleteTitle = isLockedByAdmin
-              ? "Set up by the Fanometrix team — can't be deleted."
-              : isLiveOrPaused
-              ? "Live and paused campaigns cannot be deleted. Pause or close it first."
-              : "Move to deleted items";
-
-            return (
-              <div key={c.id} className={`bg-white border rounded-xl p-5 shadow-sm transition-colors flex gap-3 ${
-                isDeleted ? "border-gray-100 opacity-75" : "border-gray-100 hover:border-gray-200"
-              }`}>
-                {isLockedByAdmin ? (
-                  <div className="w-4 h-4 mt-1 flex-shrink-0" title="Set up by the Fanometrix team — can't be selected for bulk actions." />
-                ) : (
-                  <input
-                    type="checkbox"
-                    checked={selectedIds.has(c.id)}
-                    onChange={() => toggleSelect(c.id)}
-                    className="w-4 h-4 mt-1 accent-[#0B1929] flex-shrink-0"
-                  />
-                )}
-                <div className="flex-1 min-w-0">
-                {isDeleted ? (
-                  /* ── Deleted card ── */
-                  <>
-                    <div className="flex items-start justify-between gap-3 mb-1">
-                      <div>
-                        <p className="font-semibold text-gray-400 line-through">{c.campaign_name}</p>
-                        <p className="text-xs font-mono text-gray-300 mt-0.5">{c.campaign_id}</p>
-                        <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1.5 text-xs text-gray-400">
-                          {c.deleted_by && <span>Deleted by: <span className="font-medium text-gray-500">{c.deleted_by}</span></span>}
-                          {c.deleted_at && <span>· {formatDate(c.deleted_at)}</span>}
-                        </div>
-                      </div>
-                      <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-red-50 text-red-500 flex-shrink-0">Deleted</span>
-                    </div>
-                    <div className="flex gap-2 mt-3">
-                      <button onClick={() => handleUndelete(c)}
-                        className="text-xs border border-green-200 text-green-700 hover:bg-green-50 px-3 py-1.5 rounded-lg transition-colors">
-                        Restore
-                      </button>
-                      <button onClick={() => handleDuplicate(c)}
-                        className="text-xs border border-gray-200 text-gray-600 hover:bg-gray-50 px-3 py-1.5 rounded-lg transition-colors">
-                        Duplicate
-                      </button>
-                    </div>
-                  </>
-                ) : (
-                  /* ── Active / Closed / Archived card ── */
-                  <>
-                    <div className="flex items-start gap-4">
-                      <Link href={`/campaigns/${c.id}`} className="flex-1 min-w-0 block group">
-
-                        {/* Title row */}
-                        <div className="flex items-start justify-between gap-3 mb-0.5">
-                          <div className="min-w-0 flex-1">
-                            <p className="font-semibold text-gray-900 group-hover:text-[#0B1929] truncate">
-                              {c.campaign_name}
-                            </p>
-                            {c.campaign_description ? (
-                              <p className="text-xs text-gray-400 mt-0.5 truncate">{c.campaign_description}</p>
-                            ) : (
-                              <p className="text-xs font-mono text-gray-400 mt-0.5">{c.campaign_id}</p>
-                            )}
-                          </div>
-                          <StatusBadge status={c.effective_status ?? c.status as CampaignStatus} />
-                        </div>
-
-                        {/* Metadata chips */}
-                        <div className="flex flex-wrap gap-1.5 mt-2">
-                          {isLockedByAdmin && (
-                            <span className="text-xs bg-amber-50 text-amber-700 px-2 py-0.5 rounded-full" title="Set up by the Fanometrix team — read-only.">
-                              Set up by Fanometrix
-                            </span>
-                          )}
-                          {c.surveys?.name && (
-                            <span className="text-xs bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full">
-                              Survey: {c.surveys.name}
-                            </span>
-                          )}
-                          {orgName(c.publisher_org_id) && (
-                            <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">{orgName(c.publisher_org_id)}</span>
-                          )}
-                        </div>
-
-                        {/* Dates */}
-                        {(c.start_date || c.end_date) && (
-                          <p className="text-xs text-gray-400 mt-1.5">
-                            {formatDate(c.start_date)} → {c.end_date ? formatDate(c.end_date) : "ongoing"}
-                          </p>
-                        )}
-
-                        <CampaignProgress c={c} />
-                      </Link>
-                    </div>
-
-                    {/* Action buttons */}
-                    <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-50">
-                      {/* Lifecycle actions */}
-                      <div className="flex gap-1.5 flex-wrap">
-                        {actions.map(action => (
-                          <button key={action}
-                            onClick={() => handleAction(c.id, action)}
-                            disabled={actioning === c.id + action}
-                            className={`text-xs border px-3 py-1.5 rounded-lg font-medium transition-colors disabled:opacity-50 ${ACTION_STYLE[action] ?? "border-gray-200 text-gray-600 hover:bg-gray-50"}`}>
-                            {actioning === c.id + action ? "…" : ACTION_LABELS[action]}
-                          </button>
-                        ))}
-                      </div>
-
-                      {/* Card management buttons */}
-                      <div className="flex gap-1.5 ml-auto">
-                        {isLockedByAdmin ? (
-                          <button disabled title="Set up by the Fanometrix team — can't be edited."
-                            className="text-xs border border-gray-100 text-gray-300 px-3 py-1.5 rounded-lg cursor-not-allowed">
-                            Edit
-                          </button>
-                        ) : c.effective_status !== "archived" ? (
-                          <button onClick={() => openEdit(c)}
-                            className="text-xs border border-gray-200 text-gray-600 hover:bg-gray-50 px-3 py-1.5 rounded-lg transition-colors">
-                            Edit
-                          </button>
-                        ) : (
-                          <button disabled title="Restore this campaign to edit it"
-                            className="text-xs border border-gray-100 text-gray-300 px-3 py-1.5 rounded-lg cursor-not-allowed">
-                            Edit
-                          </button>
-                        )}
-
-                        <button
-                          onClick={() => setPreviewCampaign(c)}
-                          title="Preview the survey creative"
-                          className="text-xs border px-3 py-1.5 rounded-lg transition-colors font-medium"
-                          style={{ borderColor: "#D7B87A", color: "#0B1929", background: "#D7B87A" }}
-                        >
-                          Preview
-                        </button>
-
-                        <button onClick={() => handleDuplicate(c)}
-                          className="text-xs border border-gray-200 text-gray-600 hover:bg-gray-50 px-3 py-1.5 rounded-lg transition-colors">
-                          Duplicate
-                        </button>
-
-                        <button
-                          onClick={canDelete ? () => handleDelete(c) : undefined}
-                          disabled={!canDelete}
-                          title={deleteTitle}
-                          className={`text-xs border px-3 py-1.5 rounded-lg transition-colors ${
-                            canDelete
-                              ? "border-red-100 text-red-400 hover:bg-red-50"
-                              : "border-gray-100 text-gray-300 cursor-not-allowed"
-                          }`}>
-                          Delete
-                        </button>
-                      </div>
-                    </div>
-                  </>
-                )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
+        <CampaignsManager
+          campaigns={campaigns}
+          deletedCampaigns={deletedCampaigns}
+          orgs={orgs}
+          loading={loading}
+          loadingDeleted={loadingDeleted}
+          isLockedByAdminFor={isLockedByAdminFor}
+          onLoadDeletedRequested={onLoadDeletedRequested}
+          onReload={load}
+          onEditCampaign={openEdit}
+          showExportButton
+        />
       </div>
 
       {/* ── Edit / Create Drawer ──────────────────────────────────────────────── */}
       {drawerOpen && (
         <div className="fixed inset-0 z-50 flex">
-          <div className="flex-1 bg-black/40" onClick={() => setDrawerOpen(false)} />
+          <div className="flex-1 bg-black/40" onClick={closeDrawer} />
           <div className="w-full sm:w-[480px] bg-white flex flex-col shadow-2xl overflow-hidden">
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
               <h2 className="font-bold text-gray-900">{editing.id ? "Edit Campaign" : "Create Campaign"}</h2>
-              <button onClick={() => setDrawerOpen(false)} className="text-gray-400 hover:text-gray-600 text-xl">×</button>
+              <button onClick={closeDrawer} className="text-gray-400 hover:text-gray-600 text-xl">×</button>
             </div>
 
             <div className="flex-1 overflow-y-auto p-6 space-y-5">
 
               <DrawerSection step={1} title="Campaign Identity" subtitle="Naming, description, and optional parent research project.">
-                <NameBuilder
-                  topic={editing.topic ?? ""}
-                  onTopicChange={v => setEditing(x => ({ ...x, topic: v }))}
-                  brandOrgId={editing.brand_org_id ?? ""}
-                  onBrandChange={v => setEditing(x => ({ ...x, brand_org_id: v || null }))}
-                  brandOptions={brandOrgs}
-                  agencyOrgId={editing.agency_org_id ?? ""}
-                  onAgencyChange={v => setEditing(x => ({ ...x, agency_org_id: v || null }))}
-                  agencyOptions={agencyOrgs}
-                  studyType={editing.study_type ?? "custom"}
-                  onStudyTypeChange={v => setEditing(x => ({ ...x, study_type: v }))}
-                  onAutoGenerate={autoId}
-                  preview={generateCampaignName(
-                    editing.topic ?? "", studyTypeLabel(editing.study_type ?? ""),
-                    orgName(editing.brand_org_id ?? null), orgName(editing.agency_org_id ?? null),
-                    editing.country_code ?? "", orgName(editing.publisher_org_id ?? null)
-                  )}
-                />
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="Campaign Name *">
+                    <input value={editing.campaign_name ?? ""}
+                      onChange={e => setEditing(x => ({ ...x, campaign_name: e.target.value }))}
+                      className={INP} placeholder="e.g. Summer Brand Awareness Push" />
+                  </Field>
+                  <Field label="Type *">
+                    <select value={editing.study_type ?? "custom"} onChange={e => setEditing(x => ({ ...x, study_type: e.target.value }))}
+                      className={INP}>
+                      {STUDY_TYPES.map(t => (
+                        <option key={t} value={t}>{STUDY_TYPE_LABELS[t]}</option>
+                      ))}
+                    </select>
+                  </Field>
+                </div>
 
-                <Field label="Campaign Name *">
-                  <input value={editing.campaign_name ?? ""} onChange={e => setEditing(x => ({ ...x, campaign_name: e.target.value }))}
-                    className={INP} placeholder="Carlsberg | Fan Understanding | UK | Football365 | 2026" />
-                </Field>
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="Brand (optional)">
+                    <select value={editing.brand_org_id ?? ""} onChange={e => setEditing(x => ({ ...x, brand_org_id: e.target.value || null }))}
+                      className={INP}>
+                      <option value="">None</option>
+                      {brandOrgs.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
+                    </select>
+                  </Field>
+                  <Field label="Agency (optional)">
+                    <select value={editing.agency_org_id ?? ""} onChange={e => setEditing(x => ({ ...x, agency_org_id: e.target.value || null }))}
+                      className={INP}>
+                      <option value="">None</option>
+                      {agencyOrgs.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
+                    </select>
+                  </Field>
+                </div>
+                {isAdmin && (
+                  <p className="text-right -mt-2">
+                    <Link href="/organisations?type=brand" className="text-xs text-gray-400 hover:text-[#0B1929] underline">
+                      Manage Brands &amp; Agencies →
+                    </Link>
+                  </p>
+                )}
 
                 <Field label="Campaign ID *">
-                  <input value={editing.campaign_id ?? ""} onChange={e => setEditing(x => ({ ...x, campaign_id: e.target.value }))}
+                  <input value={editing.campaign_id ?? ""}
+                    onChange={e => setEditing(x => ({ ...x, campaign_id: e.target.value }))}
                     className={`${INP} font-mono`} placeholder="carlsberg_fan_understanding_uk_football365_2026" />
                   <p className="text-xs text-gray-400 mt-1">Used in embed URLs. Lowercase, underscores only.</p>
                 </Field>
@@ -1232,7 +507,7 @@ export default function CampaignsPage() {
                 <Field label="Research Project">
                   <select value={editing.research_project_id ?? ""} onChange={e => setEditing(x => ({ ...x, research_project_id: e.target.value || null }))}
                     className={INP}>
-                    <option value="">No project — standalone campaign</option>
+                    <option value="">No project, standalone campaign</option>
                     {researchProjects.map(p => (
                       <option key={p.id} value={p.id}>{p.project_name}</option>
                     ))}
@@ -1245,7 +520,7 @@ export default function CampaignsPage() {
                 </Field>
               </DrawerSection>
 
-              <DrawerSection step={2} title="Market Targeting" subtitle="Publisher, country and language for this specific deployment — always stored independently." prominent>
+              <DrawerSection step={2} title="Market Targeting" subtitle="Publisher, country and language for this specific deployment, always stored independently." prominent>
                 <Field label="Publisher">
                   <select
                     value={editing.publisher_org_id ?? ""}
@@ -1253,7 +528,7 @@ export default function CampaignsPage() {
                     disabled={user?.role === "publisher"}
                     className={`${INP} ${user?.role === "publisher" ? "bg-gray-50 text-gray-500" : ""}`}
                   >
-                    <option value="">— Select publisher —</option>
+                    <option value="">Select publisher</option>
                     {publisherOrgs.map(o => (
                       <option key={o.id} value={o.id}>{o.name}</option>
                     ))}
@@ -1397,7 +672,7 @@ export default function CampaignsPage() {
                 )}
               </DrawerSection>
 
-              <DrawerSection step={4} title="Campaign Settings" subtitle="Dates, response targets, archive timing, and status — each can inherit from the linked project.">
+              <DrawerSection step={4} title="Campaign Settings" subtitle="Dates, response targets, archive timing, and status, each can inherit from the linked project.">
                 <div className="grid grid-cols-2 gap-3">
                   {selectedProject ? (
                     <InheritableField
@@ -1445,8 +720,8 @@ export default function CampaignsPage() {
                     <InheritableField
                       label="Target Responses"
                       inherited={editing.target_responses == null}
-                      resolvedDisplay={selectedProject.target_responses?.toLocaleString() ?? "—"}
-                      onOverride={() => setEditing(x => ({ ...x, target_responses: selectedProject.target_responses ?? null }))}
+                      resolvedDisplay={surveyEvidenceDefaults?.target_responses?.toLocaleString() ?? "—"}
+                      onOverride={() => setEditing(x => ({ ...x, target_responses: surveyEvidenceDefaults?.target_responses ?? null }))}
                       onRevert={() => setEditing(x => ({ ...x, target_responses: null }))}
                     >
                       <input type="number" min={1}
@@ -1513,8 +788,8 @@ export default function CampaignsPage() {
                     <InheritableField
                       label="Design"
                       inherited={editing.creative_design == null}
-                      resolvedDisplay={designNames[selectedProject.creative_design ?? ""] ?? "Fanometrix Default"}
-                      onOverride={() => setEditing(x => ({ ...x, creative_design: selectedProject.creative_design ?? null }))}
+                      resolvedDisplay={designNames[surveyEvidenceDefaults?.creative_design ?? ""] ?? "Fanometrix Default"}
+                      onOverride={() => setEditing(x => ({ ...x, creative_design: surveyEvidenceDefaults?.creative_design ?? null }))}
                       onRevert={() => setEditing(x => ({ ...x, creative_design: null }))}
                     >
                       <CreativeDesignPicker
@@ -1541,7 +816,7 @@ export default function CampaignsPage() {
             </div>
 
             <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-3">
-              <button onClick={() => setDrawerOpen(false)} className="text-sm text-gray-500 px-4 py-2">Cancel</button>
+              <button onClick={closeDrawer} className="text-sm text-gray-500 px-4 py-2">Cancel</button>
               <button onClick={handleSave} disabled={saving}
                 className="text-sm font-semibold px-5 py-2 rounded-lg disabled:opacity-60"
                 style={{ background: "#D7B87A", color: "#0B1929" }}>
@@ -1550,11 +825,6 @@ export default function CampaignsPage() {
             </div>
           </div>
         </div>
-      )}
-
-      {/* Campaign preview modal */}
-      {previewCampaign && (
-        <CampaignPreviewModal campaign={previewCampaign} onClose={() => setPreviewCampaign(null)} />
       )}
 
       {/* Toast */}

@@ -54,7 +54,7 @@ export function GenerateDeploymentsCard({
     // The button is disabled in this state too; this only matters if the
     // underlying data changed since this card last rendered.
     if (mismatches.length > 0) {
-      setError(`Cannot generate — survey language mismatch (${mismatches.map(({ code, lang }) => `${code} → ${languageLabel(lang)} version required`).join(", ")}).`);
+      setError(`Cannot generate, survey language mismatch (${mismatches.map(({ code, lang }) => `${code} → ${languageLabel(lang)} version required`).join(", ")}).`);
       return;
     }
     setError("");
@@ -80,7 +80,7 @@ export function GenerateDeploymentsCard({
           >
             {generating ? "Generating…" : "Generate Deployments"}
           </button>
-          <InfoTooltip text="Creates a campaign for each Publisher × Country combination on this project. Safe to click again later — existing campaigns are skipped, only new or removed-then-re-added combinations are created or restored. It never deletes campaigns for publishers/countries you've since removed." />
+          <InfoTooltip text="Creates a campaign for each Publisher × Country combination on this project. Safe to click again later, existing campaigns are skipped, only new or removed-then-re-added combinations are created or restored. It never deletes campaigns for publishers/countries you've since removed." />
         </span>
         {canGenerate && deploymentCount < possibleCombos && (
           <span className="text-xs text-amber-600">

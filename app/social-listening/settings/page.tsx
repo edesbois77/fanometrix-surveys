@@ -90,8 +90,8 @@ export default function SLSettingsPage() {
             {[
               { label: "Sentiment Model",   value: process.env.NEXT_PUBLIC_APP_URL ? "GPT-4o-mini (OpenAI)" : "Rule-based fallback", active: true },
               { label: "Football Taxonomy", value: "19 topics, 20 subtopics",  active: true  },
-              { label: "Language Detection",value: "Planned — V2 Phase 2",     active: false },
-              { label: "Auto-reclassify",   value: "Planned — V2 Phase 2",     active: false },
+              { label: "Language Detection",value: "Planned, V2 Phase 2",     active: false },
+              { label: "Auto-reclassify",   value: "Planned, V2 Phase 2",     active: false },
             ].map(item => (
               <div key={item.label} className="flex items-center justify-between px-5 py-3">
                 <p className="text-sm font-medium text-gray-800">{item.label}</p>

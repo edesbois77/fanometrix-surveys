@@ -1,0 +1,74 @@
+// Server-only. Stage 3 of the ingestion pipeline: extracting → analysing →
+// pending_review (or failed). Two entry points share the same core work
+// (performDocumentAnalysis):
+//   - runAnalysis() — the automatic pipeline stage run-extraction.ts chains
+//     into. Claims extracting → analysing as its own atomic transition
+//     (conditional UPDATE ... WHERE status = 'extracting'), not
+//     run-extraction.ts writing 'analysing' and this function trusting
+//     that write — a claim that only ever matched its own target status
+//     would be a no-op mutex (two genuinely concurrent calls could both
+//     pass it), so this only proceeds if it's the one call that actually
+//     moved the row out of 'extracting'.
+//   - performDocumentAnalysis() alone — called directly by the "Re-analyse"
+//     API route (an explicit, authenticated user action, not a
+//     background race-prone trigger, so it doesn't need the claim).
+import { supabaseAdmin } from "@/lib/supabase-admin";
+import { analyseDocument, type AnalyseDocumentChunk } from "@/lib/intelligence/analysts/analyseDocument";
+import { saveNewAnalysis, type LibraryDocumentAnalysisRow } from "@/lib/library-documents/analysis-store";
+
+/** Runs the analyst against a document's already-extracted chunks and
+ * saves the result as a new library_document_analysis version. Does not
+ * touch library_documents.status — callers decide what that means for
+ * the pipeline (first run vs. a manual re-analysis). `generatedBy` is
+ * "system" for the automatic pipeline (runAnalysis below) and the
+ * requesting admin's email for an explicit "Re-analyse" call. */
+export async function performDocumentAnalysis(libraryDocumentId: string, title: string, generatedBy: string): Promise<LibraryDocumentAnalysisRow> {
+  const { data: chunkRows } = await supabaseAdmin
+    .from("library_document_chunks")
+    .select("id, chunk_index, page_start, page_end, printed_page_label, section_label, evidence_kind, chunk_text")
+    .eq("library_document_id", libraryDocumentId)
+    .order("chunk_index", { ascending: true });
+
+  const chunks: AnalyseDocumentChunk[] = (chunkRows ?? []).map(c => ({
+    id: c.id,
+    chunk_index: c.chunk_index,
+    page_start: c.page_start,
+    page_end: c.page_end,
+    printed_page_label: c.printed_page_label,
+    section_label: c.section_label,
+    evidence_kind: c.evidence_kind,
+    chunk_text: c.chunk_text,
+  }));
+
+  const content = await analyseDocument(title, chunks);
+
+  return saveNewAnalysis({ libraryDocumentId, content, model: "gpt-4o", generatedBy });
+}
+
+export async function runAnalysis(libraryDocumentId: string): Promise<void> {
+  const { data: claimed } = await supabaseAdmin
+    .from("library_documents")
+    .update({ status: "analysing", error_message: null })
+    .eq("id", libraryDocumentId)
+    .eq("status", "extracting")
+    .select("id, title")
+    .maybeSingle();
+
+  // Not currently 'extracting' — either already claimed by another
+  // trigger, or genuinely not ready yet. Nothing to do.
+  if (!claimed) return;
+
+  try {
+    await performDocumentAnalysis(libraryDocumentId, claimed.title, "system");
+    await supabaseAdmin
+      .from("library_documents")
+      .update({ status: "pending_review", error_message: null })
+      .eq("id", libraryDocumentId);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Analysis failed.";
+    await supabaseAdmin
+      .from("library_documents")
+      .update({ status: "failed", error_message: message })
+      .eq("id", libraryDocumentId);
+  }
+}

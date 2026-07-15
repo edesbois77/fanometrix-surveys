@@ -5,9 +5,9 @@ import { ImageProtection } from "@/app/components/ImageProtection";
 import { APP_URL } from "@/lib/env";
 
 export const metadata: Metadata = {
-  title: "Fanometrix for Publishers — Give Your Audience a Voice",
+  title: "Fanometrix for Publishers, Give Your Audience a Voice",
   description:
-    "Deploy short, anonymous fan surveys on your existing inventory in minutes. Understand your audience, win more business, and benchmark against the wider football ecosystem — at no commercial cost.",
+    "Deploy short, anonymous fan surveys on your existing inventory in minutes. Understand your audience, win more business, and benchmark against the wider football ecosystem, at no commercial cost.",
 };
 
 // ─── Design tokens (matches the public homepage) ─────────────────────────────
@@ -612,7 +612,7 @@ export default function ForPublishersPage() {
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={image}
-                    alt={`${label} — real Fanometrix product screenshot`}
+                    alt={`${label}, real Fanometrix product screenshot`}
                     className="w-full h-full object-cover object-top ease-in-out group-hover:object-bottom"
                     style={{ transitionProperty: "object-position", transitionDuration: `${hoverPanMs}ms` }}
                   />

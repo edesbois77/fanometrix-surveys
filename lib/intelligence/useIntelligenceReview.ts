@@ -10,7 +10,14 @@
 // the IntelligenceReviewAdapter the caller provides — this hook doesn't
 // know or care whether a request body uses "search_id" or "survey_id", so
 // existing API routes never need to change to be reused here.
-import { useState, useEffect, useCallback } from "react";
+//
+// `publish` is optional on the adapter (added when the Research Library's
+// global document analysis needed this same draft → edited → approved
+// workflow, but has no "published" state at all — see
+// supabase-migration-101.sql's header comment on why). Every existing
+// adapter still provides it and behaves exactly as before; an adapter that
+// omits it simply has no publish action, publishSummary() becomes a no-op.
+import { useState, useEffect, useCallback, useRef } from "react";
 
 export type ReviewStatus = "draft" | "edited" | "approved" | "published";
 
@@ -20,9 +27,19 @@ export type SummaryRow<TReport> = {
   edited_content: TReport | null;
   status:         ReviewStatus;
   generated_at:   string;
+  /** The row's own last-modified timestamp — bumped by any edit, approve
+   * or publish, not just the original generation. Already present on
+   * every API response (getSummary/saveDraft/saveEdit/approve/publish all
+   * select("*") or return the full updated row), this just declares it on
+   * the client-facing type so every report page can show a genuine "Last
+   * updated" rather than only ever showing when it was first generated. */
+  updated_at:     string;
   reviewed_by:    string | null;
   reviewed_at:    string | null;
   published_at:   string | null;
+  /** Set server-side, resolved from the source itself — see
+   * lib/intelligence/store.ts's saveDraft(). */
+  is_simulated:   boolean;
 };
 
 type ActionResult<TReport> =
@@ -34,7 +51,7 @@ export type IntelligenceReviewAdapter<TReport> = {
   generate:     (confirm: boolean) => Promise<ActionResult<TReport>>;
   saveEdit:     (editedContent: TReport) => Promise<ActionResult<TReport>>;
   approve:      () => Promise<ActionResult<TReport>>;
-  publish:      () => Promise<ActionResult<TReport>>;
+  publish?:     () => Promise<ActionResult<TReport>>;
 };
 
 export function useIntelligenceReview<TReport>(
@@ -70,16 +87,31 @@ export function useIntelligenceReview<TReport>(
   const current: TReport | null = row ? (row.edited_content ?? row.content) : null;
   const busy = generating || saving || approving || publishing;
 
+  // Single in-flight generation guard. `setGenerating(true)` is async, so it
+  // cannot by itself stop two calls that arrive in the same tick (a rapid
+  // double-click, or an auto-generate effect racing the explicit Generate
+  // button) from both reaching `adapter.generate()` and firing duplicate
+  // POSTs. This ref flips synchronously, so a second call while one is in
+  // flight is a no-op — making `generate()` the one authoritative path no
+  // matter how many triggers call it.
+  const generatingRef = useRef(false);
+
   async function generate(confirm = false) {
+    if (generatingRef.current) return;
+    generatingRef.current = true;
     setGenerating(true); setError("");
-    const result = await adapter.generate(confirm);
-    setGenerating(false);
-    if (!result.ok) {
-      if (result.requiresConfirm) { setConfirmRegen(true); return; }
-      setError(result.error);
-      return;
+    try {
+      const result = await adapter.generate(confirm);
+      if (!result.ok) {
+        if (result.requiresConfirm) { setConfirmRegen(true); return; }
+        setError(result.error);
+        return;
+      }
+      setRow(result.data); setEditing(false); setDraft(null);
+    } finally {
+      generatingRef.current = false;
+      setGenerating(false);
     }
-    setRow(result.data); setEditing(false); setDraft(null);
   }
 
   function startEditing() {
@@ -111,6 +143,7 @@ export function useIntelligenceReview<TReport>(
   }
 
   async function publishSummary() {
+    if (!adapter.publish) return;
     setPublishing(true); setError("");
     const result = await adapter.publish();
     setPublishing(false);

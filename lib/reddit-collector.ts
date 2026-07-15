@@ -49,7 +49,7 @@ async function redditGet(path: string, session: RedditSession) {
   const res = await fetch(`https://oauth.reddit.com${path}`, {
     headers: { Authorization: `Bearer ${session.accessToken}`, "User-Agent": session.userAgent },
   });
-  if (res.status === 429) throw new Error("Reddit rate limit hit — try again shortly");
+  if (res.status === 429) throw new Error("Reddit rate limit hit, try again shortly");
   if (!res.ok) throw new Error(`Reddit API error: ${res.status} (${path})`);
   return res.json();
 }

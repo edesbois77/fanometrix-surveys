@@ -63,6 +63,19 @@ export async function POST(req: NextRequest) {
 
   if (!rows?.length) return NextResponse.json({ error: "No rows provided" }, { status: 400 });
 
+  // Real collection only. A simulated search only ever receives
+  // evidence from the Simulation engine's own generation routes.
+  if (search_id) {
+    const { data: search } = await supabaseAdmin
+      .from("social_searches")
+      .select("is_simulated")
+      .eq("id", search_id)
+      .single();
+    if (search?.is_simulated) {
+      return NextResponse.json({ error: "This search belongs to a simulated research project and cannot import real mentions." }, { status: 403 });
+    }
+  }
+
   let saved = 0, failed = 0;
   const BATCH = 5; // classify in small batches to avoid rate limits
 

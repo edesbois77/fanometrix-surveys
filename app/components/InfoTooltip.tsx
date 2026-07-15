@@ -15,7 +15,7 @@ const POPOVER_WIDTH = 256; // px, matches w-64
  * usually sits inside a card with `overflow-hidden` (for rounded corners),
  * which would otherwise clip the popover.
  */
-export function InfoTooltip({ text }: { text: string }) {
+export function InfoTooltip({ text, dark }: { text: React.ReactNode; dark?: boolean }) {
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
@@ -47,14 +47,18 @@ export function InfoTooltip({ text }: { text: string }) {
         type="button"
         onClick={() => setOpen(o => !o)}
         aria-label="More information"
-        className="w-4 h-4 flex items-center justify-center rounded-full text-[10px] font-semibold border border-gray-300 text-gray-400 hover:border-gray-400 hover:text-gray-600 transition-colors"
+        className={`w-4 h-4 flex items-center justify-center rounded-full text-[10px] font-semibold border transition-colors ${
+          dark
+            ? "border-white/30 text-white/60 hover:border-white/60 hover:text-white"
+            : "border-gray-300 text-gray-400 hover:border-gray-400 hover:text-gray-600"
+        }`}
       >
         i
       </button>
       {open && pos && createPortal(
         <div
           style={{ position: "fixed", top: pos.top, left: pos.left, width: POPOVER_WIDTH }}
-          className="z-50 text-xs leading-relaxed text-gray-600 bg-white border border-gray-200 rounded-lg shadow-lg p-3"
+          className="z-50 text-xs leading-relaxed text-gray-600 bg-white border border-gray-200 rounded-lg shadow-lg p-3 space-y-2"
         >
           {text}
         </div>,

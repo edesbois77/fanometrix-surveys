@@ -40,7 +40,7 @@ export function CreativeDesignPreview({ designId }: { designId: string | null | 
   return (
     <div className="space-y-2 pt-1">
       <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-        Preview — {name}
+        Preview, {name}
       </p>
       <div className="flex justify-center py-2">
         {layout === "timer" ? (

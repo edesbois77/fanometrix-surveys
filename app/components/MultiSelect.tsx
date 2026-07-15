@@ -148,7 +148,7 @@ export function MultiSelect({
           <p className="text-xs text-red-500 mt-1">
             {unmatchedMessage
               ? unmatchedMessage(search)
-              : `"${search}" is not a recognised option — select from the list.`}
+              : `"${search}" is not a recognised option, select from the list.`}
           </p>
         )}
         {open && !hasUnmatched && (

@@ -11,6 +11,7 @@ import { requireUser } from "@/lib/auth-server";
 import { analyseSurvey } from "@/lib/intelligence/analysts/analyseSurvey";
 import { getSummary, saveDraft } from "@/lib/intelligence/store";
 import { IntelligenceError } from "@/lib/intelligence/types";
+import { assertSimulatedResearchReady } from "@/lib/intelligence/assert-research-ready";
 
 export type { SurveyIntelligenceReport } from "@/lib/intelligence/analysts/analyseSurvey";
 
@@ -27,7 +28,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   try { session = await requireUser(req, ["admin"]); } catch (err) { return err as Response; }
 
   const { id } = await params;
-  const { confirm } = await req.json().catch(() => ({ confirm: false }));
+  const { confirm, research_project_evidence_id } = await req.json().catch(() => ({ confirm: false }));
 
   // Regenerating replaces the current draft outright, but once an admin
   // has edited/approved/published it, silently discarding that work
@@ -41,6 +42,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   }
 
   try {
+    await assertSimulatedResearchReady("survey", id, research_project_evidence_id);
     const report = await analyseSurvey(id);
     const saved  = await saveDraft({
       sourceType:  "survey",

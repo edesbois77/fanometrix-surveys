@@ -383,8 +383,8 @@ export function VariantB({
     if (!el || typeof IntersectionObserver === "undefined") return;
     const observer = new IntersectionObserver(([entry]) => {
       isVisibleRef.current = entry.isIntersecting;
-      if (entry.isIntersecting && !document.hidden) { setIsRunning(true); emit("timer", "Started — entered viewport"); }
-      else { setIsRunning(false); emit("timer", "Paused — left viewport"); }
+      if (entry.isIntersecting && !document.hidden) { setIsRunning(true); emit("timer", "Started, entered viewport"); }
+      else { setIsRunning(false); emit("timer", "Paused, left viewport"); }
     }, { threshold: 0.1 });
     observer.observe(el);
     return () => observer.disconnect();
@@ -394,8 +394,8 @@ export function VariantB({
   // ── Page Visibility API ────────────────────────────────────────────────────
   useEffect(() => {
     function onVisibility() {
-      if (document.hidden) { setIsRunning(false); emit("timer", "Paused — tab hidden"); }
-      else if (isVisibleRef.current) { setIsRunning(true); emit("timer", "Resumed — tab visible"); }
+      if (document.hidden) { setIsRunning(false); emit("timer", "Paused, tab hidden"); }
+      else if (isVisibleRef.current) { setIsRunning(true); emit("timer", "Resumed, tab visible"); }
     }
     document.addEventListener("visibilitychange", onVisibility);
     return () => document.removeEventListener("visibilitychange", onVisibility);
@@ -415,7 +415,7 @@ export function VariantB({
     if (timeLeft !== 0 || timerExpired || phase !== "question") return;
     setIsRunning(false);
     setTimerExpired(true);
-    emit("timer", "Expired — waiting for user selection");
+    emit("timer", "Expired, waiting for user selection");
 
     expiredPulseRef.current = setInterval(() => {
       setCenterPulse(true);
@@ -519,7 +519,7 @@ export function VariantB({
         boxSizing: "border-box",
       }}
       role="region"
-      aria-label="Fan survey — Variant B"
+      aria-label="Fan survey, Variant B"
     >
       {showPrivacy && <PrivacyOverlay theme={theme} onClose={closePrivacy} />}
       {phase === "thankyou" && <ThankYouScreen theme={theme} />}

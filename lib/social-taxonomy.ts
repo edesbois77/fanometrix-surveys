@@ -58,7 +58,7 @@ export function buildClassificationPrompt(content: string): string {
 
 Content: "${content}"
 
-Respond with valid JSON only — no markdown, no explanation:
+Respond with valid JSON only, no markdown, no explanation:
 {
   "sentiment": "Positive" | "Neutral" | "Negative" | "Unknown",
   "topic": one of [${FOOTBALL_TOPICS.map(t => `"${t}"`).join(", ")}],

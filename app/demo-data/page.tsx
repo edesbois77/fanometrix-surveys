@@ -106,7 +106,7 @@ export default function DemoDataPage() {
         headers: { "Content-Type": "application/json" },
         body:    JSON.stringify({ count }),
       });
-      if (!res.ok) { showToast("Generation failed — check console.", false); break; }
+      if (!res.ok) { showToast("Generation failed, check console.", false); break; }
       setProgress({ done: Math.min((i + 1) * BATCH, total), total });
     }
 
@@ -126,11 +126,11 @@ export default function DemoDataPage() {
     await loadStats();
 
     if (!res.ok || json.error) {
-      showToast(json.error ?? "Delete failed — check server logs.", false);
+      showToast(json.error ?? "Delete failed, check server logs.", false);
     } else if ((json.deleted ?? 0) > 0) {
       showToast(`${json.deleted.toLocaleString()} demo responses deleted.`);
     } else {
-      showToast("Delete ran but no rows were removed — check server logs.", false);
+      showToast("Delete ran but no rows were removed, check server logs.", false);
     }
   }
 
@@ -198,7 +198,7 @@ export default function DemoDataPage() {
                   style={{ width: `${pct}%` }}
                 />
               </div>
-              <p className="text-xs text-gray-400">Inserting in batches of 500 — please wait…</p>
+              <p className="text-xs text-gray-400">Inserting in batches of 500, please wait…</p>
             </div>
           ) : (
             <div className="grid grid-cols-4 gap-3">

@@ -24,6 +24,10 @@ export type AuthedUser = {
   organisationType: OrganisationType | null;
   accessScope: "organisation_wide" | "selected";
   status: "pending_invitation" | "active" | "disabled";
+  /** Capability grant, not a role — admins can always do this regardless
+   * of this flag; checked separately wherever Simulation access is
+   * gated (never a substitute for the admin role check). */
+  canPresentSimulations: boolean;
 };
 
 type UserRow = {
@@ -35,6 +39,7 @@ type UserRow = {
   organisation_id: string | null;
   access_scope: "organisation_wide" | "selected";
   status: "pending_invitation" | "active" | "disabled";
+  can_present_simulations: boolean;
   organisations: { name: string; type: OrganisationType; status: "active" | "disabled" } | { name: string; type: OrganisationType; status: "active" | "disabled" }[] | null;
 };
 
@@ -60,7 +65,7 @@ export async function requireUser(
 
   const { data, error } = await supabaseAdmin
     .from("users")
-    .select("id, work_email, first_name, last_name, role, organisation_id, access_scope, status, organisations ( name, type, status )")
+    .select("id, work_email, first_name, last_name, role, organisation_id, access_scope, status, can_present_simulations, organisations ( name, type, status )")
     .eq("id", session.sub)
     .single();
 
@@ -92,5 +97,6 @@ export async function requireUser(
     organisationType: org?.type ?? null,
     accessScope: row.access_scope,
     status: row.status,
+    canPresentSimulations: row.can_present_simulations,
   };
 }

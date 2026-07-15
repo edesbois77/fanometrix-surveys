@@ -75,7 +75,7 @@ export async function generateMetadata(
 ): Promise<Metadata> {
   const { lang } = await params;
   const content = LOCALES[lang as Lang] ?? LOCALES.en;
-  return { title: `${content.title} — Fanometrix` };
+  return { title: `${content.title}, Fanometrix` };
 }
 
 export default async function PrivacyPage(

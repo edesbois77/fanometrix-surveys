@@ -462,7 +462,7 @@ export function ChartGrid({
           <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Question Results</p>
           <p className="text-sm text-gray-400">
             Select a campaign, survey or campaign group above to see question-level results.
-            Q1/Q2/Q3 answers differ between surveys — mixing them across all campaigns produces meaningless data.
+            Q1/Q2/Q3 answers differ between surveys, mixing them across all campaigns produces meaningless data.
           </p>
         </div>
       )}

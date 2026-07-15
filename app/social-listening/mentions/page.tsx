@@ -130,7 +130,7 @@ export default function MentionsPage() {
         {/* CSV template hint */}
         <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 mb-5 text-xs text-blue-700 leading-relaxed">
           <strong>CSV columns:</strong> platform, market, author, source_url, content, published_at
-          — each mention is AI-classified for sentiment, topic and subtopic on import.
+         , each mention is AI-classified for sentiment, topic and subtopic on import.
         </div>
 
         {/* Filters */}

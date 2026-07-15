@@ -31,19 +31,33 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   const responseCount = Number(statsData?.response_count ?? 0);
 
-  // Resolve archive_after_days and creative_design from the linked research
-  // project if inherited (NULL) — mirrors the same resolution the list route
-  // (/api/campaigns) already does, so a single-campaign fetch is consistent.
+  // Resolve archive_after_days from the linked research project (still
+  // project-level) and creative_design from the linked survey's own
+  // research_project_evidence row (migration 094 — survey-scoped, not
+  // project-level) if inherited (NULL) — mirrors the same resolution the
+  // list route (/api/campaigns) already does, so a single-campaign fetch
+  // is consistent.
   let effectiveArchiveAfterDays = data.archive_after_days ?? null;
   let effectiveCreativeDesign = data.creative_design ?? null;
-  if (data.research_project_id && (effectiveArchiveAfterDays == null || effectiveCreativeDesign == null)) {
+  if (data.research_project_id) {
     const { data: project } = await supabaseAdmin
       .from("research_projects")
-      .select("archive_after_days, creative_design")
+      .select("archive_after_days, survey_id")
       .eq("id", data.research_project_id)
       .single();
     effectiveArchiveAfterDays ??= project?.archive_after_days ?? null;
-    effectiveCreativeDesign ??= project?.creative_design ?? null;
+
+    const effectiveSurveyId = data.survey_id ?? project?.survey_id ?? null;
+    if (effectiveCreativeDesign == null && effectiveSurveyId) {
+      const { data: evidenceRow } = await supabaseAdmin
+        .from("research_project_evidence")
+        .select("creative_design")
+        .eq("research_project_id", data.research_project_id)
+        .eq("evidence_type", "survey")
+        .eq("evidence_id", effectiveSurveyId)
+        .maybeSingle();
+      effectiveCreativeDesign ??= evidenceRow?.creative_design ?? null;
+    }
   }
 
   const effective = computeEffectiveStatus(
@@ -126,7 +140,11 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     safeBody.publisher_org_id = session.organisationId;
   }
 
-  const { data, error } = await supabase
+  // supabaseAdmin, not the anon-key client — same reasoning as the POST
+  // route in ../route.ts: migration 084's provenance trigger needs to read
+  // research_projects (deny_all_anon RLS) and the anon-key client can't see
+  // that table at all. See migration 093.
+  const { data, error } = await supabaseAdmin
     .from("campaigns")
     .update({ ...safeBody, updated_at: now })
     .eq("id", id)

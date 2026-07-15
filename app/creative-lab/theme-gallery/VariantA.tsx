@@ -269,7 +269,7 @@ export function VariantA({ theme = DEFAULT_THEME, typography = "system", questio
         boxShadow: theme.outerShadow,
       }}
       role="region"
-      aria-label="Fan survey — Variant A"
+      aria-label="Fan survey, Variant A"
     >
       {showPrivacy && (
         <PrivacyOverlay theme={theme} typography={typography} onClose={() => { setShowPrivacy(false); emit("privacy_close", `Resumed at Q${step + 1}`); }} />

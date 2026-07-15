@@ -55,11 +55,11 @@ const PARAMS: [string, string, string][] = [
   ["campaign",     "Required",                              "carlsberg_ucl_2026"],
   ["publisher",    "Recommended",                           "fotmob"],
   ["placement",    "Recommended",                           "homepage-mpu"],
-  ["country",      "Recommended — use geo macro",           "%%COUNTRY%%"],
+  ["country",      "Recommended, use geo macro",           "%%COUNTRY%%"],
   ["club",         "Optional",                              "Arsenal"],
   ["competition",  "Optional",                              "Premier+League"],
   ["segment",      "Optional",                              "season-ticket-holder"],
-  ["survey",       "Optional — links to survey config",     "uuid"],
+  ["survey",       "Optional, links to survey config",     "uuid"],
 ];
 
 const MACROS: [string, string][] = [
@@ -76,7 +76,7 @@ const TECH_SECTIONS = [
     content: (
       <pre
         style={{ background: "#0d1117", color: "#7ee787", fontSize: 12, borderRadius: 10, padding: "16px 18px", overflowX: "auto", whiteSpace: "pre-wrap", lineHeight: 1.6 }}
-      >{`<!-- Fanometrix MPU (300×250) — Google Ad Manager -->
+      >{`<!-- Fanometrix MPU (300×250), Google Ad Manager -->
 <iframe
   src="https://surveys.fanometrix.com/embed
     ?campaign=YOUR_CAMPAIGN_ID
@@ -372,7 +372,7 @@ export default function PublisherHubPage() {
           {/* Card 1: Live survey embed */}
           <div style={{ border: "1px solid #E5E7EB", borderRadius: 20, overflow: "hidden", boxShadow: "0 4px 24px rgba(0,0,0,0.08)" }}>
             <div style={{ background: "#F9FAFB", padding: "20px 24px", borderBottom: "1px solid #E5E7EB" }}>
-              <p style={{ fontSize: 11, fontWeight: 700, color: G, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 4 }}>01 — Survey Creative</p>
+              <p style={{ fontSize: 11, fontWeight: 700, color: G, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 4 }}>01, Survey Creative</p>
               <p style={{ fontSize: 14, fontWeight: 600, color: N }}>300×250 MPU</p>
             </div>
             <div style={{ background: "#E5E7EB", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
@@ -398,7 +398,7 @@ export default function PublisherHubPage() {
           {/* Card 2: Privacy modal mockup */}
           <div style={{ border: "1px solid #E5E7EB", borderRadius: 20, overflow: "hidden", boxShadow: "0 4px 24px rgba(0,0,0,0.08)" }}>
             <div style={{ background: "#F9FAFB", padding: "20px 24px", borderBottom: "1px solid #E5E7EB" }}>
-              <p style={{ fontSize: 11, fontWeight: 700, color: G, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 4 }}>02 — Privacy Experience</p>
+              <p style={{ fontSize: 11, fontWeight: 700, color: G, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 4 }}>02, Privacy Experience</p>
               <p style={{ fontSize: 14, fontWeight: 600, color: N }}>Built-in privacy layer</p>
             </div>
             <div style={{ background: "#E5E7EB", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
@@ -439,7 +439,7 @@ export default function PublisherHubPage() {
           {/* Card 3: Dashboard mockup */}
           <div style={{ border: "1px solid #E5E7EB", borderRadius: 20, overflow: "hidden", boxShadow: "0 4px 24px rgba(0,0,0,0.08)" }}>
             <div style={{ background: "#F9FAFB", padding: "20px 24px", borderBottom: "1px solid #E5E7EB" }}>
-              <p style={{ fontSize: 11, fontWeight: 700, color: G, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 4 }}>03 — Dashboard &amp; Reporting</p>
+              <p style={{ fontSize: 11, fontWeight: 700, color: G, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 4 }}>03, Dashboard &amp; Reporting</p>
               <p style={{ fontSize: 14, fontWeight: 600, color: N }}>Real-time analytics</p>
             </div>
             <div style={{ background: "#F1F5F9", padding: 16 }}>

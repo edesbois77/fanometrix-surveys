@@ -57,13 +57,26 @@ export default function EmbedGeneratorPage() {
   const [copied,          setCopied]          = useState<"iframe" | "script" | "instructions" | null>(null);
 
   useEffect(() => {
+    // The unscoped list deliberately excludes simulated (Product
+    // Walkthrough) campaigns — same rule as the standalone Campaigns page
+    // and the Research Projects list, so nobody deploying a real campaign
+    // ever sees demo data in this dropdown by browsing it.
     fetch("/api/campaigns")
       .then(r => r.json())
-      .then(j => {
+      .then(async j => {
         const data: Campaign[] = j.data ?? [];
-        setCampaigns(data);
-        // Pre-select campaign from URL param (e.g. from Campaign Detail page)
+        // Pre-select campaign from URL param (e.g. a "Get Tags" link) —
+        // if it's not in the unscoped list, it's a simulated campaign
+        // filtered out above; fetch that one campaign by id (which has no
+        // is_simulated filter) and add only that single row, so a direct
+        // deep link still works without ever surfacing simulated
+        // campaigns in the general dropdown for anyone else.
         const preselect = new URLSearchParams(window.location.search).get("campaign");
+        if (preselect && !data.some(c => c.id === preselect)) {
+          const single = await fetch(`/api/campaigns/${preselect}`).then(r => r.ok ? r.json() : null).catch(() => null);
+          if (single?.data) data.push(single.data as Campaign);
+        }
+        setCampaigns(data);
         if (preselect) {
           const match = data.find(c => c.id === preselect);
           if (match) setSelectedId(match.id);
@@ -158,8 +171,8 @@ export default function EmbedGeneratorPage() {
         <p className="text-sm text-gray-400 mb-6">Configure your embed and copy the tag to your ad server.</p>
 
         {/*
-          Mobile:  flex-col — sections stack vertically, full width
-          Desktop: 5-column grid — 2 cols config / 3 cols output
+          Mobile:  flex-col, sections stack vertically, full width
+          Desktop: 5-column grid, 2 cols config / 3 cols output
         */}
         <div className="flex flex-col gap-4 lg:grid lg:grid-cols-5 lg:gap-6">
 
@@ -177,7 +190,7 @@ export default function EmbedGeneratorPage() {
                   onChange={e => setSelectedId(e.target.value)}
                   className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A]"
                 >
-                  <option value="">— select a campaign —</option>
+                  <option value="">select a campaign</option>
                   {campaigns.map(c => (
                     <option key={c.id} value={c.id}>{orgName(c.brand_org_id)} · {c.campaign_name}</option>
                   ))}
@@ -228,7 +241,7 @@ export default function EmbedGeneratorPage() {
                   onChange={e => { setPlacementPreset(e.target.value); if (e.target.value !== "Custom…") setPlacementCustom(""); }}
                   className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A]"
                 >
-                  <option value="">— select placement —</option>
+                  <option value="">select placement</option>
                   {PLACEMENT_OPTIONS.map(p => <option key={p} value={p}>{p}</option>)}
                 </select>
                 {placementPreset === "Custom…" && (
@@ -355,8 +368,8 @@ export default function EmbedGeneratorPage() {
               {campaignIdValue && (
                 <div className="mt-3 pt-3 border-t border-gray-100">
                   <p className="text-xs text-gray-500 mb-1.5">
-                    <span className="font-semibold">Preview URL</span>
-                    <span className="text-gray-400 ml-1">— share with adops to review the creative before going live</span>
+                    <span className="font-semibold">Preview URL,</span>
+                    <span className="text-gray-400 ml-1">share with adops to review the creative before going live</span>
                   </p>
                   <div className="flex gap-2 items-center">
                     <code className="flex-1 text-xs bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-gray-600 truncate">
@@ -374,7 +387,7 @@ export default function EmbedGeneratorPage() {
                     </button>
                   </div>
                   <p className="text-xs text-amber-600 mt-1.5">
-                    ⚠ Preview URLs bypass validation — for review only, not for production use.
+                    ⚠ Preview URLs bypass validation, for review only, not for production use.
                   </p>
                 </div>
               )}

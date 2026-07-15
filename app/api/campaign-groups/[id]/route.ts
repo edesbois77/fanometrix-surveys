@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { requireUser } from "@/lib/auth-server";
 import { canAccess } from "@/lib/access";
+import { validateMembersBelongToProject } from "@/lib/campaign-group-membership";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   let session;
@@ -46,6 +47,13 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
+  const { data: existing, error: existingErr } = await supabaseAdmin
+    .from("campaign_groups")
+    .select("research_project_id")
+    .eq("id", id)
+    .single();
+  if (existingErr || !existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
   const body = await req.json();
   const { campaign_ids, member_count: _mc, total_responses: _tr, created_by_admin: _cba, ...groupFields } = body as {
     campaign_ids?: string[];
@@ -54,6 +62,41 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     created_by_admin?: boolean;
     [k: string]: unknown;
   };
+
+  // Whichever research_project_id will be true after this save — either a
+  // newly submitted one, or the group's existing one if this request
+  // doesn't touch it. Only project-scoped groups (non-null) enforce
+  // same-project membership; a genuinely unscoped legacy group (migration
+  // 096 grandfathers these in) stays exempt until an admin deliberately
+  // assigns it one.
+  const effectiveProjectId = groupFields.research_project_id !== undefined
+    ? (groupFields.research_project_id as string | null)
+    : existing.research_project_id;
+
+  if (effectiveProjectId && session.role !== "admin" && !(await canAccess(session, "research_project", effectiveProjectId))) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  if (effectiveProjectId) {
+    if (campaign_ids !== undefined) {
+      // Membership is changing in this same request — validate the
+      // incoming list.
+      const validation = await validateMembersBelongToProject(campaign_ids, effectiveProjectId);
+      if (!validation.ok) return NextResponse.json({ error: validation.error }, { status: 400 });
+    } else if (groupFields.research_project_id !== undefined && groupFields.research_project_id !== existing.research_project_id) {
+      // The project is being reassigned but membership wasn't touched in
+      // this request — the group's CURRENT members must still be
+      // re-checked against the NEW project, or a group could be silently
+      // retargeted out from under members that no longer qualify.
+      const { data: currentMembers } = await supabaseAdmin
+        .from("campaign_group_members")
+        .select("campaign_id")
+        .eq("group_id", id);
+      const currentIds = (currentMembers ?? []).map(m => m.campaign_id);
+      const validation = await validateMembersBelongToProject(currentIds, effectiveProjectId);
+      if (!validation.ok) return NextResponse.json({ error: validation.error }, { status: 400 });
+    }
+  }
 
   // A publisher can never move a group to a different publisher, even
   // their own edit requests get this pinned server-side.

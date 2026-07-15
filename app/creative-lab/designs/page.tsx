@@ -247,7 +247,7 @@ export default function CreativeDesignsGalleryPage() {
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Creative Designs</h1>
             <p className="text-sm text-gray-500 mt-1">
-              Every survey creative — built-in and custom — organised by Theme and Sub-theme.
+              Every survey creative, built-in and custom, organised by Theme and Sub-theme.
             </p>
           </div>
         </div>

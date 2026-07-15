@@ -217,7 +217,7 @@ export default function AccessRequestsPage() {
                         <button
                           onClick={() => updateStatus(r.id, "approved")}
                           disabled={updating === r.id}
-                          title="Mark this request as ready to create an account — no account is created automatically"
+                          title="Mark this request as ready to create an account, no account is created automatically"
                           className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
                         >
                           {updating === r.id ? "…" : "Mark Ready"}

@@ -40,7 +40,7 @@ export function PublisherCountryPicker({
           strict
           disabled={publishersDisabled}
           helperText={publishersHelperText}
-          unmatchedMessage={s => `"${s}" is not a recognised publisher — add it in Organisations first.`}
+          unmatchedMessage={s => `"${s}" is not a recognised publisher, add it in Organisations first.`}
         />
       </div>
 

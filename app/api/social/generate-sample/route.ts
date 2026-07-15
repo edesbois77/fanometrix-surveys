@@ -25,16 +25,16 @@ type RawMention = {
 
 // ── Market voice profiles ─────────────────────────────────────────────────────
 const MARKET_VOICE: Record<string, string> = {
-  GB: "British football fan — Premier League, Wembley, local pubs. Passionate about ticket prices, ownership, atmosphere, clubs.",
-  DE: "German football fan — Bundesliga, fan ownership (50+1), Stehplatz terraces, affordable football tradition.",
-  FR: "French football fan — Ligue 1, PSG dominance debate, regional clubs, national team pride.",
-  ES: "Spanish football fan — La Liga, Barça vs Real rivalry, local derbies, passion for tactics.",
-  SE: "Swedish football fan — Allsvenskan, grassroots, community clubs, sustainability, youth development.",
-  US: "American football (soccer) fan — MLS growth, USMNT, international players, new stadiums, accessibility.",
-  IN: "Indian football fan — ISL, streaming access, national team following, merchandise hunger, cricket comparison.",
-  CN: "Chinese football fan — CSL, streaming rights, national team, grassroots investment, football culture.",
-  BR: "Brazilian football fan — Serie A, iconic clubs, football culture, national team, talent pipeline.",
-  MX: "Mexican football fan — Liga MX, rivalry with USA, national team, community passion.",
+  GB: "British football fan, Premier League, Wembley, local pubs. Passionate about ticket prices, ownership, atmosphere, clubs.",
+  DE: "German football fan, Bundesliga, fan ownership (50+1), Stehplatz terraces, affordable football tradition.",
+  FR: "French football fan, Ligue 1, PSG dominance debate, regional clubs, national team pride.",
+  ES: "Spanish football fan, La Liga, Barça vs Real rivalry, local derbies, passion for tactics.",
+  SE: "Swedish football fan, Allsvenskan, grassroots, community clubs, sustainability, youth development.",
+  US: "American football (soccer) fan, MLS growth, USMNT, international players, new stadiums, accessibility.",
+  IN: "Indian football fan, ISL, streaming access, national team following, merchandise hunger, cricket comparison.",
+  CN: "Chinese football fan, CSL, streaming rights, national team, grassroots investment, football culture.",
+  BR: "Brazilian football fan, Serie A, iconic clubs, football culture, national team, talent pipeline.",
+  MX: "Mexican football fan, Liga MX, rivalry with USA, national team, community passion.",
 };
 
 function buildRawGenerationPrompt(
@@ -75,15 +75,15 @@ ${platformGuide}
 Generate exactly ${count} realistic ${platform} mentions about ${kwStr}.
 
 CRITICAL RULES:
-1. Do NOT include any sentiment labels, topic names or AI classification — raw content ONLY
-2. Vary sentiment naturally (some fans happy, some critical, some neutral) — do NOT label it
-3. Vary markets across: ${markets.join(", ")} — weight distribution naturally
+1. Do NOT include any sentiment labels, topic names or AI classification, raw content ONLY
+2. Vary sentiment naturally (some fans happy, some critical, some neutral), do NOT label it
+3. Vary markets across: ${markets.join(", ")}, weight distribution naturally
 4. Spread dates across the 30-day window, heavier towards recent
 5. Use authentic fan vocabulary for each market (not generic English)
 6. Cover varied angles: prices, performances, sponsorship, atmosphere, players, transfers, etc.
 7. For News: use credible journalism style with specific (invented but plausible) details
 
-Return ONLY a valid JSON array — no markdown, no explanation:
+Return ONLY a valid JSON array, no markdown, no explanation:
 [
   {
     "platform": "${platform}",

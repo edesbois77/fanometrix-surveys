@@ -89,7 +89,7 @@ export function PasswordGate({ children }: { children: React.ReactNode }) {
               Creative Lab
             </p>
             <p style={{ color: "rgba(255,255,255,0.35)", fontSize: 10.5, margin: "4px 0 0", lineHeight: 1.5 }}>
-              Survey creative gallery — restricted preview
+              Survey creative gallery, restricted preview
             </p>
           </div>
         </div>

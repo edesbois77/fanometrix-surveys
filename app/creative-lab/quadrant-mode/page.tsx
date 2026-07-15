@@ -9,13 +9,13 @@ const NAVY = "#0B1929";
 const GOLD = "#D7B87A";
 
 const DESIGN_NOTES = [
-  "2×2 grid — entire quadrant is the tap target, no radio buttons",
+  "2×2 grid, entire quadrant is the tap target, no radio buttons",
   "Gold progress ring replaces the horizontal progress bar",
   "Centre circle anchors question text + progress indicator",
   "Tap floods selected quadrant with gold · others dim to 62%",
   "Privacy screen maintains question state on close",
   "300ms question transition with fade in/out",
-  "Keyboard accessible — Enter/Space to select",
+  "Keyboard accessible, Enter/Space to select",
 ];
 
 export default function CreativeLabQuadrantPage() {
@@ -82,7 +82,7 @@ export default function CreativeLabQuadrantPage() {
             lineHeight: 1.5,
           }}
         >
-          Exploratory prototype — not for production deployment
+          Exploratory prototype, not for production deployment
         </p>
       </div>
 

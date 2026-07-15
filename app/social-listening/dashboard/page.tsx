@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import { AdminShell } from "@/app/components/AdminShell";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 
@@ -29,21 +30,43 @@ function KpiCard({ label, value, sub, accent }: { label: string; value: string |
   );
 }
 
+// Reads the ?search_id= query param a Research Project Workspace's
+// Conversation Search Source Performance card navigates here with —
+// isolated in its own leaf component so only this needs the
+// useSearchParams() Suspense boundary, not the whole (otherwise
+// statically-rendered) page. `null` means "no scope" (the platform-wide
+// view); the sentinel `undefined` default on the parent's state means
+// "not read yet", so the first fetch waits for it instead of racing it.
+function SearchScopeReader({ onSearchId }: { onSearchId: (id: string | null) => void }) {
+  const searchParams = useSearchParams();
+  const searchId = searchParams.get("search_id");
+  useEffect(() => { onSearchId(searchId); }, [searchId, onSearchId]);
+  return null;
+}
+
 export default function SLDashboardPage() {
+  // undefined = not read from the URL yet, null = confirmed unscoped
+  const [scopeSearchId, setScopeSearchId] = useState<string | null | undefined>(undefined);
   const [stats,   setStats]   = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch("/api/social/stats")
+    if (scopeSearchId === undefined) return;
+    setLoading(true);
+    const qs = scopeSearchId ? `?search_id=${scopeSearchId}` : "";
+    fetch(`/api/social/stats${qs}`)
       .then(r => r.ok ? r.json() : null)
       .then(json => { setStats(json); setLoading(false); })
       .catch(() => setLoading(false));
-  }, []);
+  }, [scopeSearchId]);
 
   const total = stats?.total ?? 0;
 
   return (
     <AdminShell>
+      <Suspense fallback={null}>
+        <SearchScopeReader onSearchId={setScopeSearchId} />
+      </Suspense>
       <div className="p-4 md:p-6 max-w-5xl mx-auto">
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-gray-900">Social Listening</h1>

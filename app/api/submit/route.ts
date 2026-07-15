@@ -7,6 +7,7 @@ import {
   getAcceptingStatus,
   type CampaignForStatus,
 } from "@/lib/campaign-status";
+import { checkResearchTargetReached } from "@/lib/research-project-target-check";
 
 export async function POST(req: NextRequest) {
   const raw = await req.json();
@@ -34,7 +35,7 @@ export async function POST(req: NextRequest) {
   // ── Look up campaign ────────────────────────────────────────────────────────
   const { data: campaign, error: campaignError } = await supabase
     .from("campaigns")
-    .select("id, brand_org_id, campaign_name, status, manual_status_override, start_date, end_date, target_responses, archive_after_days")
+    .select("id, research_project_id, brand_org_id, campaign_name, status, manual_status_override, start_date, end_date, target_responses, archive_after_days, is_simulated")
     .eq("campaign_id", campaign_id as string)
     .single();
 
@@ -65,6 +66,38 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Campaign not found." }, { status: 404 });
   }
 
+  // This endpoint is the real-respondent submission pipeline only.
+  // Every campaign_id must resolve to a real campaigns row — an
+  // unregistered slug used to be accepted here as a "standalone/demo
+  // embed" fallback; that fallback is what let synthetic/test data
+  // accumulate as unattributed rows with no owning campaign, so it's
+  // closed rather than preserved.
+  if (!campaign) {
+    console.warn(`[submit] Rejected, campaign_id "${campaign_id}" does not resolve to a known campaign`);
+    await logAttempt({
+      campaign_id: campaign_id as string, campaign_name: campaignName,
+      publisher: publisher as string | null, manual_status: null,
+      effective_status: "unknown", http_code: 404,
+      result: "failed", reason: "Campaign not found", is_test: !!is_demo,
+    });
+    return NextResponse.json({ error: "Campaign not found." }, { status: 404 });
+  }
+
+  // Simulated campaigns only ever receive evidence from the Simulation
+  // engine's own generation routes — never from this public,
+  // real-respondent endpoint. This is the API-level half of the
+  // guarantee; migration 084's database trigger is the other half.
+  if (campaign.is_simulated) {
+    console.warn(`[submit] Rejected, campaign "${campaign_id}" is simulated and cannot accept real submissions`);
+    await logAttempt({
+      campaign_id: campaign_id as string, campaign_name: campaignName,
+      publisher: publisher as string | null, manual_status: manualStatus,
+      effective_status: "unknown", http_code: 403,
+      result: "failed", reason: "Campaign is simulated", is_test: !!is_demo,
+    });
+    return NextResponse.json({ error: "This campaign belongs to a simulated research project and cannot accept real submissions." }, { status: 403 });
+  }
+
   // ── Status check ────────────────────────────────────────────────────────────
   let effectiveStatus = "unknown";
 
@@ -91,7 +124,7 @@ export async function POST(req: NextRequest) {
         "Target Responses Reached":    "This survey is not currently live. The campaign has reached its response target.",
       };
       const msg = statusMessages[reason] ?? "This survey is not currently live.";
-      console.warn(`[submit] Rejected — campaign "${campaign_id}" effective="${detail.effective}" reason="${reason}"`);
+      console.warn(`[submit] Rejected, campaign "${campaign_id}" effective="${detail.effective}" reason="${reason}"`);
       await logAttempt({
         campaign_id: campaign_id as string, campaign_name: campaignName,
         publisher: publisher as string | null, manual_status: manualStatus,
@@ -101,7 +134,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: msg }, { status: 403 });
     }
   }
-  // If campaign not found in DB, allow submission (standalone / demo embeds without a DB record)
 
   // ── Insert response ────────────────────────────────────────────────────────
   const { error } = await supabase.from("responses").insert([{
@@ -130,6 +162,18 @@ export async function POST(req: NextRequest) {
       result: "failed", reason: "Database insert failed", is_test: !!is_demo,
     });
     return NextResponse.json({ error: "Failed to save response. Please try again." }, { status: 500 });
+  }
+
+  // Research Target check — best-effort, never fails the submission itself.
+  // See lib/research-project-target-check.ts: reading data must never
+  // mutate it, so this runs from the write path (a response landing),
+  // not from any GET route.
+  if (campaign?.research_project_id && !is_demo) {
+    try {
+      await checkResearchTargetReached(campaign.id);
+    } catch (err) {
+      console.error("[submit] Research target check failed:", err);
+    }
   }
 
   await logAttempt({

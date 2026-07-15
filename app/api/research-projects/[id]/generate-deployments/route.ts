@@ -6,6 +6,7 @@ import { generateCampaignName, generateCampaignSlug, studyTypeLabel } from "@/li
 import { countryByCode } from "@/lib/countries";
 import { getCompletedLanguages, type LangCode } from "@/lib/survey-locale";
 import { expectedSurveyLanguage, LANGUAGE_DISPLAY_NAMES } from "@/lib/locales";
+import { logActivity } from "@/lib/research-project-activity";
 
 type Combo = { publisherName: string; publisherOrgId: string; countryCode: string };
 
@@ -85,7 +86,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (missingLanguages.length > 0) {
     const detail = missingLanguages.map(({ code, lang }) => `${code} → ${LANGUAGE_DISPLAY_NAMES[lang] ?? lang}`).join(", ");
     return NextResponse.json(
-      { error: `Survey language mismatch — the project survey has no translation for: ${detail}. Fix the survey or remove these countries before generating.` },
+      { error: `Survey language mismatch, the project survey has no translation for: ${detail}. Fix the survey or remove these countries before generating.` },
       { status: 400 }
     );
   }
@@ -97,7 +98,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }
   }
 
-  const topic = project.topic || "";
+  // The Research Brief wizard no longer collects a separate "Topic" — a new
+  // project's identity is its Project Name plus its Research Question —
+  // so campaign naming falls back to the project name for its descriptive
+  // segment when a legacy topic isn't set.
+  const topic = project.topic || project.project_name || "";
   const theme = studyTypeLabel(project.study_type);
   const brand = project.brand_org_id ? orgNameById.get(project.brand_org_id) ?? "" : "";
   const agency = project.agency_org_id ? orgNameById.get(project.agency_org_id) ?? "" : "";
@@ -194,6 +199,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         survey_language: expectedSurveyLanguage(combo.countryCode),
         study_type: project.study_type,
         research_project_id: project.id,
+        is_simulated: project.research_mode === "simulated",
         survey_id: null,
         start_date: null,
         end_date: null,
@@ -217,6 +223,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     } else {
       created.push({ publisher: combo.publisherName, country: country.name, campaign_id: campaignSlug });
     }
+  }
+
+  if (created.length > 0 || restored.length > 0) {
+    const parts = [`${created.length} created`];
+    if (restored.length > 0) parts.push(`${restored.length} restored`);
+    await logActivity(id, "deployments_generated", `${parts.join(", ")}.`, session.workEmail);
   }
 
   return NextResponse.json({

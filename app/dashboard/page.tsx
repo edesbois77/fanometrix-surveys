@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef, Suspense } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import Papa from "papaparse";
 import type { SurveyResponse } from "@/lib/types";
 import { AdminShell } from "@/app/components/AdminShell";
@@ -24,6 +25,13 @@ type CampaignInfo = {
   campaign_id:     string;
   campaign_name:   string;
   survey_id:       string | null;
+  // Resolved by /api/campaigns as survey_id ?? the campaign's research
+  // project's own legacy survey_id — a campaign created before a project
+  // could hold multiple Surveys often has survey_id itself null but still
+  // effectively belongs to one Survey. The Survey filter below matches on
+  // this, not the raw column, so a Survey-scoped deep link (or the filter
+  // dropdown) isn't silently empty for those campaigns.
+  effective_survey_id: string | null;
   start_date:      string | null;
   end_date:        string | null;
   created_at:      string;
@@ -31,6 +39,7 @@ type CampaignInfo = {
 
 type SurveyOption  = { id: string; name: string };
 type GroupOption   = { id: string; group_id: string; name: string; campaign_ids: string[] };
+type ScopeProject  = { id: string; project_name: string; research_mode: "real" | "simulated" };
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -89,7 +98,33 @@ function applyFilters(
 
 // ─── Page ────────────────────────────────────────────────────────────────────
 
+// Reads the ?research_project_id=&survey_id= query params a Research
+// Project Workspace's "Open Full Dashboard" / a Survey's own Source
+// Performance card navigates here with — isolated in its own leaf
+// component so only this needs the useSearchParams() Suspense boundary, not
+// the whole (otherwise statically-rendered) page. `null` from searchParams
+// means "no scope" (the platform-wide dashboard); the sentinel `undefined`
+// default on the parent's state means "not read yet", so the parent's first
+// data load waits for this instead of racing it and briefly showing
+// unscoped data.
+function ProjectScopeReader({ onProjectId, onSurveyId }: { onProjectId: (id: string | null) => void; onSurveyId: (id: string | null) => void }) {
+  const searchParams = useSearchParams();
+  const researchProjectId = searchParams.get("research_project_id");
+  const surveyId = searchParams.get("survey_id");
+  useEffect(() => { onProjectId(researchProjectId); }, [researchProjectId, onProjectId]);
+  useEffect(() => { onSurveyId(surveyId); }, [surveyId, onSurveyId]);
+  return null;
+}
+
 export default function DashboardPage() {
+  // undefined = not read from the URL yet, null = confirmed unscoped
+  const [scopeProjectId, setScopeProjectId] = useState<string | null | undefined>(undefined);
+  // Seeds the existing Survey filter from the URL — applied once (see the
+  // effect below), so it doesn't fight the user if they change or clear
+  // the filter afterward within the same visit.
+  const [scopeSurveyId,  setScopeSurveyId]  = useState<string | null | undefined>(undefined);
+  const scopeSurveyIdApplied = useRef(false);
+  const [scopeProject,   setScopeProject]   = useState<ScopeProject | null>(null);
   const [responses,     setResponses]     = useState<SurveyResponse[]>([]);
   const [campaigns,     setCampaigns]     = useState<CampaignInfo[]>([]);
   const [loading,       setLoading]       = useState(true);
@@ -113,22 +148,40 @@ export default function DashboardPage() {
   useEffect(() => { localStorage.setItem("dash_date_from",    JSON.stringify(dateFrom));    }, [dateFrom]);
   useEffect(() => { localStorage.setItem("dash_date_to",      JSON.stringify(dateTo));      }, [dateTo]);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (projectId: string | null) => {
     setLoading(true);
     setError("");
     try {
-      const [rRes, cRes, gRes] = await Promise.all([
-        fetch("/api/responses"),
-        fetch("/api/campaigns"),
+      const scopeQS = projectId ? `?research_project_id=${projectId}` : "";
+      const [rRes, cRes, gRes, pRes] = await Promise.all([
+        fetch(`/api/responses${scopeQS}`),
+        fetch(`/api/campaigns${scopeQS}`),
         fetch("/api/dashboard/groups"),
+        projectId ? fetch(`/api/research-projects/${projectId}`) : Promise.resolve(null),
       ]);
       if (!rRes.ok) { setError("Failed to load responses."); setLoading(false); return; }
       const rJson = await rRes.json();
       const cJson = cRes.ok ? await cRes.json() : { data: [] };
       const gJson = gRes.ok ? await gRes.json() : { data: [] };
+      const campaignRows: CampaignInfo[] = cJson.data ?? [];
       setResponses(rJson.data ?? []);
-      setCampaigns(cJson.data ?? []);
-      setGroupOptions(gJson.data ?? []);
+      setCampaigns(campaignRows);
+      // Scoped to one project — only offer Campaign Groups that actually
+      // contain one of this project's own campaigns, so the selector never
+      // dead-ends into an empty result for a group that belongs elsewhere.
+      const allGroups: GroupOption[] = gJson.data ?? [];
+      if (projectId) {
+        const scopedCampaignUUIDs = new Set(campaignRows.map(c => c.id));
+        setGroupOptions(allGroups.filter(g => g.campaign_ids.some(id => scopedCampaignUUIDs.has(id))));
+      } else {
+        setGroupOptions(allGroups);
+      }
+      if (projectId && pRes?.ok) {
+        const pJson = await pRes.json();
+        setScopeProject({ id: projectId, project_name: pJson.data.project_name, research_mode: pJson.data.research_mode });
+      } else {
+        setScopeProject(null);
+      }
     } catch {
       setError("Failed to load dashboard data.");
     } finally {
@@ -136,7 +189,22 @@ export default function DashboardPage() {
     }
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  // Waits for ProjectScopeReader to report the URL's scope (undefined = not
+  // read yet) so the first fetch is already correctly scoped, rather than
+  // loading unscoped data and immediately refetching.
+  useEffect(() => {
+    if (scopeProjectId !== undefined) load(scopeProjectId);
+  }, [load, scopeProjectId]);
+
+  // Seeds the Survey filter from a Source Performance card's deep link —
+  // applied once per visit, so it doesn't override a filter the user
+  // deliberately changes or clears afterward.
+  useEffect(() => {
+    if (scopeSurveyId && !scopeSurveyIdApplied.current) {
+      scopeSurveyIdApplied.current = true;
+      setFilters(f => ({ ...f, survey_id: scopeSurveyId }));
+    }
+  }, [scopeSurveyId]);
 
   // Record timestamp after each load completes
   useEffect(() => {
@@ -145,9 +213,10 @@ export default function DashboardPage() {
 
   // Auto-refresh every 30 seconds
   useEffect(() => {
-    const interval = setInterval(load, 60_000);
+    if (scopeProjectId === undefined) return;
+    const interval = setInterval(() => load(scopeProjectId), 60_000);
     return () => clearInterval(interval);
-  }, [load]);
+  }, [load, scopeProjectId]);
 
   // Tick the "X seconds ago" counter every second
   useEffect(() => {
@@ -166,7 +235,7 @@ export default function DashboardPage() {
       p.set("campaign_id", filters.campaign_id);
     } else if (filters.survey_id) {
       const ids = campaigns
-        .filter(c => c.survey_id === filters.survey_id)
+        .filter(c => c.effective_survey_id === filters.survey_id)
         .map(c => c.campaign_id);
       if (ids.length) p.set("campaign_ids", ids.join(","));
     }
@@ -202,7 +271,7 @@ export default function DashboardPage() {
   const surveyOptions = useMemo<SurveyOption[]>(() => {
     const seen = new Map<string, string>();
     for (const c of campaigns) {
-      const sid  = (c as unknown as { survey_id?: string; surveys?: { name: string } }).survey_id;
+      const sid  = c.effective_survey_id;
       const name = (c as unknown as { surveys?: { name: string } }).surveys?.name;
       if (sid && name && !seen.has(sid)) seen.set(sid, name);
     }
@@ -232,7 +301,7 @@ export default function DashboardPage() {
     if (filters.survey_id) {
       const surveyCampaignSlugs = new Set(
         campaigns
-          .filter(c => (c as unknown as { survey_id?: string }).survey_id === filters.survey_id)
+          .filter(c => c.effective_survey_id === filters.survey_id)
           .map(c => c.campaign_id)
       );
       base = base.filter(r => surveyCampaignSlugs.has(r.campaign_id));
@@ -323,13 +392,28 @@ export default function DashboardPage() {
 
   return (
     <AdminShell>
+      <Suspense fallback={null}>
+        <ProjectScopeReader onProjectId={setScopeProjectId} onSurveyId={setScopeSurveyId} />
+      </Suspense>
       <div className="p-4 md:p-6 max-w-5xl mx-auto">
 
         {/* Header */}
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h1 className="text-2xl font-bold" style={{ color: "#0B1929" }}>Dashboard</h1>
-            <p className="text-gray-400 text-xs mt-0.5">Dashboard</p>
+            {scopeProject && (
+              <Link
+                href={scopeProject.research_mode === "simulated" ? `/product-walkthrough/${scopeProject.id}` : `/research-projects/${scopeProject.id}`}
+                className="text-xs font-semibold text-gray-400 hover:text-[#D7B87A] transition-colors"
+              >
+                ← Back to {scopeProject.project_name}
+              </Link>
+            )}
+            <h1 className="text-2xl font-bold" style={{ color: "#0B1929" }}>
+              {scopeProject ? `Dashboard, ${scopeProject.project_name}` : "Dashboard"}
+            </h1>
+            <p className="text-gray-400 text-xs mt-0.5">
+              {scopeProject ? "Scoped to this Research Project only" : "Dashboard"}
+            </p>
           </div>
           <div className="flex items-center gap-2">
             {lastUpdated && (
@@ -337,7 +421,7 @@ export default function DashboardPage() {
                 {loading ? "Updating…" : `Updated ${secondsAgo}s ago`}
               </span>
             )}
-            <button onClick={load}
+            <button onClick={() => load(scopeProjectId ?? null)}
               className="border border-gray-200 text-gray-600 hover:bg-gray-50 text-sm font-medium px-3 py-1.5 rounded-lg transition-colors">
               {loading ? "…" : "Refresh"}
             </button>

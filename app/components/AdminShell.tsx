@@ -76,7 +76,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
       {/* ── Mobile backdrop ── */}
       {mobileOpen && (
         <div
-          className="fixed inset-0 z-40 bg-black/50 lg:hidden"
+          className="fixed inset-0 z-40 bg-black/50 lg:hidden print:hidden"
           onClick={() => setMobileOpen(false)}
           aria-hidden
         />
@@ -94,6 +94,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           mobileOpen ? "translate-x-0" : "-translate-x-full",
           "lg:relative lg:z-auto lg:w-52 lg:flex-shrink-0 lg:sticky lg:top-0",
           "lg:translate-x-0",
+          "print:hidden",
         ].join(" ")}
         style={{ backgroundColor: "#0B1929" }}
       >
@@ -129,7 +130,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
         </div>
 
         {/*
-          Single scrollable column — nav items + footer.
+          Single scrollable column, nav items + footer.
           On desktop: footer sits at the bottom naturally (mt-auto).
           On mobile: the whole column scrolls so Sign out is always reachable.
         */}
@@ -276,7 +277,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
 
         {/* Mobile top bar — hamburger + logo */}
         <header
-          className="lg:hidden flex items-center gap-3 px-4 py-3 sticky top-0 z-30 flex-shrink-0"
+          className="lg:hidden print:hidden flex items-center gap-3 px-4 py-3 sticky top-0 z-30 flex-shrink-0"
           style={{ backgroundColor: "#0B1929", borderBottom: "1px solid rgba(255,255,255,0.08)" }}
         >
           <button
@@ -301,7 +302,14 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           </Link>
         </header>
 
-        <main className="flex-1 overflow-auto bg-gray-50">
+        {/* No overflow-auto here — the outer shell is min-h-screen (not
+            h-screen), so main always grows to fit its content rather than
+            scrolling internally; overflow-auto would still mark it as a
+            scroll container in CSS terms and silently break `sticky`
+            positioning for anything inside it, pinning descendants to
+            main's own (never-scrolling) box instead of the real window
+            scroll. */}
+        <main className="flex-1 bg-gray-50 print:bg-white">
           {children}
         </main>
       </div>

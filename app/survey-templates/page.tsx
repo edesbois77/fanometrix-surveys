@@ -14,6 +14,7 @@ import {
 import { generateStudyName, studyTypeLabel } from "@/lib/naming";
 import { NameBuilder } from "@/app/components/NameBuilder";
 import { SurveyIntelligenceModal } from "@/app/components/SurveyIntelligenceModal";
+import { SurveyPreviewModal } from "@/app/components/SurveyPreviewModal";
 
 // ─── MPU colours ─────────────────────────────────────────────────────────────
 const NAVY = "#071B2F";
@@ -226,154 +227,6 @@ const CAMPAIGN_STATUS_COLOURS: Record<string, string> = {
   archived:  "bg-amber-100 text-amber-700",
 };
 
-// ─── MPU Preview Modal ────────────────────────────────────────────────────────
-function MPUPreviewModal({ survey, onClose }: { survey: Survey; onClose: () => void }) {
-  const [step,        setStep]        = useState(0);
-  const [answers,     setAnswers]     = useState<Record<string, number>>({});
-  const [done,        setDone]        = useState(false);
-  const [previewLang, setPreviewLang] = useState<LangCode>("en");
-
-  // Which of the survey's enabled languages have at least some content (for the language switcher)
-  const availableLangs = SUPPORTED_LANGUAGES.filter(l =>
-    (survey.enabled_languages ?? ["en"]).includes(l.code) && (
-      l.code === "en" ||
-      (survey.questions ?? []).some(q => (q.text as Record<string, string>)[l.code]?.trim()) ||
-      !!(survey.thank_you_title as Record<string, string> | undefined)?.[l.code]?.trim()
-    )
-  );
-
-  const questions   = (survey.questions ?? []).map(lq => resolveQuestion(lq, previewLang));
-  const q           = questions[step];
-  const selected    = q ? (answers[q.id] ?? -1) : -1;
-  const isLast      = step === questions.length - 1;
-  const isFirst     = step === 0;
-  const progressPct = done ? 100 : ((step + 1) / Math.max(questions.length, 1)) * 100;
-
-  function restart() { setStep(0); setAnswers({}); setDone(false); }
-
-  function handleSelect(optId: number) {
-    if (!q) return;
-    const newAnswers = { ...answers, [q.id]: optId };
-    setAnswers(newAnswers);
-    setTimeout(() => {
-      if (isLast) { setDone(true); return; }
-      setStep(s => s + 1);
-    }, 350);
-  }
-
-  function onBackdrop(e: React.MouseEvent<HTMLDivElement>) {
-    if (e.target === e.currentTarget) onClose();
-  }
-
-  const frame: React.CSSProperties = {
-    width: 300, height: 250, overflow: "hidden",
-    fontFamily: "system-ui, -apple-system, sans-serif",
-    display: "flex", flexDirection: "column",
-    boxSizing: "border-box", position: "relative",
-    boxShadow: "0 4px 24px rgba(0,0,0,0.35)",
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={onBackdrop}>
-      <div className="flex flex-col items-center gap-4">
-        <div className="bg-amber-50 border border-amber-200 rounded-xl px-5 py-3 text-center shadow">
-          <p className="text-xs font-bold text-amber-700 uppercase tracking-widest">◆ Preview Mode</p>
-          <p className="text-xs text-amber-600 mt-0.5">No responses are recorded.</p>
-          <p className="text-xs text-amber-500 mt-0.5 font-medium">{survey.name}</p>
-        </div>
-
-        {done ? (
-          <div style={frame}>
-            <div style={{ height: 46, minHeight: 46, background: NAVY, display: "flex", alignItems: "center", padding: "0 12px", flexShrink: 0 }}>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/Fanometrix_Logo.png" alt="Fanometrix" style={{ height: 15, objectFit: "contain" }} />
-            </div>
-            <div style={{ height: 3, minHeight: 3, background: `rgba(215,184,122,0.2)`, flexShrink: 0 }}>
-              <div style={{ height: "100%", width: "100%", background: GOLD }} />
-            </div>
-            <div style={{ flex: 1, background: NAVY, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "12px 20px", textAlign: "center", gap: 8, minHeight: 0 }}>
-              <div style={{ fontSize: 30, lineHeight: 1 }}>🎉</div>
-              <p style={{ color: "#fff", fontSize: 14, fontWeight: 700, margin: 0 }}>{resolveText(survey.thank_you_title ?? {}, previewLang) || "Thank you!"}</p>
-              <p style={{ color: "rgba(255,255,255,0.75)", fontSize: 10.5, margin: 0, lineHeight: 1.4 }}>{resolveText(survey.thank_you_body ?? {}, previewLang) || "Your anonymous feedback helps improve the football experience for fans everywhere."}</p>
-            </div>
-            <div style={{ height: 22, minHeight: 22, display: "flex", alignItems: "center", justifyContent: "center", background: NAVY, borderTop: "1px solid rgba(255,255,255,0.10)", flexShrink: 0 }}>
-              <span style={{ color: "#8C9DB5", fontSize: 9 }}>Powered by Fanometrix • <span style={{ color: GOLD }}>Privacy</span></span>
-            </div>
-          </div>
-        ) : (
-          <div style={frame}>
-            <div style={{ height: 46, minHeight: 46, background: NAVY, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 12px", flexShrink: 0, boxSizing: "border-box" }}>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/Fanometrix_Logo.png" alt="Fanometrix" style={{ height: 15, objectFit: "contain" }} />
-              <span style={{ color: GOLD, fontSize: 10, fontWeight: 600, letterSpacing: "0.03em", flexShrink: 0 }}>{step + 1} of {questions.length}</span>
-            </div>
-            <div style={{ height: 3, minHeight: 3, background: `rgba(215,184,122,0.2)`, flexShrink: 0 }}>
-              <div style={{ height: "100%", width: `${progressPct}%`, background: GOLD, transition: "width 0.3s ease" }} />
-            </div>
-            <div style={{ flex: 1, background: "#fff", padding: "10px 12px 0", display: "flex", flexDirection: "column", minHeight: 0, overflow: "hidden", boxSizing: "border-box" }}>
-              <div style={{ height: 33, minHeight: 33, overflow: "hidden", flexShrink: 0, marginBottom: 8 }}>
-                <p style={{ color: NAVY, fontSize: 11.5, fontWeight: 700, lineHeight: 1.35, margin: 0 }}>{q?.text}</p>
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                {(q?.options ?? []).map(opt => {
-                  const sel = selected === opt.id;
-                  return (
-                    <div
-                      key={opt.id} role="radio" aria-checked={sel} tabIndex={0}
-                      onClick={() => handleSelect(opt.id)} onKeyDown={e => e.key === " " && handleSelect(opt.id)}
-                      style={{
-                        display: "flex", alignItems: "center", gap: 8,
-                        padding: "5px 10px", borderRadius: 8, flexShrink: 0,
-                        background: sel ? "rgba(215,184,122,0.10)" : "#FAFAFA",
-                        boxShadow: sel ? `0 0 0 1.5px ${GOLD}, 0 2px 6px rgba(215,184,122,0.18)` : "0 1px 3px rgba(0,0,0,0.08), 0 0 0 1px rgba(0,0,0,0.06)",
-                        cursor: "pointer", boxSizing: "border-box",
-                        transition: "box-shadow 0.15s, background 0.15s",
-                      }}
-                    >
-                      <div style={{ width: 12, height: 12, borderRadius: "50%", flexShrink: 0, border: `2px solid ${sel ? GOLD : "#9CA3AF"}`, background: sel ? GOLD : "transparent", boxSizing: "border-box", transition: "background 0.15s, border-color 0.15s" }} />
-                      <span style={{ color: NAVY, fontSize: 10.5, fontWeight: 500, lineHeight: 1 }}>{opt.text}</span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-            <div style={{ height: 22, minHeight: 22, display: "flex", alignItems: "center", justifyContent: "center", background: "#EDEEF0", borderTop: "1.5px solid #C9CDD6", flexShrink: 0 }}>
-              <span style={{ color: "#374151", fontSize: 9.5, fontWeight: 500 }}>🛡 Anonymous insights • No personal data collected</span>
-            </div>
-          </div>
-        )}
-
-        {/* Language switcher */}
-        {availableLangs.length > 1 && (
-          <div className="flex gap-1 flex-wrap justify-center">
-            {availableLangs.map(l => (
-              <button
-                key={l.code}
-                onClick={() => { setPreviewLang(l.code); setStep(0); setAnswers({}); setDone(false); }}
-                className={`text-xs px-2.5 py-1 rounded-lg border font-medium transition-colors ${
-                  previewLang === l.code
-                    ? "bg-[#D7B87A] text-[#0B1929] border-[#D7B87A]"
-                    : "border-white/30 text-white hover:bg-white/15"
-                }`}
-              >
-                {l.label}
-              </button>
-            ))}
-          </div>
-        )}
-
-        <div className="flex items-center gap-2">
-          {!done && !isFirst && (
-            <button onClick={() => setStep(s => s - 1)} className="text-xs border border-white/30 text-white hover:bg-white/15 px-3 py-1.5 rounded-lg transition-colors">← Previous</button>
-          )}
-          <button onClick={restart} className="text-xs border border-white/30 text-white hover:bg-white/15 px-3 py-1.5 rounded-lg transition-colors">↺ Restart</button>
-          <button onClick={onClose} className="text-xs bg-white/20 hover:bg-white/30 text-white font-semibold px-4 py-1.5 rounded-lg transition-colors ml-2">Close</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // ─── Survey Usage Modal ───────────────────────────────────────────────────────
 function SurveyUsageModal({ survey, campaigns, loading, onClose }: {
   survey: Survey;
@@ -494,16 +347,22 @@ const BLANK_FIELDS: EditFields = {
 // useSearchParams() Suspense boundary, not the whole (otherwise
 // statically-rendered) page.
 function EvidenceLinkReader({
-  onCreateForProject, onEditSurveyForProject,
+  onCreateForProject, onEditSurveyForProject, onOpenSurvey, onReturnTo,
 }: {
   onCreateForProject: (projectId: string | null) => void;
   onEditSurveyForProject: (projectId: string | null) => void;
+  onOpenSurvey: (surveyId: string | null) => void;
+  onReturnTo: (projectId: string | null) => void;
 }) {
   const searchParams = useSearchParams();
   const createForProject = searchParams.get("createForProject");
   const editSurveyForProject = searchParams.get("editSurveyForProject");
+  const openSurvey = searchParams.get("openSurvey");
+  const returnTo = searchParams.get("returnTo");
   useEffect(() => { onCreateForProject(createForProject); }, [createForProject, onCreateForProject]);
   useEffect(() => { onEditSurveyForProject(editSurveyForProject); }, [editSurveyForProject, onEditSurveyForProject]);
+  useEffect(() => { onOpenSurvey(openSurvey); }, [openSurvey, onOpenSurvey]);
+  useEffect(() => { onReturnTo(returnTo); }, [returnTo, onReturnTo]);
   return null;
 }
 
@@ -544,6 +403,7 @@ export default function SurveysPage() {
   const [editorLang,           setEditorLang]           = useState<LangCode>("en");
   const [translating,          setTranslating]          = useState(false);
   const [toast,                setToast]                = useState<{ msg: string; ok: boolean } | null>(null);
+  const [linkedProjects,       setLinkedProjects]       = useState<{ id: string; project_name: string }[]>([]);
 
   // Evidence Orchestration (Phase 2, Step 2) — set when this create drawer
   // was auto-opened from a Research Project's "Create Evidence" flow, so
@@ -552,6 +412,11 @@ export default function SurveysPage() {
   const router = useRouter();
   const [linkedProjectId,   setLinkedProjectId]   = useState<string | null>(null);
   const [linkedProjectName, setLinkedProjectName] = useState<string | null>(null);
+  // The linked project's research_mode — decides whether the survey this
+  // creates should be marked is_simulated (so the attach that follows
+  // doesn't get rejected by the provenance trigger) and which Workspace
+  // it returns to (/product-walkthrough vs /research-projects).
+  const [linkedProjectResearchMode, setLinkedProjectResearchMode] = useState<"real" | "simulated">("real");
   const [autoLinkActive,    setAutoLinkActive]     = useState(false);
   const autoOpenedRef = useRef(false);
 
@@ -563,6 +428,7 @@ export default function SurveysPage() {
       if (!res.ok) return;
       const { data: proj } = await res.json();
       setLinkedProjectName(proj.project_name);
+      setLinkedProjectResearchMode(proj.research_mode === "simulated" ? "simulated" : "real");
       // Pre-fill from the project so the new survey's name follows the same
       // Topic | Type | Brand | Agency convention the project itself uses.
       setFields({
@@ -607,6 +473,38 @@ export default function SurveysPage() {
       setEditLinkActive(true);
     })();
   }, [editForProjectId]);
+
+  // "Open" on a Research Project Workspace's Evidence card — jumps straight
+  // to that specific survey's edit drawer instead of the bare surveys list.
+  // Plain edit: no auto-attach, no forced redirect back afterward.
+  const [openSurveyId, setOpenSurveyId] = useState<string | null>(null);
+  const autoOpenSurveyRef = useRef(false);
+
+  useEffect(() => {
+    if (!openSurveyId || autoOpenSurveyRef.current) return;
+    autoOpenSurveyRef.current = true;
+    (async () => {
+      const res = await fetch(`/api/surveys/${openSurveyId}`);
+      if (!res.ok) return;
+      const { data: survey } = await res.json();
+      openEdit(survey);
+    })();
+  }, [openSurveyId]);
+
+  // A Research Project's Evidence card "Open →" link carries this so the
+  // Workspace is always one click away again — on close *or* save, not just
+  // save, unlike the create/edit-for-project flows above (which always
+  // finish into a specific next step). This is a plain "you're back", no
+  // wizard re-opening.
+  const [returnToProjectId, setReturnToProjectId] = useState<string | null>(null);
+
+  function closeDrawer() {
+    if (returnToProjectId) {
+      router.push(`/research-projects/${returnToProjectId}?returned=1`);
+      return;
+    }
+    setDrawerOpen(false);
+  }
 
   function showToast(msg: string, ok = true) {
     setToast({ msg, ok });
@@ -708,7 +606,7 @@ export default function SurveysPage() {
     const langLabel = SUPPORTED_LANGUAGES.find(l => l.code === targetLang)?.label ?? targetLang;
     if (overLimit > 0) {
       showToast(
-        `Translated into ${langLabel} — but ${overLimit} field${overLimit !== 1 ? "s" : ""} exceed the character limit. Review fields highlighted in red before saving.`,
+        `Translated into ${langLabel}, but ${overLimit} field${overLimit !== 1 ? "s" : ""} exceed the character limit. Review fields highlighted in red before saving.`,
         false
       );
     } else {
@@ -819,12 +717,20 @@ export default function SurveysPage() {
     setEditorLang("en");
     setAutoLinkActive(false);
     setEditLinkActive(false);
+    setLinkedProjects([]);
     setDrawerOpen(true);
   }
 
   function openEdit(s: Survey) {
     setAutoLinkActive(false);
     setEditLinkActive(false);
+    setLinkedProjects([]);
+    // Read-only — which Research Project(s) currently point at this survey
+    // as their evidence (a survey can belong to more than one at once).
+    fetch("/api/research-projects").then(r => r.json()).then(json => {
+      const projects = (json.data ?? []) as { id: string; project_name: string; survey_id: string | null }[];
+      setLinkedProjects(projects.filter(p => p.survey_id === s.id).map(p => ({ id: p.id, project_name: p.project_name })));
+    }).catch(() => {});
     setEditingOriginalStatus(s.status);
     setFields({
       name:           s.name,
@@ -901,6 +807,11 @@ export default function SurveysPage() {
       ...fields,
       status:    saveStatus,
       questions: cleanedQs,
+      // Only set on a brand-new survey created for a linked project — the
+      // survey must inherit that project's research_mode or the
+      // evidence-attach below gets rejected by the provenance trigger.
+      // Editing an existing survey never touches its provenance.
+      ...(!editingId && autoLinkActive ? { is_simulated: linkedProjectResearchMode === "simulated" } : {}),
     };
 
     const res = await fetch(
@@ -922,17 +833,30 @@ export default function SurveysPage() {
     // Evidence Orchestration (Phase 2, Step 2): a survey created via a
     // Research Project's "Create Evidence" flow attaches back to the
     // project that started it automatically, then returns there — the
-    // user should never have to manually reconnect it.
+    // user should never have to manually reconnect it. Goes through the
+    // shared evidence endpoint (not a raw PUT survey_id) so it lands in
+    // research_project_evidence alongside every other evidence source.
     if (autoLinkActive && linkedProjectId) {
       const newSurveyId = json.data?.id;
+      const workspaceHref = linkedProjectResearchMode === "simulated"
+        ? `/product-walkthrough/${linkedProjectId}`
+        : `/research-projects/${linkedProjectId}`;
       if (newSurveyId) {
-        await fetch(`/api/research-projects/${linkedProjectId}`, {
-          method: "PUT",
+        const attachRes = await fetch(`/api/research-projects/${linkedProjectId}/evidence`, {
+          method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ survey_id: newSurveyId }),
+          body: JSON.stringify({ evidence_type: "survey", evidence_id: newSurveyId }),
         });
+        if (!attachRes.ok) {
+          const attachJson = await attachRes.json().catch(() => ({}));
+          // Stay put rather than navigate away — a toast that fires right
+          // before router.push would just vanish with the page unmounting,
+          // and this is exactly the failure the user needs to see, not miss.
+          showToast(attachJson.error ?? "Survey saved, but couldn't be attached to the project.", false);
+          return;
+        }
       }
-      router.push(`/research-projects/${linkedProjectId}?evidenceAdded=1`);
+      router.push(`${workspaceHref}?evidenceAdded=1`);
       return;
     }
 
@@ -941,6 +865,14 @@ export default function SurveysPage() {
     // just return so the Workspace wizard can re-check language coverage.
     if (editLinkActive && editForProjectId) {
       router.push(`/research-projects/${editForProjectId}?evidenceAdded=1`);
+      return;
+    }
+
+    // Plain "Open →" from a Research Project's Evidence card — always
+    // returns to that Workspace on save too, not just on close, so the
+    // Workspace never feels like somewhere you can get stranded away from.
+    if (returnToProjectId) {
+      router.push(`/research-projects/${returnToProjectId}?returned=1`);
       return;
     }
 
@@ -973,7 +905,7 @@ export default function SurveysPage() {
     if (lang.autoTranslatable) {
       handleTranslate(lang.code as LangCode, /* silent */ true);
     } else {
-      showToast(`${lang.label} added — Fanometrix can't auto-translate this language yet, so it needs to be filled in manually.`);
+      showToast(`${lang.label} added, Fanometrix can't auto-translate this language yet, so it needs to be filled in manually.`);
     }
   }
   function removeLanguage(code: string) {
@@ -1105,29 +1037,43 @@ export default function SurveysPage() {
   return (
     <AdminShell>
       <Suspense fallback={null}>
-        <EvidenceLinkReader onCreateForProject={setLinkedProjectId} onEditSurveyForProject={setEditForProjectId} />
+        <EvidenceLinkReader onCreateForProject={setLinkedProjectId} onEditSurveyForProject={setEditForProjectId} onOpenSurvey={setOpenSurveyId} onReturnTo={setReturnToProjectId} />
       </Suspense>
       <div className="p-4 md:p-6 max-w-6xl mx-auto">
 
         {linkedProjectName && linkedProjectId && (
           <div className="mb-4 rounded-xl px-4 py-3 flex items-center justify-between gap-3" style={{ background: "#0B1929" }}>
             <p className="text-sm text-white">
-              Creating a survey for <span className="font-semibold" style={{ color: "#D7B87A" }}>{linkedProjectName}</span> — it will be attached automatically once saved.
+              Creating a survey for <span className="font-semibold" style={{ color: "#D7B87A" }}>{linkedProjectName}</span>, it will be attached automatically once saved.
             </p>
-            <Link href={`/research-projects/${linkedProjectId}`} className="text-xs font-semibold underline flex-shrink-0" style={{ color: "#D7B87A" }}>
-              Cancel and return
-            </Link>
+            <div className="flex items-center gap-3 flex-shrink-0">
+              {!drawerOpen && (
+                <button onClick={() => setDrawerOpen(true)} className="text-xs font-semibold underline" style={{ color: "#D7B87A" }}>
+                  Continue Creating Survey
+                </button>
+              )}
+              <Link href={`/research-projects/${linkedProjectId}`} className="text-xs font-semibold underline" style={{ color: "#D7B87A" }}>
+                Cancel and return
+              </Link>
+            </div>
           </div>
         )}
 
         {editForProjectName && editForProjectId && (
           <div className="mb-4 rounded-xl px-4 py-3 flex items-center justify-between gap-3" style={{ background: "#0B1929" }}>
             <p className="text-sm text-white">
-              Editing the survey for <span className="font-semibold" style={{ color: "#D7B87A" }}>{editForProjectName}</span> — add the missing language, then save to continue.
+              Editing the survey for <span className="font-semibold" style={{ color: "#D7B87A" }}>{editForProjectName}</span>, add the missing language, then save to continue.
             </p>
-            <Link href={`/research-projects/${editForProjectId}`} className="text-xs font-semibold underline flex-shrink-0" style={{ color: "#D7B87A" }}>
-              Cancel and return
-            </Link>
+            <div className="flex items-center gap-3 flex-shrink-0">
+              {!drawerOpen && (
+                <button onClick={() => setDrawerOpen(true)} className="text-xs font-semibold underline" style={{ color: "#D7B87A" }}>
+                  Reopen Survey Draft
+                </button>
+              )}
+              <Link href={`/research-projects/${editForProjectId}`} className="text-xs font-semibold underline" style={{ color: "#D7B87A" }}>
+                Cancel and return
+              </Link>
+            </div>
           </div>
         )}
 
@@ -1531,7 +1477,7 @@ export default function SurveysPage() {
 
       {/* ── MPU Preview Modal ── */}
       {previewSurvey && (
-        <MPUPreviewModal survey={previewSurvey} onClose={() => setPreviewSurvey(null)} />
+        <SurveyPreviewModal survey={previewSurvey} onClose={() => setPreviewSurvey(null)} />
       )}
 
       {/* ── Survey Usage Modal ── */}
@@ -1555,14 +1501,30 @@ export default function SurveysPage() {
       {/* ── Edit / Create Drawer ── */}
       {drawerOpen && (
         <div className="fixed inset-0 z-50 flex">
-          <div className="flex-1 bg-black/40" onClick={() => setDrawerOpen(false)} />
+          <div className="flex-1 bg-black/40" onClick={closeDrawer} />
           <div className="w-full sm:w-[520px] bg-white flex flex-col shadow-2xl overflow-hidden">
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
               <h2 className="font-bold text-gray-900">{editingId ? "Edit Survey" : "Create Survey"}</h2>
-              <button onClick={() => setDrawerOpen(false)} className="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
+              <button onClick={closeDrawer} className="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
             </div>
 
             <div className="flex-1 overflow-y-auto p-6 space-y-4">
+
+              {/* Linked Research Project(s) — read-only, a survey can be evidence for more than one at once */}
+              {linkedProjects.length > 0 && (
+                <div className="bg-gray-50 border border-gray-100 rounded-lg px-4 py-2.5">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
+                    Linked Research Project{linkedProjects.length !== 1 ? "s" : ""}
+                  </p>
+                  <div className="flex flex-wrap gap-x-3 gap-y-1">
+                    {linkedProjects.map(p => (
+                      <Link key={p.id} href={`/research-projects/${p.id}`} target="_blank" className="text-xs font-medium text-[#0B1929] hover:underline">
+                        {p.project_name} ↗
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Info banner for archived surveys */}
               {editingOriginalStatus === "archived" && (
@@ -1872,7 +1834,7 @@ export default function SurveysPage() {
             </div>
 
             <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-3">
-              <button onClick={() => setDrawerOpen(false)} className="text-sm text-gray-500 hover:text-gray-700 px-4 py-2">Cancel</button>
+              <button onClick={closeDrawer} className="text-sm text-gray-500 hover:text-gray-700 px-4 py-2">Cancel</button>
               <button
                 onClick={handleSave}
                 disabled={saving}

@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef, Suspense } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import Papa from "papaparse";
 import { AdminShell } from "@/app/components/AdminShell";
 import { useSession } from "@/app/components/SessionProvider";
@@ -27,6 +28,16 @@ type CampaignGroup = {
   member_count: number;
   total_responses: number;
   campaign_ids: string[];
+  survey_count: number;
+  research_project_id: string | null;
+  research_project_name: string | null;
+};
+
+type ResearchProjectOption = {
+  id: string;
+  project_name: string;
+  topic: string | null;
+  research_mode: "real" | "simulated";
 };
 
 type CampaignOption = {
@@ -34,6 +45,11 @@ type CampaignOption = {
   campaign_id: string;
   campaign_name: string;
   brand_org_id: string | null;
+  publisher_org_id: string | null;
+  research_project_id: string | null;
+  market: string | null;
+  country_code: string | null;
+  surveys?: { name: string } | null;
   status: string;
   effective_status: string;
 };
@@ -70,16 +86,32 @@ function formatDate(d: string | null): string {
 }
 
 // ─── Campaign multi-select ────────────────────────────────────────────────────
+// context() renders each option's Survey / publisher / market — the same
+// three facts an admin needs to tell campaigns apart once the picker is
+// narrowed to a single Research Project (migration 096's whole point:
+// several Surveys' campaigns can share a group, so which Survey a
+// candidate belongs to stops being obvious from the name alone).
+function campaignContext(o: CampaignOption, orgName: (id: string | null) => string): string {
+  const parts = [
+    o.surveys?.name ? `Survey: ${o.surveys.name}` : null,
+    o.publisher_org_id ? orgName(o.publisher_org_id) : null,
+    o.market || o.country_code || null,
+  ].filter(Boolean);
+  return parts.join(" · ");
+}
+
 function CampaignSelector({
   options,
   selected,
   onChange,
   orgName,
+  disabledHint,
 }: {
   options: CampaignOption[];
   selected: string[];
   onChange: (ids: string[]) => void;
   orgName: (id: string | null) => string;
+  disabledHint?: string;
 }) {
   const [search, setSearch]   = useState("");
   const [open,   setOpen]     = useState(false);
@@ -99,7 +131,7 @@ function CampaignSelector({
 
   const remaining = options.filter(o =>
     !selected.includes(o.id) &&
-    (`${o.campaign_name} ${orgName(o.brand_org_id)}`).toLowerCase().includes(search.toLowerCase())
+    (`${o.campaign_name} ${orgName(o.brand_org_id)} ${campaignContext(o, orgName)}`).toLowerCase().includes(search.toLowerCase())
   );
 
   const selectedOptions = selected.map(id => options.find(o => o.id === id)).filter(Boolean) as CampaignOption[];
@@ -114,13 +146,17 @@ function CampaignSelector({
     onChange(selected.filter(x => x !== id));
   }
 
+  if (disabledHint) {
+    return <p className="text-xs text-gray-400 italic border border-dashed border-gray-200 rounded-lg px-3 py-2.5">{disabledHint}</p>;
+  }
+
   return (
     <div>
       {selectedOptions.length > 0 && (
         <div className="flex flex-wrap gap-1.5 mb-2">
           {selectedOptions.map(o => (
             <span key={o.id} className="inline-flex items-center gap-1 text-xs bg-[#0B1929]/8 text-[#0B1929] border border-[#0B1929]/15 px-2.5 py-1 rounded-full">
-              {o.campaign_name} — {orgName(o.brand_org_id)}
+              {o.campaign_name}, {orgName(o.brand_org_id)}
               <button type="button" onClick={() => remove(o.id)} className="text-gray-400 hover:text-gray-700 leading-none ml-0.5">×</button>
             </span>
           ))}
@@ -138,25 +174,76 @@ function CampaignSelector({
           autoComplete="off"
         />
         {open && (
-          <div ref={dropRef} className="absolute z-20 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-44 overflow-y-auto">
+          <div ref={dropRef} className="absolute z-20 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-56 overflow-y-auto">
             {remaining.length === 0 ? (
-              <p className="px-3 py-2.5 text-xs text-gray-400">{search ? "No matches" : "All campaigns selected"}</p>
+              <p className="px-3 py-2.5 text-xs text-gray-400">{search ? "No matches" : "All eligible campaigns selected"}</p>
             ) : (
               remaining.map(o => (
                 <button key={o.id} type="button"
                   onMouseDown={e => { e.preventDefault(); add(o.id); }}
                   className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 transition-colors">
-                  <span className="text-gray-900">{o.campaign_name}</span>
-                  <span className="text-gray-400 ml-1">— {orgName(o.brand_org_id)}</span>
-                  <span className={`ml-2 text-xs px-1.5 py-0.5 rounded-full capitalize ${STATUS_COLOURS[o.effective_status ?? o.status] ?? "bg-gray-100 text-gray-500"}`}>
-                    {o.effective_status ?? o.status}
-                  </span>
+                  <div>
+                    <span className="text-gray-900">{o.campaign_name},</span>
+                    <span className="text-gray-400 ml-1">{orgName(o.brand_org_id)}</span>
+                    <span className={`ml-2 text-xs px-1.5 py-0.5 rounded-full capitalize ${STATUS_COLOURS[o.effective_status ?? o.status] ?? "bg-gray-100 text-gray-500"}`}>
+                      {o.effective_status ?? o.status}
+                    </span>
+                  </div>
+                  {campaignContext(o, orgName) && (
+                    <p className="text-xs text-gray-400 mt-0.5">{campaignContext(o, orgName)}</p>
+                  )}
                 </button>
               ))
             )}
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+// ─── Priority order editor ────────────────────────────────────────────────────
+// Only shown for rotation === "priority" — makes serve order an explicit,
+// editable list instead of the invisible array-insertion-order the API has
+// always derived it from (member_count campaigns, position 1 served first
+// whenever it's eligible).
+function PriorityOrderEditor({
+  campaignIds,
+  options,
+  onChange,
+  orgName,
+}: {
+  campaignIds: string[];
+  options: CampaignOption[];
+  onChange: (ids: string[]) => void;
+  orgName: (id: string | null) => string;
+}) {
+  function move(index: number, dir: -1 | 1) {
+    const next = [...campaignIds];
+    const target = index + dir;
+    if (target < 0 || target >= next.length) return;
+    [next[index], next[target]] = [next[target], next[index]];
+    onChange(next);
+  }
+
+  if (campaignIds.length === 0) return null;
+
+  return (
+    <div className="mt-2 border border-gray-200 rounded-lg divide-y divide-gray-100">
+      {campaignIds.map((id, i) => {
+        const o = options.find(x => x.id === id);
+        return (
+          <div key={id} className="flex items-center gap-2 px-3 py-2 text-sm">
+            <span className="text-xs font-semibold text-gray-400 w-5 flex-shrink-0">{i + 1}</span>
+            <span className="flex-1 min-w-0 truncate text-gray-800">{o ? `${o.campaign_name}, ${orgName(o.brand_org_id)}` : id}</span>
+            <button type="button" disabled={i === 0} onClick={() => move(i, -1)}
+              className="text-gray-400 hover:text-gray-700 disabled:opacity-25 disabled:cursor-not-allowed px-1">↑</button>
+            <button type="button" disabled={i === campaignIds.length - 1} onClick={() => move(i, 1)}
+              className="text-gray-400 hover:text-gray-700 disabled:opacity-25 disabled:cursor-not-allowed px-1">↓</button>
+          </div>
+        );
+      })}
+      <p className="text-xs text-gray-400 px-3 py-1.5 bg-gray-50 rounded-b-lg">Position 1 serves first whenever it&apos;s eligible; others only step in as backups.</p>
     </div>
   );
 }
@@ -176,6 +263,7 @@ type GroupForm = {
   start_date:     string;
   end_date:       string;
   campaign_ids:   string[];
+  research_project_id: string;
 };
 
 const BLANK_FORM: GroupForm = {
@@ -183,13 +271,62 @@ const BLANK_FORM: GroupForm = {
   brand_org_id: "", agency_org_id: "", topic: "", study_type: "custom",
   status: "draft", rotation: "equal",
   start_date: "", end_date: "", campaign_ids: [],
+  research_project_id: "",
 };
+
+// Reads the ?project=&create=1&edit=&search=&returnTo= deep link a
+// Research Project / Product Walkthrough's Campaign Groups card navigates
+// here with — isolated in its own component so only this leaf needs the
+// useSearchParams() Suspense boundary, not the whole page (same pattern as
+// app/campaigns/page.tsx's CampaignLinkReader). returnTo carries the
+// Workspace URL to send the admin back to once they're done in the
+// drawer, so Save/Cancel don't strand them on this standalone page.
+// search seeds the existing search box — "Get Tags" on a group card has
+// nowhere else to point (the embed code lives in each group's own list
+// row, not a per-group route), so without this a project with many
+// groups just dumps the admin on the full unfiltered list.
+function CampaignGroupLinkReader({
+  onProject, onAutoCreate, onEditGroupId, onReturnTo, onSearchTerm,
+}: {
+  onProject: (projectId: string | null) => void;
+  onAutoCreate: (autoCreate: boolean) => void;
+  onEditGroupId: (groupId: string | null) => void;
+  onReturnTo: (returnTo: string | null) => void;
+  onSearchTerm: (search: string | null) => void;
+}) {
+  const searchParams = useSearchParams();
+  const project = searchParams.get("project");
+  const autoCreate = searchParams.get("create") === "1";
+  const editGroupId = searchParams.get("edit");
+  const returnTo = searchParams.get("returnTo");
+  const searchTerm = searchParams.get("search");
+  useEffect(() => { onProject(project); }, [project, onProject]);
+  useEffect(() => { onAutoCreate(autoCreate); }, [autoCreate, onAutoCreate]);
+  useEffect(() => { onEditGroupId(editGroupId); }, [editGroupId, onEditGroupId]);
+  useEffect(() => { onReturnTo(returnTo); }, [returnTo, onReturnTo]);
+  useEffect(() => { onSearchTerm(searchTerm); }, [searchTerm, onSearchTerm]);
+  return null;
+}
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function CampaignGroupsPage() {
   const { user } = useSession();
+  const router = useRouter();
+  // Read-only visitors (brand/agency, via the project access cascade —
+  // migration 096) can reach this page now that GET allows their roles;
+  // create/edit/delete stay admin/publisher only, matching the API.
+  const canManage = user?.role === "admin" || user?.role === "publisher";
+  const [deepLinkProjectId, setDeepLinkProjectId] = useState<string | null>(null);
+  const [autoCreate, setAutoCreate] = useState(false);
+  const [editGroupId, setEditGroupId] = useState<string | null>(null);
+  const [returnTo, setReturnTo] = useState<string | null>(null);
+  const [deepLinkSearchTerm, setDeepLinkSearchTerm] = useState<string | null>(null);
+  const editGroupFired = useRef(false);
+  const searchTermApplied = useRef(false);
+
   const [groups,   setGroups]   = useState<CampaignGroup[]>([]);
   const [campaigns, setCampaigns] = useState<CampaignOption[]>([]);
+  const [researchProjects, setResearchProjects] = useState<ResearchProjectOption[]>([]);
   const [orgs,     setOrgs]     = useState<{ id: string; name: string; type: "publisher" | "agency" | "brand" | "internal" }[]>([]);
   const [loading,  setLoading]  = useState(true);
 
@@ -206,10 +343,20 @@ export default function CampaignGroupsPage() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editingId,  setEditingId]  = useState<string | null>(null);
   const [form,       setForm]       = useState<GroupForm>(BLANK_FORM);
+  const [lockProject, setLockProject] = useState(false);
+  const [wasUnscopedAtOpen, setWasUnscopedAtOpen] = useState(false);
+  const [wasWeightedAtOpen, setWasWeightedAtOpen] = useState(false);
   const [saving,     setSaving]     = useState(false);
   const [error,      setError]      = useState("");
   const [toast,      setToast]      = useState<{ msg: string; ok: boolean } | null>(null);
   const [copied,     setCopied]     = useState<string | null>(null);
+
+  // Campaigns eligible for the picker, fetched per Research Project the
+  // moment it's selected in the form — a project-scoped group's picker
+  // must only ever offer that project's own campaigns (migration 096), not
+  // the platform-wide list every other lookup on this page still uses.
+  const [projectCampaignsCache, setProjectCampaignsCache] = useState<Record<string, CampaignOption[]>>({});
+  const fetchedProjectIds = useRef(new Set<string>());
 
   function showToast(msg: string, ok = true) {
     setToast({ msg, ok });
@@ -218,18 +365,31 @@ export default function CampaignGroupsPage() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const [grpRes, camRes, orgRes] = await Promise.all([
+    const [grpRes, camRes, orgRes, projRes] = await Promise.all([
       fetch("/api/campaign-groups"),
       fetch("/api/campaigns"),
       fetch("/api/organisations"),
+      fetch("/api/research-projects"),
     ]);
     setGroups((await grpRes.json()).data ?? []);
     setCampaigns((await camRes.json()).data ?? []);
     setOrgs((await orgRes.json()).data ?? []);
+    setResearchProjects((await projRes.json()).data ?? []);
     setLoading(false);
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    const pid = form.research_project_id;
+    if (!pid || fetchedProjectIds.current.has(pid)) return;
+    fetchedProjectIds.current.add(pid);
+    fetch(`/api/campaigns?research_project_id=${pid}`)
+      .then(r => r.json())
+      .then(json => setProjectCampaignsCache(prev => ({ ...prev, [pid]: json.data ?? [] })));
+  }, [form.research_project_id]);
+
+  const autoCreateFired = useRef(false);
 
   const publisherOrgs = useMemo(() => {
     const all = orgs.filter(o => o.type === "publisher");
@@ -309,10 +469,32 @@ export default function CampaignGroupsPage() {
     }
   }, [activeGroups, closedGroups, archivedGroups, activeTab, statusFilter, usageFilter, dateFilter, publisherFilter, brandFilter, sortBy, search, orgName]);
 
-  // Eligible campaigns for the selector (not deleted, not archived/closed)
+  // Eligible campaigns for the selector (not deleted, not archived/closed).
+  // Platform-wide fallback — only ever used while editing a genuinely
+  // legacy, still-unscoped group (research_project_id null); every
+  // project-scoped group's picker uses projectCampaignsCache instead.
   const selectableCampaigns = useMemo(() =>
     campaigns.filter(c => !["archived", "closed"].includes(c.effective_status ?? c.status)),
   [campaigns]);
+
+  const pickerOptions = useMemo(() => {
+    const pid = form.research_project_id;
+    const source = pid ? (projectCampaignsCache[pid] ?? []) : selectableCampaigns;
+    return source.filter(c => !["archived", "closed"].includes(c.effective_status ?? c.status));
+  }, [form.research_project_id, projectCampaignsCache, selectableCampaigns]);
+
+  // Merges the platform-wide list with every project-scoped fetch this
+  // session has made — so CSV export and any other name lookup can still
+  // resolve a campaign that only ever appeared in a project-scoped fetch
+  // (e.g. a Product Walkthrough's simulated campaigns, which the
+  // unfiltered /api/campaigns call excludes by design).
+  const campaignById = useMemo(() => {
+    const map = new Map<string, CampaignOption>(campaigns.map(c => [c.id, c]));
+    for (const list of Object.values(projectCampaignsCache)) {
+      for (const c of list) map.set(c.id, c);
+    }
+    return map;
+  }, [campaigns, projectCampaignsCache]);
 
   // ── Drawer helpers ─────────────────────────────────────────────────────────
   function openCreate() {
@@ -321,7 +503,11 @@ export default function CampaignGroupsPage() {
     setForm({
       ...BLANK_FORM,
       publisher_org_id: isPublisher ? (user?.organisationId ?? "") : "",
+      research_project_id: deepLinkProjectId ?? "",
     });
+    setLockProject(!!deepLinkProjectId);
+    setWasUnscopedAtOpen(false);
+    setWasWeightedAtOpen(false);
     setError("");
     setDrawerOpen(true);
   }
@@ -342,9 +528,53 @@ export default function CampaignGroupsPage() {
       start_date:     g.start_date ?? "",
       end_date:       g.end_date ?? "",
       campaign_ids:   g.campaign_ids,
+      research_project_id: g.research_project_id ?? "",
     });
+    setLockProject(false);
+    setWasUnscopedAtOpen(!g.research_project_id);
+    setWasWeightedAtOpen(g.rotation === "weighted");
     setError("");
     setDrawerOpen(true);
+  }
+
+  useEffect(() => {
+    if (autoCreate && canManage && !loading && !autoCreateFired.current) {
+      autoCreateFired.current = true;
+      openCreate();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoCreate, loading]);
+
+  useEffect(() => {
+    if (editGroupId && canManage && !loading && !editGroupFired.current) {
+      const g = groups.find(x => x.id === editGroupId);
+      if (g) {
+        editGroupFired.current = true;
+        openEdit(g);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editGroupId, loading, groups]);
+
+  // Seeds the search box from a "Get Tags" deep link — applied once, same
+  // "don't fight a later manual change" guard as autoCreate/editGroupId
+  // above. Without this, a project with many groups (or a platform with
+  // many projects' groups mixed in) lands the admin on the full unfiltered
+  // list with no way to tell which card is theirs.
+  useEffect(() => {
+    if (deepLinkSearchTerm && !searchTermApplied.current) {
+      searchTermApplied.current = true;
+      setSearch(deepLinkSearchTerm);
+    }
+  }, [deepLinkSearchTerm]);
+
+  // Sends the admin back to the Research Project / Product Walkthrough
+  // Workspace they deep-linked in from, instead of stranding them on this
+  // standalone page — only when returnTo is present (i.e. they arrived via
+  // the Workspace's Campaign Groups card), never for a normal page visit.
+  function closeDrawer() {
+    setDrawerOpen(false);
+    if (returnTo) router.push(`${returnTo}#campaign-groups`);
   }
 
   function autoSlug() {
@@ -366,6 +596,10 @@ export default function CampaignGroupsPage() {
     if (!form.name.trim())     { setError("Group name is required.");   return; }
     if (!form.group_id.trim()) { setError("Group slug is required.");   return; }
     if (!form.publisher_org_id) { setError("Publisher is required.");   return; }
+    // Every new group must be project-scoped; an existing group that was
+    // already scoped can't be reverted to unscoped either — only a group
+    // that was genuinely unscoped when this drawer opened may stay that way.
+    if (!form.research_project_id && !wasUnscopedAtOpen) { setError("Research Project is required."); return; }
     setError(""); setSaving(true);
 
     const payload = {
@@ -382,6 +616,7 @@ export default function CampaignGroupsPage() {
       start_date:   form.start_date || null,
       end_date:     form.end_date   || null,
       campaign_ids: form.campaign_ids,
+      research_project_id: form.research_project_id || null,
     };
 
     const url    = editingId ? `/api/campaign-groups/${editingId}` : "/api/campaign-groups";
@@ -392,6 +627,7 @@ export default function CampaignGroupsPage() {
 
     if (!res.ok) { setError(json.error ?? "Failed to save."); return; }
     setDrawerOpen(false);
+    if (returnTo) { router.push(`${returnTo}#campaign-groups`); return; }
     showToast(editingId ? "Group updated." : "Group created.");
     load();
   }
@@ -425,12 +661,13 @@ export default function CampaignGroupsPage() {
     const d = (s: string | null | undefined) => s ? new Date(s).toISOString().slice(0, 10) : "";
     const rows = displayed.map(g => {
       const campaignNames = g.campaign_ids
-        .map(id => campaigns.find(c => c.id === id))
+        .map(id => campaignById.get(id))
         .filter(Boolean)
         .map(c => `${c!.campaign_name} (${orgName(c!.brand_org_id)})`)
         .join("; ");
       return {
         "Group Name":       g.name,
+        "Research Project": g.research_project_name ?? "Unscoped",
         "Slug":             g.group_id,
         "Description":      g.description ?? "",
         "Topic":            g.topic ?? "",
@@ -458,6 +695,15 @@ export default function CampaignGroupsPage() {
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <AdminShell>
+      <Suspense fallback={null}>
+        <CampaignGroupLinkReader
+          onProject={setDeepLinkProjectId}
+          onAutoCreate={setAutoCreate}
+          onEditGroupId={setEditGroupId}
+          onReturnTo={setReturnTo}
+          onSearchTerm={setDeepLinkSearchTerm}
+        />
+      </Suspense>
       <div className="p-4 md:p-6 max-w-6xl mx-auto">
 
         {/* Header */}
@@ -477,11 +723,13 @@ export default function CampaignGroupsPage() {
               >
                 Export CSV
               </button>
-              <button onClick={openCreate}
-                className="text-sm font-semibold px-4 py-2 rounded-lg"
-                style={{ background: GOLD, color: NAVY }}>
-                + Create Group
-              </button>
+              {canManage && (
+                <button onClick={openCreate}
+                  className="text-sm font-semibold px-4 py-2 rounded-lg"
+                  style={{ background: GOLD, color: NAVY }}>
+                  + Create Group
+                </button>
+              )}
             </div>
           </div>
           <details className="group bg-gray-50 w-full">
@@ -651,6 +899,11 @@ export default function CampaignGroupsPage() {
 
               {/* Metadata */}
               <div className="flex flex-wrap gap-1.5 mt-2 mb-2">
+                {g.research_project_name ? (
+                  <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full">{g.research_project_name}</span>
+                ) : (
+                  <span className="text-xs bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full">Unscoped — needs review</span>
+                )}
                 {orgName(g.publisher_org_id) && (
                   <span className="text-xs bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full">{orgName(g.publisher_org_id)}</span>
                 )}
@@ -659,6 +912,8 @@ export default function CampaignGroupsPage() {
 
               <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-gray-400 mb-3">
                 <span>{g.member_count} campaign{g.member_count !== 1 ? "s" : ""}</span>
+                <span>·</span>
+                <span>{g.survey_count} survey{g.survey_count !== 1 ? "s" : ""}</span>
                 <span>·</span>
                 <span>{g.total_responses.toLocaleString()} responses</span>
                 {(g.start_date || g.end_date) && (
@@ -682,7 +937,10 @@ export default function CampaignGroupsPage() {
                 </button>
               </div>
 
-              {/* Actions */}
+              {/* Actions — brand/agency can see groups belonging to a project
+                  they have access to (migration 096's visibility cascade),
+                  but editing stays admin/publisher only, same as before. */}
+              {canManage && (
               <div className="flex items-center gap-1.5 flex-wrap">
                 <button onClick={() => openEdit(g)}
                   className="text-xs border border-gray-200 text-gray-600 hover:bg-gray-50 px-3 py-1.5 rounded-lg transition-colors">
@@ -733,6 +991,7 @@ export default function CampaignGroupsPage() {
                   </button>
                 )}
               </div>
+              )}
             </div>
           ))}
         </div>
@@ -742,11 +1001,11 @@ export default function CampaignGroupsPage() {
       {/* ── Create / Edit Drawer ──────────────────────────────────────────────── */}
       {drawerOpen && (
         <div className="fixed inset-0 z-50 flex">
-          <div className="flex-1 bg-black/40" onClick={() => setDrawerOpen(false)} />
+          <div className="flex-1 bg-black/40" onClick={closeDrawer} />
           <div className="w-full sm:w-[520px] bg-white flex flex-col shadow-2xl overflow-hidden">
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
               <h2 className="font-bold text-gray-900">{editingId ? "Edit Group" : "Create Group"}</h2>
-              <button onClick={() => setDrawerOpen(false)} className="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
+              <button onClick={closeDrawer} className="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
             </div>
 
             <div className="flex-1 overflow-y-auto p-6 space-y-4">
@@ -792,6 +1051,31 @@ export default function CampaignGroupsPage() {
               </DrawerSection>
 
               <DrawerSection step={2} title="Publisher &amp; Schedule" subtitle="Who this group serves, and when.">
+                <Field label="Research Project *">
+                  <select
+                    value={form.research_project_id}
+                    onChange={e => {
+                      const value = e.target.value;
+                      setForm(f => ({ ...f, research_project_id: value, campaign_ids: value === f.research_project_id ? f.campaign_ids : [] }));
+                    }}
+                    disabled={lockProject}
+                    className={`${INP} ${lockProject ? "bg-gray-50 text-gray-500" : ""}`}
+                  >
+                    <option value="">{wasUnscopedAtOpen ? "Unscoped (legacy) — leave as-is or assign one" : "Select Research Project"}</option>
+                    {researchProjects.map(p => (
+                      <option key={p.id} value={p.id}>
+                        {(p.topic || p.project_name)}{p.research_mode === "simulated" ? " (Product Walkthrough)" : ""}
+                      </option>
+                    ))}
+                  </select>
+                  {lockProject && (
+                    <p className="text-xs text-gray-400 mt-1">Locked — opened from within this Research Project.</p>
+                  )}
+                  <p className="text-xs text-gray-400 mt-1">
+                    Every campaign added below must belong to this same Research Project — campaigns from other projects or clients can&apos;t be mixed in.
+                  </p>
+                </Field>
+
                 <div className="grid grid-cols-2 gap-3">
                   <Field label="Publisher *">
                     <select
@@ -800,7 +1084,7 @@ export default function CampaignGroupsPage() {
                       disabled={user?.role === "publisher"}
                       className={`${INP} ${user?.role === "publisher" ? "bg-gray-50 text-gray-500" : ""}`}
                     >
-                      <option value="">— Select publisher —</option>
+                      <option value="">Select publisher</option>
                       {publisherOrgs.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
                     </select>
                     {user?.role === "publisher" && (
@@ -837,18 +1121,36 @@ export default function CampaignGroupsPage() {
                   <select value={form.rotation} onChange={e => setForm(f => ({ ...f, rotation: e.target.value as CampaignGroup["rotation"] }))}
                     className={INP}>
                     <option value="equal">Equal, random from eligible campaigns</option>
-                    <option value="weighted">Weighted, random proportional to weight</option>
-                    <option value="priority">Priority, highest-priority eligible campaign</option>
+                    {wasWeightedAtOpen && <option value="weighted">Weighted, random proportional to weight</option>}
+                    <option value="priority">Priority, highest-priority eligible campaign first</option>
                   </select>
+                  {form.rotation === "weighted" ? (
+                    <p className="text-xs text-amber-600 mt-1">
+                      Per-campaign weight editing doesn&apos;t exist yet — every member currently rotates as if equally weighted. Kept as-is since this group already used it; switch to Equal or Priority for predictable behaviour.
+                    </p>
+                  ) : (
+                    !wasWeightedAtOpen && (
+                      <p className="text-xs text-gray-400 mt-1">Weighted is hidden until real per-campaign weight controls exist.</p>
+                    )
+                  )}
                 </Field>
 
-                <Field label="Campaigns in Group">
+                <Field label={form.rotation === "priority" ? "Campaigns in Group, in serve order" : "Campaigns in Group"}>
                   <CampaignSelector
-                    options={selectableCampaigns}
+                    options={pickerOptions}
                     selected={form.campaign_ids}
                     onChange={ids => setForm(f => ({ ...f, campaign_ids: ids }))}
                     orgName={orgName}
+                    disabledHint={!form.research_project_id ? "Select a Research Project above first." : undefined}
                   />
+                  {form.rotation === "priority" && (
+                    <PriorityOrderEditor
+                      campaignIds={form.campaign_ids}
+                      options={pickerOptions}
+                      onChange={ids => setForm(f => ({ ...f, campaign_ids: ids }))}
+                      orgName={orgName}
+                    />
+                  )}
                   <p className="text-xs text-gray-400 mt-1.5">
                     Only live campaigns within their date range and below target will be served. Others are skipped at embed time.
                   </p>
@@ -863,7 +1165,7 @@ export default function CampaignGroupsPage() {
             </div>
 
             <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-3">
-              <button onClick={() => setDrawerOpen(false)} className="text-sm text-gray-500 px-4 py-2">Cancel</button>
+              <button onClick={closeDrawer} className="text-sm text-gray-500 px-4 py-2">Cancel</button>
               <button onClick={handleSave} disabled={saving}
                 className="text-sm font-semibold px-5 py-2 rounded-lg disabled:opacity-60"
                 style={{ background: GOLD, color: NAVY }}>

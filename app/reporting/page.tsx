@@ -38,7 +38,7 @@ const FIELDS = [
   { name: "response_month_label", type: "TEXT",      note: "e.g. 2026-06" },
   { name: "response_day_of_week", type: "TEXT",      note: "e.g. Monday" },
   { name: "response_hour",        type: "INTEGER",   note: "Hour of submission 0–23 (UTC)" },
-  { name: "response_daypart",     type: "TEXT",      note: "Morning (05–11) · Afternoon (12–16) · Evening (17–21) · Night (22–04) — UTC" },
+  { name: "response_daypart",     type: "TEXT",      note: "Morning (05–11) · Afternoon (12–16) · Evening (17–21) · Night (22–04), UTC" },
 ];
 
 const MEASURES = [
@@ -135,13 +135,13 @@ export default function ReportingPage() {
             <div>
               <p className="font-semibold text-gray-700 mb-1">Query parameters</p>
               <ul className="space-y-0.5">
-                <li><code className="text-[#0B1929]">limit</code> — rows per page (max 10,000, default 1,000)</li>
-                <li><code className="text-[#0B1929]">offset</code> — pagination offset</li>
-                <li><code className="text-[#0B1929]">campaign_id</code> — filter by campaign slug</li>
-                <li><code className="text-[#0B1929]">publisher</code> — filter by publisher</li>
-                <li><code className="text-[#0B1929]">country</code> — filter by country</li>
-                <li><code className="text-[#0B1929]">date_from</code> / <code className="text-[#0B1929]">date_to</code> — YYYY-MM-DD</li>
-                <li><code className="text-[#0B1929]">api_key</code> — auth key (or use Authorization header)</li>
+                <li><code className="text-[#0B1929]">limit</code>, rows per page (max 10,000, default 1,000)</li>
+                <li><code className="text-[#0B1929]">offset</code>, pagination offset</li>
+                <li><code className="text-[#0B1929]">campaign_id</code>, filter by campaign slug</li>
+                <li><code className="text-[#0B1929]">publisher</code>, filter by publisher</li>
+                <li><code className="text-[#0B1929]">country</code>, filter by country</li>
+                <li><code className="text-[#0B1929]">date_from</code> / <code className="text-[#0B1929]">date_to</code>, YYYY-MM-DD</li>
+                <li><code className="text-[#0B1929]">api_key</code>, auth key (or use Authorization header)</li>
               </ul>
             </div>
             <div>
@@ -256,7 +256,7 @@ export default function ReportingPage() {
         {/* Fields */}
         <div className="bg-white border border-gray-100 rounded-xl p-5 shadow-sm">
           <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
-            View Fields — vw_campaign_responses ({FIELDS.length} columns)
+            View Fields, vw_campaign_responses ({FIELDS.length} columns)
           </p>
           <div className="overflow-x-auto">
             <table className="w-full text-xs">

@@ -216,7 +216,7 @@ export function KpiCards({ responses, events, eventsLoading }: KpiCardsProps) {
           <ZeroNotice message="Survey Renders and Q1 Answered are not available for historical responses collected before event tracking was enabled." />
         )}
         {!hasEvents && !eventsLoading && (
-          <ZeroNotice message="Survey Renders and Q1 Answered require event tracking — no events recorded yet." />
+          <ZeroNotice message="Survey Renders and Q1 Answered require event tracking, no events recorded yet." />
         )}
       </div>
 

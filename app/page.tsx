@@ -5,7 +5,7 @@ import { BuiltForCarousel } from "@/app/components/BuiltForCarousel";
 import { APP_URL } from "@/lib/env";
 
 export const metadata: Metadata = {
-  title: "Fanometrix — Football Fan Intelligence",
+  title: "Fanometrix, Football Fan Intelligence",
   description:
     "Fanometrix is a football intelligence platform that combines proprietary fan research, public conversation intelligence and industry evidence to help brands, agencies, publishers and rights holders make better decisions.",
 };

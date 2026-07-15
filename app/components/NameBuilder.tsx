@@ -68,7 +68,7 @@ export function NameBuilder({
         </Field>
         <Field label="Brand (optional)">
           <select value={brandOrgId} onChange={e => onBrandChange(e.target.value)} className={INP}>
-            <option value="">— None —</option>
+            <option value="">None</option>
             {brandOptions.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
           </select>
         </Field>
@@ -77,7 +77,7 @@ export function NameBuilder({
       <div className="grid grid-cols-2 gap-3">
         <Field label="Agency (optional)">
           <select value={agencyOrgId} onChange={e => onAgencyChange(e.target.value)} className={INP}>
-            <option value="">— None —</option>
+            <option value="">None</option>
             {agencyOptions.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
           </select>
         </Field>

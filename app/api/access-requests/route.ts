@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
         body: JSON.stringify({
           from:    "Fanometrix <onboarding@resend.dev>",
           to:      [notifyEmail],
-          subject: `New Access Request — ${organisation}`,
+          subject: `New Access Request, ${organisation}`,
           html: `
             <div style="font-family:sans-serif;max-width:520px;margin:0 auto;color:#111;">
               <h2 style="color:#0B1929;margin-bottom:4px;">New Access Request</h2>

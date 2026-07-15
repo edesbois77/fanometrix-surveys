@@ -394,7 +394,7 @@ export function ClassicSurvey(props: ClassicSurveyProps) {
   const [advancing, setAdvancing] = useState(false);
   const [showPrivacy, setShowPrivacy] = useState(false);
   const [privacySlide, setPrivacySlide] = useState(0);
-  const [errorMsg, setErrorMsg] = useState("Something went wrong — tap an answer to try again.");
+  const [errorMsg, setErrorMsg] = useState("Something went wrong, tap an answer to try again.");
 
   // ─── Event tracking state ────────────────────────────────────────────────
   const hasRendered = useRef(false);
@@ -535,14 +535,14 @@ export function ClassicSurvey(props: ClassicSurveyProps) {
           setStatus("success");
         } else {
           const json = await res.json().catch(() => ({}));
-          const msg = json.error ?? "Something went wrong — tap an answer to try again.";
+          const msg = json.error ?? "Something went wrong, tap an answer to try again.";
           console.error("[Fanometrix embed] Submission failed:", res.status, msg);
           setErrorMsg(msg);
           setStatus("error");
         }
       } catch (err) {
         console.error("[Fanometrix embed] Network error:", err);
-        setErrorMsg("Network error — please check your connection and try again.");
+        setErrorMsg("Network error, please check your connection and try again.");
         setStatus("error");
       }
       setAdvancing(false);

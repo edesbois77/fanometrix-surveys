@@ -66,12 +66,29 @@ async function orgWideResourceIds(organisationId: string, resourceType: Resource
       // targeting — they're an authoring tool, not something a publisher
       // needs to see (unlike Campaigns, which stay visible read-only —
       // see the "campaign" case above and supabase-migration-064.sql).
-      const { data } = await supabaseAdmin
-        .from("campaign_groups")
-        .select("id")
-        .or(`publisher_org_id.eq.${organisationId},brand_org_id.eq.${organisationId},agency_org_id.eq.${organisationId}`)
-        .eq("created_by_admin", false);
-      return (data ?? []).map(r => r.id as string);
+      const [{ data: direct }, projectIds] = await Promise.all([
+        supabaseAdmin
+          .from("campaign_groups")
+          .select("id")
+          .or(`publisher_org_id.eq.${organisationId},brand_org_id.eq.${organisationId},agency_org_id.eq.${organisationId}`)
+          .eq("created_by_admin", false),
+        orgWideResourceIds(organisationId, "research_project"),
+      ]);
+      const ids = new Set<string>((direct ?? []).map(r => r.id as string));
+
+      // Additive (migration 096): a group scoped to a Research Project this
+      // organisation can already see is visible too, even if the group's
+      // own publisher/brand/agency org fields don't happen to match — the
+      // project relationship is now a visibility path in its own right,
+      // not just the group's own org targeting.
+      if (projectIds.length > 0) {
+        const { data: byProject } = await supabaseAdmin
+          .from("campaign_groups")
+          .select("id")
+          .in("research_project_id", projectIds);
+        (byProject ?? []).forEach(r => ids.add(r.id as string));
+      }
+      return Array.from(ids);
     }
     case "research_project": {
       // Admin-created projects are never org-wide visible, regardless of
@@ -117,11 +134,19 @@ async function selectedResourceIds(userId: string, resourceType: ResourceType): 
   }
 
   if (resourceType === "campaign_group") {
-    // campaign_groups have no research_project_id of their own (a group's
-    // relationship to a project is indirect, via its member campaigns),
-    // so a research_project grant doesn't currently cascade down to
-    // groups — only a direct campaign_group grant does.
-    return idsOf("campaign_group");
+    // Additive (migration 096): a campaign_group grant still works
+    // directly, and a research_project grant now also cascades to any
+    // group scoped to that project — a user who can see a Research
+    // Project should be able to see the Campaign Groups running its
+    // campaigns without needing a second, separate grant.
+    const direct = idsOf("campaign_group");
+    const projectIds = idsOf("research_project");
+    const ids = new Set<string>(direct);
+    if (projectIds.length > 0) {
+      const { data } = await supabaseAdmin.from("campaign_groups").select("id").in("research_project_id", projectIds);
+      (data ?? []).forEach(r => ids.add(r.id as string));
+    }
+    return Array.from(ids);
   }
 
   // resourceType === "campaign": inherits from a grant on the campaign

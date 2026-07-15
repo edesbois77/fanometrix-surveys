@@ -17,11 +17,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const { data: search, error: sErr } = await supabaseAdmin
     .from("social_searches")
-    .select("id, name, reddit_subreddits, social_keywords(keyword)")
+    .select("id, name, reddit_subreddits, social_keywords(keyword), is_simulated")
     .eq("id", id)
     .single();
 
   if (sErr || !search) return NextResponse.json({ error: "Search not found" }, { status: 404 });
+
+  // Real collection only. A simulated search only ever receives
+  // evidence from the Simulation engine's own generation routes.
+  if (search.is_simulated) {
+    return NextResponse.json({ error: "This search belongs to a simulated research project and cannot collect real mentions." }, { status: 403 });
+  }
 
   const subreddits = (search.reddit_subreddits as string[]) ?? [];
   const keywords    = (search.social_keywords as { keyword: string }[]).map(k => k.keyword);

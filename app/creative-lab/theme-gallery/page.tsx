@@ -13,7 +13,7 @@ const DEFAULT_QUESTIONS: SurveyQuestion[] = [
 ];
 
 type Variant    = "A" | "B";
-const DESIGN_LABEL = "Design — Timer (300×250)";
+const DESIGN_LABEL = "Design, Timer (300×250)";
 type Device     = "desktop" | "mobile";
 type Tab        = "gallery" | "archive";
 type SurveyEvent = EventA | EventB;
@@ -222,8 +222,8 @@ function QuestionEditor({ questions, setQuestions, onRestart, dark }: {
       >
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <span style={{ color: GOLD, fontSize: 12 }}>✏</span>
-          <span style={{ color: p.text, fontSize: 11, fontWeight: 700 }}>Edit Questions &amp; Answers</span>
-          <span style={{ color: p.faint, fontSize: 9.5 }}>— changes apply to all 8 cards live</span>
+          <span style={{ color: p.text, fontSize: 11, fontWeight: 700 }}>Edit Questions &amp; Answers,</span>
+          <span style={{ color: p.faint, fontSize: 9.5 }}>changes apply to all 8 cards live</span>
         </div>
         <span style={{ color: p.muted, fontSize: 13, transform: open ? "rotate(180deg)" : "none", transition: "transform 0.2s ease" }}>▾</span>
       </button>
@@ -404,7 +404,7 @@ function ArchiveTab({ surveyKey, typography, questions, dark }: {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       <div style={{ background: p.surface, border: `1px solid ${p.border}`, borderRadius: 10, padding: "14px 18px" }}>
-        <p style={{ color: p.text, fontSize: 13, fontWeight: 700, margin: "0 0 4px", letterSpacing: "-0.01em" }}>Archived — Question in Circle (Variant A)</p>
+        <p style={{ color: p.text, fontSize: 13, fontWeight: 700, margin: "0 0 4px", letterSpacing: "-0.01em" }}>Archived, Question in Circle (Variant A)</p>
         <p style={{ color: p.muted, fontSize: 10, margin: 0, lineHeight: 1.5 }}>
           The circle layout was evaluated but not selected for production. Retained here for reference.
         </p>

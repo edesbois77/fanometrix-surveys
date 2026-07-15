@@ -8,6 +8,7 @@ import { requireUser } from "@/lib/auth-server";
 import { analyseConversation } from "@/lib/intelligence/analysts/analyseConversation";
 import { getSummary, saveDraft } from "@/lib/intelligence/store";
 import { IntelligenceError } from "@/lib/intelligence/types";
+import { assertSimulatedResearchReady } from "@/lib/intelligence/assert-research-ready";
 
 export type { InsightReport } from "@/lib/intelligence/analysts/analyseConversation";
 
@@ -25,7 +26,7 @@ export async function POST(req: NextRequest) {
   let session;
   try { session = await requireUser(req, ["admin"]); } catch (err) { return err as Response; }
 
-  const { search_id, confirm } = await req.json();
+  const { search_id, confirm, research_project_evidence_id } = await req.json();
   if (!search_id) return NextResponse.json({ error: "search_id is required" }, { status: 400 });
 
   // Regenerating replaces the current draft outright, but once an admin
@@ -40,6 +41,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    await assertSimulatedResearchReady("social_search", search_id, research_project_evidence_id);
     const report = await analyseConversation(search_id);
     const saved  = await saveDraft({
       sourceType:  "conversation_search",

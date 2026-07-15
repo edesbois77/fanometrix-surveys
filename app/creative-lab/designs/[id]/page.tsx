@@ -324,7 +324,7 @@ export default function CreativeStudioPage() {
         {design.is_system && (
           <div className="bg-white border rounded-xl px-4 py-3 mb-6" style={{ borderColor: GOLD }}>
             <p className="text-sm" style={{ color: NAVY }}>
-              This is one of the original built-in designs. It's protected — saving your changes here creates a new,
+              This is one of the original built-in designs. It's protected, saving your changes here creates a new,
               independent variant instead of overwriting it.
             </p>
           </div>
@@ -338,7 +338,7 @@ export default function CreativeStudioPage() {
               <button
                 onClick={() => setPreviewKey(k => k + 1)}
                 className="text-xs font-medium text-gray-500 hover:text-gray-700 flex items-center gap-1"
-                title="Restart the preview — see your edits without saving"
+                title="Restart the preview, see your edits without saving"
               >
                 ↻ Refresh
               </button>
@@ -410,7 +410,7 @@ export default function CreativeStudioPage() {
                 </span>
                 {theme === "publisher" ? (
                   <select value={publisherId ?? ""} onChange={e => setPublisherId(e.target.value || null)} className={INP}>
-                    <option value="">— Select publisher —</option>
+                    <option value="">Select publisher</option>
                     {publishers.map(pub => <option key={pub.id} value={pub.id}>{pub.name}</option>)}
                   </select>
                 ) : (
@@ -514,7 +514,7 @@ export default function CreativeStudioPage() {
                 <p><span className="font-semibold text-gray-600">Slug:</span> <span className="font-mono">{design.slug}</span></p>
                 <p><span className="font-semibold text-gray-600">Created:</span> {new Date(design.created_at).toLocaleString()}</p>
                 <p><span className="font-semibold text-gray-600">Updated:</span> {new Date(design.updated_at).toLocaleString()}</p>
-                {design.is_system && <p className="text-gray-400 italic">Protected system design — edits fork a new variant.</p>}
+                {design.is_system && <p className="text-gray-400 italic">Protected system design, edits fork a new variant.</p>}
               </div>
             </Section>
 

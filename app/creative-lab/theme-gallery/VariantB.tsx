@@ -348,7 +348,7 @@ export function VariantB({ theme = DEFAULT_THEME, typography = "system", questio
     if (timeLeft !== 0 || timerExpired || phase !== "question") return;
     setIsRunning(false);
     setTimerExpired(true);
-    emit("timer", "Expired — waiting for user selection");
+    emit("timer", "Expired, waiting for user selection");
     expiredPulseRef.current = setInterval(() => {
       setCenterPulse(true);
       setTimeout(() => setCenterPulse(false), 350);
@@ -440,7 +440,7 @@ export function VariantB({ theme = DEFAULT_THEME, typography = "system", questio
         boxShadow: theme.outerShadow,
       }}
       role="region"
-      aria-label="Fan survey — Variant B"
+      aria-label="Fan survey, Variant B"
     >
       {showPrivacy && <PrivacyOverlay theme={theme} typography={typography} onClose={closePrivacy} />}
       {phase === "thankyou" && <ThankYouScreen theme={theme} typography={typography} />}
