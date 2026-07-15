@@ -176,8 +176,8 @@ export function WorkspaceBodyContent() {
     : stage("report") !== "complete"
       ? { title: "Communicate your findings", body: "Generate the reports and articles that present your research to stakeholders.", ctaLabel: "Go to Reports →", href: `/research-projects/${projectId}/outputs` }
     : stage("conclusion") !== "complete"
-      ? { title: "Capture your conclusion", body: "Record the final, evidence-backed answer to your research question.", ctaLabel: "Go to Conclusion →", href: `/research-projects/${projectId}/conclusion` }
-    : { title: "This research is complete", body: "Your conclusion is published and retained as knowledge. Review it any time.", ctaLabel: "View Conclusion →", href: `/research-projects/${projectId}/conclusion`, done: true };
+      ? { title: "Capture your conclusion", body: "Record the final, evidence-backed answer to your research question.", ctaLabel: "Go to Conclusions →", href: `/research-projects/${projectId}/conclusion` }
+    : { title: "This research is complete", body: "Your conclusion is published and retained as knowledge. Review it any time.", ctaLabel: "View Conclusions →", href: `/research-projects/${projectId}/conclusion`, done: true };
 
   function openEditBrief() {
     setEditingBrief({

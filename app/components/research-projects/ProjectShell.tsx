@@ -41,7 +41,7 @@ const AREAS: Area[] = [
   { key: "dashboard",  label: "Dashboard",              kind: "route",  segment: "dashboard",   stageKey: "dashboard" },
   { key: "analysis",   label: "Analysis",               kind: "route",  segment: "analysis",    stageKey: "intelligence" },
   { key: "outputs",    label: "Reports",                kind: "route",  segment: "outputs",     stageKey: "report" },
-  { key: "conclusion", label: "Conclusion & Knowledge", kind: "route",  segment: "conclusion",  stageKey: "conclusion" },
+  { key: "conclusion", label: "Conclusions",             kind: "route",  segment: "conclusion",  stageKey: "conclusion" },
 ];
 
 const DOT_CLASS: Record<StageState, string> = {
