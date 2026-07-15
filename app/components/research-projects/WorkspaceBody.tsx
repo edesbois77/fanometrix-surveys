@@ -24,7 +24,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { AdminShell } from "@/app/components/AdminShell";
 import { useSession } from "@/app/components/SessionProvider";
 import { ResearchProjectEditDrawer, type ResearchProjectBriefFields } from "@/app/components/research-projects/ResearchProjectEditDrawer";
 import { AttachExistingSurveyModal } from "@/app/components/research-projects/AttachExistingSurveyModal";
@@ -49,7 +48,7 @@ import { IntelligenceSection } from "@/app/components/research-projects/Intellig
 import { ResearchSourcesSection } from "@/app/components/research-projects/ResearchSourcesSection";
 import { CampaignGroupsSection } from "@/app/components/research-projects/CampaignGroupsSection";
 import { getWorkspaceScrollTarget, clearWorkspaceScrollTarget } from "@/lib/workspace-scroll";
-import { ProjectProvider, useResearchProject, type EvidenceItem, type ActivityRow } from "@/app/components/research-projects/ProjectProvider";
+import { useResearchProject, type EvidenceItem, type ActivityRow } from "@/app/components/research-projects/ProjectProvider";
 import {
   SURVEY_STATUS_META, SOCIAL_SEARCH_STATUS_META, STAGE_STATE_META, EVIDENCE_TYPE_PLURAL,
   ProjectStatusBadge, AddEvidenceModal, DeploymentWizardModal,
@@ -66,19 +65,15 @@ import {
 // old presentModeEnabled flag and the cross-route mode-redirect it drove
 // have been removed from this path entirely.
 //
-// The exported component is a thin wrapper that mounts the shared data
-// layer (ProjectProvider); WorkspaceBodyContent below reads that data
-// through useResearchProject() and renders the Workspace itself. The split
-// is purely structural — the provider owns the fetch/loading/polling state.
-export function WorkspaceBody({ projectId }: { projectId: string }) {
-  return (
-    <ProjectProvider projectId={projectId}>
-      <WorkspaceBodyContent />
-    </ProjectProvider>
-  );
-}
-
-function WorkspaceBodyContent() {
+// WorkspaceBodyContent is the workspace itself, and it renders no chrome of
+// its own: the AdminShell, the ProjectProvider data layer, and the persistent
+// project header + navigation are all provided by the Research Project shell
+// layout (app/research-projects/[id]/(workspace)/layout.tsx), which mounts
+// this as its page child. It reads project data through useResearchProject()
+// from that layout's provider. (Product Walkthrough is unaffected — it keeps
+// its own separate WalkthroughBody, which still mounts its own provider and
+// AdminShell.)
+export function WorkspaceBodyContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user } = useSession();
@@ -220,20 +215,16 @@ function WorkspaceBodyContent() {
   // collapses the document height and resets scroll to the top even though
   // nothing actually navigated.
   if (loading && !project) return (
-    <AdminShell>
-      <div className="p-6 flex items-center justify-center h-64">
-        <p className="text-gray-400 text-sm">Loading research project…</p>
-      </div>
-    </AdminShell>
+    <div className="p-6 flex items-center justify-center h-64">
+      <p className="text-gray-400 text-sm">Loading research project…</p>
+    </div>
   );
 
   if (error || !project) return (
-    <AdminShell>
-      <div className="p-6 max-w-5xl mx-auto text-center py-20">
-        <p className="text-gray-400 mb-4">{error || "Research project not found."}</p>
-        <Link href="/research-projects" className="text-[#D7B87A] hover:underline text-sm">← Back to Research Projects</Link>
-      </div>
-    </AdminShell>
+    <div className="p-6 max-w-5xl mx-auto text-center py-20">
+      <p className="text-gray-400 mb-4">{error || "Research project not found."}</p>
+      <Link href="/research-projects" className="text-[#D7B87A] hover:underline text-sm">← Back to Research Projects</Link>
+    </div>
   );
 
   // Demo/Product Walkthrough pages show just the Research Name (topic) as
@@ -467,7 +458,7 @@ function WorkspaceBodyContent() {
   }
 
   return (
-    <AdminShell>
+    <>
       <div className="p-4 md:p-6 max-w-5xl mx-auto space-y-4">
 
         {/* Permanent — no dismiss, no collapse. See Platform Contract §02/§03. */}
@@ -960,6 +951,6 @@ function WorkspaceBodyContent() {
         </div>
       )}
 
-    </AdminShell>
+    </>
   );
 }
