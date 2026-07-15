@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { requireUser } from "@/lib/auth-server";
+import { nullifyBlankUuids } from "@/lib/survey-validation";
 
 export async function GET(req: NextRequest) {
   let session;
@@ -71,9 +72,15 @@ export async function POST(req: NextRequest) {
   // organisation — enforced here regardless of what the UI sent.
   const organisationId = session.role === "publisher" ? session.organisationId : null;
 
+  // Optional organisation references (brand_org_id/agency_org_id) are uuid
+  // columns. An unselected picker in the Create Survey drawer arrives as ""
+  // (its form default), which Postgres rejects for a uuid — coerce blank
+  // ids to null so leaving Brand/Agency unset saves cleanly.
+  const cleaned = nullifyBlankUuids(rest);
+
   const { data, error } = await supabaseAdmin
     .from("surveys")
-    .insert([{ ...rest, created_by: session.workEmail, organisation_id: organisationId, updated_at: new Date().toISOString() }])
+    .insert([{ ...cleaned, created_by: session.workEmail, organisation_id: organisationId, updated_at: new Date().toISOString() }])
     .select()
     .single();
 

@@ -116,3 +116,21 @@ export function validateSurvey(survey: SurveyForValidation): string[] {
 export function isSurveyValidForReady(survey: SurveyForValidation): boolean {
   return validateSurvey(survey).length === 0;
 }
+
+/**
+ * Optional organisation reference columns on `surveys` — uuid in the DB.
+ * The Create/Edit Survey drawer defaults these to "" (an unselected
+ * picker), which Postgres rejects for a uuid ("invalid input syntax for
+ * type uuid"). Both survey write routes run a payload through
+ * `nullifyBlankUuids` before the DB call so a blank Brand/Agency saves as
+ * null rather than crashing the save.
+ */
+export const SURVEY_UUID_FIELDS = ["brand_org_id", "agency_org_id"] as const;
+
+export function nullifyBlankUuids(payload: Record<string, unknown>): Record<string, unknown> {
+  const out = { ...payload };
+  for (const field of SURVEY_UUID_FIELDS) {
+    if (out[field] === "") out[field] = null;
+  }
+  return out;
+}

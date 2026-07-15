@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { requireUser } from "@/lib/auth-server";
-import { validateSurvey } from "@/lib/survey-validation";
+import { validateSurvey, nullifyBlankUuids } from "@/lib/survey-validation";
 import { logActivity } from "@/lib/research-project-activity";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -92,7 +92,9 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         }
       }
 
-      patch = { ...contentRest, ...(safeStatus ? { status: safeStatus } : {}), updated_at: now };
+      // Coerce blank Brand/Agency ("") to null — same uuid guard as the
+      // create route, so an edit that clears those pickers also saves.
+      patch = { ...nullifyBlankUuids(contentRest), ...(safeStatus ? { status: safeStatus } : {}), updated_at: now };
     }
   }
 
