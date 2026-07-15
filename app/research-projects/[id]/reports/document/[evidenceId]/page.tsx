@@ -80,7 +80,13 @@ export default function DocumentIntelligencePage() {
   // Keyed by the evidence ROW's own id (params.evidenceId), never
   // evidence_id — see this file's header comment.
   const item = project?.evidence.find(e => e.evidence_type === "document" && e.id === evidenceId) ?? null;
-  const backHref = `${projectBase}#intelligence`;
+  // Source-level Intelligence is a child of the Analysis area in the real
+  // workspace, but sits on the single Product Walkthrough page. Return to the
+  // right parent (and only the single-page walkthrough needs the scroll-target
+  // restore; the Analysis route lands with Intelligence already at the top).
+  const isWalkthrough = pathname?.startsWith("/product-walkthrough") ?? false;
+  const backHref = isWalkthrough ? `${projectBase}#intelligence` : `${projectBase}/analysis`;
+  const backLabel = isWalkthrough ? "← Back to Workspace" : "← Back to Analysis";
 
   if (loadingProject) {
     return (
@@ -97,7 +103,7 @@ export default function DocumentIntelligencePage() {
       <AdminShell>
         <div className="p-6 max-w-4xl mx-auto text-center py-20">
           <p className="text-gray-400 mb-4">This document isn&apos;t attached to this project.</p>
-          <Link href={backHref} scroll={false} onClick={() => setWorkspaceScrollTarget("intelligence")} className="text-[#D7B87A] hover:underline text-sm">← Back to Workspace</Link>
+          <Link href={backHref} scroll={false} onClick={() => { if (isWalkthrough) setWorkspaceScrollTarget("intelligence"); }} className="text-[#D7B87A] hover:underline text-sm">{backLabel}</Link>
         </div>
       </AdminShell>
     );
@@ -111,17 +117,21 @@ export default function DocumentIntelligencePage() {
       isSimulated={project.research_mode === "simulated"}
       autoGenerate={!item.document.summary_status}
       backHref={backHref}
+      backLabel={backLabel}
+      isWalkthrough={isWalkthrough}
     />
   );
 }
 
-function DocumentIntelligenceBody({ document: doc, projectId, evidenceRowId, isSimulated, autoGenerate, backHref }: {
+function DocumentIntelligenceBody({ document: doc, projectId, evidenceRowId, isSimulated, autoGenerate, backHref, backLabel, isWalkthrough }: {
   document: { id: string; name: string; document_type: string; library_status: string; page_count: number | null; summary_status: "draft" | "edited" | "approved" | "published" | null };
   projectId: string;
   evidenceRowId: string;
   isSimulated: boolean;
   autoGenerate: boolean;
   backHref: string;
+  backLabel: string;
+  isWalkthrough: boolean;
 }) {
   const base = `/api/research-projects/${projectId}/reports/document/${evidenceRowId}`;
 
@@ -190,7 +200,7 @@ function DocumentIntelligenceBody({ document: doc, projectId, evidenceRowId, isS
 
         <div className="flex items-start justify-between mb-6 flex-wrap gap-3">
           <div className="min-w-0">
-            <Link href={backHref} scroll={false} onClick={() => setWorkspaceScrollTarget("intelligence")} className="text-xs text-gray-400 hover:text-gray-600">← Back to Workspace</Link>
+            <Link href={backHref} scroll={false} onClick={() => { if (isWalkthrough) setWorkspaceScrollTarget("intelligence"); }} className="text-xs text-gray-400 hover:text-gray-600">{backLabel}</Link>
             <div className="flex items-center gap-2 mt-1 flex-wrap">
               <h1 className="text-2xl font-bold text-gray-900 truncate">{doc.name}, Intelligence</h1>
               {row && <StatusBadge status={row.status} />}

@@ -88,7 +88,13 @@ export default function SurveyIntelligencePage() {
   }, [id]);
 
   const item = project?.evidence.find(e => e.evidence_type === "survey" && e.evidence_id === evidenceId) ?? null;
-  const backHref = `${projectBase}#intelligence`;
+  // Source-level Intelligence is a child of the Analysis area in the real
+  // workspace, but sits on the single Product Walkthrough page. Return to the
+  // right parent (and only the single-page walkthrough needs the scroll-target
+  // restore; the Analysis route lands with Intelligence already at the top).
+  const isWalkthrough = pathname?.startsWith("/product-walkthrough") ?? false;
+  const backHref = isWalkthrough ? `${projectBase}#intelligence` : `${projectBase}/analysis`;
+  const backLabel = isWalkthrough ? "← Back to Workspace" : "← Back to Analysis";
 
   if (loadingProject) {
     return (
@@ -105,7 +111,7 @@ export default function SurveyIntelligencePage() {
       <AdminShell>
         <div className="p-6 max-w-4xl mx-auto text-center py-20">
           <p className="text-gray-400 mb-4">This survey isn&apos;t attached to this project.</p>
-          <Link href={backHref} scroll={false} onClick={() => setWorkspaceScrollTarget("intelligence")} className="text-[#D7B87A] hover:underline text-sm">← Back to Workspace</Link>
+          <Link href={backHref} scroll={false} onClick={() => { if (isWalkthrough) setWorkspaceScrollTarget("intelligence"); }} className="text-[#D7B87A] hover:underline text-sm">{backLabel}</Link>
         </div>
       </AdminShell>
     );
@@ -119,17 +125,21 @@ export default function SurveyIntelligencePage() {
       isSimulated={project.research_mode === "simulated"}
       autoGenerate={!item.survey.summary_status}
       backHref={backHref}
+      backLabel={backLabel}
+      isWalkthrough={isWalkthrough}
     />
   );
 }
 
-function SurveyIntelligenceBody({ survey, evidenceRowId, runStatus, isSimulated, autoGenerate, backHref }: {
+function SurveyIntelligenceBody({ survey, evidenceRowId, runStatus, isSimulated, autoGenerate, backHref, backLabel, isWalkthrough }: {
   survey: { id: string; name: string; response_count: number };
   evidenceRowId: string;
   runStatus: "not_started" | "generating" | "ready" | "failed";
   isSimulated: boolean;
   autoGenerate: boolean;
   backHref: string;
+  backLabel: string;
+  isWalkthrough: boolean;
 }) {
   const adapter: IntelligenceReviewAdapter<SurveyIntelligenceReport> = useMemo(() => ({
     fetchCurrent: async () => {
@@ -223,7 +233,7 @@ function SurveyIntelligenceBody({ survey, evidenceRowId, runStatus, isSimulated,
 
         <div className="flex items-start justify-between mb-6 flex-wrap gap-3">
           <div className="min-w-0">
-            <Link href={backHref} scroll={false} onClick={() => setWorkspaceScrollTarget("intelligence")} className="text-xs text-gray-400 hover:text-gray-600">← Back to Workspace</Link>
+            <Link href={backHref} scroll={false} onClick={() => { if (isWalkthrough) setWorkspaceScrollTarget("intelligence"); }} className="text-xs text-gray-400 hover:text-gray-600">{backLabel}</Link>
             <div className="flex items-center gap-2 mt-1 flex-wrap">
               <h1 className="text-2xl font-bold text-gray-900 truncate">{survey.name}, Intelligence</h1>
               {row && <StatusBadge status={row.status} />}

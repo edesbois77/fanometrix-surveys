@@ -45,7 +45,13 @@ export default function KeyFindingsPage() {
   // (/research-projects/[id]) or Product Walkthrough (/product-walkthrough/[id]).
   // API calls below still address the shared /api/research-projects/[id] routes.
   const projectBase = pathname?.startsWith("/product-walkthrough") ? `/product-walkthrough/${id}` : `/research-projects/${id}`;
-  const backHref = `${projectBase}#intelligence`;
+  // Key Findings is project-level Intelligence — a child of the Analysis area
+  // in the real workspace, but on the single Product Walkthrough page. Return
+  // to the right parent (only the single-page walkthrough needs the scroll
+  // restore; the Analysis route lands with Intelligence already at the top).
+  const isWalkthrough = pathname?.startsWith("/product-walkthrough") ?? false;
+  const backHref = isWalkthrough ? `${projectBase}#intelligence` : `${projectBase}/analysis`;
+  const backLabel = isWalkthrough ? "← Back to Workspace" : "← Back to Analysis";
 
   const [project, setProject] = useState<ProjectForPage | null>(null);
   const [report, setReport] = useState<KeyFindingsReport | null>(null);
@@ -122,7 +128,7 @@ export default function KeyFindingsPage() {
 
         <div className="flex items-start justify-between mb-6 flex-wrap gap-3">
           <div className="min-w-0">
-            <Link href={backHref} scroll={false} onClick={() => setWorkspaceScrollTarget("intelligence")} className="text-xs text-gray-400 hover:text-gray-600">← Back to Workspace</Link>
+            <Link href={backHref} scroll={false} onClick={() => { if (isWalkthrough) setWorkspaceScrollTarget("intelligence"); }} className="text-xs text-gray-400 hover:text-gray-600">{backLabel}</Link>
             <div className="flex items-center gap-2 mt-1 flex-wrap">
               <h1 className="text-2xl font-bold text-gray-900">Key Findings</h1>
               {isSimulated && <SimulatedBadge />}

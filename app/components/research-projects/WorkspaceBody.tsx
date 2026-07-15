@@ -38,9 +38,8 @@ import { SectionCard, EmptyState, CollapsedSummary, InfoContent } from "@/app/co
 import { ConclusionSection } from "@/app/components/research-projects/ConclusionSection";
 import { KnowledgeSection } from "@/app/components/research-projects/KnowledgeSection";
 import { ReportsSection } from "@/app/components/research-projects/ReportsSection";
-import { IntelligenceSection } from "@/app/components/research-projects/IntelligenceSection";
 import { getWorkspaceScrollTarget, clearWorkspaceScrollTarget } from "@/lib/workspace-scroll";
-import { useResearchProject, type EvidenceItem, type ActivityRow } from "@/app/components/research-projects/ProjectProvider";
+import { useResearchProject, type ActivityRow } from "@/app/components/research-projects/ProjectProvider";
 import { STAGE_STATE_META, ProjectStatusBadge } from "@/app/components/research-projects/workspace-shared";
 
 // The real, operational Research Project Workspace — rendered only at
@@ -150,13 +149,6 @@ export function WorkspaceBodyContent() {
     ? project.topic.trim()
     : project.project_name;
 
-  const surveyEvidence = project.evidence.filter(
-    (e): e is EvidenceItem & { survey: NonNullable<EvidenceItem["survey"]> } => e.evidence_type === "survey" && !!e.survey
-  );
-  const conversationSearchEvidence = project.evidence.filter(e => e.evidence_type === "social_search" && e.conversationSearch);
-  const documentEvidence = project.evidence.filter(
-    (e): e is EvidenceItem & { document: NonNullable<EvidenceItem["document"]> } => e.evidence_type === "document" && !!e.document
-  );
   const projectId = project.id;
 
   // Captured once (rather than read via `project.X` inside the nested
@@ -298,14 +290,17 @@ export function WorkspaceBodyContent() {
                   {stage.sectionId ? (
                     <button
                       onClick={() =>
-                        // Research Sources and Dashboard now live on the Sources
-                        // area route, not on this page — route there rather than
-                        // scroll to an anchor that isn't here. (This whole
-                        // tracker is superseded by the shell nav and is removed
-                        // once Overview is finalised.)
+                        // Sections that have moved to their own area route are
+                        // navigated to rather than scrolled to (their anchor
+                        // isn't on this page): Research Sources + Dashboard →
+                        // Sources, Intelligence → Analysis. The rest still
+                        // scroll in-page. (This whole tracker is superseded by
+                        // the shell nav and is removed once Overview is finalised.)
                         stage.sectionId === "evidence" || stage.sectionId === "dashboard"
                           ? router.push(`/research-projects/${projectId}/sources`)
-                          : scrollToSection(stage.sectionId!)
+                          : stage.sectionId === "intelligence"
+                            ? router.push(`/research-projects/${projectId}/analysis`)
+                            : scrollToSection(stage.sectionId!)
                       }
                       className="transition-transform hover:scale-105"
                     >
@@ -422,35 +417,6 @@ export function WorkspaceBodyContent() {
             <SimulationInformationPanel info={project.simulation_info} />
           )}
         </SectionCard>
-
-        <IntelligenceSection
-          isSimulated={project.research_mode === "simulated"}
-          surveys={surveyEvidence.map(item => ({
-            evidence_id: item.evidence_id,
-            name: item.survey.name,
-            response_count: item.survey.response_count,
-            summary_status: item.survey.summary_status,
-          }))}
-          conversationSearches={conversationSearchEvidence.map(item => ({
-            evidence_id: item.evidence_id,
-            name: item.conversationSearch!.name,
-            mention_count: item.conversationSearch!.mention_count,
-            summary_status: item.conversationSearch!.summary_status,
-          }))}
-          documents={documentEvidence.map(item => ({
-            evidence_row_id: item.id,
-            name: item.document.name,
-            document_type: item.document.document_type,
-            library_status: item.document.library_status,
-            summary_status: item.document.summary_status,
-          }))}
-          keyFindingsStatus={project.key_findings_status}
-          keyFindingsCount={project.key_findings_count}
-          onOpenKeyFindings={() => router.push(`/research-projects/${projectId}/reports/key-findings`)}
-          onOpenSurveyIntelligence={evidenceId => router.push(`/research-projects/${projectId}/reports/survey/${evidenceId}`)}
-          onOpenConversationIntelligence={evidenceId => router.push(`/research-projects/${projectId}/reports/conversation/${evidenceId}`)}
-          onOpenDocumentIntelligence={evidenceRowId => router.push(`/research-projects/${projectId}/reports/document/${evidenceRowId}`)}
-        />
 
         <ReportsSection
           projectId={projectId}
