@@ -1,26 +1,22 @@
 "use client";
 
-// The Research Project Workspace — the central workspace of the platform,
-// following the research methodology: Research Question → Dashboard →
-// Research Sources → Intelligence → Report → Conclusion → Knowledge.
-// "Research Sources" and "Intelligence" are this Workspace's display names
-// for what the rest of the codebase still calls Evidence and AI
-// Intelligence (types, API routes, DB columns, and the lifecycle stage
-// `key`s are unchanged) — purely a first-time-user-facing relabel, not an
-// architecture change. Project Information is the single home for every
-// project-level fact and setting (including the Research Target and its
-// derived Status — never a manual dropdown), Research Sources supports
-// attaching an already-existing survey (not just creating new ones), the
-// Deployment Wizard always starts at Step 1 rather than guessing where to
-// reopen, and Campaigns is a fully operational manager (filters, bulk
-// actions, per-card controls) shared with the standalone Campaigns page
-// via app/components/campaigns/*.
+// Product Walkthrough's single-page body — the linear, scroll-through
+// presentation experience shown at /product-walkthrough/[id]. Structurally
+// independent of the real Research Project Workspace (WorkspaceBody): the
+// two share the data layer (ProjectProvider / useResearchProject), the
+// section components, and the mode-agnostic modals/constants in
+// workspace-shared.tsx, but neither renders the other. This separation
+// (Step 1 of the Research Project Shell migration) is what lets the real
+// workspace be restructured into a multi-page shell without disturbing the
+// walkthrough, and vice versa.
 //
-// Extracted into its own component (previously the default export of
-// app/research-projects/[id]/page.tsx directly) so both the real Research
-// Projects Workspace and Product Walkthrough render the exact same UI —
-// see the file-level comment on WorkspaceBody() below for how the split
-// works.
+// The walkthrough deliberately stays a single scrolling column with every
+// section present at once — a linear story suits walking a prospect through
+// the product better than tabbed navigation. All of its report links stay
+// inside its own /product-walkthrough tree (the report pages derive their
+// back-links from the current path), so a walkthrough never navigates the
+// user out into /research-projects. There is no cross-route mode-redirect:
+// a Product Walkthrough opens here and only here.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
@@ -55,30 +51,18 @@ import {
   ProjectStatusBadge, AddEvidenceModal, DeploymentWizardModal,
 } from "@/app/components/research-projects/workspace-shared";
 
-// The real, operational Research Project Workspace — rendered only at
-// /research-projects/[id]. Product Walkthrough (/product-walkthrough/[id])
-// is now a separate, self-contained single-page experience (see
-// app/product-walkthrough/[id]/WalkthroughBody.tsx); the two trees share the
-// data layer (ProjectProvider) and the section components, but no longer
-// share this body. That decoupling (Step 1 of the Research Project Shell
-// migration) is what lets the real workspace be restructured into the
-// multi-page shell without touching the walkthrough, and vice versa. The
-// old presentModeEnabled flag and the cross-route mode-redirect it drove
-// have been removed from this path entirely.
-//
-// The exported component is a thin wrapper that mounts the shared data
-// layer (ProjectProvider); WorkspaceBodyContent below reads that data
-// through useResearchProject() and renders the Workspace itself. The split
-// is purely structural — the provider owns the fetch/loading/polling state.
-export function WorkspaceBody({ projectId }: { projectId: string }) {
+// The exported component is a thin wrapper that mounts the shared data layer
+// (ProjectProvider); WalkthroughBodyContent below reads that data through
+// useResearchProject() and renders the walkthrough itself.
+export function WalkthroughBody({ projectId }: { projectId: string }) {
   return (
     <ProjectProvider projectId={projectId}>
-      <WorkspaceBodyContent />
+      <WalkthroughBodyContent />
     </ProjectProvider>
   );
 }
 
-function WorkspaceBodyContent() {
+function WalkthroughBodyContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user } = useSession();
@@ -139,7 +123,7 @@ function WorkspaceBodyContent() {
     if (!added) return;
     if (!project || evidenceAddedHandledRef.current) return;
     evidenceAddedHandledRef.current = true;
-    router.replace(`/research-projects/${id}`);
+    router.replace(`/product-walkthrough/${id}`);
     load();
     if (added === "1") {
       setToast("Survey saved, continuing deployment setup.");
@@ -158,7 +142,7 @@ function WorkspaceBodyContent() {
     if (!project || campaignAddedHandledRef.current) return;
     campaignAddedHandledRef.current = true;
     setToast("Campaign created.");
-    router.replace(`/research-projects/${id}`);
+    router.replace(`/product-walkthrough/${id}`);
     load();
   }, [searchParams, id, project, router, load]);
 
@@ -169,7 +153,7 @@ function WorkspaceBodyContent() {
     if (!project || returnedHandledRef.current) return;
     returnedHandledRef.current = true;
     setToast("Welcome back.");
-    router.replace(`/research-projects/${id}`);
+    router.replace(`/product-walkthrough/${id}`);
     load();
   }, [searchParams, id, project, router, load]);
 
@@ -179,17 +163,13 @@ function WorkspaceBodyContent() {
   // sessionStorage (set by that link, see lib/workspace-scroll.ts) first,
   // falling back to the URL's own #hash for a direct link/bookmark.
   //
-  // Deliberately runs on *every* render (no dependency array) rather than
-  // once when `project` first loads: a simulated project's back-link lands
-  // on /research-projects/[id], which immediately redirects to
-  // /product-walkthrough/[id] above — if that destination Workspace
-  // instance is one Next's router cache already had mounted with `project`
-  // already loaded, a `[project]`-keyed effect would never fire again since
-  // that dependency never changes on this visit. Checking on every render
-  // means it doesn't matter whether this is a fresh mount or a reused one;
-  // `lastScrolledRef` still stops it from re-scrolling on unrelated
-  // re-renders once it's already handled the current target, and it
-  // deliberately waits (does nothing, tries again next render) rather than
+  // Runs on every render (no dependency array) rather than once when
+  // `project` first loads: if this walkthrough instance is one Next's router
+  // cache already had mounted with `project` already loaded, a
+  // `[project]`-keyed effect would never fire again since that dependency
+  // never changes on this visit. `lastScrolledRef` still stops it from
+  // re-scrolling on unrelated re-renders once it's handled the current
+  // target, and it deliberately waits (tries again next render) rather than
   // giving up if the target element hasn't rendered yet.
   const lastScrolledRef = useRef<string | null>(null);
   useEffect(() => {
@@ -236,12 +216,11 @@ function WorkspaceBodyContent() {
     </AdminShell>
   );
 
-  // Demo/Product Walkthrough pages show just the Research Name (topic) as
-  // the title — project_name is the classification-suffixed "Final Research
+  // Product Walkthrough pages show just the Research Name (topic) as the
+  // title — project_name is the classification-suffixed "Final Research
   // Name" (topic | study type | brand | subject | agency), useful for
   // disambiguating in a flat list of many projects, but redundant clutter
-  // as a page title once you're already inside one project. Real Research
-  // Projects keep the full project_name here, unaffected.
+  // as a page title once you're already inside one project.
   const displayName = project.research_mode === "simulated" && project.topic?.trim()
     ? project.topic.trim()
     : project.project_name;
@@ -362,7 +341,7 @@ function WorkspaceBodyContent() {
   // "Run Research" — server resolves the source's type/id from
   // evidenceRowId itself (research_project_evidence.id) and does the
   // actual generation; this just fires it and refreshes. A 409 ("already
-  // running") is expected if the poll effect above hasn't caught up yet —
+  // running") is expected if the poll effect hasn't caught up yet —
   // treated as a no-op, not an error, since load() will converge either way.
   async function handleRunResearch(evidenceRowId: string) {
     const res = await fetch(`/api/research-projects/${projectId}/evidence/generate`, {
@@ -527,7 +506,7 @@ function WorkspaceBodyContent() {
 
         {/* ── Research Lifecycle — progress tracker + page nav ───────────────── */}
         {/* Sticky against <main>'s own scroll container (see AdminShell) so
-            it stays visible while scrolling the rest of the Workspace —
+            it stays visible while scrolling the rest of the walkthrough —
             what's done and what's left should never require scrolling
             back up to check. */}
         <div className="sticky top-0 z-20 bg-white border border-gray-100 rounded-xl shadow-sm p-5">
@@ -660,7 +639,7 @@ function WorkspaceBodyContent() {
         <ResearchSourcesSection
           projectId={projectId}
           isSimulated={project.research_mode === "simulated"}
-          isProductWalkthrough={false}
+          isProductWalkthrough={true}
           canManage={canManage}
           hasAnyEvidence={project.evidence.length > 0}
           evidenceSummary={<CollapsedSummary groups={evidenceCollapsedGroups.length > 0 ? evidenceCollapsedGroups : [{ parts: ["No research sources yet"] }]} />}
@@ -765,7 +744,7 @@ function WorkspaceBodyContent() {
           campaigns={campaigns}
           orgs={orgs}
           surveyNameById={new Map(surveyEvidence.map(e => [e.evidence_id, e.survey.name]))}
-          returnTo={`/research-projects/${project.id}`}
+          returnTo={`/product-walkthrough/${project.id}`}
         />
 
         <DashboardSection
@@ -811,15 +790,15 @@ function WorkspaceBodyContent() {
           }))}
           keyFindingsStatus={project.key_findings_status}
           keyFindingsCount={project.key_findings_count}
-          onOpenKeyFindings={() => router.push(`/research-projects/${projectId}/reports/key-findings`)}
-          onOpenSurveyIntelligence={evidenceId => router.push(`/research-projects/${projectId}/reports/survey/${evidenceId}`)}
-          onOpenConversationIntelligence={evidenceId => router.push(`/research-projects/${projectId}/reports/conversation/${evidenceId}`)}
-          onOpenDocumentIntelligence={evidenceRowId => router.push(`/research-projects/${projectId}/reports/document/${evidenceRowId}`)}
+          onOpenKeyFindings={() => router.push(`/product-walkthrough/${projectId}/reports/key-findings`)}
+          onOpenSurveyIntelligence={evidenceId => router.push(`/product-walkthrough/${projectId}/reports/survey/${evidenceId}`)}
+          onOpenConversationIntelligence={evidenceId => router.push(`/product-walkthrough/${projectId}/reports/conversation/${evidenceId}`)}
+          onOpenDocumentIntelligence={evidenceRowId => router.push(`/product-walkthrough/${projectId}/reports/document/${evidenceRowId}`)}
         />
 
         <ReportsSection
           projectId={projectId}
-          basePath={`/research-projects/${projectId}`}
+          basePath={`/product-walkthrough/${projectId}`}
           isSimulated={project.research_mode === "simulated"}
           reportStatus={project.report_status}
           reportStale={project.report_stale}

@@ -9,7 +9,7 @@
 // in-context lookup. Path leaves room for future report types
 // (reports/benchmark, reports/client, etc.) alongside it.
 import { useEffect, useMemo, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, usePathname } from "next/navigation";
 import Link from "next/link";
 import { AdminShell } from "@/app/components/AdminShell";
 import { setWorkspaceScrollTarget } from "@/lib/workspace-scroll";
@@ -66,6 +66,11 @@ function jumpToFinding(i: number) {
 export default function ExecutiveReportPage() {
   const params = useParams();
   const id = params.id as string;
+  const pathname = usePathname();
+  // Report links stay inside whichever tree opened them — the real workspace
+  // (/research-projects/[id]) or Product Walkthrough (/product-walkthrough/[id]).
+  // API calls below still address the shared /api/research-projects/[id] routes.
+  const projectBase = pathname?.startsWith("/product-walkthrough") ? `/product-walkthrough/${id}` : `/research-projects/${id}`;
   const [project, setProject] = useState<ProjectForReport | null>(null);
   const [loadingProject, setLoadingProject] = useState(true);
   const [showCoverageConfirm, setShowCoverageConfirm] = useState(false);
@@ -217,7 +222,7 @@ export default function ExecutiveReportPage() {
         <div className="flex items-start justify-between mb-6 print:hidden flex-wrap gap-3">
           <div>
             <Link
-              href={`/research-projects/${id}#reports`}
+              href={`${projectBase}#reports`}
               scroll={false}
               onClick={() => setWorkspaceScrollTarget("reports")}
               className="text-xs text-gray-400 hover:text-gray-600"

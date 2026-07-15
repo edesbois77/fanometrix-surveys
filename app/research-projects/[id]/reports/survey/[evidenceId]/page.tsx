@@ -7,7 +7,7 @@
 // is unchanged from the modal this replaced — only the chrome around it
 // moved from a backdrop+box to a full page.
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, usePathname } from "next/navigation";
 import Link from "next/link";
 import { AdminShell } from "@/app/components/AdminShell";
 import { setWorkspaceScrollTarget } from "@/lib/workspace-scroll";
@@ -69,6 +69,11 @@ function NotableDifferencesField({ items, onChange }: {
 export default function SurveyIntelligencePage() {
   const params = useParams();
   const id = params.id as string;
+  const pathname = usePathname();
+  // Report links stay inside whichever tree opened them — the real workspace
+  // (/research-projects/[id]) or Product Walkthrough (/product-walkthrough/[id]).
+  // API calls below still address the shared /api/research-projects/[id] routes.
+  const projectBase = pathname?.startsWith("/product-walkthrough") ? `/product-walkthrough/${id}` : `/research-projects/${id}`;
   const evidenceId = params.evidenceId as string;
 
   const [project, setProject] = useState<ProjectForPage | null>(null);
@@ -83,7 +88,7 @@ export default function SurveyIntelligencePage() {
   }, [id]);
 
   const item = project?.evidence.find(e => e.evidence_type === "survey" && e.evidence_id === evidenceId) ?? null;
-  const backHref = `/research-projects/${id}#intelligence`;
+  const backHref = `${projectBase}#intelligence`;
 
   if (loadingProject) {
     return (

@@ -25,7 +25,7 @@
 // complete appendix regardless of its on-screen state; the PPTX export
 // never includes it at all (see lib/export-full-research-report-pptx.ts).
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, usePathname } from "next/navigation";
 import Link from "next/link";
 import { AdminShell } from "@/app/components/AdminShell";
 import { setWorkspaceScrollTarget } from "@/lib/workspace-scroll";
@@ -56,7 +56,12 @@ function appendixElementId(i: number) {
 export default function FullResearchReportPage() {
   const params = useParams();
   const id = params.id as string;
-  const backHref = `/research-projects/${id}#reports`;
+  const pathname = usePathname();
+  // Report links stay inside whichever tree opened them — the real workspace
+  // (/research-projects/[id]) or Product Walkthrough (/product-walkthrough/[id]).
+  // API calls below still address the shared /api/research-projects/[id] routes.
+  const projectBase = pathname?.startsWith("/product-walkthrough") ? `/product-walkthrough/${id}` : `/research-projects/${id}`;
+  const backHref = `${projectBase}#reports`;
 
   const [project, setProject] = useState<ProjectForReport | null>(null);
   const [loadingProject, setLoadingProject] = useState(true);
@@ -640,9 +645,9 @@ export default function FullResearchReportPage() {
             <Section title="Sources & Citations" tone="neutral">
               <div className="space-y-2">
                 {current.sources_included.map(s => {
-                  const href = s.evidence_type === "survey" ? `/research-projects/${id}/reports/survey/${s.evidence_id}`
-                    : s.evidence_type === "social_search" ? `/research-projects/${id}/reports/conversation/${s.evidence_id}`
-                    : `/research-projects/${id}/reports/document/${s.evidence_id}`;
+                  const href = s.evidence_type === "survey" ? `${projectBase}/reports/survey/${s.evidence_id}`
+                    : s.evidence_type === "social_search" ? `${projectBase}/reports/conversation/${s.evidence_id}`
+                    : `${projectBase}/reports/document/${s.evidence_id}`;
                   const meta = current.methodology.sources.find(m => m.evidence_id === s.evidence_id);
                   const metaLine = meta
                     ? (meta.description ? meta.description : [

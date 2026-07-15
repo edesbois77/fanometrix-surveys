@@ -24,7 +24,7 @@
 // component is intentionally standalone (no knowledge of edit/review
 // state) so it can be reused unchanged by a future public-facing route.
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, usePathname } from "next/navigation";
 import Link from "next/link";
 import { AdminShell } from "@/app/components/AdminShell";
 import { setWorkspaceScrollTarget } from "@/lib/workspace-scroll";
@@ -58,7 +58,12 @@ function formatDate(iso: string): string {
 export default function EditorialArticlePage() {
   const params = useParams();
   const id = params.id as string;
-  const backHref = `/research-projects/${id}#reports`;
+  const pathname = usePathname();
+  // Report links stay inside whichever tree opened them — the real workspace
+  // (/research-projects/[id]) or Product Walkthrough (/product-walkthrough/[id]).
+  // API calls below still address the shared /api/research-projects/[id] routes.
+  const projectBase = pathname?.startsWith("/product-walkthrough") ? `/product-walkthrough/${id}` : `/research-projects/${id}`;
+  const backHref = `${projectBase}#reports`;
 
   const [project, setProject] = useState<ProjectForArticle | null>(null);
   const [loadingProject, setLoadingProject] = useState(true);

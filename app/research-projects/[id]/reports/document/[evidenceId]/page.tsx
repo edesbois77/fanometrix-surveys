@@ -10,7 +10,7 @@
 // two independent summaries. See analyseDocumentForProject.ts's header
 // comment for the full reasoning.
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, usePathname } from "next/navigation";
 import Link from "next/link";
 import { AdminShell } from "@/app/components/AdminShell";
 import { setWorkspaceScrollTarget } from "@/lib/workspace-scroll";
@@ -59,6 +59,11 @@ type ProjectForPage = {
 export default function DocumentIntelligencePage() {
   const params = useParams();
   const id = params.id as string;
+  const pathname = usePathname();
+  // Report links stay inside whichever tree opened them — the real workspace
+  // (/research-projects/[id]) or Product Walkthrough (/product-walkthrough/[id]).
+  // API calls below still address the shared /api/research-projects/[id] routes.
+  const projectBase = pathname?.startsWith("/product-walkthrough") ? `/product-walkthrough/${id}` : `/research-projects/${id}`;
   const evidenceId = params.evidenceId as string;
 
   const [project, setProject] = useState<ProjectForPage | null>(null);
@@ -75,7 +80,7 @@ export default function DocumentIntelligencePage() {
   // Keyed by the evidence ROW's own id (params.evidenceId), never
   // evidence_id — see this file's header comment.
   const item = project?.evidence.find(e => e.evidence_type === "document" && e.id === evidenceId) ?? null;
-  const backHref = `/research-projects/${id}#intelligence`;
+  const backHref = `${projectBase}#intelligence`;
 
   if (loadingProject) {
     return (

@@ -10,8 +10,13 @@ import { GeneratingProgress } from "@/app/components/intelligence/GeneratingProg
 import type { ReportReadiness } from "@/lib/report-readiness";
 import { NAVY, GOLD } from "@/lib/intelligence/theme";
 
-export function ReportsSection({ projectId, isSimulated, reportStatus, reportStale, reportReadiness, fullResearchReportStatus, articleStatus }: {
+export function ReportsSection({ projectId, basePath, isSimulated, reportStatus, reportStale, reportReadiness, fullResearchReportStatus, articleStatus }: {
   projectId: string;
+  /** The project's route base for report navigation — `/research-projects/${id}`
+   * in the real workspace, `/product-walkthrough/${id}` in Product Walkthrough.
+   * Only the "View / Generate" links use it; the generate API call still hits
+   * the shared `/api/research-projects/${projectId}/...` route regardless. */
+  basePath: string;
   isSimulated: boolean;
   reportStatus: "draft" | "edited" | "approved" | "published" | null;
   /** The Research Question has changed since this report was generated —
@@ -71,7 +76,7 @@ export function ReportsSection({ projectId, isSimulated, reportStatus, reportSta
     // deliverable, not an in-context lookup. Navigating only now, after
     // generation already succeeded, means that page shows the finished
     // report immediately rather than its own "click to generate" prompt.
-    router.push(`/research-projects/${projectId}/reports/executive`);
+    router.push(`${basePath}/reports/executive`);
   }
 
   function handleGenerateClick() {
@@ -118,7 +123,7 @@ export function ReportsSection({ projectId, isSimulated, reportStatus, reportSta
                 </span>
               )}
               {reportStatus ? (
-                <PrimaryButton href={`/research-projects/${projectId}/reports/executive`}>View Report</PrimaryButton>
+                <PrimaryButton href={`${basePath}/reports/executive`}>View Report</PrimaryButton>
               ) : (
                 <PrimaryButton
                   onClick={handleGenerateClick}
@@ -143,7 +148,7 @@ export function ReportsSection({ projectId, isSimulated, reportStatus, reportSta
             <div className="flex items-center gap-2 flex-shrink-0">
               <StatusBadge label={fullResearchReportMeta.label} tone={INTELLIGENCE_STATUS_TONE[fullResearchReportStatus ?? "not_started"]} />
               <PrimaryButton
-                href={`/research-projects/${projectId}/reports/full-research-report`}
+                href={`${basePath}/reports/full-research-report`}
                 disabled={!executiveReportApproved}
                 title={!executiveReportApproved ? "Approve the Executive Report first" : ""}
               >
@@ -164,7 +169,7 @@ export function ReportsSection({ projectId, isSimulated, reportStatus, reportSta
             <div className="flex items-center gap-2 flex-shrink-0">
               <StatusBadge label={articleMeta.label} tone={INTELLIGENCE_STATUS_TONE[articleStatus ?? "not_started"]} />
               <PrimaryButton
-                href={`/research-projects/${projectId}/reports/article`}
+                href={`${basePath}/reports/article`}
                 disabled={!executiveReportApproved}
                 title={!executiveReportApproved ? "Approve the Executive Report first" : ""}
               >
