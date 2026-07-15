@@ -277,21 +277,23 @@ export function WorkspaceBodyContent() {
                       onClick={() =>
                         // Sections that have moved to their own area route are
                         // navigated to rather than scrolled to (their anchor
-                        // isn't on this page): Research Sources + Dashboard →
-                        // Sources, Intelligence → Analysis, Report → Outputs,
-                        // Conclusion + Knowledge → Conclusion & Knowledge. The
-                        // rest still scroll in-page. (This whole tracker is
-                        // superseded by the shell nav and is removed once
-                        // Overview is finalised.)
-                        stage.sectionId === "evidence" || stage.sectionId === "dashboard"
+                        // isn't on this page): Research Sources → Sources,
+                        // Dashboard → Dashboard, Intelligence → Analysis,
+                        // Report → Outputs, Conclusion + Knowledge → Conclusion
+                        // & Knowledge. The rest still scroll in-page. (This whole
+                        // tracker is superseded by the shell nav and is removed
+                        // once Overview is finalised.)
+                        stage.sectionId === "evidence"
                           ? router.push(`/research-projects/${projectId}/sources`)
-                          : stage.sectionId === "intelligence"
-                            ? router.push(`/research-projects/${projectId}/analysis`)
-                            : stage.sectionId === "reports"
-                              ? router.push(`/research-projects/${projectId}/outputs`)
-                              : stage.sectionId === "conclusion" || stage.sectionId === "knowledge"
-                                ? router.push(`/research-projects/${projectId}/conclusion`)
-                                : scrollToSection(stage.sectionId!)
+                          : stage.sectionId === "dashboard"
+                            ? router.push(`/research-projects/${projectId}/dashboard`)
+                            : stage.sectionId === "intelligence"
+                              ? router.push(`/research-projects/${projectId}/analysis`)
+                              : stage.sectionId === "reports"
+                                ? router.push(`/research-projects/${projectId}/outputs`)
+                                : stage.sectionId === "conclusion" || stage.sectionId === "knowledge"
+                                  ? router.push(`/research-projects/${projectId}/conclusion`)
+                                  : scrollToSection(stage.sectionId!)
                       }
                       className="transition-transform hover:scale-105"
                     >

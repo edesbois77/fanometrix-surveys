@@ -1,27 +1,28 @@
 "use client";
 
-// The Sources area body — the real Research Project's source-management and
-// collection surface, at /research-projects/[id]/sources. Everything about a
-// project's evidence lives here: Research Sources (Surveys, Conversation
+// The Sources area body — the real Research Project's source-management
+// surface, at /research-projects/[id]/sources. Everything about a project's
+// research assets lives here: Research Sources (Surveys, Conversation
 // Searches, Documents), each survey's own Research Target, Creative Design and
 // nested Campaigns / Create Campaign / Create Multiple / deployment
-// generation, the project-level read-only Campaign Groups view, and the
-// Collection (Dashboard) monitoring rollup.
+// generation, and the project-level read-only Campaign Groups view. The
+// cross-source Collection dashboard is its own Dashboard area now
+// (DashboardBody); it is no longer rendered here.
 //
 // This is a relocation, not a rebuild: the section components
-// (ResearchSourcesSection, CampaignGroupsSection, DashboardSection), the
-// modals (AddEvidenceModal, DeploymentWizardModal, AttachExisting*Modal) and
-// the CampaignsManager / GenerateDeploymentsCard they nest are all reused
-// unchanged. The handlers, expand/collapse state, deleted-campaigns loading,
-// toasts and the specialist-tool return journeys (evidenceAdded / campaignAdded
-// / returned) were moved here from the single-page workspace body verbatim, so
-// external round trips (survey create/edit, search create, campaign create,
-// "Open →") continue to land on Sources.
+// (ResearchSourcesSection, CampaignGroupsSection), the modals (AddEvidenceModal,
+// DeploymentWizardModal, AttachExisting*Modal) and the CampaignsManager /
+// GenerateDeploymentsCard they nest are all reused unchanged. The handlers,
+// expand/collapse state, deleted-campaigns loading, toasts and the
+// specialist-tool return journeys (evidenceAdded / campaignAdded / returned)
+// were moved here from the single-page workspace body verbatim, so external
+// round trips (survey create/edit, search create, campaign create, "Open →")
+// continue to land on Sources.
 //
 // Ownership model preserved: campaigns, Research Target and Creative Design
 // stay attached to their individual survey source (no separate Fieldwork
 // area); Campaign Groups stays a project-level read-only view that deep-links
-// to the standalone editor; Collection lives here in Sources, not Analysis.
+// to the standalone editor.
 //
 // Chromeless: AdminShell, the ProjectProvider data layer and the project
 // header + navigation are provided by the (workspace) shell layout. Product
@@ -37,7 +38,6 @@ import { AttachExistingDocumentModal } from "@/app/components/research-projects/
 import type { Campaign } from "@/app/components/campaigns/types";
 import { formatRelativeTime } from "@/lib/format-relative-time";
 import { CollapsedSummary } from "@/app/components/research-projects/Shell";
-import { DashboardSection } from "@/app/components/research-projects/DashboardSection";
 import { ResearchSourcesSection } from "@/app/components/research-projects/ResearchSourcesSection";
 import { CampaignGroupsSection } from "@/app/components/research-projects/CampaignGroupsSection";
 import { useResearchProject, type EvidenceItem } from "@/app/components/research-projects/ProjectProvider";
@@ -135,10 +135,6 @@ export function SourcesBody() {
   const orgName = (orgId: string | null) => (orgId ? orgs.find(o => o.id === orgId)?.name ?? "" : "");
   const orgPublishers = orgs.filter(o => o.type === "publisher" && (user?.role !== "publisher" || o.id === user.organisationId));
   const orgBrands = orgs.filter(o => o.type === "brand");
-
-  function scrollToSection(sectionId: string) {
-    document.getElementById(sectionId)?.scrollIntoView({ behavior: "smooth", block: "start" });
-  }
 
   if (loading && !project) return (
     <div className="p-6 flex items-center justify-center h-64">
@@ -396,26 +392,6 @@ export function SourcesBody() {
           orgs={orgs}
           surveyNameById={new Map(surveyEvidence.map(e => [e.evidence_id, e.survey.name]))}
           returnTo={`/research-projects/${project.id}/sources`}
-        />
-
-        <DashboardSection
-          projectId={project.id}
-          isSimulated={project.research_mode === "simulated"}
-          hasEvidence={project.evidence.length > 0}
-          onScrollToResearchSources={() => scrollToSection("evidence")}
-          surveys={surveyEvidence.map(item => ({
-            evidence_id: item.evidence_id, name: item.survey.name, response_count: item.survey.response_count,
-            target_responses: item.survey.target_responses ?? project.simulation_info?.surveyResponseTarget ?? null,
-            run_status: item.run_status,
-          }))}
-          conversationSearches={conversationSearchEvidence.map(item => ({
-            evidence_id: item.evidence_id, name: item.conversationSearch!.name, mention_count: item.conversationSearch!.mention_count,
-            run_status: item.run_status,
-            markets: item.conversationSearch!.markets, platforms: item.conversationSearch!.platforms,
-            positive_pct: item.conversationSearch!.positive_pct, neutral_pct: item.conversationSearch!.neutral_pct, negative_pct: item.conversationSearch!.negative_pct,
-          }))}
-          mentionTarget={project.simulation_info?.mentionTarget ?? null}
-          campaigns={campaigns}
         />
       </div>
 
