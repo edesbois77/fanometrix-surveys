@@ -27,15 +27,14 @@ import Link from "next/link";
 import { useSession } from "@/app/components/SessionProvider";
 import { studyTypeLabel } from "@/lib/naming";
 import { researchSubjectLabel } from "@/lib/research-subjects";
-import { formatRelativeTime, formatRelativeDay } from "@/lib/format-relative-time";
+import { formatRelativeTime } from "@/lib/format-relative-time";
 import { computeLifecycleStages, computeResearchProgress } from "@/lib/research-project-lifecycle";
 import { computeProjectStatus, PROJECT_STATUS_META } from "@/lib/research-project-status";
 import { SimulatedBanner } from "@/app/components/simulation/SimulatedBanner";
-import { SimulatedBadge } from "@/app/components/simulation/SimulatedBadge";
 import { SimulationInformationPanel } from "@/app/components/simulation/SimulationInformationPanel";
-import { SectionCard, EmptyState, CollapsedSummary, InfoContent } from "@/app/components/research-projects/Shell";
+import { SectionCard, CollapsedSummary, InfoContent } from "@/app/components/research-projects/Shell";
 import { getWorkspaceScrollTarget, clearWorkspaceScrollTarget } from "@/lib/workspace-scroll";
-import { useResearchProject, type ActivityRow } from "@/app/components/research-projects/ProjectProvider";
+import { useResearchProject } from "@/app/components/research-projects/ProjectProvider";
 import { STAGE_STATE_META, ProjectStatusBadge } from "@/app/components/research-projects/workspace-shared";
 
 // The real, operational Research Project Workspace — rendered only at
@@ -207,14 +206,6 @@ export function WorkspaceBodyContent() {
     });
     showToast("Project restored.");
     load();
-  }
-
-  const groupedActivity: [string, ActivityRow[]][] = [];
-  for (const a of project.activity) {
-    const day = formatRelativeDay(a.created_at);
-    const group = groupedActivity.find(([d]) => d === day);
-    if (group) group[1].push(a);
-    else groupedActivity.push([day, [a]]);
   }
 
   return (
@@ -411,45 +402,6 @@ export function WorkspaceBodyContent() {
           )}
         </SectionCard>
 
-        {/* ── Activity ──────────────────────────────────────────────────────── */}
-        <SectionCard
-          id="activity"
-          title="Activity"
-          badge={project.research_mode === "simulated" && <SimulatedBadge />}
-          info={
-            <InfoContent title="Everything that's happened on this project.">
-              <p>A chronological log, research sources attached, targets changed, publishers/countries updated, campaigns generated, grouped by day.</p>
-              <p className="mt-1.5">Use it to see what changed and when, without reconstructing it from memory.</p>
-            </InfoContent>
-          }
-          summary={
-            <p className="text-xs text-gray-500 line-clamp-2">
-              {project.activity.length === 0 ? "No activity yet." : `Latest: ${project.activity[0].description}`}
-            </p>
-          }
-        >
-          {project.activity.length === 0 ? (
-            <EmptyState>No activity yet.</EmptyState>
-          ) : (
-            <div className="space-y-4">
-              {groupedActivity.map(([day, items]) => (
-                <div key={day}>
-                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">{day}</p>
-                  <div className="space-y-1.5">
-                    {items.map(a => (
-                      <div key={a.id} className="flex items-baseline justify-between gap-3">
-                        <span className="text-sm text-gray-700">{a.description}</span>
-                        <span className="text-xs text-gray-400 flex-shrink-0">
-                          {new Date(a.created_at).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </SectionCard>
       </div>
 
       {toast && (

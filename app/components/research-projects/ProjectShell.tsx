@@ -95,13 +95,14 @@ export function ProjectShell() {
             </div>
           </div>
 
-          {/* Persistent utility entry points (not primary areas). Activity and
-              Settings are not rebuilt here — they link to the existing Activity
-              log and Project Information sections that remain on the Overview
-              page; a header drawer / dedicated Settings area is a later step. */}
+          {/* Persistent utility entry points (not primary areas). Activity has
+              its own utility route (/activity, deliberately outside the six-area
+              nav); Settings still links to the Project Information section that
+              remains on Overview. A header drawer / dedicated Settings area is a
+              later step. */}
           <div className="flex items-center gap-1.5 flex-shrink-0">
             <Link
-              href={`${base}/overview#activity`}
+              href={`${base}/activity`}
               className="text-xs font-semibold text-gray-500 hover:text-gray-800 hover:bg-gray-100 px-2.5 py-1.5 rounded-lg transition-colors"
             >
               Activity
