@@ -22,7 +22,6 @@
 // see the file-level comment on WorkspaceBody() below for how the split
 // works.
 import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useSession } from "@/app/components/SessionProvider";
 import { ResearchProjectEditDrawer, type ResearchProjectBriefFields } from "@/app/components/research-projects/ResearchProjectEditDrawer";
@@ -36,7 +35,7 @@ import { SimulationInformationPanel } from "@/app/components/simulation/Simulati
 import { SectionCard, CollapsedSummary, InfoContent } from "@/app/components/research-projects/Shell";
 import { getWorkspaceScrollTarget, clearWorkspaceScrollTarget } from "@/lib/workspace-scroll";
 import { useResearchProject } from "@/app/components/research-projects/ProjectProvider";
-import { STAGE_STATE_META, ProjectStatusBadge } from "@/app/components/research-projects/workspace-shared";
+import { ProjectStatusBadge } from "@/app/components/research-projects/workspace-shared";
 
 // The real, operational Research Project Workspace — rendered only at
 // /research-projects/[id]. Product Walkthrough (/product-walkthrough/[id])
@@ -58,7 +57,6 @@ import { STAGE_STATE_META, ProjectStatusBadge } from "@/app/components/research-
 // its own separate WalkthroughBody, which still mounts its own provider and
 // AdminShell.)
 export function WorkspaceBodyContent() {
-  const router = useRouter();
   const { user } = useSession();
   const isAdmin = user?.role === "admin";
   const canManage = isAdmin || user?.role === "publisher";
@@ -111,10 +109,6 @@ export function WorkspaceBodyContent() {
     if (stored) clearWorkspaceScrollTarget();
     requestAnimationFrame(() => el.scrollIntoView({ behavior: "smooth", block: "start" }));
   });
-
-  function scrollToSection(sectionId: string) {
-    document.getElementById(sectionId)?.scrollIntoView({ behavior: "smooth", block: "start" });
-  }
 
   // Only the very first load (no project fetched yet) replaces the whole
   // page with this placeholder. A background refresh (e.g. load() called
@@ -271,54 +265,24 @@ export function WorkspaceBodyContent() {
           </div>
         </div>
 
-        {/* ── Research Lifecycle — progress tracker + page nav ───────────────── */}
-        {/* Sticky against <main>'s own scroll container (see AdminShell) so
-            it stays visible while scrolling the rest of the Workspace —
-            what's done and what's left should never require scrolling
-            back up to check. */}
-        <div className="sticky top-0 z-20 bg-white border border-gray-100 rounded-xl shadow-sm p-5">
-          <div className="flex items-center justify-center flex-wrap gap-1.5">
-            {stages.map((stage, i) => {
-              const meta = STAGE_STATE_META[stage.state];
-              const pill = (
-                <span className={`text-[11px] font-semibold px-2 py-1 rounded-full border inline-flex items-center gap-1 whitespace-nowrap ${meta.className}`}>
-                  <span className="text-[9px]">{meta.icon}</span>{stage.label}
-                </span>
-              );
-              return (
-                <div key={stage.key} className="flex items-center gap-1">
-                  {stage.sectionId ? (
-                    <button
-                      onClick={() =>
-                        // Sections that have moved to their own area route are
-                        // navigated to rather than scrolled to (their anchor
-                        // isn't on this page): Research Sources → Sources,
-                        // Dashboard → Dashboard, Intelligence → Analysis,
-                        // Report → Outputs, Conclusion + Knowledge → Conclusion
-                        // & Knowledge. The rest still scroll in-page. (This whole
-                        // tracker is superseded by the shell nav and is removed
-                        // once Overview is finalised.)
-                        stage.sectionId === "evidence"
-                          ? router.push(`/research-projects/${projectId}/sources`)
-                          : stage.sectionId === "dashboard"
-                            ? router.push(`/research-projects/${projectId}/dashboard`)
-                            : stage.sectionId === "intelligence"
-                              ? router.push(`/research-projects/${projectId}/analysis`)
-                              : stage.sectionId === "reports"
-                                ? router.push(`/research-projects/${projectId}/outputs`)
-                                : stage.sectionId === "conclusion" || stage.sectionId === "knowledge"
-                                  ? router.push(`/research-projects/${projectId}/conclusion`)
-                                  : scrollToSection(stage.sectionId!)
-                      }
-                      className="transition-transform hover:scale-105"
-                    >
-                      {pill}
-                    </button>
-                  ) : pill}
-                  {i < stages.length - 1 && <span className="text-gray-300 text-xs">→</span>}
-                </div>
-              );
-            })}
+        {/* ── Status + progress — the "where is it currently" answer, promoted
+            to the top of Overview. A compact, read-only indicator: the shell's
+            project nav handles moving between areas, so this no longer
+            duplicates navigation the way the old sticky stage-pill tracker did. */}
+        <div className="bg-white border border-gray-100 rounded-xl shadow-sm p-4 flex items-center gap-x-8 gap-y-3 flex-wrap">
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-gray-400 uppercase tracking-wide">Status</span>
+            <ProjectStatusBadge status={projectStatus} />
+          </div>
+          <div className="flex-1 min-w-[200px]">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-xs text-gray-400 uppercase tracking-wide">Research Progress</span>
+              <span className="text-xs font-semibold text-gray-600">{progress.percent}%</span>
+            </div>
+            <div className="h-1.5 w-full rounded-full bg-gray-100 overflow-hidden">
+              <div className="h-full rounded-full" style={{ width: `${progress.percent}%`, background: "#D7B87A" }} />
+            </div>
+            <p className="text-[11px] text-gray-400 mt-1">{progress.completed} of {progress.total} stages complete</p>
           </div>
         </div>
 
@@ -343,16 +307,12 @@ export function WorkspaceBodyContent() {
           }
           summary={
             <CollapsedSummary groups={[
-              { label: "Progress", parts: [progress.label] },
               { label: "Sources", parts: [`${project.evidence.length}`] },
+              { label: "Responses", parts: [project.total_responses.toLocaleString()] },
             ]} />
           }
         >
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
-            <div>
-              <p className="text-xs text-gray-400 uppercase tracking-wide mb-0.5">Research Progress</p>
-              <p className="text-gray-700">{progress.label}</p>
-            </div>
+          <div className="grid grid-cols-3 gap-4 text-sm">
             <div>
               <p className="text-xs text-gray-400 uppercase tracking-wide mb-0.5">Research Sources</p>
               <p className="text-gray-700">{project.evidence.length}</p>
