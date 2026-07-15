@@ -25,7 +25,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useSession } from "@/app/components/SessionProvider";
-import { ResearchProjectEditDrawer, type ResearchProjectBriefFields } from "@/app/components/research-projects/ResearchProjectEditDrawer";
 import { AttachExistingSurveyModal } from "@/app/components/research-projects/AttachExistingSurveyModal";
 import { AttachExistingConversationSearchModal } from "@/app/components/research-projects/AttachExistingConversationSearchModal";
 import { AttachExistingDocumentModal } from "@/app/components/research-projects/AttachExistingDocumentModal";
@@ -92,7 +91,6 @@ export function WorkspaceBodyContent() {
   const [attachExistingDocumentOpen, setAttachExistingDocumentOpen] = useState(false);
   const [wizardOpen, setWizardOpen] = useState(false);
   const [wizardPresetSurveyId, setWizardPresetSurveyId] = useState<string | null>(null);
-  const [editingBrief, setEditingBrief] = useState<Partial<ResearchProjectBriefFields> | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
   // Research Sources' expand/collapse — every source's own id, independently
@@ -201,7 +199,6 @@ export function WorkspaceBodyContent() {
   const orgName = (orgId: string | null) => (orgId ? orgs.find(o => o.id === orgId)?.name ?? "" : "");
   const orgPublishers = orgs.filter(o => o.type === "publisher" && (user?.role !== "publisher" || o.id === user.organisationId));
   const orgBrands = orgs.filter(o => o.type === "brand");
-  const orgAgencies = orgs.filter(o => o.type === "agency");
 
   function scrollToSection(sectionId: string) {
     document.getElementById(sectionId)?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -380,15 +377,6 @@ export function WorkspaceBodyContent() {
     setWizardOpen(true);
   }
 
-  function openEditBrief() {
-    setEditingBrief({
-      id: p.id, project_id: p.project_id,
-      topic: p.topic, research_question: p.research_question, research_subject: p.research_subject,
-      brand_org_id: p.brand_org_id, agency_org_id: p.agency_org_id, study_type: p.study_type,
-      objective: p.objective, tags: p.tags,
-    });
-  }
-
   function openProjectInfoEdit() {
     setDraftConfidentiality(p.confidentiality);
     setDraftVersion(p.version);
@@ -464,32 +452,12 @@ export function WorkspaceBodyContent() {
         {/* Permanent — no dismiss, no collapse. See Platform Contract §02/§03. */}
         {project.research_mode === "simulated" && <SimulatedBanner />}
 
-        {/* Breadcrumb */}
-        <div className="flex items-center gap-2 text-xs text-gray-400">
-          <Link href="/research-projects" className="hover:text-[#D7B87A]">Research Projects</Link>
-          <span>›</span>
-          <span className="text-gray-700">{displayName}</span>
-        </div>
-
-        {/* ── Hero: Research Brief ─────────────────────────────────────────── */}
-        {/* The main card on the page, so its navy header gets a bit more
-            room (bigger padding, bigger title) than every other section's. */}
-        <div id="hero" className="bg-white border border-gray-100 rounded-xl shadow-sm overflow-hidden scroll-mt-4">
-          <div className="flex items-start justify-between gap-4 px-6 py-6" style={{ background: "#0B1929" }}>
-            <div className="flex items-center gap-3 min-w-0">
-              <h1 className="text-2xl font-bold text-white truncate">{displayName}</h1>
-              {project.research_mode === "simulated" && <SimulatedBadge />}
-            </div>
-            <div className="flex items-center gap-2 flex-shrink-0">
-              {canManage && (
-                <button onClick={openEditBrief}
-                  className="text-xs font-semibold border border-white/20 text-white/80 hover:bg-white/10 px-3 py-1.5 rounded-lg transition-colors">
-                  Edit Research Brief
-                </button>
-              )}
-            </div>
-          </div>
-
+        {/* ── Overview summary — the project's research question, objective and
+            a source/progress rollup. Project identity (name, status,
+            breadcrumb) now lives in the persistent shell header, and editing
+            the brief now lives on the Design area, so neither is repeated
+            here. */}
+        <div id="hero" className="bg-white border border-gray-100 rounded-xl shadow-sm scroll-mt-4">
           <div className="p-6">
             <div className="bg-gray-50 border border-gray-100 rounded-lg px-4 py-3 mb-3">
               <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Research Question</p>
@@ -907,17 +875,6 @@ export function WorkspaceBodyContent() {
           excludeDocumentIds={project.evidence.filter(e => e.evidence_type === "document").map(e => e.evidence_id)}
           onClose={() => setAttachExistingDocumentOpen(false)}
           onAttach={handleAttachExistingDocument}
-        />
-      )}
-
-      {editingBrief && (
-        <ResearchProjectEditDrawer
-          initial={editingBrief}
-          orgBrands={orgBrands}
-          orgAgencies={orgAgencies}
-          orgName={orgName}
-          onClose={() => setEditingBrief(null)}
-          onSaved={() => { setEditingBrief(null); showToast("Research Brief updated."); load(); }}
         />
       )}
 
