@@ -7,13 +7,12 @@
 // the ProjectProvider, above the page content. It reads project data through
 // useResearchProject().
 //
-// All six areas (Overview, Design, Sources, Analysis, Outputs, Conclusion &
-// Knowledge) are dedicated area routes now. Activity and Settings remain
-// persistent project utilities rather than areas: their functionality still
-// lives on the Overview page (the Activity log and the Project Information /
-// lifecycle-actions section), so those two utility entries link to the
-// matching Overview section anchor. Giving Activity/Settings their own routes
-// is a later step; the surrounding shell stays put.
+// All six areas (Overview, Sources, Dashboard, Analysis, Outputs, Conclusion
+// & Knowledge) are dedicated area routes. Activity and Settings remain
+// persistent project utilities rather than areas: Activity has its own utility
+// route (/activity, outside this nav) reached from the header; Settings links
+// to the Project Information section that lives on Overview. A dedicated
+// Settings area / header drawer is a later step.
 //
 // Deliberately non-sticky for this step: the Overview page still renders its
 // own sticky Lifecycle tracker, and two sticky bars at the same offset would
@@ -33,12 +32,12 @@ import { ProjectStatusBadge } from "@/app/components/research-projects/workspace
 type Area =
   | { key: string; label: string; kind: "route"; segment: string; stageKey?: LifecycleKey }
   | { key: string; label: string; kind: "anchor"; anchor: string; stageKey?: LifecycleKey };
-type LifecycleKey = "research_question" | "evidence" | "intelligence" | "report" | "conclusion";
+type LifecycleKey = "research_question" | "dashboard" | "evidence" | "intelligence" | "report" | "conclusion";
 
 const AREAS: Area[] = [
   { key: "overview",   label: "Overview",               kind: "route",  segment: "overview" },
-  { key: "design",     label: "Design",                 kind: "route",  segment: "design",     stageKey: "research_question" },
   { key: "sources",    label: "Sources",                kind: "route",  segment: "sources",     stageKey: "evidence" },
+  { key: "dashboard",  label: "Dashboard",              kind: "route",  segment: "dashboard",   stageKey: "dashboard" },
   { key: "analysis",   label: "Analysis",               kind: "route",  segment: "analysis",    stageKey: "intelligence" },
   { key: "outputs",    label: "Outputs",                kind: "route",  segment: "outputs",     stageKey: "report" },
   { key: "conclusion", label: "Conclusion & Knowledge", kind: "route",  segment: "conclusion",  stageKey: "conclusion" },
@@ -60,10 +59,10 @@ export function ProjectShell() {
   // All six areas are route-backed now; Activity and Settings remain utilities.
   // The base URL redirects to Overview, so anything not matched is Overview.
   const activeKey = pathname.endsWith("/sources") ? "sources"
+    : pathname.endsWith("/dashboard") ? "dashboard"
     : pathname.endsWith("/analysis") ? "analysis"
     : pathname.endsWith("/outputs") ? "outputs"
     : pathname.endsWith("/conclusion") ? "conclusion"
-    : pathname.endsWith("/design") ? "design"
     : "overview";
 
   const hasActiveCampaign = campaigns.some(c => c.effective_status === "live" || c.effective_status === "paused");
