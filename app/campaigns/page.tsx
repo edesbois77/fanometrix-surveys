@@ -150,13 +150,29 @@ export default function CampaignsPage() {
   const autoEditCampaignRef = useRef(false);
 
   useEffect(() => {
-    if (!editCampaignId || autoEditCampaignRef.current || campaigns.length === 0) return;
+    if (!editCampaignId || autoEditCampaignRef.current) return;
+
     const found = campaigns.find(c => c.id === editCampaignId);
-    if (!found) return;
+    if (found) {
+      autoEditCampaignRef.current = true;
+      openEdit(found);
+      return;
+    }
+
+    // Not in the loaded list. Simulated (Product Walkthrough) campaigns are
+    // deliberately excluded from the default /api/campaigns response, so they
+    // never appear in `campaigns` here — once the initial load has settled,
+    // fetch the campaign being edited directly by id (that route returns it
+    // regardless of its is_simulated flag) so the Edit drawer still opens
+    // instead of silently doing nothing.
+    if (loading) return;
     autoEditCampaignRef.current = true;
-    openEdit(found);
+    fetch(`/api/campaigns/${editCampaignId}`)
+      .then(res => (res.ok ? res.json() : null))
+      .then(json => { if (json?.data) openEdit(json.data); else autoEditCampaignRef.current = false; })
+      .catch(() => { autoEditCampaignRef.current = false; });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editCampaignId, campaigns]);
+  }, [editCampaignId, campaigns, loading]);
 
   // A campaign opened from a Research Project always returns there on close
   // *or* save — mirrors the Survey editor's returnTo behaviour, so the user
