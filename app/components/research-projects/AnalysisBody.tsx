@@ -10,10 +10,11 @@
 // The distinction is deliberately preserved, not merged: source-level
 // analysis is what one Research Source found (per-evidence reports under
 // …/reports/{survey|conversation|document}/…); project-level Intelligence is
-// the synthesis across the available evidence (Key Findings). This is a
-// relocation only — IntelligenceSection and the report routes are reused
-// exactly as before; nothing about generation, review states, readiness or
-// methodology changes.
+// the synthesis across the available evidence (Key Findings). The report
+// routes, generation, review states, readiness and methodology are all
+// unchanged; only the presentation is richer, via the Research-Project-only
+// AnalysisView (the shared IntelligenceSection is untouched, so Product
+// Walkthrough is unaffected).
 //
 // The cross-source Reports (Executive → Full Research → Editorial Article)
 // are NOT here — they are the Outputs area (a later step) and remain on the
@@ -26,7 +27,7 @@
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useResearchProject, type EvidenceItem } from "@/app/components/research-projects/ProjectProvider";
-import { IntelligenceSection } from "@/app/components/research-projects/IntelligenceSection";
+import { AnalysisView } from "@/app/components/research-projects/AnalysisView";
 
 export function AnalysisBody() {
   const router = useRouter();
@@ -55,26 +56,35 @@ export function AnalysisBody() {
 
   return (
     <div className="p-4 md:p-6 max-w-5xl mx-auto space-y-4">
-      <IntelligenceSection
-        isSimulated={project.research_mode === "simulated"}
+      <AnalysisView
         surveys={surveyEvidence.map(item => ({
           evidence_id: item.evidence_id,
           name: item.survey.name,
           response_count: item.survey.response_count,
+          question_count: item.survey.question_count,
           summary_status: item.survey.summary_status,
+          generated_at: item.survey.generated_at,
         }))}
         conversationSearches={conversationSearchEvidence.map(item => ({
           evidence_id: item.evidence_id,
           name: item.conversationSearch!.name,
           mention_count: item.conversationSearch!.mention_count,
+          positive_pct: item.conversationSearch!.positive_pct,
+          neutral_pct: item.conversationSearch!.neutral_pct,
+          negative_pct: item.conversationSearch!.negative_pct,
+          markets: item.conversationSearch!.markets,
+          platforms: item.conversationSearch!.platforms,
           summary_status: item.conversationSearch!.summary_status,
+          generated_at: item.conversationSearch!.generated_at,
         }))}
         documents={documentEvidence.map(item => ({
           evidence_row_id: item.id,
           name: item.document.name,
           document_type: item.document.document_type,
+          page_count: item.document.page_count,
           library_status: item.document.library_status,
           summary_status: item.document.summary_status,
+          generated_at: item.document.generated_at,
         }))}
         keyFindingsStatus={project.key_findings_status}
         keyFindingsCount={project.key_findings_count}
