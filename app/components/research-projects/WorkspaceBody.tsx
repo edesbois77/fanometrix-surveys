@@ -34,8 +34,6 @@ import { SimulatedBanner } from "@/app/components/simulation/SimulatedBanner";
 import { SimulatedBadge } from "@/app/components/simulation/SimulatedBadge";
 import { SimulationInformationPanel } from "@/app/components/simulation/SimulationInformationPanel";
 import { SectionCard, EmptyState, CollapsedSummary, InfoContent } from "@/app/components/research-projects/Shell";
-import { ConclusionSection } from "@/app/components/research-projects/ConclusionSection";
-import { KnowledgeSection } from "@/app/components/research-projects/KnowledgeSection";
 import { getWorkspaceScrollTarget, clearWorkspaceScrollTarget } from "@/lib/workspace-scroll";
 import { useResearchProject, type ActivityRow } from "@/app/components/research-projects/ProjectProvider";
 import { STAGE_STATE_META, ProjectStatusBadge } from "@/app/components/research-projects/workspace-shared";
@@ -136,16 +134,6 @@ export function WorkspaceBodyContent() {
       <Link href="/research-projects" className="text-[#D7B87A] hover:underline text-sm">← Back to Research Projects</Link>
     </div>
   );
-
-  // Demo/Product Walkthrough pages show just the Research Name (topic) as
-  // the title — project_name is the classification-suffixed "Final Research
-  // Name" (topic | study type | brand | subject | agency), useful for
-  // disambiguating in a flat list of many projects, but redundant clutter
-  // as a page title once you're already inside one project. Real Research
-  // Projects keep the full project_name here, unaffected.
-  const displayName = project.research_mode === "simulated" && project.topic?.trim()
-    ? project.topic.trim()
-    : project.project_name;
 
   const projectId = project.id;
 
@@ -290,8 +278,9 @@ export function WorkspaceBodyContent() {
                         // Sections that have moved to their own area route are
                         // navigated to rather than scrolled to (their anchor
                         // isn't on this page): Research Sources + Dashboard →
-                        // Sources, Intelligence → Analysis, Report → Outputs.
-                        // The rest still scroll in-page. (This whole tracker is
+                        // Sources, Intelligence → Analysis, Report → Outputs,
+                        // Conclusion + Knowledge → Conclusion & Knowledge. The
+                        // rest still scroll in-page. (This whole tracker is
                         // superseded by the shell nav and is removed once
                         // Overview is finalised.)
                         stage.sectionId === "evidence" || stage.sectionId === "dashboard"
@@ -300,7 +289,9 @@ export function WorkspaceBodyContent() {
                             ? router.push(`/research-projects/${projectId}/analysis`)
                             : stage.sectionId === "reports"
                               ? router.push(`/research-projects/${projectId}/outputs`)
-                              : scrollToSection(stage.sectionId!)
+                              : stage.sectionId === "conclusion" || stage.sectionId === "knowledge"
+                                ? router.push(`/research-projects/${projectId}/conclusion`)
+                                : scrollToSection(stage.sectionId!)
                       }
                       className="transition-transform hover:scale-105"
                     >
@@ -417,16 +408,6 @@ export function WorkspaceBodyContent() {
             <SimulationInformationPanel info={project.simulation_info} />
           )}
         </SectionCard>
-
-        <ConclusionSection
-          projectId={project.id}
-          projectName={displayName}
-          researchQuestion={project.research_question ?? ""}
-          reportApproved={project.report_status === "approved" || project.report_status === "published"}
-          isSimulated={project.research_mode === "simulated"}
-        />
-
-        <KnowledgeSection publishedConclusion={project.published_conclusion} />
 
         {/* ── Activity ──────────────────────────────────────────────────────── */}
         <SectionCard

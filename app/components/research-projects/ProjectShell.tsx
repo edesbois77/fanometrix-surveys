@@ -7,13 +7,13 @@
 // the ProjectProvider, above the page content. It reads project data through
 // useResearchProject().
 //
-// Overview and Design are dedicated area routes now; the remaining areas
-// (Sources, Analysis, Outputs, Conclusion & Knowledge) and the Activity /
-// Settings utilities still live on the Overview page for now, so they link to
-// the matching Overview section anchor (the same anchors the in-page Lifecycle
-// tracker uses, resolved by the workspace's own scroll-restore). As each
-// remaining area gets its own route in later steps, its entry is repointed
-// from an Overview anchor to a real route; the surrounding shell stays put.
+// All six areas (Overview, Design, Sources, Analysis, Outputs, Conclusion &
+// Knowledge) are dedicated area routes now. Activity and Settings remain
+// persistent project utilities rather than areas: their functionality still
+// lives on the Overview page (the Activity log and the Project Information /
+// lifecycle-actions section), so those two utility entries link to the
+// matching Overview section anchor. Giving Activity/Settings their own routes
+// is a later step; the surrounding shell stays put.
 //
 // Deliberately non-sticky for this step: the Overview page still renders its
 // own sticky Lifecycle tracker, and two sticky bars at the same offset would
@@ -41,7 +41,7 @@ const AREAS: Area[] = [
   { key: "sources",    label: "Sources",                kind: "route",  segment: "sources",     stageKey: "evidence" },
   { key: "analysis",   label: "Analysis",               kind: "route",  segment: "analysis",    stageKey: "intelligence" },
   { key: "outputs",    label: "Outputs",                kind: "route",  segment: "outputs",     stageKey: "report" },
-  { key: "conclusion", label: "Conclusion & Knowledge", kind: "anchor", anchor: "conclusion",   stageKey: "conclusion" },
+  { key: "conclusion", label: "Conclusion & Knowledge", kind: "route",  segment: "conclusion",  stageKey: "conclusion" },
 ];
 
 const DOT_CLASS: Record<StageState, string> = {
@@ -57,12 +57,12 @@ export function ProjectShell() {
   const { project, campaigns } = useResearchProject();
 
   const base = `/research-projects/${id}`;
-  // Overview, Design, Sources, Analysis and Outputs are area routes today; the
-  // base URL redirects to Overview, so anything that isn't Design/Sources/
-  // Analysis/Outputs is treated as Overview.
+  // All six areas are route-backed now; Activity and Settings remain utilities.
+  // The base URL redirects to Overview, so anything not matched is Overview.
   const activeKey = pathname.endsWith("/sources") ? "sources"
     : pathname.endsWith("/analysis") ? "analysis"
     : pathname.endsWith("/outputs") ? "outputs"
+    : pathname.endsWith("/conclusion") ? "conclusion"
     : pathname.endsWith("/design") ? "design"
     : "overview";
 
@@ -95,10 +95,10 @@ export function ProjectShell() {
             </div>
           </div>
 
-          {/* Persistent utility entry points. Activity and Settings are not
-              rebuilt here (Step 3) — they link to the existing Activity and
-              Project Information sections on the Overview page; they become a
-              header drawer / dedicated Settings area in later steps. */}
+          {/* Persistent utility entry points (not primary areas). Activity and
+              Settings are not rebuilt here — they link to the existing Activity
+              log and Project Information sections that remain on the Overview
+              page; a header drawer / dedicated Settings area is a later step. */}
           <div className="flex items-center gap-1.5 flex-shrink-0">
             <Link
               href={`${base}/overview#activity`}
