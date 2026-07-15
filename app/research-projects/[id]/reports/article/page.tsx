@@ -69,7 +69,7 @@ export default function EditorialArticlePage() {
   // the Outputs route lands with the report cards already at the top).
   const isWalkthrough = pathname?.startsWith("/product-walkthrough") ?? false;
   const backHref = isWalkthrough ? `${projectBase}#reports` : `${projectBase}/outputs`;
-  const backLabel = isWalkthrough ? "← Back to Workspace" : "← Back to Outputs";
+  const backLabel = isWalkthrough ? "← Back to Workspace" : "← Back to Reports";
 
   const [project, setProject] = useState<ProjectForArticle | null>(null);
   const [loadingProject, setLoadingProject] = useState(true);

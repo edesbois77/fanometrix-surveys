@@ -77,7 +77,7 @@ export default function ExecutiveReportPage() {
   // the Outputs route lands with the report cards already at the top).
   const isWalkthrough = pathname?.startsWith("/product-walkthrough") ?? false;
   const backHref = isWalkthrough ? `${projectBase}#reports` : `${projectBase}/outputs`;
-  const backLabel = isWalkthrough ? "← Back to Workspace" : "← Back to Outputs";
+  const backLabel = isWalkthrough ? "← Back to Workspace" : "← Back to Reports";
   const [project, setProject] = useState<ProjectForReport | null>(null);
   const [loadingProject, setLoadingProject] = useState(true);
   const [showCoverageConfirm, setShowCoverageConfirm] = useState(false);

@@ -1,8 +1,11 @@
 "use client";
 
-// The Outputs area body — the project's cross-source reporting chain, at
-// /research-projects/[id]/outputs. It presents the three client-ready
-// outputs in their established, frozen sequence:
+// The Reports area body — the project's cross-source reporting chain. The
+// user-facing area is named "Reports"; its route segment stays /outputs because
+// /reports is already the per-report deep-link tree (…/reports/executive, etc.)
+// and renaming the segment would collide with those frozen report pages. It
+// presents the three client-ready deliverables in their established, frozen
+// sequence:
 //
 //   Executive Report → Full Research Report → Editorial Article
 //
@@ -26,6 +29,7 @@ import Link from "next/link";
 import { useResearchProject } from "@/app/components/research-projects/ProjectProvider";
 import { computeReportReadiness } from "@/lib/report-readiness";
 import { OutputsView } from "@/app/components/research-projects/OutputsView";
+import { PageIntro } from "@/app/components/research-projects/PageIntro";
 
 export function OutputsBody() {
   const { project, loading, error } = useResearchProject();
@@ -47,6 +51,7 @@ export function OutputsBody() {
 
   return (
     <div className="p-4 md:p-6 max-w-5xl mx-auto space-y-4">
+      <PageIntro>Generate reports and articles that communicate your research.</PageIntro>
       <OutputsView
         projectId={projectId}
         basePath={`/research-projects/${projectId}`}

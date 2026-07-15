@@ -40,7 +40,7 @@ const AREAS: Area[] = [
   { key: "execution",  label: "Execution",              kind: "route",  segment: "execution",   stageKey: "dashboard" },
   { key: "dashboard",  label: "Dashboard",              kind: "route",  segment: "dashboard",   stageKey: "dashboard" },
   { key: "analysis",   label: "Analysis",               kind: "route",  segment: "analysis",    stageKey: "intelligence" },
-  { key: "outputs",    label: "Outputs",                kind: "route",  segment: "outputs",     stageKey: "report" },
+  { key: "outputs",    label: "Reports",                kind: "route",  segment: "outputs",     stageKey: "report" },
   { key: "conclusion", label: "Conclusion & Knowledge", kind: "route",  segment: "conclusion",  stageKey: "conclusion" },
 ];
 
