@@ -95,16 +95,20 @@ export function ProjectShell() {
             order; the dot shows each area's lifecycle progress. Horizontally
             scrollable on narrow viewports. */}
         <nav aria-label="Project areas" className="flex items-center gap-1 overflow-x-auto mt-3">
-          {AREAS.map(area => {
+          {AREAS.map((area, i) => {
             const href = area.kind === "route" ? `${base}/${area.segment}` : `${base}/overview#${area.anchor}`;
             const active = area.kind === "route" && area.key === activeKey;
             const state = area.stageKey ? stageState(area.stageKey) : undefined;
+            // Drop the first tab's left padding so its label lines up flush with
+            // the container edge — i.e. under the "R" of the "Research Projects"
+            // heading above — instead of sitting 12px in. Its underline then
+            // starts at the word too; the other tabs keep symmetric padding.
             return (
               <Link
                 key={area.key}
                 href={href}
                 aria-current={active ? "page" : undefined}
-                className={`flex items-center gap-1.5 whitespace-nowrap text-sm font-medium px-3 py-2 border-b-2 transition-colors ${
+                className={`flex items-center gap-1.5 whitespace-nowrap text-sm font-medium ${i === 0 ? "pl-0 pr-3" : "px-3"} py-2 border-b-2 transition-colors ${
                   active
                     ? "text-white border-[#D7B87A]"
                     : "text-white/70 border-transparent hover:text-white hover:border-[#D7B87A]"
