@@ -23,6 +23,7 @@ import {
   ENTITY_TYPES, RESEARCH_GOALS, FREQUENCIES, SEARCH_STATUSES,
   KEYWORD_TYPES, PLATFORMS, MARKETS,
 } from "@/lib/social-taxonomy";
+import { CONNECTOR_CATALOG, COLLECTION_LANGUAGES, connectorForPlatformId, type ConnectorField } from "@/lib/connectors/catalog";
 import { useResearchProject } from "@/app/components/research-projects/ProjectProvider";
 import { useWorkspaceRecord } from "@/app/components/research-projects/WorkspaceRecordContext";
 import {
@@ -31,15 +32,19 @@ import {
 } from "@/app/components/workspace-ui";
 
 type Keyword = { keyword: string; keyword_type: string };
+type ConnectorConfig = Record<string, Record<string, unknown>>;
 type SearchForm = {
   name: string; description: string; entity_type: string; research_goal: string;
   markets: string[]; platforms: string[]; frequency: string; status: string;
+  languages: string[]; collect_from: string; collect_to: string;
+  connector_config: ConnectorConfig;
 };
 
 const BLANK: SearchForm = {
   name: "", description: "", entity_type: "Brand", research_goal: "Fan Sentiment",
   markets: ["GB"], platforms: PLATFORMS.filter(p => p.defaultOn).map(p => p.id),
   frequency: "Manual", status: "Draft",
+  languages: ["en"], collect_from: "", collect_to: "", connector_config: {},
 };
 
 const inputStyle: React.CSSProperties = {
@@ -71,8 +76,16 @@ export function SearchConfigForm({ mode, searchId, backHref, backLabel }: {
   const [loading, setLoading] = useState(mode === "edit");
   const [notFound, setNotFound] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
   function showToast(msg: string, ok = true) { setToast({ msg, ok }); setTimeout(() => setToast(null), 4000); }
+
+  function toggleLanguage(code: string) {
+    setForm(f => ({ ...f, languages: f.languages.includes(code) ? f.languages.filter(l => l !== code) : [...f.languages, code] }));
+  }
+  function setConnectorConfig(connectorId: string, key: string, value: unknown) {
+    setForm(f => ({ ...f, connector_config: { ...f.connector_config, [connectorId]: { ...(f.connector_config[connectorId] ?? {}), [key]: value } } }));
+  }
 
   // Edit mode: load the existing search and prefill (same list endpoint the
   // standalone detail page reads, found by id).
@@ -86,6 +99,9 @@ export function SearchConfigForm({ mode, searchId, backHref, backLabel }: {
         name: s.name, description: s.description ?? "", entity_type: s.entity_type,
         research_goal: s.research_goal, markets: s.markets, platforms: s.platforms,
         frequency: s.frequency, status: s.status,
+        languages: s.languages?.length ? s.languages : ["en"],
+        collect_from: s.collect_from ?? "", collect_to: s.collect_to ?? "",
+        connector_config: (s.connector_config ?? {}) as ConnectorConfig,
       });
       setKeywords(s.social_keywords ?? []);
     } catch {
@@ -126,7 +142,10 @@ export function SearchConfigForm({ mode, searchId, backHref, backLabel }: {
       method,
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        ...form, keywords,
+        ...form,
+        collect_from: form.collect_from || null,   // date columns reject ""
+        collect_to: form.collect_to || null,
+        keywords,
         // A brand-new search created for a project must inherit that project's
         // research_mode or the evidence-attach below is rejected by the
         // provenance trigger. Editing never touches provenance.
@@ -166,6 +185,40 @@ export function SearchConfigForm({ mode, searchId, backHref, backLabel }: {
     setSaving(false);
     showToast("Search updated.");
     load();
+  }
+
+  // Advanced options only for enabled sources that have a connector with them.
+  const advancedConnectors = Array.from(new Set(
+    form.platforms.map(p => connectorForPlatformId(p)?.id).filter((x): x is string => !!x)
+  )).map(id => CONNECTOR_CATALOG.find(c => c.id === id)!).filter(c => c.advanced.length > 0);
+
+  function renderConnectorField(connectorId: string, field: ConnectorField) {
+    const cc = form.connector_config[connectorId] ?? {};
+    if (field.type === "number") {
+      const val = cc[field.key] ?? field.default;
+      return (
+        <div key={field.key}>
+          <FieldLabel>{field.label}</FieldLabel>
+          <input type="number" min={0} value={val == null ? "" : String(val)}
+            onChange={e => setConnectorConfig(connectorId, field.key, e.target.value === "" ? null : Number(e.target.value))}
+            onFocus={focusGold} onBlur={blurGold}
+            className="w-full px-3 py-2 text-sm outline-none transition-colors" style={inputStyle} />
+          {field.help && <p className="text-[11px] mt-1" style={{ color: "var(--text-tertiary)" }}>{field.help}</p>}
+        </div>
+      );
+    }
+    const arr = Array.isArray(cc[field.key]) ? (cc[field.key] as string[]) : [];
+    return (
+      <div key={field.key} className="sm:col-span-2">
+        <FieldLabel>{field.label}</FieldLabel>
+        <input value={arr.join(", ")}
+          onChange={e => setConnectorConfig(connectorId, field.key, e.target.value.split(",").map(s => s.trim()).filter(Boolean))}
+          onFocus={focusGold} onBlur={blurGold}
+          className="w-full px-3 py-2 text-sm outline-none transition-colors" style={inputStyle}
+          placeholder="soccer, football" />
+        {field.help && <p className="text-[11px] mt-1" style={{ color: "var(--text-tertiary)" }}>{field.help}</p>}
+      </div>
+    );
   }
 
   if (loading) return <PageContainer><PageLoadingState lines={2} /></PageContainer>;
@@ -281,9 +334,9 @@ export function SearchConfigForm({ mode, searchId, backHref, backLabel }: {
           </div>
         </Card>
 
-        {/* Markets & platforms */}
+        {/* Markets & sources */}
         <Card>
-          <SectionHeading title="Markets & platforms" />
+          <SectionHeading title="Markets & sources" />
           <div className="mt-5 space-y-5">
             <div>
               <FieldLabel>Markets</FieldLabel>
@@ -294,7 +347,7 @@ export function SearchConfigForm({ mode, searchId, backHref, backLabel }: {
               </div>
             </div>
             <div>
-              <FieldLabel>Platforms</FieldLabel>
+              <FieldLabel>Sources</FieldLabel>
               <div className="flex flex-wrap gap-2">
                 {PLATFORMS.map(p => {
                   const on = form.platforms.includes(p.id);
@@ -316,6 +369,60 @@ export function SearchConfigForm({ mode, searchId, backHref, backLabel }: {
             </div>
           </div>
         </Card>
+
+        {/* Collection window & languages */}
+        <Card>
+          <SectionHeading title="Collection window & languages" description="The date range and languages this search collects across its sources." />
+          <div className="mt-5 space-y-5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <FieldLabel>Collect from</FieldLabel>
+                <input type="date" value={form.collect_from} max={form.collect_to || undefined}
+                  onChange={e => setForm(f => ({ ...f, collect_from: e.target.value }))}
+                  onFocus={focusGold} onBlur={blurGold}
+                  className="w-full px-3 py-2 text-sm outline-none transition-colors" style={inputStyle} />
+              </div>
+              <div>
+                <FieldLabel>Collect to</FieldLabel>
+                <input type="date" value={form.collect_to} min={form.collect_from || undefined}
+                  onChange={e => setForm(f => ({ ...f, collect_to: e.target.value }))}
+                  onFocus={focusGold} onBlur={blurGold}
+                  className="w-full px-3 py-2 text-sm outline-none transition-colors" style={inputStyle} />
+              </div>
+            </div>
+            <p className="text-[11px]" style={{ color: "var(--text-tertiary)" }}>Leave blank to let each source use its default recency window.</p>
+            <div>
+              <FieldLabel>Languages</FieldLabel>
+              <div className="flex flex-wrap gap-1.5">
+                {COLLECTION_LANGUAGES.map(l => (
+                  <FilterChip key={l.code} label={`${l.code} · ${l.label}`} selected={form.languages.includes(l.code)} onClick={() => toggleLanguage(l.code)} />
+                ))}
+              </div>
+            </div>
+          </div>
+        </Card>
+
+        {/* Advanced — per-source collection limits, tucked away so the normal flow stays simple */}
+        {advancedConnectors.length > 0 && (
+          <Card>
+            <button type="button" onClick={() => setAdvancedOpen(o => !o)} className="w-full flex items-center justify-between text-left">
+              <SectionHeading title="Advanced source settings" description="Per-source collection limits and targeting. Optional — sensible defaults apply." />
+              <span className="ml-3 flex-shrink-0 text-xs" style={{ color: "var(--text-tertiary)" }}>{advancedOpen ? "Hide ▲" : "Show ▼"}</span>
+            </button>
+            {advancedOpen && (
+              <div className="mt-5 space-y-6">
+                {advancedConnectors.map(conn => (
+                  <div key={conn.id}>
+                    <p className="text-xs font-semibold mb-3 uppercase tracking-[0.05em]" style={{ color: "var(--text-tertiary)" }}>{conn.name}</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {conn.advanced.map(field => renderConnectorField(conn.id, field))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
+        )}
 
         {/* Where operational controls live — keeps the separation explicit. */}
         <p className="text-xs px-1" style={{ color: "var(--text-tertiary)" }}>
