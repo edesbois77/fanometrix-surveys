@@ -50,23 +50,53 @@ export async function promoteApprovedMetadata(
   // used throughout lib/intelligence's analysts.
   const publicationDate = content.publication_date && ISO_DATE.test(content.publication_date) ? content.publication_date : null;
 
+  // Title, author and description are each canonical once a human edits
+  // them and must never be overwritten by approval — same protection
+  // document_type already gets above. The per-field *_manually_edited flags
+  // (set by PATCH) gate each one; the AI-suggested value only lands when no
+  // human has touched that field.
+  const { data: doc } = await supabaseAdmin
+    .from("library_documents")
+    .select("title_manually_edited, author_manually_edited, description_manually_edited, tags_manually_edited, author")
+    .eq("id", libraryDocumentId)
+    .single();
+
+  const update: Record<string, unknown> = {
+    source_publisher: content.source_publisher,
+    publication_date: publicationDate,
+    markets: content.markets,
+    sports_competitions: content.sports_competitions,
+    audience_segments: content.audience_segments,
+    brands_mentioned: content.brands_mentioned,
+    topics: content.topics,
+    analysis_search_text: buildAnalysisSearchText(content),
+    status: "approved",
+    approved_by: approvedBy,
+    approved_at: now,
+  };
+  if (!doc?.title_manually_edited) {
+    update.title = content.title;
+  }
+  // Author: prefer the file's embedded metadata (already stored during
+  // extraction). Only fall back to the AI's extracted author when the field
+  // is still empty and the human hasn't set one.
+  if (!doc?.author_manually_edited && !doc?.author && content.author?.trim()) {
+    update.author = content.author.trim();
+  }
+  // Description: the concise AI abstract (what the document is, key findings,
+  // why it matters — distinct from the fuller executive_summary) becomes the
+  // document's primary introduction, unless a human has written their own.
+  if (!doc?.description_manually_edited && content.summary?.trim()) {
+    update.description = content.summary.trim();
+  }
+  // Tags: the AI's suggested tags land unless a human has curated them.
+  if (!doc?.tags_manually_edited) {
+    update.tags = content.tags;
+  }
+
   const { error } = await supabaseAdmin
     .from("library_documents")
-    .update({
-      title: content.title,
-      source_publisher: content.source_publisher,
-      publication_date: publicationDate,
-      markets: content.markets,
-      sports_competitions: content.sports_competitions,
-      audience_segments: content.audience_segments,
-      brands_mentioned: content.brands_mentioned,
-      topics: content.topics,
-      tags: content.tags,
-      analysis_search_text: buildAnalysisSearchText(content),
-      status: "approved",
-      approved_by: approvedBy,
-      approved_at: now,
-    })
+    .update(update)
     .eq("id", libraryDocumentId);
 
   if (error) throw new Error(error.message);

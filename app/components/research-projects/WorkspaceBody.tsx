@@ -22,21 +22,92 @@
 // see the file-level comment on WorkspaceBody() below for how the split
 // works.
 import { useEffect, useRef, useState } from "react";
-import Link from "next/link";
 import { useSession } from "@/app/components/SessionProvider";
 import { ResearchProjectEditDrawer, type ResearchProjectBriefFields } from "@/app/components/research-projects/ResearchProjectEditDrawer";
 import { studyTypeLabel } from "@/lib/naming";
 import { researchSubjectLabel } from "@/lib/research-subjects";
 import { formatRelativeTime } from "@/lib/format-relative-time";
 import { computeLifecycleStages, computeResearchProgress } from "@/lib/research-project-lifecycle";
-import { computeProjectStatus, PROJECT_STATUS_META } from "@/lib/research-project-status";
+import { computeProjectStatus } from "@/lib/research-project-status";
 import { SimulatedBanner } from "@/app/components/simulation/SimulatedBanner";
 import { SimulationInformationPanel } from "@/app/components/simulation/SimulationInformationPanel";
-import { SectionCard, CollapsedSummary, InfoContent } from "@/app/components/research-projects/Shell";
-import { PageIntro } from "@/app/components/research-projects/PageIntro";
+import {
+  PageContainer, PageLoadingState, ErrorState,
+  Card, Panel, SectionHeading, Eyebrow, Button, MetricTile, ConfidenceIndicator, ActivityFeed, Icon,
+  type ConfidenceLevel,
+} from "@/app/components/workspace-ui";
 import { getWorkspaceScrollTarget, clearWorkspaceScrollTarget } from "@/lib/workspace-scroll";
 import { useResearchProject } from "@/app/components/research-projects/ProjectProvider";
 import { ProjectStatusBadge } from "@/app/components/research-projects/workspace-shared";
+
+// The seven workspace areas, in workflow order — the horizontal research
+// pipeline on Overview mirrors exactly this nav sequence.
+const PIPELINE_AREAS = [
+  { key: "overview", label: "Overview" },
+  { key: "research", label: "Research" },
+  { key: "execution", label: "Execution" },
+  { key: "dashboard", label: "Dashboard" },
+  { key: "analysis", label: "Analysis" },
+  { key: "outputs", label: "Reports" },
+  { key: "conclusion", label: "Conclusions" },
+] as const;
+
+// The Intelligence Status content shape, derived in the body from live state.
+type IntelStatus = {
+  state: "not_started" | "in_progress" | "complete";
+  eyebrow: string;
+  icon: "info" | "clock" | "sparkles";
+  title: string;
+  body: string;
+  confidence?: ConfidenceLevel;
+  confidenceBasis?: string;
+  link?: { label: string; href: string };
+};
+
+// The Intelligence Status panel — tinted per state so it carries its own
+// surface weight distinct from the plain white cards: a neutral well before
+// research begins, an info tint while collecting, and the gold executive-summary
+// treatment once analysis is complete.
+function IntelligenceStatusPanel({ intel }: { intel: IntelStatus }) {
+  const S = {
+    not_started: { bg: "var(--surface-sunken)", border: "var(--border-default)", chipBg: "#E5E8EC", chipInk: "var(--text-tertiary)", eyebrowInk: "var(--text-tertiary)" },
+    in_progress: { bg: "#F1F5FB", border: "#D6E2F1", chipBg: "#E1EBF8", chipInk: "#3B5A8A", eyebrowInk: "#3B5A8A" },
+    complete:    { bg: "linear-gradient(135deg, #FCF8EF 0%, #FFFFFF 62%)", border: "#E7DCC2", chipBg: "#F2E6C8", chipInk: "#8A6D2F", eyebrowInk: "#8A6D2F" },
+  }[intel.state];
+  const Ico = Icon[intel.icon];
+  const titleBig = intel.state === "complete";
+  return (
+    <div className="border p-5" style={{ borderRadius: "var(--radius-panel)", background: S.bg, borderColor: S.border }}>
+      <div className="flex items-start gap-3">
+        <span className="inline-flex items-center justify-center w-8 h-8 rounded-lg flex-shrink-0" style={{ background: S.chipBg, color: S.chipInk }} aria-hidden>
+          <Ico size={16} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.08em]" style={{ color: S.eyebrowInk }}>{intel.eyebrow}</p>
+          <p className={`${titleBig ? "text-base md:text-lg" : "text-sm"} font-bold mt-1 tracking-[-0.01em] leading-snug`} style={{ color: "var(--text-primary)" }}>{intel.title}</p>
+          <p className="text-sm mt-1 leading-relaxed" style={{ color: "var(--text-secondary)" }}>{intel.body}</p>
+          {(intel.confidence || intel.link) && (
+            <div className="flex items-center justify-between gap-3 flex-wrap mt-3.5">
+              {intel.confidence ? <ConfidenceIndicator level={intel.confidence} basis={intel.confidenceBasis} /> : <span />}
+              {intel.link && <Button href={intel.link.href} variant="secondary" size="sm">{intel.link.label}</Button>}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// A single label/value fact in the Project Information grid — the definition-
+// list unit that gives every metadata field the same quiet, premium rhythm.
+function Fact({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="min-w-0">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.06em]" style={{ color: "var(--text-tertiary)" }}>{label}</p>
+      <div className="text-sm mt-1 leading-snug" style={{ color: "var(--text-primary)" }}>{children}</div>
+    </div>
+  );
+}
 
 // The real, operational Research Project Workspace — rendered only at
 // /research-projects/[id]. Product Walkthrough (/product-walkthrough/[id])
@@ -75,6 +146,7 @@ export function WorkspaceBodyContent() {
   const [draftVersion, setDraftVersion] = useState<string | null>(null);
   const [savingProjectInfo, setSavingProjectInfo] = useState(false);
   const [projectInfoError, setProjectInfoError] = useState("");
+  const [activityExpanded, setActivityExpanded] = useState(false);
 
   function showToast(msg: string) {
     setToast(msg);
@@ -118,17 +190,12 @@ export function WorkspaceBodyContent() {
   // entire page in favour of this ~256px placeholder and back again, which
   // collapses the document height and resets scroll to the top even though
   // nothing actually navigated.
-  if (loading && !project) return (
-    <div className="p-6 flex items-center justify-center h-64">
-      <p className="text-gray-400 text-sm">Loading research project…</p>
-    </div>
-  );
+  if (loading && !project) return <PageContainer><PageLoadingState /></PageContainer>;
 
   if (error || !project) return (
-    <div className="p-6 max-w-5xl mx-auto text-center py-20">
-      <p className="text-gray-400 mb-4">{error || "Research project not found."}</p>
-      <Link href="/research-projects" className="text-[#D7B87A] hover:underline text-sm">← Back to Research Projects</Link>
-    </div>
+    <PageContainer>
+      <ErrorState title="Research project not found" description={error || "We couldn't load this project's overview."} />
+    </PageContainer>
   );
 
   const projectId = project.id;
@@ -155,6 +222,72 @@ export function WorkspaceBodyContent() {
   const searchCount = project.evidence.filter(e => e.evidence_type === "social_search").length;
   const docCount = project.evidence.filter(e => e.evidence_type === "document").length;
 
+  // Intelligence-platform metrics for "Research at a glance" — all read from the
+  // project's own totals; no new computation, just intelligence-flavoured names.
+  const totalMentions = project.evidence.reduce((sum, e) => sum + (e.conversationSearch?.mention_count ?? 0), 0);
+  const marketCount = project.country_codes.length;
+
+  // Analysis is "complete" once source Intelligence is approved/published or the
+  // project-level Key Findings are ready — the same signals the lifecycle uses.
+  // This flips Overview from a project summary into a genuine Executive Summary.
+  const stage = (key: string) => stages.find(s => s.key === key)?.state;
+  const analysisComplete = stage("intelligence") === "complete" || project.key_findings_status === "ready";
+  const isSimulated = project.research_mode === "simulated";
+
+  // ── Intelligence Status — the first place to read the project's state. Three
+  // states, all derived from data already loaded: not started → what's missing;
+  // in progress → what's been collected; analysis complete → the headline answer
+  // (the published conclusion when it exists is genuinely AI-generated) with a
+  // confidence read. No new generation happens here.
+  const collectedSummary = [
+    `${project.evidence.length} evidence source${project.evidence.length !== 1 ? "s" : ""}`,
+    project.total_responses > 0 ? `${project.total_responses.toLocaleString()} responses` : null,
+    totalMentions > 0 ? `${totalMentions.toLocaleString()} conversations` : null,
+    marketCount > 0 ? `${marketCount} market${marketCount !== 1 ? "s" : ""}` : null,
+  ].filter(Boolean).join(" · ");
+
+  const intel: {
+    state: "not_started" | "in_progress" | "complete";
+    eyebrow: string; icon: "info" | "clock" | "sparkles"; title: string; body: string;
+    confidence?: ConfidenceLevel; confidenceBasis?: string; link?: { label: string; href: string };
+  } =
+    project.evidence.length === 0
+      ? {
+          state: "not_started", eyebrow: "Intelligence status", icon: "info",
+          title: "Research not started",
+          body: "No evidence has been collected yet. Choose your research methods to begin building an answer to this question.",
+        }
+      : !analysisComplete
+      ? {
+          state: "in_progress", eyebrow: "Intelligence status", icon: "clock",
+          title: "Research in progress",
+          body: `Collecting evidence, ${collectedSummary}. Findings will appear here once analysis is complete.`,
+        }
+      : {
+          state: "complete", eyebrow: "Executive summary", icon: "sparkles",
+          title: project.published_conclusion?.answer
+            ?? `Key findings are ready across ${project.evidence.length} evidence source${project.evidence.length !== 1 ? "s" : ""}.`,
+          body: project.published_conclusion?.rationale
+            ?? `Analysis is complete${project.key_findings_count ? ` with ${project.key_findings_count} key finding${project.key_findings_count !== 1 ? "s" : ""}` : ""}. Open Analysis to explore the full intelligence.`,
+          confidence: project.evidence.length >= 3 ? "high" : project.evidence.length === 2 ? "medium" : "low",
+          confidenceBasis: isSimulated ? "based on simulated research" : `across ${project.evidence.length} source${project.evidence.length !== 1 ? "s" : ""}`,
+          link: { label: "View analysis →", href: `/research-projects/${projectId}/analysis` },
+        };
+
+  // Horizontal research pipeline — each nav area's completion, in workflow order.
+  // A node is done when its underlying signal is met; the first not-done node is
+  // the one the project is currently working through.
+  const pipelineDone: Record<string, boolean> = {
+    overview: !!project.research_question?.trim(),
+    research: project.evidence.length > 0,
+    execution: project.deployment_count > 0 || project.total_responses > 0,
+    dashboard: project.total_responses > 0,
+    analysis: analysisComplete,
+    outputs: stage("report") === "complete",
+    conclusion: stage("conclusion") === "complete",
+  };
+  const pipelineActiveIndex = PIPELINE_AREAS.findIndex(a => !pipelineDone[a.key]);
+
   // ── Next Recommended Action — the single most useful thing to do next,
   // derived from where the project actually is in its lifecycle. It walks the
   // same stages the progress bar counts (question → sources → collection →
@@ -163,12 +296,11 @@ export function WorkspaceBodyContent() {
   // only state already loaded above. The CTA either navigates to the relevant
   // area or, for the very first step, opens the Research Brief editor in place
   // (defining the question is an Overview action, not another page).
-  const stage = (key: string) => stages.find(s => s.key === key)?.state;
   const nextAction: { title: string; body: string; ctaLabel: string; href?: string; onClick?: () => void; done?: boolean } =
     !project.research_question?.trim()
-      ? { title: "Define your research question", body: "Set the question and objective this project will answer — everything else follows from it.", ctaLabel: "Edit Research Brief", onClick: openEditBrief }
+      ? { title: "Define your research question", body: "Set the question and objective this project will answer. Everything else follows from it.", ctaLabel: "Edit Research Brief", onClick: openEditBrief }
     : project.evidence.length === 0
-      ? { title: "Choose your research methods", body: "Select the evidence sources — surveys, conversation intelligence or library documents — that will answer your question.", ctaLabel: "Go to Research →", href: `/research-projects/${projectId}/research` }
+      ? { title: "Choose your research methods", body: "Select the evidence sources, such as surveys, conversation intelligence or library documents, that will answer your question.", ctaLabel: "Go to Research →", href: `/research-projects/${projectId}/research` }
     : project.total_responses === 0 && project.deployment_count === 0
       ? { title: "Deploy and run your research", body: "Configure and launch your sources to start collecting data.", ctaLabel: "Go to Execution →", href: `/research-projects/${projectId}/execution` }
     : stage("intelligence") !== "complete"
@@ -248,271 +380,301 @@ export function WorkspaceBodyContent() {
     load();
   }
 
+  const inputStyle: React.CSSProperties = { background: "var(--surface)", border: "1px solid var(--border-default)", color: "var(--text-primary)" };
+  const focusGold = (e: React.FocusEvent<HTMLElement>) => { e.currentTarget.style.borderColor = "var(--accent-gold)"; };
+  const blurGold = (e: React.FocusEvent<HTMLElement>) => { e.currentTarget.style.borderColor = "var(--border-default)"; };
+
   return (
     <>
-      <div className="p-4 md:p-6 max-w-5xl mx-auto space-y-4">
+      <PageContainer gap="xl">
 
-        <PageIntro>Define the research question, objectives and monitor overall project progress.</PageIntro>
+        {/* No page-level header: the persistent project shell above already
+            carries the project identity (name + status) and the area nav, so a
+            second "Project Overview" title / status / metadata block would just
+            re-introduce the page. The project name+status sit directly above;
+            everything here leads straight to the research question — the hero. */}
 
         {/* Permanent — no dismiss, no collapse. See Platform Contract §02/§03. */}
         {project.research_mode === "simulated" && <SimulatedBanner />}
 
-        {/* ── Research Brief — the question this project investigates and its
-            objective, edited through the shared brief drawer. Project identity
-            (name, status, breadcrumb) lives in the persistent shell header;
-            project classification (Brand, Agency, Type, Category) lives in
-            Project Information below; the source/collection rollup lives in
-            Research Snapshot. Nothing is duplicated across them. */}
-        <div id="hero" className="bg-white border border-gray-100 rounded-xl shadow-sm overflow-hidden scroll-mt-4">
-          <div className="flex items-center justify-between gap-3 px-5 py-3.5" style={{ background: "#0B1929" }}>
-            <h2 className="text-sm font-bold text-white uppercase tracking-wide">Research Brief</h2>
-            {canManage && (
-              <button onClick={openEditBrief}
-                className="text-xs font-semibold border border-white/20 text-white/80 hover:bg-white/10 px-3 py-1.5 rounded-lg transition-colors">
-                Edit Research Brief
-              </button>
+        {/* ── Research question — the opening statement of the project, set as
+            the most prominent type on the page and deliberately NOT boxed: it
+            reads like the first line of a report, on the page itself, with air
+            around it. Everything below exists to answer it. The objective sits
+            beneath as supporting context. */}
+        <section id="hero" className="scroll-mt-6 pt-2 pb-2 md:pt-4">
+          <span className="block w-10 h-0.5 rounded-full mb-5" style={{ background: "var(--accent-gold)" }} aria-hidden />
+          <div className="flex items-start justify-between gap-3">
+            <Eyebrow tone="accent">Research question</Eyebrow>
+            {canManage && <Button variant="ghost" size="sm" onClick={openEditBrief} className="-mt-1.5 -mr-1.5">Edit brief</Button>}
+          </div>
+          {project.research_question ? (
+            <h2 className="mt-4 text-[28px] md:text-[38px] font-bold tracking-[-0.025em] leading-[1.18] max-w-4xl" style={{ color: "var(--text-primary)" }}>
+              {project.research_question}
+            </h2>
+          ) : (
+            <p className="mt-4 text-xl md:text-2xl font-medium tracking-[-0.01em]" style={{ color: "var(--text-tertiary)" }}>
+              No research question set{canManage ? ". Edit the brief to add one." : "."}
+            </p>
+          )}
+
+          {project.objective && (
+            <div className="mt-6 max-w-3xl flex gap-3">
+              <span className="w-0.5 rounded-full flex-shrink-0" style={{ background: "var(--border-strong)" }} aria-hidden />
+              <div>
+                <Eyebrow>Objective</Eyebrow>
+                <p className="mt-1.5 text-[15px] md:text-base leading-relaxed" style={{ color: "var(--text-secondary)" }}>{project.objective}</p>
+              </div>
+            </div>
+          )}
+        </section>
+
+        {/* ── Intelligence Status — the first place to read the state of the
+            project. Tinted per state so it never reads as "just another white
+            card": neutral well before research starts, gold-tinted once analysis
+            is complete (the executive-summary moment). Reflects existing state
+            only — no generation happens here. */}
+        <IntelligenceStatusPanel intel={intel} />
+
+        {/* ── Next Recommended Action — the "what should I do next?" answer,
+            derived from lifecycle state. The one navy moment on the page: the
+            single unambiguous prompt into the area that advances the project.
+            Read-only Overview — the CTA routes elsewhere or opens the brief. */}
+        <div className="overflow-hidden" style={{ borderRadius: "var(--radius-panel)", background: "var(--brand-navy)", boxShadow: "var(--shadow-md)" }}>
+          <div className="p-6 md:p-7 flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-2">
+                <span style={{ color: "var(--accent-gold)" }}>{nextAction.done ? <Icon.check size={15} strokeWidth={2.5} /> : <Icon.bulb size={15} />}</span>
+                <span className="text-[11px] font-semibold uppercase tracking-[0.08em]" style={{ color: "var(--accent-gold)" }}>
+                  {nextAction.done ? "Project complete" : "Next recommended action"}
+                </span>
+              </div>
+              <p className="text-lg font-bold text-white tracking-[-0.01em] leading-snug">{nextAction.title}</p>
+              <p className="text-sm mt-1.5 leading-relaxed max-w-xl" style={{ color: "rgba(255,255,255,0.62)" }}>{nextAction.body}</p>
+            </div>
+            {nextAction.href ? (
+              <Button href={nextAction.href} variant="primary" size="md" className="self-start sm:self-auto">{nextAction.ctaLabel}</Button>
+            ) : (
+              canManage && (
+                <Button onClick={nextAction.onClick} variant="primary" size="md" className="self-start sm:self-auto">{nextAction.ctaLabel}</Button>
+              )
             )}
           </div>
-          <div className="p-6">
-            <div className="bg-gray-50 border border-gray-100 rounded-lg px-4 py-3 mb-3">
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Research Question</p>
-              {project.research_question ? (
-                <p className="text-base font-medium text-gray-900 leading-relaxed">{project.research_question}</p>
-              ) : (
-                <p className="text-sm text-gray-400">No research question set{canManage ? ", edit the brief to add one." : "."}</p>
-              )}
+        </div>
+
+        {/* ── Research at a glance — the project's own top-level totals as a KPI
+            row, with routes to the full Research and Dashboard areas. Not a
+            second dashboard: the cross-source collection view is the Dashboard
+            area. Progress is folded in as a target tile. */}
+        <section id="snapshot" className="scroll-mt-6">
+          <SectionHeading
+            title="Research at a glance"
+            action={
+              <div className="flex items-center gap-2">
+                <Button href={`/research-projects/${projectId}/research`} variant="ghost" size="sm">View research</Button>
+                <Button href={`/research-projects/${projectId}/dashboard`} variant="secondary" size="sm">Open dashboard →</Button>
+              </div>
+            }
+          />
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 mt-4">
+            <MetricTile
+              label="Sources" value={project.evidence.length} icon="layers"
+              breakdown={[
+                { label: "Survey", value: surveyCount },
+                { label: "Conversation Search", value: searchCount },
+                { label: "Documents", value: docCount },
+              ]}
+            />
+            <MetricTile label="Responses" value={project.total_responses.toLocaleString()} icon="survey" />
+            <MetricTile label="Conversations" value={totalMentions.toLocaleString()} icon="conversation" />
+            <MetricTile label="Documents" value={docCount} icon="document" />
+            <MetricTile label="Markets" value={marketCount} icon="globe" />
+          </div>
+        </section>
+
+        {/* ── Research pipeline — the workflow this project moves through, in the
+            exact order of the shell nav (Overview → … → Conclusions). A read-only
+            "you are here" pipeline, not a checklist: filled up to the current
+            stage. On a sunken surface so it reads as a distinct band, not another
+            white card. */}
+        <Panel padding="lg">
+          <div className="flex flex-col lg:flex-row lg:items-stretch gap-6 lg:gap-8">
+            {/* LEFT — title + the pipeline, unchanged. */}
+            <div className="flex-1 min-w-0">
+              <h2 className="text-base font-bold tracking-[-0.01em]" style={{ color: "var(--text-primary)" }}>Research progress</h2>
+
+              <ol className="flex items-start mt-6 overflow-x-auto pb-1">
+                {PIPELINE_AREAS.map((a, i) => {
+                  const done = pipelineDone[a.key];
+                  const active = i === pipelineActiveIndex;
+                  const prevDone = i > 0 && pipelineDone[PIPELINE_AREAS[i - 1].key];
+                  const circle: React.CSSProperties = done
+                    ? { background: "#5C8560", color: "#FFFFFF", border: "none" }
+                    : active
+                    ? { background: "var(--accent-gold)", color: "#FFFFFF", border: "none", boxShadow: "0 0 0 3px rgba(215,184,122,0.28)" }
+                    : { background: "var(--surface)", color: "var(--text-tertiary)", border: "1px solid var(--border-default)" };
+                  const labelColor = active ? "var(--text-primary)" : done ? "var(--text-secondary)" : "var(--text-tertiary)";
+                  return (
+                    <li key={a.key} className="relative flex flex-col items-center flex-1 min-w-[74px]">
+                      {i > 0 && (
+                        <span className="absolute top-[13px] h-0.5" style={{ left: "-50%", right: "50%", background: prevDone ? "#5C8560" : "var(--border-strong)" }} aria-hidden />
+                      )}
+                      <span className="relative z-10 inline-flex items-center justify-center rounded-full" style={{ width: 28, height: 28, ...circle }}>
+                        {done ? <Icon.check size={14} strokeWidth={2.5} />
+                          : active ? <span className="w-1.5 h-1.5 rounded-full bg-white fx-pulse" />
+                          : <span className="fx-tabular-nums text-[11px] font-bold">{i + 1}</span>}
+                      </span>
+                      <span className="mt-2.5 text-[11px] font-semibold text-center leading-tight px-1" style={{ color: labelColor }}>{a.label}</span>
+                    </li>
+                  );
+                })}
+              </ol>
             </div>
 
-            {project.objective && (
-              <div className="bg-gray-50 border border-gray-100 rounded-lg px-4 py-3">
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Objective</p>
-                <p className="text-base font-medium text-gray-900 leading-relaxed">{project.objective}</p>
+            {/* Subtle vertical divider (horizontal when stacked) between the
+                pipeline and the completion summary — two related but distinct
+                pieces of information. */}
+            <div
+              className="hidden lg:block w-px self-stretch flex-shrink-0"
+              style={{ background: "var(--border-default)" }}
+              aria-hidden
+            />
+
+            {/* RIGHT — the completion summary as a KPI, vertically centred. */}
+            <div
+              className="flex flex-col items-center justify-center text-center lg:w-[22%] lg:flex-shrink-0 border-t lg:border-t-0 pt-6 lg:pt-0"
+              style={{ borderColor: "var(--border-default)" }}
+            >
+              <p className="fx-tabular-nums text-4xl md:text-5xl font-bold tracking-[-0.025em] leading-none" style={{ color: "var(--text-primary)" }}>{progress.percent}%</p>
+              <p className="text-sm font-medium mt-1.5" style={{ color: "var(--text-secondary)" }}>Complete</p>
+              <p className="text-xs mt-4" style={{ color: "var(--text-tertiary)" }}>Stage {progress.completed} of {progress.total}</p>
+            </div>
+          </div>
+        </Panel>
+
+        {/* ── Project Information — project-level facts and classification.
+            Status is derived (never set manually here); classification is edited
+            via the Research Brief. The lifecycle close/archive controls live in
+            the quiet footer. */}
+        <section id="project-info" className="scroll-mt-6">
+          <Card>
+            <SectionHeading
+              title="Project information"
+              action={canManage && !editingProjectInfo
+                ? <Button variant="secondary" size="sm" onClick={openProjectInfoEdit}>Edit</Button>
+                : undefined}
+            />
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-x-6 gap-y-4 mt-5">
+              <Fact label="Owner">{project.owner_name ?? "—"}</Fact>
+              <Fact label="Status"><ProjectStatusBadge status={projectStatus} /></Fact>
+              <Fact label="Brand">{orgName(project.brand_org_id) || "—"}</Fact>
+              <Fact label="Agency">{orgName(project.agency_org_id) || "—"}</Fact>
+              <Fact label="Research type">{studyTypeLabel(project.study_type)}</Fact>
+              <Fact label="Research category">{researchSubjectLabel(project.research_subject)}</Fact>
+              <Fact label="Created">{formatRelativeTime(project.created_at)}</Fact>
+              <Fact label="Last updated">{formatRelativeTime(project.last_response_at ?? project.updated_at)}</Fact>
+              <Fact label="Confidentiality">
+                {editingProjectInfo ? (
+                  <select value={draftConfidentiality ?? ""} onChange={e => setDraftConfidentiality(e.target.value || null)}
+                    onFocus={focusGold} onBlur={blurGold}
+                    className="w-full rounded-lg px-2.5 py-1.5 text-sm outline-none transition-colors" style={inputStyle}>
+                    <option value="">Not set</option>
+                    <option value="public">Public</option>
+                    <option value="internal">Internal</option>
+                    <option value="confidential">Confidential</option>
+                  </select>
+                ) : (
+                  <span className="capitalize">{project.confidentiality ?? "—"}</span>
+                )}
+              </Fact>
+              <Fact label="Version">
+                {editingProjectInfo ? (
+                  <input value={draftVersion ?? ""} onChange={e => setDraftVersion(e.target.value || null)}
+                    onFocus={focusGold} onBlur={blurGold}
+                    className="w-full rounded-lg px-2.5 py-1.5 text-sm outline-none transition-colors" style={inputStyle} placeholder="e.g. v1" />
+                ) : (
+                  <span>{project.version ?? "—"}</span>
+                )}
+              </Fact>
+            </div>
+
+            {editingProjectInfo && (
+              <div className="flex justify-end items-center gap-2 mt-5 pt-4" style={{ borderTop: "1px solid var(--border-subtle)" }}>
+                {projectInfoError && <p className="text-xs mr-auto" style={{ color: "#B4694C" }}>{projectInfoError}</p>}
+                <Button variant="ghost" size="sm" onClick={() => setEditingProjectInfo(false)}>Cancel</Button>
+                <Button variant="brand" size="sm" onClick={handleSaveProjectInfo} disabled={savingProjectInfo}>
+                  {savingProjectInfo ? "Saving…" : "Save"}
+                </Button>
               </div>
             )}
-          </div>
-        </div>
 
-        {/* ── Status + progress — the "where is it currently" answer, promoted
-            to the top of Overview. A compact, read-only indicator: the shell's
-            project nav handles moving between areas, so this no longer
-            duplicates navigation the way the old sticky stage-pill tracker did. */}
-        <div className="bg-white border border-gray-100 rounded-xl shadow-sm p-4 flex items-center gap-x-8 gap-y-3 flex-wrap">
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-gray-400 uppercase tracking-wide">Status</span>
-            <ProjectStatusBadge status={projectStatus} />
-          </div>
-          <div className="flex-1 min-w-[200px]">
-            <div className="flex items-center justify-between mb-1">
-              <span className="text-xs text-gray-400 uppercase tracking-wide">Research Progress</span>
-              <span className="text-xs font-semibold text-gray-600">{progress.percent}%</span>
-            </div>
-            <div className="h-1.5 w-full rounded-full bg-gray-100 overflow-hidden">
-              <div className="h-full rounded-full" style={{ width: `${progress.percent}%`, background: "#D7B87A" }} />
-            </div>
-            <p className="text-[11px] text-gray-400 mt-1">{progress.completed} of {progress.total} stages complete</p>
-          </div>
-        </div>
-
-        {/* ── Next Recommended Action — the "what should I do next?" answer.
-            Derived above from lifecycle state; a single, unambiguous prompt with
-            one route into the area that advances the project. Styled distinctly
-            (navy panel, gold accent) so it's the first thing the eye lands on
-            after Status. Read-only Overview: the CTA navigates elsewhere or opens
-            the brief editor — no collection/analysis work happens here. */}
-        <div className="rounded-xl shadow-sm overflow-hidden flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-5 px-5 py-4"
-          style={{ background: "#0B1929" }}>
-          <div className="flex-1 min-w-0">
-            <p className="text-[11px] font-semibold uppercase tracking-wide mb-1" style={{ color: "#D7B87A" }}>
-              {nextAction.done ? "Project Complete" : "Next Recommended Action"}
-            </p>
-            <p className="text-sm font-bold text-white leading-snug">{nextAction.title}</p>
-            <p className="text-xs text-white/60 leading-relaxed mt-0.5">{nextAction.body}</p>
-          </div>
-          {nextAction.href ? (
-            <Link href={nextAction.href}
-              className="shrink-0 text-xs font-semibold px-4 py-2 rounded-lg transition-colors self-start sm:self-auto"
-              style={{ background: "#D7B87A", color: "#0B1929" }}>
-              {nextAction.ctaLabel}
-            </Link>
-          ) : (
-            canManage && (
-              <button onClick={nextAction.onClick}
-                className="shrink-0 text-xs font-semibold px-4 py-2 rounded-lg transition-colors self-start sm:self-auto"
-                style={{ background: "#D7B87A", color: "#0B1929" }}>
-                {nextAction.ctaLabel}
-              </button>
-            )
-          )}
-        </div>
-
-        {/* ── Research Snapshot — a lightweight, read-only rollup derived from
-            the project's own top-level totals, with a route to the full
-            Dashboard. This is NOT a second dashboard: the real cross-source
-            collection dashboard is the Dashboard area. */}
-        <SectionCard
-          id="snapshot"
-          title="Research Snapshot"
-          info={
-            <InfoContent title="A quick read on where the research is.">
-              <p>Overall progress, the sources being used and headline collection numbers — pulled from this project&apos;s own totals.</p>
-              <p className="mt-1.5">Open the Dashboard for the full cross-source collection view.</p>
-            </InfoContent>
-          }
-          cta={
-            <Link href={`/research-projects/${projectId}/dashboard`}
-              className="text-xs font-semibold border border-white/20 text-white/80 hover:bg-white/10 px-3 py-1.5 rounded-lg transition-colors">
-              View full Dashboard →
-            </Link>
-          }
-          summary={
-            <CollapsedSummary groups={[
-              { label: "Sources", parts: [`${project.evidence.length}`] },
-              { label: "Responses", parts: [project.total_responses.toLocaleString()] },
-            ]} />
-          }
-        >
-          <div className="grid grid-cols-3 gap-4 text-sm">
-            <div>
-              <p className="text-xs text-gray-400 uppercase tracking-wide mb-0.5">Research Sources</p>
-              <p className="text-gray-700">{project.evidence.length}</p>
-              <p className="text-[10px] text-gray-400 mt-0.5">{surveyCount} survey{surveyCount !== 1 ? "s" : ""}, {searchCount} search{searchCount !== 1 ? "es" : ""}, {docCount} document{docCount !== 1 ? "s" : ""}</p>
-            </div>
-            <div>
-              <p className="text-xs text-gray-400 uppercase tracking-wide mb-0.5">Total Responses</p>
-              <p className="text-gray-700">{project.total_responses.toLocaleString()}</p>
-            </div>
-            <div>
-              <p className="text-xs text-gray-400 uppercase tracking-wide mb-0.5">Deployments</p>
-              <p className="text-gray-700">{project.deployment_count}</p>
-            </div>
-          </div>
-          <div className="mt-4 flex flex-wrap gap-4 border-t border-gray-100 pt-3">
-            <Link href={`/research-projects/${projectId}/research`} className="text-xs font-semibold text-[#0B1929] hover:underline">View Research →</Link>
-            <Link href={`/research-projects/${projectId}/dashboard`} className="text-xs font-semibold text-[#0B1929] hover:underline">View full Dashboard →</Link>
-          </div>
-        </SectionCard>
-
-        {/* ── Project Information — project-level facts and classification:
-            metadata, derived Status, and the Brand / Agency / Research Type /
-            Research Category classification (edited via the Research Brief
-            above, shown here read-only). */}
-        <SectionCard
-          id="project-info"
-          title="Project Information"
-          info={
-            <InfoContent title="Project-level facts and classification, all in one place.">
-              <p>Owner, Status, Created/Updated dates, Confidentiality and Version, plus the project&apos;s Brand, Agency, Research Type and Research Category.</p>
-              <p className="mt-1.5">Status is derived automatically, never set manually here. Classification is edited via the Research Brief above; the per-survey Research Target lives on each survey in Sources.</p>
-            </InfoContent>
-          }
-          cta={canManage && !editingProjectInfo && (
-            <button onClick={openProjectInfoEdit} className="text-xs font-semibold border border-white/20 text-white/80 hover:bg-white/10 px-3 py-1.5 rounded-lg transition-colors">
-              Edit
-            </button>
-          )}
-          summary={
-            <CollapsedSummary groups={[
-              { label: "Status", parts: [PROJECT_STATUS_META[projectStatus].label] },
-              { label: "Owner", parts: [project.owner_name ?? "—"] },
-            ]} />
-          }
-        >
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-sm mb-4">
-            <div>
-              <p className="text-xs text-gray-400 uppercase tracking-wide mb-0.5">Owner</p>
-              <p className="text-gray-700">{project.owner_name ?? "—"}</p>
-              <p className="text-[10px] text-gray-400 mt-0.5">Set automatically from whoever created this project.</p>
-            </div>
-            <div>
-              <p className="text-xs text-gray-400 uppercase tracking-wide mb-0.5">Status</p>
-              <ProjectStatusBadge status={projectStatus} />
-            </div>
-            <div>
-              <p className="text-xs text-gray-400 uppercase tracking-wide mb-0.5">Brand</p>
-              <p className="text-gray-700">{orgName(project.brand_org_id) || "—"}</p>
-            </div>
-            <div>
-              <p className="text-xs text-gray-400 uppercase tracking-wide mb-0.5">Agency</p>
-              <p className="text-gray-700">{orgName(project.agency_org_id) || "—"}</p>
-            </div>
-            <div>
-              <p className="text-xs text-gray-400 uppercase tracking-wide mb-0.5">Research Type</p>
-              <p className="text-gray-700">{studyTypeLabel(project.study_type)}</p>
-            </div>
-            <div>
-              <p className="text-xs text-gray-400 uppercase tracking-wide mb-0.5">Research Category</p>
-              <p className="text-gray-700">{researchSubjectLabel(project.research_subject)}</p>
-            </div>
-            <div>
-              <p className="text-xs text-gray-400 uppercase tracking-wide mb-0.5">Created</p>
-              <p className="text-gray-700">{formatRelativeTime(project.created_at)}</p>
-            </div>
-            <div>
-              <p className="text-xs text-gray-400 uppercase tracking-wide mb-0.5">Last Updated</p>
-              <p className="text-gray-700">{formatRelativeTime(project.last_response_at ?? project.updated_at)}</p>
-            </div>
-            <div>
-              <p className="text-xs text-gray-400 uppercase tracking-wide mb-0.5">Confidentiality</p>
-              {editingProjectInfo ? (
-                <select value={draftConfidentiality ?? ""} onChange={e => setDraftConfidentiality(e.target.value || null)}
-                  className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:border-[#D7B87A]">
-                  <option value="">Not set</option>
-                  <option value="public">Public</option>
-                  <option value="internal">Internal</option>
-                  <option value="confidential">Confidential</option>
-                </select>
-              ) : (
-                <p className="text-gray-700 capitalize">{project.confidentiality ?? "—"}</p>
-              )}
-            </div>
-            <div>
-              <p className="text-xs text-gray-400 uppercase tracking-wide mb-0.5">Version</p>
-              {editingProjectInfo ? (
-                <input value={draftVersion ?? ""} onChange={e => setDraftVersion(e.target.value || null)}
-                  className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:border-[#D7B87A]" placeholder="e.g. v1" />
-              ) : (
-                <p className="text-gray-700">{project.version ?? "—"}</p>
-              )}
-            </div>
-          </div>
-
-          {editingProjectInfo && (
-            <div className="flex justify-end gap-2 border-t border-gray-100 pt-3">
-              {projectInfoError && <p className="text-xs text-red-500 mr-auto self-center">{projectInfoError}</p>}
-              <button onClick={() => setEditingProjectInfo(false)} className="text-xs text-gray-500 px-3 py-1.5">Cancel</button>
-              <button onClick={handleSaveProjectInfo} disabled={savingProjectInfo}
-                className="text-xs font-semibold px-3 py-1.5 rounded-lg disabled:opacity-60"
-                style={{ background: "#0B1929", color: "#D7B87A" }}>
-                {savingProjectInfo ? "Saving…" : "Save"}
-              </button>
-            </div>
-          )}
-
-          {canManage && !editingProjectInfo && (
-            <div className="border-t border-gray-100 pt-3 mt-4 flex gap-4">
-              {projectStatus !== "archived" && (
+            {canManage && !editingProjectInfo && (
+              <div className="flex gap-4 mt-6 pt-4" style={{ borderTop: "1px solid var(--border-subtle)" }}>
+                {projectStatus !== "archived" && (
+                  <button
+                    onClick={projectStatus === "complete" ? handleReopenResearch : handleCloseResearch}
+                    className="text-xs font-medium hover:underline"
+                    style={{ color: "var(--text-tertiary)" }}
+                  >
+                    {projectStatus === "complete" ? "Reopen research" : "Close research"}
+                  </button>
+                )}
                 <button
-                  onClick={projectStatus === "complete" ? handleReopenResearch : handleCloseResearch}
-                  className="text-xs text-gray-500 hover:underline"
+                  onClick={projectStatus === "archived" ? handleRestoreProject : handleArchiveProject}
+                  className="text-xs font-medium hover:underline"
+                  style={{ color: projectStatus === "archived" ? "var(--text-tertiary)" : "#B4694C" }}
                 >
-                  {projectStatus === "complete" ? "Reopen Research" : "Close Research"}
+                  {projectStatus === "archived" ? "Restore project" : "Archive project"}
                 </button>
-              )}
-              <button
-                onClick={projectStatus === "archived" ? handleRestoreProject : handleArchiveProject}
-                className={`text-xs hover:underline ${projectStatus === "archived" ? "text-gray-500" : "text-red-400"}`}
-              >
-                {projectStatus === "archived" ? "Restore Project" : "Archive Project"}
-              </button>
-            </div>
-          )}
+              </div>
+            )}
 
-          {project.research_mode === "simulated" && project.simulation_info && (
-            <SimulationInformationPanel info={project.simulation_info} />
-          )}
-        </SectionCard>
+            {project.research_mode === "simulated" && project.simulation_info && (
+              <div className="mt-6">
+                <SimulationInformationPanel info={project.simulation_info} />
+              </div>
+            )}
+          </Card>
+        </section>
 
-      </div>
+        {/* ── Recent activity — the project's own event log, kept inside the
+            project (not the application chrome). Shows ~5 most recent events;
+            Expand reveals more inline, View all opens the full Activity log. The
+            source of truth is unchanged — project.activity, same data the
+            Activity page reads. */}
+        <section id="activity" className="scroll-mt-6">
+          <Card>
+            <SectionHeading
+              title="Recent activity"
+              action={<Button href={`/research-projects/${projectId}/activity`} variant="ghost" size="sm">View all →</Button>}
+            />
+            {project.activity.length === 0 ? (
+              <p className="text-sm mt-4" style={{ color: "var(--text-tertiary)" }}>No activity yet.</p>
+            ) : (
+              <>
+                <ActivityFeed
+                  className="mt-4"
+                  items={(activityExpanded ? project.activity.slice(0, 20) : project.activity.slice(0, 5)).map(a => ({
+                    action: a.description,
+                    timestamp: formatRelativeTime(a.created_at),
+                  }))}
+                />
+                {project.activity.length > 5 && (
+                  <button
+                    onClick={() => setActivityExpanded(v => !v)}
+                    className="mt-3 text-xs font-semibold hover:underline"
+                    style={{ color: "var(--accent-ink)" }}
+                  >
+                    {activityExpanded ? "Show less" : `Show ${Math.min(project.activity.length - 5, 15)} more`}
+                  </button>
+                )}
+              </>
+            )}
+          </Card>
+        </section>
+
+      </PageContainer>
 
       {editingBrief && (
         <ResearchProjectEditDrawer
@@ -526,7 +688,7 @@ export function WorkspaceBodyContent() {
       )}
 
       {toast && (
-        <div className="fixed bottom-6 right-6 z-50 px-5 py-3 rounded-xl shadow-lg text-sm font-medium bg-green-600 text-white">
+        <div className="fixed bottom-6 right-6 z-50 px-5 py-3 shadow-lg text-sm font-medium bg-green-600 text-white" style={{ borderRadius: "var(--radius-panel)" }}>
           ✓ {toast}
         </div>
       )}

@@ -306,7 +306,7 @@ export default function EditorialArticlePage() {
                     Review Prompts ({reviewFlags.length})
                   </span>
                   <span className="block text-xs text-gray-500 mt-0.5 leading-relaxed">
-                    Passages worth a second look before you approve — not errors, and not a failed check. The article has not been changed. This automated pass is deliberately cautious and will sometimes flag legitimate journalism; use it to inspect, edit what you judge necessary, and the prompt clears when you save.
+                    Passages worth a second look before you approve, not errors, and not a failed check. The article has not been changed. This automated pass is deliberately cautious and will sometimes flag legitimate journalism; use it to inspect, edit what you judge necessary, and the prompt clears when you save.
                   </span>
                 </span>
               </summary>
@@ -339,7 +339,7 @@ export default function EditorialArticlePage() {
               <p className="text-xs font-semibold tracking-widest uppercase mb-3" style={{ color: GOLD }}>Editorial Article</p>
               <h3 className="text-lg font-bold text-white mb-3">Tell the strongest story in this research</h3>
               <p className="text-sm text-white/60 max-w-sm mx-auto leading-relaxed mb-6">
-                A public-facing, data-journalism style article built from the approved Executive Report and Full Research Report — exact statistics and charts, real analytical depth, not an internal summary.
+                A public-facing, data-journalism style article built from the approved Executive Report and Full Research Report, exact statistics and charts, real analytical depth, not an internal summary.
               </p>
               {error && <p className="text-sm text-red-300 mb-4">{error}</p>}
               <button
@@ -503,7 +503,7 @@ export default function EditorialArticlePage() {
           <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm">
             <h2 className="text-lg font-bold text-gray-900 mb-2">Regenerate article?</h2>
             <p className="text-sm text-gray-500 mb-5">
-              This project already has a {row?.status} article. Regenerating writes a fresh AI draft and resets its status to Draft — any sections you added manually are kept, but edits to AI-written text and its approval will be lost.
+              This project already has a {row?.status} article. Regenerating writes a fresh AI draft and resets its status to Draft, any sections you added manually are kept, but edits to AI-written text and its approval will be lost.
             </p>
             <div className="flex gap-3">
               <button onClick={() => setConfirmRegen(false)}

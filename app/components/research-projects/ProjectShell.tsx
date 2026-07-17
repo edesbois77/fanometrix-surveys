@@ -22,8 +22,6 @@ import Link from "next/link";
 import { useParams, usePathname } from "next/navigation";
 import { useResearchProject } from "@/app/components/research-projects/ProjectProvider";
 import { computeLifecycleStages, type StageState } from "@/lib/research-project-lifecycle";
-import { computeProjectStatus } from "@/lib/research-project-status";
-import { ProjectStatusBadge } from "@/app/components/research-projects/workspace-shared";
 
 // The six project areas, in order. `route` areas (Overview, Design) have their
 // own page; `anchor` areas still live on the Overview page and link to a
@@ -54,73 +52,49 @@ export function ProjectShell() {
   const params = useParams();
   const id = params.id as string;
   const pathname = usePathname();
-  const { project, campaigns } = useResearchProject();
+  const { project } = useResearchProject();
 
   const base = `/research-projects/${id}`;
-  // All six areas are route-backed now; Activity and Settings remain utilities.
-  // The base URL redirects to Overview, so anything not matched is Overview.
-  const activeKey = pathname.endsWith("/research") ? "research"
-    : pathname.endsWith("/execution") ? "execution"
-    : pathname.endsWith("/dashboard") ? "dashboard"
-    : pathname.endsWith("/analysis") ? "analysis"
-    : pathname.endsWith("/outputs") ? "outputs"
-    : pathname.endsWith("/conclusion") ? "conclusion"
+  // Active tab = the first path segment after the project id, so a Research
+  // sub-page (…/research/survey) still highlights Research. Anything unmatched
+  // (or the base redirect) resolves to Overview.
+  const rest = pathname.startsWith(base) ? pathname.slice(base.length) : "";
+  const areaSeg = rest.split("/").filter(Boolean)[0] ?? "overview";
+  const activeKey = ["research", "execution", "dashboard", "analysis", "outputs", "conclusion"].includes(areaSeg)
+    ? areaSeg
     : "overview";
 
-  const hasActiveCampaign = campaigns.some(c => c.effective_status === "live" || c.effective_status === "paused");
-  const projectStatus = project ? computeProjectStatus(project, hasActiveCampaign) : null;
   const stages = project ? computeLifecycleStages(project) : [];
   const stageState = (key: string): StageState | undefined => stages.find(s => s.key === key)?.state;
 
-  // Real Research Projects show the classification-suffixed project_name; the
-  // simulated/topic fallback is kept only for robustness (a simulated project
-  // never reaches this shell — it opens in Product Walkthrough).
-  const displayName = project
-    ? (project.research_mode === "simulated" && project.topic?.trim() ? project.topic.trim() : project.project_name)
-    : "…";
-
   return (
-    <div className="bg-white border-b border-gray-200">
-      <div className="max-w-5xl mx-auto px-4 md:px-6 pt-3">
-        {/* Project identity + persistent utilities */}
-        <div className="flex items-start justify-between gap-3 flex-wrap">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2 text-xs text-gray-400 mb-1">
-              <Link href="/research-projects" className="hover:text-[#D7B87A]">Research Projects</Link>
-              <span>›</span>
-              <span className="text-gray-600 truncate max-w-[60vw]">{displayName}</span>
-            </div>
-            <div className="flex items-center gap-2 min-w-0">
-              <h1 className="text-lg font-bold text-gray-900 truncate">{displayName}</h1>
-              {projectStatus && <ProjectStatusBadge status={projectStatus} />}
-            </div>
-          </div>
+    <div className="sticky top-0 z-30" style={{ background: "var(--brand-navy)", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+      <div className="mx-auto px-4 md:px-6 pt-3" style={{ maxWidth: "var(--page-max)" }}>
+        {/* Application shell — navigation and structure only. The project itself
+            is introduced by the page header (ProjectPageHeader), not here: the
+            shell tells you which section of the app you're in and lets you move
+            between areas; the page opens the project. Deliberately carries no
+            project name / status / metadata / utilities — those belong to the
+            page (Activity is the final Overview section; project settings live in
+            Project Information).
 
-          {/* Persistent utility entry points (not primary areas). Activity has
-              its own utility route (/activity, deliberately outside the six-area
-              nav); Settings still links to the Project Information section that
-              remains on Overview. A header drawer / dedicated Settings area is a
-              later step. */}
-          <div className="flex items-center gap-1.5 flex-shrink-0">
-            <Link
-              href={`${base}/activity`}
-              className="text-xs font-semibold text-gray-500 hover:text-gray-800 hover:bg-gray-100 px-2.5 py-1.5 rounded-lg transition-colors"
-            >
-              Activity
-            </Link>
-            <Link
-              href={`${base}/overview#project-info`}
-              className="text-xs font-semibold text-gray-500 hover:text-gray-800 hover:bg-gray-100 px-2.5 py-1.5 rounded-lg transition-colors"
-            >
-              Settings
-            </Link>
-          </div>
+            The section title is the consistent, heavy workspace heading meant to
+            be reused verbatim across every major platform area (Research
+            Projects, Research Library, Organisation Intelligence, …) so users
+            always know which part of Fanometrix they're in. */}
+        <div className="flex items-center">
+          <Link
+            href="/research-projects"
+            className="text-xl md:text-2xl font-bold tracking-[-0.02em] transition-colors text-white hover:text-white/80"
+          >
+            Research Projects
+          </Link>
         </div>
 
-        {/* Project-level navigation — the six areas. Directly clickable, in any
+        {/* Project-level navigation — the seven areas. Directly clickable, in any
             order; the dot shows each area's lifecycle progress. Horizontally
             scrollable on narrow viewports. */}
-        <nav aria-label="Project areas" className="flex items-center gap-1 overflow-x-auto mt-2.5">
+        <nav aria-label="Project areas" className="flex items-center gap-1 overflow-x-auto mt-3">
           {AREAS.map(area => {
             const href = area.kind === "route" ? `${base}/${area.segment}` : `${base}/overview#${area.anchor}`;
             const active = area.kind === "route" && area.key === activeKey;
@@ -132,8 +106,8 @@ export function ProjectShell() {
                 aria-current={active ? "page" : undefined}
                 className={`flex items-center gap-1.5 whitespace-nowrap text-sm font-medium px-3 py-2 border-b-2 transition-colors ${
                   active
-                    ? "text-gray-900 border-[#D7B87A]"
-                    : "text-gray-600 border-transparent hover:text-gray-900 hover:border-[#D7B87A]"
+                    ? "text-white border-[#D7B87A]"
+                    : "text-white/70 border-transparent hover:text-white hover:border-[#D7B87A]"
                 }`}
               >
                 {state && <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${DOT_CLASS[state]}`} aria-hidden />}

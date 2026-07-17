@@ -17,6 +17,8 @@
 import { useState } from "react";
 import { SectionCard, EmptyState, InfoContent } from "@/app/components/research-projects/Shell";
 import { SourceWorkspaceCard, deriveCollectionStatus, type CollectionStatus } from "@/app/components/research-projects/SourceWorkspaceCard";
+import { DocumentPipeline } from "@/app/components/research-projects/document-status";
+import { documentTypeLabel } from "@/lib/library-documents/constants";
 import { PrimaryButton, SecondaryButton } from "@/app/components/research-projects/ActionPrimitives";
 import { SimulatedBadge } from "@/app/components/simulation/SimulatedBadge";
 import { CampaignsManager } from "@/app/components/campaigns/CampaignsManager";
@@ -496,7 +498,7 @@ function DocumentCard({
   onRemoveDocumentEvidence: (evidenceId: string) => void;
 }) {
   const status = DOCUMENT_LIBRARY_STATUS_TO_COLLECTION_STATUS[d.library_status] ?? "not_started";
-  const typeLabel = d.document_type.replace(/_/g, " ");
+  const typeLabel = documentTypeLabel(d.document_type);
   return (
     <SourceWorkspaceCard
       badge="Document"
@@ -520,9 +522,19 @@ function DocumentCard({
         </button>
       )}
     >
-      <p className="text-xs text-gray-400">
-        {d.library_status === "approved" ? "Approved in the Research Library." : "Awaiting Research Library review/approval before Document Intelligence can be generated."}
-      </p>
+      {/* Document processing is the Execution stage for this evidence type:
+          preparing an uploaded file (text extraction, AI understanding) so
+          Analysis can interpret it. The pipeline runs automatically. */}
+      {d.library_status === "failed" ? (
+        <p className="text-xs" style={{ color: "#B4694C" }}>Processing failed. The document couldn&apos;t be read or analysed.</p>
+      ) : d.library_status === "approved" ? (
+        <p className="text-xs" style={{ color: "var(--text-tertiary)" }}>Ready. Processed and available for Analysis.</p>
+      ) : (
+        <div>
+          <p className="text-xs mb-3" style={{ color: "var(--text-tertiary)" }}>Preparing this document automatically:</p>
+          <DocumentPipeline status={d.library_status} />
+        </div>
+      )}
     </SourceWorkspaceCard>
   );
 }

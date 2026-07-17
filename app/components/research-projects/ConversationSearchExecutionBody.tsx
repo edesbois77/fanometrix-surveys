@@ -1,0 +1,185 @@
+"use client";
+
+// A single conversation search's operational home, at
+// /research-projects/[id]/execution/conversation/[searchEvidenceId] — the
+// operational twin of the Campaigns page. This is where a search is run and
+// watched: trigger collection, monitor status/mentions/sentiment, then hand off
+// to Dashboard once it's collecting.
+//
+// Run Collection reuses the same POST /api/social/searches/[id]/collect-reddit
+// the standalone Social Listening tool uses (one real Reddit run: fetch, dedupe,
+// save), so the two surfaces can never disagree. Collection is on-demand — there
+// is no scheduled refresh yet, so "refresh" is simply running it again.
+//
+// Chromeless: the (workspace) shell provides the project header + navigation;
+// this body sets the breadcrumb tail (the search name) via WorkspaceRecordContext.
+import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
+import { useResearchProject, type EvidenceItem } from "@/app/components/research-projects/ProjectProvider";
+import { useWorkspaceRecord } from "@/app/components/research-projects/WorkspaceRecordContext";
+import { formatRelativeTime } from "@/lib/format-relative-time";
+import {
+  PageContainer, WorkspaceHeader, PageLoadingState, ErrorState,
+  Card, Panel, Button, StatusBadge, SectionHeading, MetricTile, SentimentBar, type Tone,
+} from "@/app/components/workspace-ui";
+
+type ConversationSearch = NonNullable<EvidenceItem["conversationSearch"]>;
+
+function collectionStatus(cs: ConversationSearch): { label: string; tone: Tone } {
+  const rc = cs.reddit_collection_status;
+  if (rc === "collecting") return { label: "Collecting", tone: "success" };
+  if (rc === "failed") return { label: "Collection failed", tone: "danger" };
+  if (rc === "completed" || cs.mention_count > 0) return { label: "Collected", tone: "neutral" };
+  return { label: "Not collected", tone: "neutral" };
+}
+
+function ChipRow({ label, values }: { label: string; values: string[] }) {
+  if (values.length === 0) return null;
+  return (
+    <div>
+      <p className="text-[11px] font-semibold uppercase tracking-[0.05em] mb-1.5" style={{ color: "var(--text-tertiary)" }}>{label}</p>
+      <div className="flex flex-wrap gap-1.5">
+        {values.map((v, i) => (
+          <span key={i} className="inline-flex items-center text-[11px] font-medium px-2 py-0.5 rounded-full" style={{ background: "var(--surface-sunken)", color: "var(--text-secondary)", border: "1px solid var(--border-subtle)" }}>{v}</span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export function ConversationSearchExecutionBody({ searchEvidenceId }: { searchEvidenceId: string }) {
+  const { projectId, project, loading, error, load } = useResearchProject();
+  const { setRecordLabel } = useWorkspaceRecord();
+
+  const [running, setRunning] = useState(false);
+  const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
+  const showToast = useCallback((msg: string, ok = true) => {
+    setToast({ msg, ok });
+    setTimeout(() => setToast(null), 4000);
+  }, []);
+
+  const item = project?.evidence.find(
+    (e): e is EvidenceItem & { conversationSearch: ConversationSearch } =>
+      e.evidence_type === "social_search" && e.evidence_id === searchEvidenceId && !!e.conversationSearch
+  );
+
+  useEffect(() => {
+    setRecordLabel(item?.conversationSearch.name ?? null);
+    return () => setRecordLabel(null);
+  }, [item?.conversationSearch.name, setRecordLabel]);
+
+  if (loading && !project) return <PageContainer><PageLoadingState /></PageContainer>;
+  if (error || !project) return (
+    <PageContainer>
+      <ErrorState title="Research project not found" description={error || "We couldn't load this project."} />
+    </PageContainer>
+  );
+  if (!item) return (
+    <PageContainer>
+      <ErrorState
+        title="Conversation search not found"
+        description="This search isn't attached to the project, or it may have been removed."
+        backHref={`/research-projects/${projectId}/execution/conversation`}
+        backLabel="Back to Conversation Searches"
+      />
+    </PageContainer>
+  );
+
+  const cs = item.conversationSearch;
+  const status = collectionStatus(cs);
+  const rc = cs.reddit_collection_status;
+  const collecting = running || rc === "collecting";
+  const hasData = cs.mention_count > 0;
+  const lastCollected = cs.reddit_last_collected_at ? formatRelativeTime(cs.reddit_last_collected_at) : "Never";
+
+  const runLabel = collecting ? "Collecting…" : rc === "failed" ? "Retry collection" : hasData ? "Re-run collection" : "Run Collection";
+
+  const summaryParts = [
+    `${cs.mention_count.toLocaleString()} mention${cs.mention_count === 1 ? "" : "s"}`,
+    cs.platforms.length ? `${cs.platforms.length} platform${cs.platforms.length === 1 ? "" : "s"}` : null,
+    cs.markets.length ? `${cs.markets.length} market${cs.markets.length === 1 ? "" : "s"}` : null,
+    `Last collected ${lastCollected}`,
+  ].filter(Boolean) as string[];
+
+  async function handleRunCollection() {
+    setRunning(true);
+    const res = await fetch(`/api/social/searches/${searchEvidenceId}/collect-reddit`, { method: "POST" });
+    const json = await res.json().catch(() => ({}));
+    setRunning(false);
+    if (!res.ok) { showToast(json.error ?? "Collection failed.", false); return; }
+    showToast(`Collected ${json.saved ?? 0} new mention${json.saved === 1 ? "" : "s"} (${json.skipped ?? 0} already had).`);
+    load();
+  }
+
+  return (
+    <>
+      <PageContainer>
+        <WorkspaceHeader
+          back={{ href: `/research-projects/${projectId}/execution/conversation`, label: "Back to Conversation Searches" }}
+          title={cs.name}
+          description="Run and monitor collection for this search."
+          status={{ label: status.label, tone: status.tone, dot: true }}
+          meta={<span className="fx-tabular-nums">{summaryParts.join(" · ")}</span>}
+          primaryAction={(collecting || hasData)
+            ? <Button variant="primary" href={`/research-projects/${projectId}/dashboard`}>View Dashboard →</Button>
+            : undefined}
+        />
+
+        {/* ── Collection ────────────────────────────────────────────────────── */}
+        <Card padding="md">
+          <SectionHeading
+            title="Reddit Collection"
+            description="Fetch the latest mentions from this search's target subreddits. Collection runs on demand — run it again to refresh."
+            action={<Button variant="brand" onClick={handleRunCollection} disabled={collecting}>{runLabel}</Button>}
+          />
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-2 mt-4">
+            <StatusBadge label={status.label} tone={status.tone} dot size="md" />
+            <span className="text-xs fx-tabular-nums" style={{ color: "var(--text-tertiary)" }}>
+              {cs.mention_count.toLocaleString()} mention{cs.mention_count === 1 ? "" : "s"} collected
+            </span>
+            <span className="text-xs" style={{ color: "var(--text-tertiary)" }}>Last collected {lastCollected}</span>
+          </div>
+          {rc === "failed" && (
+            <p className="text-xs mt-2" style={{ color: "#B4694C" }}>The last collection run failed. Check the search&apos;s subreddits and keywords, then retry.</p>
+          )}
+          {(cs.markets.length > 0 || cs.platforms.length > 0 || cs.keywords.length > 0) && (
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4 pt-4 border-t" style={{ borderColor: "var(--border-subtle)" }}>
+              <ChipRow label="Keywords" values={cs.keywords} />
+              <ChipRow label="Markets" values={cs.markets} />
+              <ChipRow label="Platforms" values={cs.platforms} />
+            </div>
+          )}
+        </Card>
+
+        {/* ── Sentiment (once there are mentions) ───────────────────────────── */}
+        {hasData && (
+          <div>
+            <SectionHeading title="Mentions & sentiment" description="The volume and tone collected so far. Explore the full breakdown in Dashboard." />
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3">
+              <MetricTile label="Mentions" value={cs.mention_count.toLocaleString()} icon="conversation" />
+              <MetricTile label="Positive" value={`${Math.round(cs.positive_pct)}%`} />
+              <MetricTile label="Neutral" value={`${Math.round(cs.neutral_pct)}%`} />
+              <MetricTile label="Negative" value={`${Math.round(cs.negative_pct)}%`} />
+            </div>
+            <Panel className="mt-3">
+              <SentimentBar positive={cs.positive_pct} neutral={cs.neutral_pct} negative={cs.negative_pct} />
+            </Panel>
+          </div>
+        )}
+
+        <p className="text-xs px-1" style={{ color: "var(--text-tertiary)" }}>
+          Configured in{" "}
+          <Link href={`/research-projects/${projectId}/research/conversation/${searchEvidenceId}`} className="font-semibold hover:underline" style={{ color: "var(--accent-ink)" }}>Research</Link>
+          {" · "}monitored in{" "}
+          <Link href={`/research-projects/${projectId}/dashboard`} className="font-semibold hover:underline" style={{ color: "var(--accent-ink)" }}>Dashboard →</Link>
+        </p>
+      </PageContainer>
+
+      {toast && (
+        <div className={`fixed bottom-6 right-6 z-50 px-5 py-3 rounded-xl shadow-lg text-sm font-medium text-white ${toast.ok ? "bg-green-600" : "bg-red-600"}`}>
+          {toast.ok ? "✓" : "✕"} {toast.msg}
+        </div>
+      )}
+    </>
+  );
+}

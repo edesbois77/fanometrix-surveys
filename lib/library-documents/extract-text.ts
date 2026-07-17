@@ -50,7 +50,10 @@ const CMAP_URL = path.join(PDFJS_DIST_DIR, "cmaps") + path.sep;
 export type ExtractedPage = { num: number; text: string };
 export type ExtractedSection = { label: string | null; text: string };
 
-export type PdfExtraction = { kind: "pdf"; pageCount: number; pages: ExtractedPage[] };
+// Embedded PDF document metadata (the Info dictionary). Best-effort — used
+// to seed Author/Title before falling back to AI extraction.
+export type PdfInfo = { author: string | null; title: string | null };
+export type PdfExtraction = { kind: "pdf"; pageCount: number; pages: ExtractedPage[]; info: PdfInfo };
 export type DocxExtraction = { kind: "docx"; sections: ExtractedSection[] };
 
 export async function extractPdf(buffer: Buffer): Promise<PdfExtraction> {
@@ -62,10 +65,21 @@ export async function extractPdf(buffer: Buffer): Promise<PdfExtraction> {
   });
   try {
     const result = await parser.getText();
+    // Embedded document metadata (PDF Info dictionary: Author, Title, …).
+    // Best-effort — a missing or garbled Info block must never fail text
+    // extraction; the AI fills Author in from the contents when it's absent.
+    let info: PdfInfo = { author: null, title: null };
+    try {
+      const infoResult = await parser.getInfo();
+      const dict = (infoResult?.info ?? {}) as Record<string, unknown>;
+      const clean = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : null);
+      info = { author: clean(dict.Author), title: clean(dict.Title) };
+    } catch { /* metadata unavailable — leave nulls */ }
     return {
       kind: "pdf",
       pageCount: result.total,
       pages: result.pages.map(p => ({ num: p.num, text: p.text })),
+      info,
     };
   } finally {
     await parser.destroy();

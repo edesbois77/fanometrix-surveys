@@ -43,7 +43,12 @@ const INSTRUCTIONS = `1. Place the iframe inside a 300x250 MPU creative slot.
 4. Do not pass personal identifiers in any URL parameter.
 5. Test the preview URL before going live.`;
 
-export default function EmbedGeneratorPage() {
+// The deployment / embed-tag builder — extracted from the page so ONE
+// implementation serves both hosts: the global /campaign-deployment route
+// (below) and the in-project Campaign Dashboard (Deployment section). When a
+// campaignId is supplied the campaign is fixed, so the selector is hidden;
+// `embedded` drops the standalone back link (the workspace breadcrumb covers it).
+export function DeploymentBuilder({ campaignId, returnTo, embedded = false }: { campaignId?: string; returnTo?: string; embedded?: boolean }) {
   const [campaigns,       setCampaigns]       = useState<Campaign[]>([]);
   const [orgs,            setOrgs]            = useState<{ id: string; name: string }[]>([]);
   const [selectedId,      setSelectedId]      = useState("");          // campaign UUID
@@ -55,8 +60,13 @@ export default function EmbedGeneratorPage() {
   const [segment,         setSegment]         = useState("");
   const [adServer,        setAdServer]        = useState("Google Ad Manager / DV360");
   const [copied,          setCopied]          = useState<"iframe" | "script" | "instructions" | null>(null);
+  // A returnTo carried on the URL (global host) — the embedded host passes it as
+  // a prop instead; `backHref` below prefers the prop.
+  const [urlReturnTo,     setUrlReturnTo]     = useState<string | null>(null);
+  const backHref = returnTo ?? urlReturnTo;
 
   useEffect(() => {
+    setUrlReturnTo(new URLSearchParams(window.location.search).get("returnTo"));
     // The unscoped list deliberately excludes simulated (Product
     // Walkthrough) campaigns — same rule as the standalone Campaigns page
     // and the Research Projects list, so nobody deploying a real campaign
@@ -65,13 +75,14 @@ export default function EmbedGeneratorPage() {
       .then(r => r.json())
       .then(async j => {
         const data: Campaign[] = j.data ?? [];
-        // Pre-select campaign from URL param (e.g. a "Get Tags" link) —
+        // Pre-select campaign from the prop (embedded, fixed campaign) or the
+        // URL param (global "Get Tags" link) —
         // if it's not in the unscoped list, it's a simulated campaign
         // filtered out above; fetch that one campaign by id (which has no
         // is_simulated filter) and add only that single row, so a direct
         // deep link still works without ever surfacing simulated
         // campaigns in the general dropdown for anyone else.
-        const preselect = new URLSearchParams(window.location.search).get("campaign");
+        const preselect = campaignId ?? new URLSearchParams(window.location.search).get("campaign");
         if (preselect && !data.some(c => c.id === preselect)) {
           const single = await fetch(`/api/campaigns/${preselect}`).then(r => r.ok ? r.json() : null).catch(() => null);
           if (single?.data) data.push(single.data as Campaign);
@@ -85,7 +96,8 @@ export default function EmbedGeneratorPage() {
     fetch("/api/organisations")
       .then(r => r.json())
       .then(j => setOrgs(j.data ?? []));
-  }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [campaignId]);
 
   const orgById = useMemo(() => new Map(orgs.map(o => [o.id, o])), [orgs]);
   const orgName = useCallback((id: string | null) => (id ? orgById.get(id)?.name ?? "" : ""), [orgById]);
@@ -165,9 +177,13 @@ export default function EmbedGeneratorPage() {
     `text-xs px-3 py-1.5 rounded-lg font-medium transition-colors ${active ? "bg-green-100 text-green-700" : "bg-gray-100 text-[#0B1929] hover:bg-gray-200"}`;
 
   return (
-    <AdminShell>
-      <div className="p-4 md:p-6 max-w-5xl mx-auto">
-        <h1 className="text-2xl font-bold text-gray-900 mb-1">Deployment</h1>
+    <div className={embedded ? "" : "p-4 md:p-6 max-w-5xl mx-auto"}>
+        {!embedded && backHref && (
+          <a href={backHref} className="inline-flex items-center gap-1 text-xs font-semibold text-gray-500 hover:text-[#0B1929] mb-3">
+            ← Back to Campaigns
+          </a>
+        )}
+        {!embedded && <h1 className="text-2xl font-bold text-gray-900 mb-1">Deployment</h1>}
         <p className="text-sm text-gray-400 mb-6">Configure your embed and copy the tag to your ad server.</p>
 
         {/*
@@ -183,24 +199,26 @@ export default function EmbedGeneratorPage() {
             <div className="bg-white border border-gray-100 rounded-xl p-5 shadow-sm space-y-4">
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Campaign</p>
 
-              <div>
-                <label className="text-xs text-gray-500 block mb-1">Select Campaign</label>
-                <select
-                  value={selectedId}
-                  onChange={e => setSelectedId(e.target.value)}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A]"
-                >
-                  <option value="">select a campaign</option>
-                  {campaigns.map(c => (
-                    <option key={c.id} value={c.id}>{orgName(c.brand_org_id)} · {c.campaign_name}</option>
-                  ))}
-                </select>
-                {!campaigns.length && (
-                  <p className="text-xs text-amber-500 mt-1">
-                    No campaigns yet. <a href="/campaigns" className="underline">Create one.</a>
-                  </p>
-                )}
-              </div>
+              {!embedded && (
+                <div>
+                  <label className="text-xs text-gray-500 block mb-1">Select Campaign</label>
+                  <select
+                    value={selectedId}
+                    onChange={e => setSelectedId(e.target.value)}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A]"
+                  >
+                    <option value="">select a campaign</option>
+                    {campaigns.map(c => (
+                      <option key={c.id} value={c.id}>{orgName(c.brand_org_id)} · {c.campaign_name}</option>
+                    ))}
+                  </select>
+                  {!campaigns.length && (
+                    <p className="text-xs text-amber-500 mt-1">
+                      No campaigns yet. <a href="/campaigns" className="underline">Create one.</a>
+                    </p>
+                  )}
+                </div>
+              )}
 
               {campaign && (
                 <div className="space-y-2 pt-1 border-t border-gray-50">
@@ -436,6 +454,15 @@ export default function EmbedGeneratorPage() {
           </div>
         </div>
       </div>
+  );
+}
+
+// Global host — the standalone /campaign-deployment route. The builder reads the
+// ?campaign= / ?returnTo= params from the URL itself.
+export default function EmbedGeneratorPage() {
+  return (
+    <AdminShell>
+      <DeploymentBuilder />
     </AdminShell>
   );
 }

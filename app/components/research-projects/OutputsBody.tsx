@@ -29,29 +29,27 @@ import Link from "next/link";
 import { useResearchProject } from "@/app/components/research-projects/ProjectProvider";
 import { computeReportReadiness } from "@/lib/report-readiness";
 import { OutputsView } from "@/app/components/research-projects/OutputsView";
-import { PageIntro } from "@/app/components/research-projects/PageIntro";
+import { PageContainer, WorkspaceHeader, PageLoadingState, ErrorState } from "@/app/components/workspace-ui";
 
 export function OutputsBody() {
   const { project, loading, error } = useResearchProject();
 
-  if (loading && !project) return (
-    <div className="p-6 flex items-center justify-center h-64">
-      <p className="text-gray-400 text-sm">Loading research project…</p>
-    </div>
-  );
+  if (loading && !project) return <PageContainer><PageLoadingState /></PageContainer>;
   if (error || !project) return (
-    <div className="p-6 max-w-5xl mx-auto text-center py-20">
-      <p className="text-gray-400 mb-4">{error || "Research project not found."}</p>
-      <Link href="/research-projects" className="text-[#D7B87A] hover:underline text-sm">← Back to Research Projects</Link>
-    </div>
+    <PageContainer>
+      <ErrorState title="Research project not found" description={error || "We couldn't load this project's reports."} />
+    </PageContainer>
   );
 
   const projectId = project.id;
   const reportReadiness = computeReportReadiness(project.evidence);
 
   return (
-    <div className="p-4 md:p-6 max-w-5xl mx-auto space-y-4">
-      <PageIntro>Generate reports and articles that communicate your research.</PageIntro>
+    <PageContainer>
+      <WorkspaceHeader
+        title="Reports"
+        description="Generate the client-ready reports and articles that communicate your research."
+      />
       <OutputsView
         projectId={projectId}
         basePath={`/research-projects/${projectId}`}
@@ -61,6 +59,11 @@ export function OutputsBody() {
         fullResearchReportStatus={project.full_research_report_status}
         articleStatus={project.article_status}
       />
-    </div>
+
+      <p className="text-xs px-1" style={{ color: "var(--text-tertiary)" }}>
+        When the reporting is done, capture the project&apos;s answer in{" "}
+        <Link href={`/research-projects/${projectId}/conclusion`} className="font-semibold hover:underline" style={{ color: "var(--accent-ink)" }}>Conclusions →</Link>
+      </p>
+    </PageContainer>
   );
 }

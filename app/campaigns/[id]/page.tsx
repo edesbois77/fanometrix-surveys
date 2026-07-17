@@ -312,10 +312,14 @@ function RecentTable({ responses }: { responses: SurveyResponse[] }) {
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
-export default function CampaignDetailPage() {
-  const params = useParams();
+// The campaign analytics dashboard — extracted from the page so ONE
+// implementation serves both hosts: the global /campaigns/[id] route (below)
+// and the in-project Campaign Dashboard (Overview section). `embedded` drops the
+// standalone chrome (its own breadcrumb + page footer) so the workspace shell
+// provides those instead.
+export function CampaignDashboard({ campaignId, embedded = false }: { campaignId: string; embedded?: boolean }) {
   const router = useRouter();
-  const id = params.id as string;
+  const id = campaignId;
 
   const [campaign,  setCampaign]  = useState<Campaign | null>(null);
   const [responses, setResponses] = useState<SurveyResponse[]>([]);
@@ -394,34 +398,34 @@ export default function CampaignDetailPage() {
   const isFiltered = filtered.length !== responses.length;
 
   if (loading) return (
-    <AdminShell>
-      <div className="p-6 flex items-center justify-center h-64">
-        <p className="text-gray-400 text-sm">Loading campaign…</p>
-      </div>
-    </AdminShell>
+    <div className="p-6 flex items-center justify-center h-64">
+      <p className="text-gray-400 text-sm">Loading campaign…</p>
+    </div>
   );
 
   if (error || !campaign) return (
-    <AdminShell>
-      <div className="p-6 max-w-5xl mx-auto text-center py-20">
-        <p className="text-gray-400 mb-4">{error || "Campaign not found."}</p>
-        <Link href="/campaigns" className="text-[#D7B87A] hover:underline text-sm">← Back to Campaigns</Link>
-      </div>
-    </AdminShell>
+    <div className="p-6 max-w-5xl mx-auto text-center py-20">
+      <p className="text-gray-400 mb-4">{error || "Campaign not found."}</p>
+      {!embedded && <Link href="/campaigns" className="text-[#D7B87A] hover:underline text-sm">← Back to Campaigns</Link>}
+    </div>
   );
 
   return (
-    <AdminShell>
-      <div className="p-6 max-w-5xl mx-auto">
+    <div className={embedded ? "" : "p-6 max-w-5xl mx-auto"}>
 
-        {/* Breadcrumb */}
-        <div className="flex items-center gap-2 text-xs text-gray-400 mb-4">
-          <Link href="/campaigns" className="hover:text-[#D7B87A]">Campaigns</Link>
-          <span>›</span>
-          <span className="text-gray-700">{campaign.campaign_name}</span>
-        </div>
+        {!embedded && (
+          /* Breadcrumb */
+          <div className="flex items-center gap-2 text-xs text-gray-400 mb-4">
+            <Link href="/campaigns" className="hover:text-[#D7B87A]">Campaigns</Link>
+            <span>›</span>
+            <span className="text-gray-700">{campaign.campaign_name}</span>
+          </div>
+        )}
 
-        {/* Campaign Header */}
+        {/* Campaign Header — standalone host only. In the project workspace the
+            CampaignWorkspace header already shows the campaign's name, status and
+            actions, so Overview is pure analytics (no duplicate header card). */}
+        {!embedded && (
         <div className="bg-white border border-gray-100 rounded-xl p-6 shadow-sm mb-4">
           <div className="flex items-start justify-between gap-4">
             <div className="flex-1 min-w-0">
@@ -503,36 +507,42 @@ export default function CampaignDetailPage() {
               })()}
             </div>
 
-            {/* Action buttons */}
-            <div className="flex flex-col gap-2 flex-shrink-0">
-              <Link href={`/campaign-deployment?campaign=${campaign.id}`}
-                className="text-xs text-center border border-[#E0E1DD] text-[#0B1929] hover:bg-gray-50 px-3 py-1.5 rounded-lg font-medium transition-colors">
-                Generate Embed
-              </Link>
-              <button onClick={openDashboard}
-                className="text-xs border border-gray-200 text-gray-600 hover:bg-gray-50 px-3 py-1.5 rounded-lg transition-colors">
-                Open Dashboard
-              </button>
-              <button onClick={exportCSV} disabled={filtered.length === 0}
-                className="text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
-                style={{ background: "#D7B87A", color: "#0B1929" }}
-                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#C9A766"; }}
-                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "#D7B87A"; }}>
-                {isFiltered ? `Export ${filtered.length} rows` : "Export CSV"}
-              </button>
-              <button onClick={copyUrl}
-                className={`text-xs border px-3 py-1.5 rounded-lg transition-colors ${copied ? "border-green-200 text-green-600 bg-green-50" : "border-gray-200 text-gray-600 hover:bg-gray-50"}`}>
-                {copied ? "URL Copied!" : "Copy URL"}
-              </button>
-              {(campaign.effective_status ?? campaign.status) !== "archived" && (
-                <button onClick={handleArchive}
-                  className="text-xs border border-amber-100 text-amber-600 hover:bg-amber-50 px-3 py-1.5 rounded-lg transition-colors">
-                  Archive
+            {/* Action buttons — standalone host only. In the project workspace the
+                Campaign Dashboard's own header owns state actions and Deployment
+                is a section, so these (which would jump to legacy modules) are
+                hidden; only the analytics remain. Export stays available here. */}
+            {!embedded && (
+              <div className="flex flex-col gap-2 flex-shrink-0">
+                <Link href={`/campaign-deployment?campaign=${campaign.id}`}
+                  className="text-xs text-center border border-[#E0E1DD] text-[#0B1929] hover:bg-gray-50 px-3 py-1.5 rounded-lg font-medium transition-colors">
+                  Generate Embed
+                </Link>
+                <button onClick={openDashboard}
+                  className="text-xs border border-gray-200 text-gray-600 hover:bg-gray-50 px-3 py-1.5 rounded-lg transition-colors">
+                  Open Dashboard
                 </button>
-              )}
-            </div>
+                <button onClick={exportCSV} disabled={filtered.length === 0}
+                  className="text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
+                  style={{ background: "#D7B87A", color: "#0B1929" }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#C9A766"; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "#D7B87A"; }}>
+                  {isFiltered ? `Export ${filtered.length} rows` : "Export CSV"}
+                </button>
+                <button onClick={copyUrl}
+                  className={`text-xs border px-3 py-1.5 rounded-lg transition-colors ${copied ? "border-green-200 text-green-600 bg-green-50" : "border-gray-200 text-gray-600 hover:bg-gray-50"}`}>
+                  {copied ? "URL Copied!" : "Copy URL"}
+                </button>
+                {(campaign.effective_status ?? campaign.status) !== "archived" && (
+                  <button onClick={handleArchive}
+                    className="text-xs border border-amber-100 text-amber-600 hover:bg-amber-50 px-3 py-1.5 rounded-lg transition-colors">
+                    Archive
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         </div>
+        )}
 
         {/* Filter bar */}
         <div className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm mb-4">
@@ -629,12 +639,23 @@ export default function CampaignDetailPage() {
           </>
         )}
 
-        <footer className="mt-10 pt-6 border-t border-gray-200 flex items-center gap-4 text-xs text-gray-400">
-          <span>Fanometrix</span>
-          <Link href="/privacy" className="hover:text-[#D7B87A]">ⓘ Privacy Policy</Link>
-          <Link href="/publisher-guide" className="hover:text-[#D7B87A]">☰ Publisher Guide</Link>
-        </footer>
-      </div>
+        {!embedded && (
+          <footer className="mt-10 pt-6 border-t border-gray-200 flex items-center gap-4 text-xs text-gray-400">
+            <span>Fanometrix</span>
+            <Link href="/privacy" className="hover:text-[#D7B87A]">ⓘ Privacy Policy</Link>
+            <Link href="/publisher-guide" className="hover:text-[#D7B87A]">☰ Publisher Guide</Link>
+          </footer>
+        )}
+    </div>
+  );
+}
+
+// Global host — the standalone /campaigns/[id] route.
+export default function CampaignDetailPage() {
+  const params = useParams();
+  return (
+    <AdminShell>
+      <CampaignDashboard campaignId={params.id as string} />
     </AdminShell>
   );
 }

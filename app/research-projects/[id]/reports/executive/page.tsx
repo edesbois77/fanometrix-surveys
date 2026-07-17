@@ -350,7 +350,7 @@ export default function ExecutiveReportPage() {
                   Review Prompts ({totalReviewFlags})
                 </span>
                 <span className="block text-xs text-gray-500 mt-0.5 leading-relaxed">
-                  Passages worth a look before you approve — not errors, and the report has not been changed. These are automated prompts for human judgement; decide what, if anything, to change.
+                  Passages worth a look before you approve, not errors, and the report has not been changed. These are automated prompts for human judgement; decide what, if anything, to change.
                 </span>
               </span>
             </summary>
@@ -526,13 +526,13 @@ export default function ExecutiveReportPage() {
                       {(t.related_opportunities.length > 0 || t.related_risks.length > 0 || t.related_recommendations.length > 0) && (
                         <div className="mt-3 pt-3 border-t border-gray-200 space-y-1.5">
                           {t.related_opportunities.map(idx => refSrc.opportunities[idx] && (
-                            <p key={`o${idx}`} className="text-xs text-gray-600"><span className="font-semibold" style={{ color: REPORT_TONES.positive.ink }}>Opportunity —</span> {refSrc.opportunities[idx]}</p>
+                            <p key={`o${idx}`} className="text-xs text-gray-600"><span className="font-semibold" style={{ color: REPORT_TONES.positive.ink }}>Opportunity:</span> {refSrc.opportunities[idx]}</p>
                           ))}
                           {t.related_risks.map(idx => refSrc.risks[idx] && (
-                            <p key={`r${idx}`} className="text-xs text-gray-600"><span className="font-semibold" style={{ color: REPORT_TONES.concern.ink }}>Risk —</span> {refSrc.risks[idx]}</p>
+                            <p key={`r${idx}`} className="text-xs text-gray-600"><span className="font-semibold" style={{ color: REPORT_TONES.concern.ink }}>Risk:</span> {refSrc.risks[idx]}</p>
                           ))}
                           {t.related_recommendations.map(idx => refSrc.recommendations[idx] && (
-                            <p key={`rec${idx}`} className="text-xs text-gray-600"><span className="font-semibold" style={{ color: GOLD }}>Recommendation —</span> {refSrc.recommendations[idx].action}</p>
+                            <p key={`rec${idx}`} className="text-xs text-gray-600"><span className="font-semibold" style={{ color: GOLD }}>Recommendation:</span> {refSrc.recommendations[idx].action}</p>
                           ))}
                         </div>
                       )}

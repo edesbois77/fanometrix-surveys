@@ -19,7 +19,14 @@ import { DOCUMENT_TYPES, ALLOWED_MIME_TYPES, MAX_FILE_SIZE_BYTES, type DocumentT
 
 const ACCEPT = Object.keys(ALLOWED_MIME_TYPES).join(",");
 
-export function UploadDocumentModal({ onClose }: { onClose: () => void }) {
+export function UploadDocumentModal({ onClose, onUploaded }: {
+  onClose: () => void;
+  // When provided (e.g. uploading from inside a Research Project), the caller
+  // handles what happens next — attach to the project and stay in the workspace
+  // — instead of the default navigation to the standalone document page. Same
+  // upload + processing pipeline either way; only the post-upload step differs.
+  onUploaded?: (docId: string) => void;
+}) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
@@ -69,7 +76,8 @@ export function UploadDocumentModal({ onClose }: { onClose: () => void }) {
       const confirmJson = await confirmRes.json();
       if (!confirmRes.ok) throw new Error(confirmJson.error ?? "Upload didn't complete.");
 
-      router.push(`/research-library/${id}`);
+      if (onUploaded) onUploaded(id);
+      else router.push(`/research-library/${id}`);
     } catch (err) {
       setUploading(false);
       setError(err instanceof Error ? err.message : "Upload failed.");

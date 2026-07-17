@@ -303,7 +303,7 @@ export default function FullResearchReportPage() {
             </h2>
             <p className="text-sm text-white/60 max-w-md mx-auto leading-relaxed mb-6">
               One analytical deep-dive per Strategic Theme, drawing on every validated Key Finding, not only the ones
-              selected into the concise Executive Report — plus the full evidence appendix and methodology detail.
+              selected into the concise Executive Report, plus the full evidence appendix and methodology detail.
             </p>
             {error && <p className="text-sm text-red-300 mb-4">{error}</p>}
             <button
@@ -350,7 +350,7 @@ export default function FullResearchReportPage() {
                   Review Prompts ({reviewFlags.length})
                 </span>
                 <span className="block text-xs text-gray-500 mt-0.5 leading-relaxed">
-                  Passages worth a second look before you approve — not errors, and not a failed check. The report has not been changed. This automated pass is deliberately cautious and will sometimes flag legitimate analysis; use it to inspect, then edit only what you judge necessary.
+                  Passages worth a second look before you approve, not errors, and not a failed check. The report has not been changed. This automated pass is deliberately cautious and will sometimes flag legitimate analysis; use it to inspect, then edit only what you judge necessary.
                 </span>
               </span>
             </summary>
@@ -385,7 +385,7 @@ export default function FullResearchReportPage() {
               ⚠ Some sections could not be generated
             </p>
             <p className="text-xs text-gray-600 leading-relaxed mb-2">
-              The following {current.generation_fallbacks!.length === 1 ? "section" : "sections"} could not be produced by the AI analysis and currently show existing approved content as a fallback rather than freshly-generated analysis. Review {current.generation_fallbacks!.length === 1 ? "it" : "them"} — and regenerate if needed — before approving.
+              The following {current.generation_fallbacks!.length === 1 ? "section" : "sections"} could not be produced by the AI analysis and currently show existing approved content as a fallback rather than freshly-generated analysis. Review {current.generation_fallbacks!.length === 1 ? "it" : "them"}, and regenerate if needed, before approving.
             </p>
             <ul className="list-disc list-inside space-y-0.5">
               {current.generation_fallbacks!.map((label, i) => (
@@ -687,7 +687,7 @@ export default function FullResearchReportPage() {
               <summary className="cursor-pointer select-none px-6 py-4 flex items-center gap-2.5">
                 <span className="w-1 h-4 rounded-full flex-shrink-0" style={{ background: REPORT_TONES.neutral.ink }} />
                 <h2 className="text-xs font-bold uppercase tracking-[0.14em]" style={{ color: REPORT_TONES.neutral.ink }}>
-                  Appendix — Complete Evidence Pool ({current.evidence_appendix.length})
+                  Appendix, Complete Evidence Pool ({current.evidence_appendix.length})
                 </h2>
               </summary>
               <div className="px-6 pb-6">

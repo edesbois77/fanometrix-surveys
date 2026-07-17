@@ -52,13 +52,15 @@ export type EvidenceItem = {
   // own id (migration 102), never evidence_id — see the GET route's own
   // comment on why that differs from survey/conversationSearch above.
   document: {
-    id: string; name: string; document_type: string;
+    id: string; name: string; author: string | null; document_type: string;
     /** library_documents.status (uploaded/extracting/.../approved) — the
      * Research Library's own review state, distinct from summary_status
      * below (Document Intelligence's own draft/edited/approved workflow
      * for THIS project's interpretation of the document). */
     library_status: string;
     page_count: number | null;
+    uploaded_at: string;
+    tags: string[];
     summary_status: "draft" | "edited" | "approved" | "published" | null;
     generated_at: string | null;
   } | null;

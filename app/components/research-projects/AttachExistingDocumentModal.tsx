@@ -32,11 +32,14 @@ const STATUS_META: Record<LibraryDocumentRow["status"], { label: string; classNa
 const SELECT_CLS = "border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A] text-gray-600";
 
 export function AttachExistingDocumentModal({
-  excludeDocumentIds, onClose, onAttach,
+  excludeDocumentIds, onClose, onAttach, onUploadNew,
 }: {
   excludeDocumentIds: string[];
   onClose: () => void;
   onAttach: (documentId: string) => Promise<void> | void;
+  // When provided (in a Research Project), "upload a new document" happens
+  // INSIDE the project rather than sending the user to the standalone Library.
+  onUploadNew?: () => void;
 }) {
   const [docs, setDocs] = useState<LibraryDocumentRow[] | null>(null);
   const [search, setSearch] = useState("");
@@ -99,7 +102,7 @@ export function AttachExistingDocumentModal({
           {docs === null && <p className="text-sm text-gray-400 px-2 py-4">Loading…</p>}
           {docs !== null && filtered.length === 0 && (
             <p className="text-sm text-gray-400 px-2 py-4">
-              No matching documents, try a different search or filter, or upload one from the Research Library instead.
+              No matching documents. Try a different search or filter{onUploadNew ? ", or upload a new one." : ", or upload one from the Research Library."}
             </p>
           )}
           {filtered.map(d => {
@@ -130,9 +133,15 @@ export function AttachExistingDocumentModal({
         </div>
 
         <div className="px-6 py-3 border-t border-gray-100 flex-shrink-0 text-center">
-          <Link href="/research-library" target="_blank" className="text-xs font-semibold text-[#0B1929] hover:underline">
-            Don&apos;t see it? Upload a new document in the Research Library →
-          </Link>
+          {onUploadNew ? (
+            <button onClick={onUploadNew} className="text-xs font-semibold text-[#0B1929] hover:underline">
+              Don&apos;t see it? Upload a new document →
+            </button>
+          ) : (
+            <Link href="/research-library" target="_blank" className="text-xs font-semibold text-[#0B1929] hover:underline">
+              Don&apos;t see it? Upload a new document in the Research Library →
+            </Link>
+          )}
         </div>
       </div>
     </div>

@@ -39,3 +39,50 @@ export type DocumentType = (typeof DOCUMENT_TYPES)[number]["value"];
 export function isDocumentType(value: unknown): value is DocumentType {
   return typeof value === "string" && DOCUMENT_TYPES.some(t => t.value === value);
 }
+
+// Friendly display label for a document_type value (e.g. audience_study →
+// "Audience Study"). The one place raw document_type is turned into UI copy
+// — use this everywhere document type is shown, never the raw enum.
+export function documentTypeLabel(value: string): string {
+  return DOCUMENT_TYPES.find(t => t.value === value)?.label ?? value;
+}
+
+// Access posture — reuses library_documents.confidentiality's CHECK
+// vocabulary (supabase-migration-099.sql) exactly. Editable metadata, but
+// the access-control field: changing it is confirmed in the UI and audited,
+// since a library_document is a single record shared across every project.
+export const CONFIDENTIALITY_LEVELS = [
+  { value: "public",       label: "Public" },
+  { value: "internal",     label: "Internal" },
+  { value: "confidential", label: "Confidential" },
+] as const;
+
+export type Confidentiality = (typeof CONFIDENTIALITY_LEVELS)[number]["value"];
+
+export function isConfidentiality(value: unknown): value is Confidentiality {
+  return typeof value === "string" && CONFIDENTIALITY_LEVELS.some(c => c.value === value);
+}
+
+// Tags are free-form (not an enum) — a document can carry many, AI-suggested
+// at processing time and freely editable. This is a shared vocabulary of
+// common tags offered as UI suggestions (and nudged in the analyst prompt)
+// so the Library trends toward consistent, reusable tags over time — the
+// long-term goal being tags as a primary way documents are organised,
+// searched and retrieved. Not exhaustive or enforced.
+export const COMMON_DOCUMENT_TAGS = [
+  "Women's Football", "Men's Football", "Tournament", "Club Football",
+  "Domestic League", "International Football", "UEFA", "FIFA",
+  "Financial", "Sponsorship", "Fan Behaviour", "Audience Research",
+  "Broadcast", "Social Media", "Brand", "Commercial", "Technology",
+] as const;
+
+// Normalise a raw tag: trim, collapse inner whitespace, cap length. Returns
+// null for anything empty. Used by the edit UI and the PATCH endpoint so a
+// tag looks the same however it was entered.
+export function normaliseTag(raw: unknown): string | null {
+  if (typeof raw !== "string") return null;
+  const t = raw.trim().replace(/\s+/g, " ").slice(0, 40);
+  return t || null;
+}
+
+export const MAX_DOCUMENT_TAGS = 25;

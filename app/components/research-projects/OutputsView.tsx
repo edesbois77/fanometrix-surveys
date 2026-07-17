@@ -88,7 +88,7 @@ export function OutputsView({
         info={
           <InfoContent title="Your client-ready deliverables, built from approved Intelligence.">
             <p>The Executive Report synthesises your approved sources; the Full Research Report expands it into a comprehensive study; the Editorial Article turns it into a public-facing story.</p>
-            <p className="mt-1.5">Each deliverable needs the one before it approved first — shown as a prerequisite on the card.</p>
+            <p className="mt-1.5">Each deliverable needs the one before it approved first, shown as a prerequisite on the card.</p>
           </InfoContent>
         }
         summary={
@@ -102,7 +102,7 @@ export function OutputsView({
           <ReportCard
             eyebrow="Primary client deliverable"
             title="Executive Report"
-            purpose="The headline synthesis of your approved Research Sources — the primary deliverable for stakeholders."
+            purpose="The headline synthesis of your approved Research Sources, the primary deliverable for stakeholders."
             status={reportStatus}
             stale={reportStale}
             detail={
@@ -126,7 +126,7 @@ export function OutputsView({
           <ReportCard
             eyebrow="In-depth analysis"
             title="Full Research Report"
-            purpose="The comprehensive analytical expansion of your approved Executive Report — the complete written study."
+            purpose="The comprehensive analytical expansion of your approved Executive Report, the complete written study."
             status={fullResearchReportStatus}
             blocked={!executiveReportApproved}
             detail={!executiveReportApproved && <p className="text-xs text-amber-600">Prerequisite: an approved Executive Report</p>}
@@ -142,7 +142,7 @@ export function OutputsView({
           <ReportCard
             eyebrow="Public-facing story"
             title="Editorial Article"
-            purpose="A publication-ready story built from your approved Executive Report — for a wider audience."
+            purpose="A publication-ready story built from your approved Executive Report, for a wider audience."
             status={articleStatus}
             blocked={!executiveReportApproved}
             detail={!executiveReportApproved && <p className="text-xs text-amber-600">Prerequisite: an approved Executive Report</p>}

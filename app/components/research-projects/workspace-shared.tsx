@@ -76,7 +76,7 @@ export type NewEvidenceType =
 const EVIDENCE_TYPES: { type: NewEvidenceType; label: string; description: string; available: boolean }[] = [
   { type: "survey", label: "Survey", description: "Create a new survey, or attach one that already exists.", available: true },
   { type: "social_search", label: "Conversation Search", description: "Create a new conversation search, or attach one that already exists.", available: true },
-  { type: "document", label: "Add from Research Library", description: "Attach a document already in the Research Library — industry report, strategy document, case study and more.", available: true },
+  { type: "document", label: "Add from Research Library", description: "Attach a document already in the Research Library, industry report, strategy document, case study and more.", available: true },
   { type: "crm", label: "CRM Data", description: "Customer relationship data.", available: false },
   { type: "ticketing", label: "Ticketing Data", description: "Attendance and purchase data from ticketing platforms.", available: false },
   { type: "merchandise", label: "Merchandise Sales", description: "Retail and merchandise sales data.", available: false },
@@ -105,13 +105,15 @@ const SOURCE_CHOICE_COPY: Partial<Record<NewEvidenceType, {
     modalTitle: "Add Survey Research Source",
     createLabel: "Create New Survey", createDescription: "Design a brand-new survey for this research.",
     attachLabel: "Attach Existing Survey", attachDescription: "Reuse a survey already created for another project.",
-    createHref: projectId => `/survey-templates?createForProject=${projectId}`,
+    // Create + configure inside the project (Research), returning to Survey
+    // Research on save — never auto-routing into Execution.
+    createHref: projectId => `/research-projects/${projectId}/research/survey/new`,
   },
   social_search: {
     modalTitle: "Add Conversation Search Research Source",
     createLabel: "Create New Search", createDescription: "Set up a brand-new conversation search for this research.",
     attachLabel: "Attach Existing Search", attachDescription: "Reuse a conversation search already created for another project.",
-    createHref: projectId => `/social-listening/searches?createForProject=${projectId}`,
+    createHref: projectId => `/research-projects/${projectId}/research/conversation/new`,
   },
 };
 

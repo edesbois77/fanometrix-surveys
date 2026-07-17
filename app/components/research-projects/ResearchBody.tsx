@@ -23,17 +23,20 @@
 // unaffected (its own WalkthroughBody keeps the single-page source workspace).
 import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import Link from "next/link";
 import { useSession } from "@/app/components/SessionProvider";
 import { AttachExistingSurveyModal } from "@/app/components/research-projects/AttachExistingSurveyModal";
 import { AttachExistingConversationSearchModal } from "@/app/components/research-projects/AttachExistingConversationSearchModal";
 import { AttachExistingDocumentModal } from "@/app/components/research-projects/AttachExistingDocumentModal";
-import { PageIntro } from "@/app/components/research-projects/PageIntro";
-import { PrimaryButton, SecondaryButton, StatusBadge } from "@/app/components/research-projects/ActionPrimitives";
+import { PageContainer, WorkspaceHeader, PageLoadingState, ErrorState, Icon } from "@/app/components/workspace-ui";
+import { PrimaryButton, StatusBadge } from "@/app/components/research-projects/ActionPrimitives";
 import { useResearchProject } from "@/app/components/research-projects/ProjectProvider";
 import { AddEvidenceModal } from "@/app/components/research-projects/workspace-shared";
 
 type MethodType = "survey" | "social_search" | "document";
+
+// Evidence type → the mini-workspace route slug it opens
+// (/research-projects/[id]/research/[slug]).
+const METHOD_SLUG: Record<string, string> = { survey: "survey", social_search: "conversation", document: "library" };
 
 const METHODS: { key: MethodType | string; label: string; description: string; available: boolean }[] = [
   { key: "survey", label: "Survey Research", description: "Structured questionnaires deployed to your audiences to measure attitudes, motivations and behaviours.", available: true },
@@ -71,16 +74,11 @@ export function ResearchBody() {
     setToast("Conversation search saved.");
   }, [searchParams, id, project, router, load]);
 
-  if (loading && !project) return (
-    <div className="p-6 flex items-center justify-center h-64">
-      <p className="text-gray-400 text-sm">Loading research project…</p>
-    </div>
-  );
+  if (loading && !project) return <PageContainer><PageLoadingState /></PageContainer>;
   if (error || !project) return (
-    <div className="p-6 max-w-5xl mx-auto text-center py-20">
-      <p className="text-gray-400 mb-4">{error || "Research project not found."}</p>
-      <Link href="/research-projects" className="text-[#D7B87A] hover:underline text-sm">← Back to Research Projects</Link>
-    </div>
+    <PageContainer>
+      <ErrorState title="Research project not found" description={error || "We couldn't load this project's research methods."} />
+    </PageContainer>
   );
 
   const projectId = project.id;
@@ -91,12 +89,6 @@ export function ResearchBody() {
   const searchEvidence = project.evidence.filter(e => e.evidence_type === "social_search");
   const documentEvidence = project.evidence.filter(e => e.evidence_type === "document");
   const countFor = (k: string) => k === "survey" ? surveyEvidence.length : k === "social_search" ? searchEvidence.length : k === "document" ? documentEvidence.length : 0;
-
-  function openAttach(type: MethodType) {
-    if (type === "survey") setAttachExistingOpen(true);
-    if (type === "social_search") setAttachExistingSearchOpen(true);
-    if (type === "document") setAttachExistingDocumentOpen(true);
-  }
 
   async function attach(evidenceType: MethodType, evidenceId: string, close: () => void, okMsg: string, errMsg: string) {
     const res = await fetch(`/api/research-projects/${projectId}/evidence`, {
@@ -116,35 +108,41 @@ export function ResearchBody() {
 
   return (
     <>
-      <div className="p-4 md:p-6 max-w-5xl mx-auto space-y-4">
-        <div className="flex items-start justify-between gap-3 flex-wrap">
-          <PageIntro>Select the research methods and evidence sources that will answer your research question.</PageIntro>
-          {canManage && (
-            <PrimaryButton onClick={() => setEvidenceModalOpen(true)}>+ Add Research Source</PrimaryButton>
-          )}
-        </div>
+      <PageContainer>
+        <WorkspaceHeader
+          title="Research Sources"
+          description="Select the research methods and evidence sources that will answer your research question."
+          primaryAction={canManage
+            ? <PrimaryButton onClick={() => setEvidenceModalOpen(true)}>+ Add Research Source</PrimaryButton>
+            : undefined}
+        />
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {METHODS.map(m => {
             const count = countFor(m.key);
             const used = count > 0;
+            const openMethod = () => router.push(`/research-projects/${projectId}/research/${METHOD_SLUG[m.key]}`);
             return (
-              <div key={m.key} className={`bg-white border rounded-xl p-5 flex flex-col ${m.available ? "border-gray-100 shadow-sm" : "border-gray-100 opacity-60"}`}>
-                <div className="flex items-center justify-between gap-2 mb-1">
-                  <h3 className="text-sm font-bold text-gray-900">{m.label}</h3>
-                  {m.available
-                    ? <StatusBadge label={used ? `${count} attached` : "Not used"} tone={used ? "success" : "neutral"} />
-                    : <StatusBadge label="Coming Soon" tone="neutral" />}
+              <div
+                key={m.key}
+                onClick={m.available ? openMethod : undefined}
+                className={`bg-white border border-gray-100 rounded-xl flex flex-col overflow-hidden ${m.available ? "shadow-sm cursor-pointer transition-shadow hover:shadow-[var(--shadow-md)]" : "opacity-60"}`}
+              >
+                <div className="p-5 flex-1">
+                  <div className="flex items-center justify-between gap-2 mb-1">
+                    <h3 className="text-sm font-bold text-gray-900">{m.label}</h3>
+                    {m.available
+                      ? <StatusBadge label={used ? `${count} attached` : "Not used"} tone={used ? "success" : "neutral"} />
+                      : <StatusBadge label="Coming Soon" tone="neutral" />}
+                  </div>
+                  <p className="text-xs text-gray-500 leading-relaxed">{m.description}</p>
                 </div>
-                <p className="text-xs text-gray-500 leading-relaxed flex-1">{m.description}</p>
                 {m.available && (
-                  <div className="flex items-center gap-2 flex-wrap mt-4">
-                    {used && (
-                      <SecondaryButton onClick={() => router.push(`/research-projects/${projectId}/execution`)}>View &amp; manage →</SecondaryButton>
-                    )}
-                    {canManage && (
-                      <SecondaryButton onClick={() => openAttach(m.key as MethodType)}>Attach existing</SecondaryButton>
-                    )}
+                  <div className="px-5 py-2.5 border-t" style={{ borderColor: "var(--border-subtle)", background: "var(--surface-sunken)" }}>
+                    <span className="inline-flex items-center gap-1 text-xs font-semibold" style={{ color: "var(--accent-ink)" }}>
+                      {used ? "Manage sources" : "Open"}
+                      <Icon.chevronRight size={14} />
+                    </span>
                   </div>
                 )}
               </div>
@@ -153,7 +151,7 @@ export function ResearchBody() {
         </div>
 
         <p className="text-xs text-gray-400 px-1">More research capabilities will appear here as they become available.</p>
-      </div>
+      </PageContainer>
 
       {evidenceModalOpen && (
         <AddEvidenceModal

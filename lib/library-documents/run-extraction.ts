@@ -26,7 +26,7 @@ export async function runExtraction(libraryDocumentId: string): Promise<void> {
     .update({ status: "extracting", error_message: null })
     .eq("id", libraryDocumentId)
     .eq("status", "uploaded")
-    .select("id, mime_type, storage_path")
+    .select("id, mime_type, storage_path, author_manually_edited")
     .maybeSingle();
 
   // Not found, or already past 'uploaded' (already claimed by another
@@ -39,10 +39,15 @@ export async function runExtraction(libraryDocumentId: string): Promise<void> {
 
     let chunkRows: ChunkRow[];
     let pageCount: number | null = null;
+    // Author from the file's own embedded metadata (PDF Info dictionary).
+    // Seeds the Author field before analysis so the AI only fills it in when
+    // the document itself doesn't carry one. DOCX has no equivalent here.
+    let embeddedAuthor: string | null = null;
 
     if (ext === "pdf") {
       const extraction = await extractPdf(buffer);
       pageCount = extraction.pageCount;
+      embeddedAuthor = extraction.info.author;
       chunkRows = chunkPdfPages(extraction.pages);
     } else if (ext === "docx") {
       const extraction = await extractDocx(buffer);
@@ -67,7 +72,12 @@ export async function runExtraction(libraryDocumentId: string): Promise<void> {
 
     await supabaseAdmin
       .from("library_documents")
-      .update({ page_count: pageCount, error_message: null })
+      .update({
+        page_count: pageCount,
+        error_message: null,
+        // Seed the embedded author only when present and no human has set one.
+        ...(embeddedAuthor && !claimed.author_manually_edited ? { author: embeddedAuthor } : {}),
+      })
       .eq("id", libraryDocumentId);
 
     // Visual analysis — PDF only, continuing the same chunk_index

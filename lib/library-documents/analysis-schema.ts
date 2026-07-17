@@ -121,6 +121,9 @@ export type ResearchQualityAssessment = ResearchQualitySignals & {
 export type DocumentAnalysisContent = {
   schema_version: number;
   title: string;
+  /** Author / byline extracted from the document's contents — the AI
+   * fallback when the file carried no embedded Author metadata. */
+  author: string | null;
   source_publisher: string | null;
   publication_date: string | null;
   /** The AI's own suggestion — document_type itself is chosen by the
@@ -143,6 +146,10 @@ export type DocumentAnalysisContent = {
   research_quality: ResearchQualityAssessment;
   author_perspective: AuthorPerspective;
   executive_summary: string;
+  /** A ~100-150 word abstract (what the document is, its key findings, why it
+   * matters) — orientation for the document page, distinct from the fuller
+   * executive_summary. Written by Stage B; promoted to the description. */
+  summary: string;
   generated_at: string;
 };
 
@@ -170,6 +177,7 @@ export type RawResearchQualitySignals = {
 
 export type RawDocumentAnalysis = {
   title?: string;
+  author?: string | null;
   source_publisher?: string | null;
   /** What the document itself says about its publisher's business,
    * expertise or focus (e.g. an "about us" section or byline) — Stage A's
@@ -433,6 +441,7 @@ export function validateDocumentAnalysisContent(raw: RawDocumentAnalysis, chunks
   return {
     schema_version: DOCUMENT_ANALYSIS_SCHEMA_VERSION,
     title,
+    author: nullableText(raw.author),
     source_publisher,
     publication_date: nullableText(raw.publication_date),
     suggested_document_type: isDocumentType(raw.suggested_document_type) ? raw.suggested_document_type : null,
@@ -452,6 +461,8 @@ export function validateDocumentAnalysisContent(raw: RawDocumentAnalysis, chunks
     research_quality: { ...signals, evidence_strength, rationale },
     author_perspective: normaliseAuthorPerspective(raw.author_perspective, source_publisher),
     executive_summary: raw.executive_summary?.trim() || "",
+    // Written by Stage B (analyseDocument), not extracted here — placeholder.
+    summary: "",
     generated_at: new Date().toISOString(),
   };
 }

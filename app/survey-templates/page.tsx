@@ -5,103 +5,20 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Papa from "papaparse";
 import { AdminShell } from "@/app/components/AdminShell";
-import { DrawerSection } from "@/app/components/DrawerSection";
 import { validateSurvey, SURVEY_LIMITS } from "@/lib/survey-validation";
 import {
-  SUPPORTED_LANGUAGES, resolveQuestion, resolveText, findLanguageMatches, getCompletedLanguages,
-  type LangCode, type LocalisedQuestion, type LocalisedOption, type LocalisedText, type LanguageOption,
+  SUPPORTED_LANGUAGES, getCompletedLanguages,
+  type LocalisedQuestion, type LocalisedText,
 } from "@/lib/survey-locale";
-import { generateStudyName, studyTypeLabel } from "@/lib/naming";
-import { NameBuilder } from "@/app/components/NameBuilder";
+import { studyTypeLabel } from "@/lib/naming";
 import { SurveyIntelligenceModal } from "@/app/components/SurveyIntelligenceModal";
 import { SurveyPreviewModal } from "@/app/components/SurveyPreviewModal";
+import { SurveyEditor, type EditFields } from "@/app/components/survey-editor/SurveyEditor";
 
-// ─── MPU colours ─────────────────────────────────────────────────────────────
-const NAVY = "#071B2F";
-const GOLD = "#D7B87A";
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block mb-1.5">{label}</label>
-      {children}
-    </div>
-  );
-}
-
-// ─── MPU content limits (from shared lib/survey-validation.ts) ───────────────
+// MPU content limits (shared) — used by the list's per-survey completion display.
 const { MAX_QUESTIONS, MAX_OPTIONS, MAX_Q_CHARS, MAX_OPT_CHARS, MAX_TY_TITLE, MAX_TY_BODY } = SURVEY_LIMITS;
 
-// Live character counter — turns amber near limit, red when over
-function CharCount({ len, max }: { len: number; max: number }) {
-  const over = len > max;
-  const near = len > max * 0.85;
-  return (
-    <span className={`text-xs tabular-nums ${over ? "text-red-500 font-semibold" : near ? "text-amber-500" : "text-gray-400"}`}>
-      {len} / {max}
-    </span>
-  );
-}
-
-// Search-to-add language picker — type a country name (e.g. "France", "Italy")
-// or a language name/code, pick a match, and it's added as a new tab. Top-ten
-// world languages surface first when they match the query.
-function AddLanguageButton({ enabledLanguages, onAdd }: {
-  enabledLanguages: string[];
-  onAdd: (lang: LanguageOption) => void;
-}) {
-  const [open,   setOpen]   = useState(false);
-  const [query,  setQuery]  = useState("");
-  const matches = findLanguageMatches(query, enabledLanguages);
-
-  function pick(lang: LanguageOption) {
-    onAdd(lang);
-    setQuery("");
-    setOpen(false);
-  }
-
-  return (
-    <div className="relative">
-      <button
-        type="button"
-        onClick={() => setOpen(o => !o)}
-        className="text-xs px-2.5 py-1 rounded-lg border border-dashed border-gray-300 text-gray-500 hover:border-[#D7B87A] hover:text-[#0B1929] transition-colors"
-      >
-        + Add Language
-      </button>
-      {open && (
-        <div className="absolute z-30 top-full left-0 mt-1 w-64 bg-white border border-gray-200 rounded-lg shadow-lg p-2">
-          <input
-            autoFocus
-            value={query}
-            onChange={e => setQuery(e.target.value)}
-            placeholder="Type a country or language…"
-            className="w-full border border-gray-200 rounded-md px-2.5 py-1.5 text-sm focus:outline-none focus:border-[#D7B87A]"
-          />
-          {query.trim() && (
-            <div className="mt-1 max-h-48 overflow-y-auto">
-              {matches.length === 0 ? (
-                <p className="px-2 py-2 text-xs text-gray-400">No matching language found.</p>
-              ) : (
-                matches.map(lang => (
-                  <button
-                    key={lang.code}
-                    type="button"
-                    onClick={() => pick(lang)}
-                    className="w-full text-left px-2 py-1.5 text-sm text-gray-700 hover:bg-gray-50 rounded-md transition-colors flex items-center justify-between"
-                  >
-                    <span>{lang.label} <span className="text-gray-400">· {lang.nativeLabel}</span></span>
-                    {!lang.autoTranslatable && <span className="text-[10px] text-gray-400">manual</span>}
-                  </button>
-                ))
-              )}
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
+const GOLD = "#D7B87A";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type Question = LocalisedQuestion;   // re-export alias used throughout this file
@@ -134,21 +51,8 @@ type Survey = {
   last_response_at: string | null;
 };
 
-// Content-only fields for the edit drawer
-type EditFields = {
-  name:           string;
-  description:    string | null;
-  brand_org_id:   string;
-  agency_org_id:  string;
-  topic:          string;
-  study_type:     string;
-  questions:      Question[];
-  thank_you_title: LocalisedText;
-  thank_you_body:  LocalisedText;
-  enabled_languages: string[];
-  status:          "draft" | "ready";
-  is_template:     boolean;
-};
+// EditFields (the survey's editable shape) now lives with the canonical
+// SurveyEditor and is imported above — the list uses it only for openDuplicate.
 
 // Campaigns linked to a survey (for the usage modal)
 type ModalCampaign = {
@@ -320,25 +224,6 @@ function SurveyUsageModal({ survey, campaigns, loading, onClose }: {
   );
 }
 
-// ─── Blank state ──────────────────────────────────────────────────────────────
-const BLANK_Q = (): Question => ({
-  id:      `q${Date.now()}`,
-  text:    { en: "" },
-  options: [
-    { id: 1, text: { en: "" } },
-    { id: 2, text: { en: "" } },
-  ],
-});
-
-const BLANK_FIELDS: EditFields = {
-  name: "", description: "", brand_org_id: "", agency_org_id: "", topic: "", study_type: "custom",
-  questions: [BLANK_Q()],
-  thank_you_title: { en: "Thank you!" },
-  thank_you_body: { en: "Your response has been recorded." },
-  enabled_languages: ["en"],
-  status: "draft", is_template: false,
-};
-
 // Reads the ?createForProject= / ?editSurveyForProject= query params a
 // Research Project's evidence journey (Phase 2, Steps 2–3) navigates here
 // with — the former to create a new survey, the latter to fix an existing
@@ -393,17 +278,13 @@ export default function SurveysPage() {
   // Intelligence modal
   const [intelligenceSurvey, setIntelligenceSurvey] = useState<Survey | null>(null);
 
-  // Edit drawer
-  const [drawerOpen,           setDrawerOpen]           = useState(false);
-  const [editingId,            setEditingId]            = useState<string | null>(null);
-  const [editingOriginalStatus, setEditingOriginalStatus] = useState<Survey["status"] | null>(null);
-  const [fields,               setFields]               = useState<EditFields>(BLANK_FIELDS);
-  const [saving,               setSaving]               = useState(false);
-  const [formError,            setFormError]            = useState("");
-  const [editorLang,           setEditorLang]           = useState<LangCode>("en");
-  const [translating,          setTranslating]          = useState(false);
-  const [toast,                setToast]                = useState<{ msg: string; ok: boolean } | null>(null);
-  const [linkedProjects,       setLinkedProjects]       = useState<{ id: string; project_name: string }[]>([]);
+  // Edit drawer — mounts the shared canonical SurveyEditor. The page owns only
+  // which survey to edit (or create), the create-prefill, and post-save routing.
+  const [drawerOpen,          setDrawerOpen]          = useState(false);
+  const [editorSurveyId,      setEditorSurveyId]      = useState<string | null>(null);
+  const [editorInitialFields, setEditorInitialFields] = useState<Partial<EditFields> | undefined>(undefined);
+  const [editorIsSimulated,   setEditorIsSimulated]   = useState<boolean | undefined>(undefined);
+  const [toast,               setToast]               = useState<{ msg: string; ok: boolean } | null>(null);
 
   // Evidence Orchestration (Phase 2, Step 2) — set when this create drawer
   // was auto-opened from a Research Project's "Create Evidence" flow, so
@@ -431,18 +312,14 @@ export default function SurveysPage() {
       setLinkedProjectResearchMode(proj.research_mode === "simulated" ? "simulated" : "real");
       // Pre-fill from the project so the new survey's name follows the same
       // Topic | Type | Brand | Agency convention the project itself uses.
-      setFields({
-        ...BLANK_FIELDS,
-        questions: [BLANK_Q()],
+      setEditorSurveyId(null);
+      setEditorInitialFields({
         topic: proj.topic ?? "",
         study_type: proj.study_type ?? "custom",
         brand_org_id: proj.brand_org_id ?? "",
         agency_org_id: proj.agency_org_id ?? "",
       });
-      setEditingId(null);
-      setEditingOriginalStatus(null);
-      setFormError("");
-      setEditorLang("en");
+      setEditorIsSimulated(proj.research_mode === "simulated");
       setAutoLinkActive(true);
       setDrawerOpen(true);
     })();
@@ -466,11 +343,11 @@ export default function SurveysPage() {
       const { data: proj } = await projRes.json();
       setEditForProjectName(proj.project_name);
       if (!proj.survey_id) return;
-      const surveyRes = await fetch(`/api/surveys/${proj.survey_id}`);
-      if (!surveyRes.ok) return;
-      const { data: survey } = await surveyRes.json();
-      openEdit(survey);
+      setEditorSurveyId(proj.survey_id);
+      setEditorInitialFields(undefined);
+      setEditorIsSimulated(undefined);
       setEditLinkActive(true);
+      setDrawerOpen(true);
     })();
   }, [editForProjectId]);
 
@@ -483,12 +360,10 @@ export default function SurveysPage() {
   useEffect(() => {
     if (!openSurveyId || autoOpenSurveyRef.current) return;
     autoOpenSurveyRef.current = true;
-    (async () => {
-      const res = await fetch(`/api/surveys/${openSurveyId}`);
-      if (!res.ok) return;
-      const { data: survey } = await res.json();
-      openEdit(survey);
-    })();
+    setEditorSurveyId(openSurveyId);
+    setEditorInitialFields(undefined);
+    setEditorIsSimulated(undefined);
+    setDrawerOpen(true);
   }, [openSurveyId]);
 
   // A Research Project's Evidence card "Open →" link carries this so the
@@ -511,110 +386,6 @@ export default function SurveysPage() {
     setTimeout(() => setToast(null), 4000);
   }
 
-  // ── Auto-translate all questions from English into editorLang ──────────────
-  // silent=true suppresses the "no English text" toast — used when auto-triggered
-  // right after adding a language, where having nothing to translate yet is normal.
-  async function handleTranslate(targetLang: LangCode = editorLang, silent = false) {
-    if (targetLang === "en" || translating) return;
-    setTranslating(true);
-
-    // Build a flat list of all EN texts to translate, tracking the structure
-    // so we can reassemble: [q0_text, q0_opt0, q0_opt1, ..., thankYouTitle, thankYouBody]
-    type Slot = { type: "question" | "option" | "thankYouTitle" | "thankYouBody"; qIdx?: number; oIdx?: number };
-    const structure: Slot[] = [];
-    const texts: string[] = [];
-
-    fields.questions.forEach((q, qi) => {
-      const enText = q.text.en ?? "";
-      if (enText.trim()) {
-        structure.push({ qIdx: qi, type: "question" });
-        texts.push(enText);
-      }
-      q.options.forEach((o, oi) => {
-        const enOpt = o.text.en ?? "";
-        if (enOpt.trim()) {
-          structure.push({ qIdx: qi, type: "option", oIdx: oi });
-          texts.push(enOpt);
-        }
-      });
-    });
-    if ((fields.thank_you_title.en ?? "").trim()) {
-      structure.push({ type: "thankYouTitle" });
-      texts.push(fields.thank_you_title.en!);
-    }
-    if ((fields.thank_you_body.en ?? "").trim()) {
-      structure.push({ type: "thankYouBody" });
-      texts.push(fields.thank_you_body.en!);
-    }
-
-    if (!texts.length) {
-      if (!silent) showToast("No English text to translate. Fill in the EN tab first.", false);
-      setTranslating(false);
-      return;
-    }
-
-    const res  = await fetch("/api/translate", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ texts, targetLang }),
-    });
-    const json = await res.json();
-
-    if (!res.ok) {
-      showToast(json.error ?? "Translation failed.", false);
-      setTranslating(false);
-      return;
-    }
-
-    const translations: string[] = json.translations;
-
-    // Apply translations back to the correct fields
-    setFields(f => {
-      const qs = f.questions.map(q => ({
-        ...q,
-        text:    { ...q.text },
-        options: q.options.map(o => ({ ...o, text: { ...o.text } })),
-      }));
-      let thankYouTitle = f.thank_you_title;
-      let thankYouBody  = f.thank_you_body;
-      structure.forEach((s, i) => {
-        const translated = translations[i];
-        if (!translated) return;
-        if (s.type === "question" && s.qIdx !== undefined) {
-          qs[s.qIdx].text[targetLang] = translated;
-        } else if (s.type === "option" && s.qIdx !== undefined && s.oIdx !== undefined) {
-          qs[s.qIdx].options[s.oIdx].text[targetLang] = translated;
-        } else if (s.type === "thankYouTitle") {
-          thankYouTitle = { ...thankYouTitle, [targetLang]: translated };
-        } else if (s.type === "thankYouBody") {
-          thankYouBody = { ...thankYouBody, [targetLang]: translated };
-        }
-      });
-      return { ...f, questions: qs, thank_you_title: thankYouTitle, thank_you_body: thankYouBody };
-    });
-
-    // Warn about any translated fields that exceed MPU character limits
-    let overLimit = 0;
-    structure.forEach((s, i) => {
-      const t = translations[i] ?? "";
-      if (s.type === "question" && t.length > MAX_Q_CHARS)  overLimit++;
-      if (s.type === "option"   && t.length > MAX_OPT_CHARS) overLimit++;
-      if (s.type === "thankYouTitle" && t.length > MAX_TY_TITLE) overLimit++;
-      if (s.type === "thankYouBody"  && t.length > MAX_TY_BODY) overLimit++;
-    });
-
-    const langLabel = SUPPORTED_LANGUAGES.find(l => l.code === targetLang)?.label ?? targetLang;
-    if (overLimit > 0) {
-      showToast(
-        `Translated into ${langLabel}, but ${overLimit} field${overLimit !== 1 ? "s" : ""} exceed the character limit. Review fields highlighted in red before saving.`,
-        false
-      );
-    } else {
-      showToast(`Translated ${texts.length} field${texts.length !== 1 ? "s" : ""} into ${langLabel}.`);
-    }
-    setTranslating(false);
-  }
-
   // ── Load ──────────────────────────────────────────────────────────────────
   const load = useCallback(async () => {
     setLoading(true);
@@ -629,8 +400,6 @@ export default function SurveysPage() {
 
   useEffect(() => { load(); }, [load]);
 
-  const brandOrgs = useMemo(() => orgs.filter(o => o.type === "brand"), [orgs]);
-  const agencyOrgs = useMemo(() => orgs.filter(o => o.type === "agency"), [orgs]);
   const orgById = useMemo(() => new Map(orgs.map(o => [o.id, o])), [orgs]);
   const orgName = useCallback((id: string | null) => (id ? orgById.get(id)?.name ?? "" : ""), [orgById]);
 
@@ -708,247 +477,64 @@ export default function SurveysPage() {
     setLoadingModal(false);
   }
 
-  // ── Drawer helpers ─────────────────────────────────────────────────────────
+  // ── Drawer helpers — open the shared SurveyEditor for create / edit ──────────
+  // The editor loads/prefills, validates and persists the survey itself; the
+  // page only tracks which survey and the link/return context.
   function openCreate() {
-    setFields({ ...BLANK_FIELDS, questions: [BLANK_Q()] });
-    setEditingId(null);
-    setEditingOriginalStatus(null);
-    setFormError("");
-    setEditorLang("en");
+    setEditorSurveyId(null);
+    setEditorInitialFields(undefined);
+    setEditorIsSimulated(undefined);
     setAutoLinkActive(false);
     setEditLinkActive(false);
-    setLinkedProjects([]);
     setDrawerOpen(true);
   }
 
   function openEdit(s: Survey) {
     setAutoLinkActive(false);
     setEditLinkActive(false);
-    setLinkedProjects([]);
-    // Read-only — which Research Project(s) currently point at this survey
-    // as their evidence (a survey can belong to more than one at once).
-    fetch("/api/research-projects").then(r => r.json()).then(json => {
-      const projects = (json.data ?? []) as { id: string; project_name: string; survey_id: string | null }[];
-      setLinkedProjects(projects.filter(p => p.survey_id === s.id).map(p => ({ id: p.id, project_name: p.project_name })));
-    }).catch(() => {});
-    setEditingOriginalStatus(s.status);
-    setFields({
-      name:           s.name,
-      description:    s.description,
-      brand_org_id:   s.brand_org_id ?? "",
-      agency_org_id:  s.agency_org_id ?? "",
-      topic:          s.topic ?? "",
-      study_type:     s.study_type ?? "custom",
-      questions:      s.questions,
-      thank_you_title: s.thank_you_title ?? { en: "Thank you!" },
-      thank_you_body:  s.thank_you_body ?? { en: "Your response has been recorded." },
-      enabled_languages: s.enabled_languages?.length ? s.enabled_languages : ["en"],
-      status: (s.status === "draft" || s.status === "ready") ? s.status : "draft",
-      is_template: s.is_template,
-    });
-    setEditingId(s.id);
-    setFormError("");
+    setEditorSurveyId(s.id);
+    setEditorInitialFields(undefined);
+    setEditorIsSimulated(undefined);
     setDrawerOpen(true);
   }
 
-  async function handleSave() {
-    if (!fields.name?.trim()) { setFormError("Survey name is required."); return; }
-    const qs = fields.questions ?? [];
-    if (!qs.length) { setFormError("At least one question is required."); return; }
-    for (const q of qs) {
-      if (!(q.text.en ?? "").trim()) { setFormError("All questions need English text."); return; }
-      if (q.options.filter(o => (o.text.en ?? "").trim()).length < 2) {
-        setFormError("Each question needs at least 2 English answers."); return;
-      }
-    }
-
-    // Run full MPU validation — validator handles localised shape
-    const cleanedQs = qs.map(q => ({
-      ...q,
-      options: q.options
-        .filter(o => (o.text.en ?? "").trim())
-        .map((o, i) => ({ ...o, id: i + 1 })),  // reindex IDs after any deletions
-    }));
-    const validationErrors = validateSurvey({
-      name:            fields.name,
-      questions:       cleanedQs,
-      thank_you_title: fields.thank_you_title,
-      thank_you_body:  fields.thank_you_body,
-    });
-
-    const wantsReady = fields.status === "ready";
-    const wasReady   = editingOriginalStatus === "ready";
-
-    if (validationErrors.length > 0) {
-      if (wantsReady && !wasReady) {
-        // User is trying to set status to Ready — block until fixed
-        setFormError(
-          `This survey cannot be marked Ready until all MPU validation errors are fixed.\n${validationErrors[0]}`
-        );
-        return;
-      }
-      // If the survey WAS ready (editing an existing one) but is now invalid →
-      // auto-downgrade to Draft and continue saving with a warning toast.
-      // If it was draft/other and isn't trying to be Ready → just save as-is.
-    }
-
-    setFormError(""); setSaving(true);
-
-    // Determine effective save status
-    let saveStatus: "draft" | "ready" | "archived" = fields.status as "draft" | "ready";
-    const autoDowngraded = wasReady && validationErrors.length > 0;
-    if (editingOriginalStatus === "archived") {
-      saveStatus = "archived";                         // preserve archived
-    } else if (autoDowngraded || (wantsReady && validationErrors.length > 0)) {
-      saveStatus = "draft";                            // auto-downgrade
-    }
-
-    const payload = {
-      ...fields,
-      status:    saveStatus,
-      questions: cleanedQs,
-      // Only set on a brand-new survey created for a linked project — the
-      // survey must inherit that project's research_mode or the
-      // evidence-attach below gets rejected by the provenance trigger.
-      // Editing an existing survey never touches its provenance.
-      ...(!editingId && autoLinkActive ? { is_simulated: linkedProjectResearchMode === "simulated" } : {}),
-    };
-
-    const res = await fetch(
-      editingId ? `/api/surveys/${editingId}` : "/api/surveys",
-      { method: editingId ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) }
-    );
-
-    setSaving(false);
-
-    const json = await res.json().catch(() => ({}));
-
-    if (!res.ok) {
-      setFormError(json.error ?? "Failed to save survey. Please try again.");
-      return; // keep drawer open so the user sees the error
-    }
-
+  // Post-save routing. The shared SurveyEditor persists the survey and shows
+  // the success/error (and auto-downgrade) toast; the page only decides where
+  // to go next. Behaviour is unchanged from the previous inline editor: a
+  // survey created for a linked project attaches + returns to that Workspace;
+  // an edit-for-project or plain Open→ returns; otherwise stay + refresh.
+  async function handleEditorSaved({ survey, isCreate }: { survey: { id: string }; isCreate: boolean; autoDowngraded: boolean }) {
     setDrawerOpen(false);
 
-    // Evidence Orchestration (Phase 2, Step 2): a survey created via a
-    // Research Project's "Create Evidence" flow attaches back to the
-    // project that started it automatically, then returns there — the
-    // user should never have to manually reconnect it. Goes through the
-    // shared evidence endpoint (not a raw PUT survey_id) so it lands in
-    // research_project_evidence alongside every other evidence source.
-    if (autoLinkActive && linkedProjectId) {
-      const newSurveyId = json.data?.id;
+    if (autoLinkActive && linkedProjectId && isCreate) {
       const workspaceHref = linkedProjectResearchMode === "simulated"
         ? `/product-walkthrough/${linkedProjectId}`
         : `/research-projects/${linkedProjectId}`;
-      if (newSurveyId) {
-        const attachRes = await fetch(`/api/research-projects/${linkedProjectId}/evidence`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ evidence_type: "survey", evidence_id: newSurveyId }),
-        });
-        if (!attachRes.ok) {
-          const attachJson = await attachRes.json().catch(() => ({}));
-          // Stay put rather than navigate away — a toast that fires right
-          // before router.push would just vanish with the page unmounting,
-          // and this is exactly the failure the user needs to see, not miss.
-          showToast(attachJson.error ?? "Survey saved, but couldn't be attached to the project.", false);
-          return;
-        }
+      const attachRes = await fetch(`/api/research-projects/${linkedProjectId}/evidence`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ evidence_type: "survey", evidence_id: survey.id }),
+      });
+      if (!attachRes.ok) {
+        const attachJson = await attachRes.json().catch(() => ({}));
+        showToast(attachJson.error ?? "Survey saved, but couldn't be attached to the project.", false);
+        return;
       }
       router.push(`${workspaceHref}?evidenceAdded=1`);
       return;
     }
 
-    // Deployment Readiness (Phase 2, Step 3): editing the project's already-
-    // attached survey to add a missing translation — nothing to attach,
-    // just return so the Workspace wizard can re-check language coverage.
     if (editLinkActive && editForProjectId) {
       router.push(`/research-projects/${editForProjectId}?evidenceAdded=1`);
       return;
     }
 
-    // Plain "Open →" from a Research Project's Evidence card — always
-    // returns to that Workspace on save too, not just on close, so the
-    // Workspace never feels like somewhere you can get stranded away from.
     if (returnToProjectId) {
       router.push(`/research-projects/${returnToProjectId}?returned=1`);
       return;
     }
 
-    if (autoDowngraded) {
-      setToast({ msg: "Survey has validation issues and was moved back to Draft.", ok: false });
-      setTimeout(() => setToast(null), 6000);
-    } else {
-      showToast(editingId ? "Survey updated." : "Survey created.");
-    }
     load();
-  }
-
-  // ── Question editing ───────────────────────────────────────────────────────
-  function setQText(idx: number, lang: LangCode, text: string) {
-    setFields(f => ({
-      ...f,
-      questions: f.questions.map((q, i) =>
-        i === idx ? { ...q, text: { ...q.text, [lang]: text } } : q
-      ),
-    }));
-  }
-  function setThankYouText(field: "thank_you_title" | "thank_you_body", lang: LangCode, text: string) {
-    setFields(f => ({ ...f, [field]: { ...f[field], [lang]: text } }));
-  }
-
-  // ── Language management ─────────────────────────────────────────────────────
-  function addLanguage(lang: LanguageOption) {
-    setFields(f => f.enabled_languages.includes(lang.code) ? f : { ...f, enabled_languages: [...f.enabled_languages, lang.code] });
-    setEditorLang(lang.code as LangCode);
-    if (lang.autoTranslatable) {
-      handleTranslate(lang.code as LangCode, /* silent */ true);
-    } else {
-      showToast(`${lang.label} added, Fanometrix can't auto-translate this language yet, so it needs to be filled in manually.`);
-    }
-  }
-  function removeLanguage(code: string) {
-    if (code === "en") return; // English can never be removed — it's the required fallback
-    setFields(f => ({ ...f, enabled_languages: f.enabled_languages.filter(l => l !== code) }));
-    if (editorLang === code) setEditorLang("en");
-  }
-  function addQuestion() {
-    if (fields.questions.length >= MAX_QUESTIONS) return;
-    setFields(f => ({ ...f, questions: [...f.questions, BLANK_Q()] }));
-  }
-  function removeQuestion(idx: number) {
-    setFields(f => ({ ...f, questions: f.questions.filter((_, i) => i !== idx) }));
-  }
-  function setOptionText(qIdx: number, oIdx: number, lang: LangCode, val: string) {
-    setFields(f => ({
-      ...f,
-      questions: f.questions.map((q, i) =>
-        i === qIdx
-          ? { ...q, options: q.options.map((o, j) => j === oIdx ? { ...o, text: { ...o.text, [lang]: val } } : o) }
-          : q
-      ),
-    }));
-  }
-  function addOption(qIdx: number) {
-    setFields(f => ({
-      ...f,
-      questions: f.questions.map((q, i) =>
-        i === qIdx
-          ? { ...q, options: [...q.options, { id: q.options.length + 1, text: { en: "" } } as LocalisedOption] }
-          : q
-      ),
-    }));
-  }
-  function removeOption(qIdx: number, oIdx: number) {
-    setFields(f => ({
-      ...f,
-      questions: f.questions.map((q, i) =>
-        i === qIdx
-          ? { ...q, options: q.options.filter((_, j) => j !== oIdx).map((o, k) => ({ ...o, id: k + 1 })) }
-          : q
-      ),
-    }));
   }
 
   // ── Survey actions ─────────────────────────────────────────────────────────
@@ -1502,348 +1088,21 @@ export default function SurveysPage() {
       {drawerOpen && (
         <div className="fixed inset-0 z-50 flex">
           <div className="flex-1 bg-black/40" onClick={closeDrawer} />
-          <div className="w-full sm:w-[520px] bg-white flex flex-col shadow-2xl overflow-hidden">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-              <h2 className="font-bold text-gray-900">{editingId ? "Edit Survey" : "Create Survey"}</h2>
-              <button onClick={closeDrawer} className="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
+          <div className="w-full sm:w-[520px] flex flex-col shadow-2xl overflow-hidden" style={{ background: "var(--surface-sunken)" }}>
+            <div className="flex items-center justify-between px-6 py-4 border-b" style={{ background: "var(--surface)", borderColor: "var(--border-subtle)" }}>
+              <h2 className="font-bold" style={{ color: "var(--text-primary)" }}>{editorSurveyId ? "Edit survey" : "Create survey"}</h2>
+              <button onClick={closeDrawer} className="text-xl leading-none hover:opacity-70" style={{ color: "var(--text-tertiary)" }}>×</button>
             </div>
-
-            <div className="flex-1 overflow-y-auto p-6 space-y-4">
-
-              {/* Linked Research Project(s) — read-only, a survey can be evidence for more than one at once */}
-              {linkedProjects.length > 0 && (
-                <div className="bg-gray-50 border border-gray-100 rounded-lg px-4 py-2.5">
-                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
-                    Linked Research Project{linkedProjects.length !== 1 ? "s" : ""}
-                  </p>
-                  <div className="flex flex-wrap gap-x-3 gap-y-1">
-                    {linkedProjects.map(p => (
-                      <Link key={p.id} href={`/research-projects/${p.id}`} target="_blank" className="text-xs font-medium text-[#0B1929] hover:underline">
-                        {p.project_name} ↗
-                      </Link>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Info banner for archived surveys */}
-              {editingOriginalStatus === "archived" && (
-                <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
-                  <p className="text-xs font-semibold text-amber-800">Editing an archived survey</p>
-                  <p className="text-xs text-amber-700 mt-0.5">Content changes will be saved. The survey will remain archived, use Restore to make it active again.</p>
-                </div>
-              )}
-
-              <DrawerSection step={1} title="Survey Identity" subtitle="Name, description, and status for this survey.">
-                <NameBuilder
-                  topic={fields.topic}
-                  onTopicChange={v => setFields(f => ({ ...f, topic: v }))}
-                  brandOrgId={fields.brand_org_id}
-                  onBrandChange={v => setFields(f => ({ ...f, brand_org_id: v }))}
-                  brandOptions={brandOrgs}
-                  agencyOrgId={fields.agency_org_id}
-                  onAgencyChange={v => setFields(f => ({ ...f, agency_org_id: v }))}
-                  agencyOptions={agencyOrgs}
-                  studyType={fields.study_type}
-                  onStudyTypeChange={v => setFields(f => ({ ...f, study_type: v }))}
-                  hasSlug={false}
-                  onAutoGenerate={() => {
-                    const n = generateStudyName(
-                      fields.topic, studyTypeLabel(fields.study_type),
-                      orgName(fields.brand_org_id || null), orgName(fields.agency_org_id || null)
-                    );
-                    if (n) setFields(f => ({ ...f, name: n }));
-                  }}
-                  preview={generateStudyName(
-                    fields.topic, studyTypeLabel(fields.study_type),
-                    orgName(fields.brand_org_id || null), orgName(fields.agency_org_id || null)
-                  )}
-                />
-
-                <Field label="Survey Name *">
-                  <input
-                    value={fields.name}
-                    onChange={e => setFields(f => ({ ...f, name: e.target.value }))}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A]"
-                    placeholder="e.g. Carlsberg - Fan Understanding - v1"
-                  />
-                </Field>
-
-                <Field label="Description">
-                  <input
-                    value={fields.description ?? ""}
-                    onChange={e => setFields(f => ({ ...f, description: e.target.value || null }))}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A]"
-                    placeholder="Optional description"
-                  />
-                </Field>
-
-                {/* Status select, hidden when editing an archived survey (status is preserved automatically) */}
-                {editingOriginalStatus !== "archived" && (
-                  <div className="grid grid-cols-2 gap-3">
-                    <Field label="Status">
-                      <select
-                        value={fields.status}
-                        onChange={e => setFields(f => ({ ...f, status: e.target.value as "draft" | "ready" }))}
-                        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A]"
-                      >
-                        <option value="draft">Draft, still being edited</option>
-                        <option value="ready">Ready, can be attached to campaigns</option>
-                      </select>
-                    </Field>
-                    <div className="flex items-end pb-2">
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={fields.is_template}
-                          onChange={e => setFields(f => ({ ...f, is_template: e.target.checked }))}
-                          className="accent-[#D7B87A] w-4 h-4"
-                        />
-                        <span className="text-sm text-gray-700">Mark as template</span>
-                      </label>
-                    </div>
-                  </div>
-                )}
-
-                {editingOriginalStatus === "archived" && (
-                  <div className="flex items-center pb-1">
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={fields.is_template}
-                        onChange={e => setFields(f => ({ ...f, is_template: e.target.checked }))}
-                        className="accent-[#D7B87A] w-4 h-4"
-                      />
-                      <span className="text-sm text-gray-700">Mark as template</span>
-                    </label>
-                  </div>
-                )}
-              </DrawerSection>
-
-              <DrawerSection
-                step={2}
-                title="Questions"
-                subtitle={`Up to ${MAX_QUESTIONS} questions, ${MAX_OPTIONS} answers each. English is required, translations are optional.`}
-                prominent
-              >
-                <div className="flex items-center justify-between mb-1">
-                  <label className="text-xs font-semibold text-gray-600">
-                    {fields.questions.length} of {MAX_QUESTIONS} added
-                  </label>
-                  <button
-                    onClick={addQuestion}
-                    disabled={fields.questions.length >= MAX_QUESTIONS}
-                    className="text-xs text-[#D7B87A] hover:text-[#C9A766] disabled:opacity-30"
-                  >
-                    + Add question
-                  </button>
-                </div>
-
-                {/* Language selector tabs */}
-                <div className="flex gap-1 mb-2 flex-wrap items-center">
-                  {(() => {
-                    const completedLangs = getCompletedLanguages({
-                      questions: fields.questions,
-                      thank_you_title: fields.thank_you_title,
-                      thank_you_body: fields.thank_you_body,
-                    });
-                    return fields.enabled_languages.map(code => {
-                      const lang = SUPPORTED_LANGUAGES.find(l => l.code === code);
-                      if (!lang) return null;
-                      const isActive   = editorLang === code;
-                      const isEN       = code === "en";
-                      const isComplete = !isEN && completedLangs.includes(code as LangCode);
-                      const hasAny = !isEN && fields.questions.some(q => (q.text[code as LangCode] ?? "").trim());
-                      return (
-                        <span key={code} className="inline-flex items-center">
-                          <button
-                            type="button"
-                            onClick={() => setEditorLang(code as LangCode)}
-                            className={`text-xs pl-2.5 pr-1.5 py-1 rounded-lg border font-medium transition-colors flex items-center gap-1.5 ${
-                              isActive
-                                ? "bg-[#0B1929] text-[#D7B87A] border-[#0B1929]"
-                                : "bg-white text-gray-500 border-gray-200 hover:border-[#D7B87A]"
-                            } ${isEN ? "pr-2.5" : ""}`}
-                          >
-                            {lang.label}{isEN ? " *" : ""}
-                            {isComplete && <span className="w-1.5 h-1.5 rounded-full bg-green-500 flex-shrink-0" />}
-                            {hasAny && !isComplete && <span className="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0" />}
-                            {!isEN && (
-                              <span
-                                role="button"
-                                onClick={e => { e.stopPropagation(); removeLanguage(code); }}
-                                className={`leading-none ml-0.5 ${isActive ? "text-[#D7B87A]/70 hover:text-[#D7B87A]" : "text-gray-300 hover:text-gray-500"}`}
-                                title={`Remove ${lang.label}`}
-                              >
-                                ×
-                              </span>
-                            )}
-                          </button>
-                        </span>
-                      );
-                    });
-                  })()}
-                  <AddLanguageButton enabledLanguages={fields.enabled_languages} onAdd={addLanguage} />
-                  {editorLang !== "en" && (() => {
-                    const lang = SUPPORTED_LANGUAGES.find(l => l.code === editorLang);
-                    return lang?.autoTranslatable ? (
-                      <button
-                        type="button"
-                        onClick={() => handleTranslate()}
-                        disabled={translating}
-                        className="ml-auto text-xs font-semibold px-3 py-1 rounded-lg border-2 border-[#D7B87A] text-[#0B1929] hover:bg-[#FBF5E8] disabled:opacity-50 transition-colors"
-                      >
-                        {translating ? "Translating…" : "✦ Translate from English"}
-                      </button>
-                    ) : (
-                      <span className="ml-auto text-xs text-gray-400">Automatic translation isn&apos;t available for this language yet.</span>
-                    );
-                  })()}
-                </div>
-                {editorLang !== "en" && !translating && (
-                  <p className="text-xs text-gray-400 mb-3">
-                    Optional, leave blank to show English as fallback. Click &quot;Translate from English&quot; to auto-fill.
-                  </p>
-                )}
-
-                <div className="space-y-4">
-                  {fields.questions.map((q, qi) => {
-                    const qVal  = (q.text[editorLang] ?? "");
-                    const qOver = qVal.length > MAX_Q_CHARS;
-                    return (
-                      <div key={q.id} className={`border rounded-xl p-4 space-y-3 ${qOver ? "border-red-200" : "border-gray-200"}`}>
-                        <div className="flex items-start gap-2">
-                          <span className="text-xs font-bold text-[#0B1929] w-6 mt-1.5">Q{qi + 1}</span>
-                          <div className="flex-1 min-w-0">
-                            <input
-                              value={qVal}
-                              maxLength={MAX_Q_CHARS + 10}
-                              onChange={e => setQText(qi, editorLang, e.target.value)}
-                              className={`w-full border rounded-lg px-3 py-1.5 text-sm focus:outline-none ${
-                                qOver
-                                  ? "border-red-300 focus:border-red-400"
-                                  : "border-gray-200 focus:border-[#D7B87A]"
-                              }`}
-                              placeholder={
-                                editorLang === "en"
-                                  ? "Question text…"
-                                  : (q.text.en ? `"${q.text.en}"` : "Question text…")
-                              }
-                            />
-                            <div className="flex justify-end mt-0.5">
-                              <CharCount len={qVal.length} max={MAX_Q_CHARS} />
-                            </div>
-                          </div>
-                          {fields.questions.length > 1 && (
-                            <button onClick={() => removeQuestion(qi)} className="text-red-400 hover:text-red-600 text-xs mt-1.5 flex-shrink-0">✕</button>
-                          )}
-                        </div>
-                        <div className="space-y-2 pl-8">
-                          {q.options.map((opt, oi) => {
-                            const oVal  = (opt.text[editorLang] ?? "");
-                            const oOver = oVal.length > MAX_OPT_CHARS;
-                            return (
-                              <div key={opt.id}>
-                                <div className="flex items-center gap-2">
-                                  <input
-                                    value={oVal}
-                                    maxLength={MAX_OPT_CHARS + 5}
-                                    onChange={e => setOptionText(qi, oi, editorLang, e.target.value)}
-                                    className={`flex-1 border rounded-lg px-2 py-1 text-xs focus:outline-none ${
-                                      oOver
-                                        ? "border-red-300 focus:border-red-400"
-                                        : "border-gray-100 focus:border-[#D7B87A]"
-                                    }`}
-                                    placeholder={
-                                      editorLang === "en"
-                                        ? `Option ${oi + 1}`
-                                        : (opt.text.en ? `"${opt.text.en}"` : `Option ${oi + 1}`)
-                                    }
-                                  />
-                                  {q.options.length > 2 && (
-                                    <button onClick={() => removeOption(qi, oi)} className="text-gray-300 hover:text-red-400 text-xs flex-shrink-0">✕</button>
-                                  )}
-                                </div>
-                                {oVal.length > 0 && (
-                                  <div className="flex justify-end">
-                                    <CharCount len={oVal.length} max={MAX_OPT_CHARS} />
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          })}
-                          {q.options.length < MAX_OPTIONS && editorLang === "en" && (
-                            <button onClick={() => addOption(qi)} className="text-xs text-[#D7B87A] hover:text-[#C9A766]">+ Add option</button>
-                          )}
-                          {q.options.length >= MAX_OPTIONS && (
-                            <p className="text-xs text-gray-400">Maximum {MAX_OPTIONS} answers per question.</p>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </DrawerSection>
-
-              <DrawerSection step={3} title="Thank You Screen" subtitle="Shown to fans after they finish the survey.">
-                <div className="flex items-center justify-end">
-                  <p className="text-xs text-gray-400">
-                    Editing: {SUPPORTED_LANGUAGES.find(l => l.code === editorLang)?.label ?? editorLang}
-                  </p>
-                </div>
-                <div>
-                  <input
-                    value={fields.thank_you_title[editorLang] ?? ""}
-                    maxLength={MAX_TY_TITLE + 5}
-                    onChange={e => setThankYouText("thank_you_title", editorLang, e.target.value)}
-                    className={`w-full border rounded-lg px-3 py-1.5 text-sm focus:outline-none bg-white ${
-                      (fields.thank_you_title[editorLang] ?? "").length > MAX_TY_TITLE
-                        ? "border-red-300 focus:border-red-400"
-                        : "border-gray-200 focus:border-[#D7B87A]"
-                    }`}
-                    placeholder="Thank you title"
-                  />
-                  <div className="flex justify-end mt-0.5">
-                    <CharCount len={(fields.thank_you_title[editorLang] ?? "").length} max={MAX_TY_TITLE} />
-                  </div>
-                </div>
-                <div>
-                  <input
-                    value={fields.thank_you_body[editorLang] ?? ""}
-                    maxLength={MAX_TY_BODY + 10}
-                    onChange={e => setThankYouText("thank_you_body", editorLang, e.target.value)}
-                    className={`w-full border rounded-lg px-3 py-1.5 text-sm focus:outline-none bg-white ${
-                      (fields.thank_you_body[editorLang] ?? "").length > MAX_TY_BODY
-                        ? "border-red-300 focus:border-red-400"
-                        : "border-gray-200 focus:border-[#D7B87A]"
-                    }`}
-                    placeholder="Thank you message"
-                  />
-                  <div className="flex justify-end mt-0.5">
-                    <CharCount len={(fields.thank_you_body[editorLang] ?? "").length} max={MAX_TY_BODY} />
-                  </div>
-                </div>
-                {editorLang !== "en" && (
-                  <p className="text-xs text-gray-400">
-                    Optional, leave blank to show English as fallback.
-                  </p>
-                )}
-              </DrawerSection>
-
-              {formError && <p className="text-red-500 text-xs">{formError}</p>}
-            </div>
-
-            <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-3">
-              <button onClick={closeDrawer} className="text-sm text-gray-500 hover:text-gray-700 px-4 py-2">Cancel</button>
-              <button
-                onClick={handleSave}
-                disabled={saving}
-                className="text-sm font-semibold px-5 py-2 rounded-lg disabled:opacity-60 hover:opacity-90 transition-opacity"
-                style={{ background: GOLD, color: "#0B1929" }}
-              >
-                {saving ? "Saving…" : "Save Survey"}
-              </button>
-            </div>
+            {/* The one canonical Survey editor — the same component mounted in a
+                Research Project. It loads/prefills, validates, translates and
+                persists; the page only routes on save (handleEditorSaved). */}
+            <SurveyEditor
+              surveyId={editorSurveyId ?? undefined}
+              initialFields={editorInitialFields}
+              isSimulated={editorIsSimulated}
+              onSaved={handleEditorSaved}
+              onCancel={closeDrawer}
+            />
           </div>
         </div>
       )}

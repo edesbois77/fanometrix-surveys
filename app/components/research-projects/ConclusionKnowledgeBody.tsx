@@ -26,11 +26,10 @@
 //
 // Chromeless: AdminShell, the ProjectProvider data layer and the project
 // header + navigation are provided by the (workspace) shell layout.
-import Link from "next/link";
 import { useResearchProject, type Conclusion } from "@/app/components/research-projects/ProjectProvider";
 import { ConclusionSection } from "@/app/components/research-projects/ConclusionSection";
 import { KnowledgeSection } from "@/app/components/research-projects/KnowledgeSection";
-import { PageIntro } from "@/app/components/research-projects/PageIntro";
+import { PageContainer, WorkspaceHeader, PageLoadingState, ErrorState } from "@/app/components/workspace-ui";
 import { StatusBadge } from "@/app/components/research-projects/ActionPrimitives";
 import { formatRelativeTime } from "@/lib/format-relative-time";
 import { NAVY, GOLD } from "@/lib/intelligence/theme";
@@ -77,16 +76,11 @@ function PublishedAnswerHeadline({ conclusion }: { conclusion: Conclusion }) {
 export function ConclusionKnowledgeBody() {
   const { project, loading, error } = useResearchProject();
 
-  if (loading && !project) return (
-    <div className="p-6 flex items-center justify-center h-64">
-      <p className="text-gray-400 text-sm">Loading research project…</p>
-    </div>
-  );
+  if (loading && !project) return <PageContainer><PageLoadingState /></PageContainer>;
   if (error || !project) return (
-    <div className="p-6 max-w-5xl mx-auto text-center py-20">
-      <p className="text-gray-400 mb-4">{error || "Research project not found."}</p>
-      <Link href="/research-projects" className="text-[#D7B87A] hover:underline text-sm">← Back to Research Projects</Link>
-    </div>
+    <PageContainer>
+      <ErrorState title="Research project not found" description={error || "We couldn't load this project's conclusions."} />
+    </PageContainer>
   );
 
   const displayName = project.research_mode === "simulated" && project.topic?.trim()
@@ -94,10 +88,19 @@ export function ConclusionKnowledgeBody() {
     : project.project_name;
 
   const published = project.published_conclusion;
+  const reportReady = project.report_status === "approved" || project.report_status === "published";
 
   return (
-    <div className="p-4 md:p-6 max-w-5xl mx-auto space-y-4">
-      <PageIntro>Capture the final answer to your research and retain the knowledge generated for future projects.</PageIntro>
+    <PageContainer>
+      <WorkspaceHeader
+        title="Conclusions"
+        description="Capture the final answer to your research and retain the knowledge generated for future projects."
+        status={published
+          ? { label: "Published", tone: "success", dot: true }
+          : reportReady
+            ? { label: "Ready to conclude", tone: "info", dot: true }
+            : { label: "Awaiting report", tone: "neutral", dot: true }}
+      />
 
       {/* Promoted headline — the answer first, only once it's published. */}
       {published && <PublishedAnswerHeadline conclusion={published} />}
@@ -106,7 +109,7 @@ export function ConclusionKnowledgeBody() {
           When a headline is shown above, this is the management surface for it;
           otherwise it's how the conclusion gets created in the first place. */}
       {published && (
-        <p className="text-xs text-gray-400 px-1 pt-1">Manage the answer below — review, edit, regenerate or republish it.</p>
+        <p className="text-xs text-gray-400 px-1 pt-1">Manage the answer below. Review, edit, regenerate or republish it.</p>
       )}
       <ConclusionSection
         projectId={project.id}
@@ -119,8 +122,8 @@ export function ConclusionKnowledgeBody() {
       {/* Knowledge — deliberately separated from the Conclusion above: the
           Conclusion is the answer to *this* project; Knowledge is the reusable
           intelligence that outlives it. */}
-      <p className="text-xs text-gray-400 px-1 pt-2">Knowledge is the reusable intelligence this research leaves behind — it lives beyond this project, distinct from the conclusion above.</p>
+      <p className="text-xs text-gray-400 px-1 pt-2">Knowledge is the reusable intelligence this research leaves behind. It lives beyond this project, distinct from the conclusion above.</p>
       <KnowledgeSection publishedConclusion={project.published_conclusion} />
-    </div>
+    </PageContainer>
   );
 }

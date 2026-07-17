@@ -181,13 +181,67 @@ html {
 :root {
   --background: #ffffff;
   --foreground: #171717;
+
+  /* ── Workspace foundation tokens (UI v2, Phase 1) ────────────────────────
+     Kept in sync with app/components/workspace-ui/tokens.ts. Declared here so
+     Tailwind arbitrary values (e.g. bg-[var(--surface-sunken)]) and inline
+     styles can both read one source. The TS module is the JS-side mirror. */
+
+  /* Surfaces */
+  --page-bg:        #F6F7F9;
+  --surface:        #FFFFFF;
+  --surface-sunken: #F1F3F5;
+  --surface-hover:  #F8F9FB;
+  --surface-cover:  #ECEFF3;  /* full-width project "cover" band — a calm blue-grey, a touch deeper than the page so it reads as a distinct editorial zone without a border */
+
+  /* Borders */
+  --border-subtle:  #EEF0F3;
+  --border-default: #E3E6EA;
+  --border-strong:  #D4D8DE;
+
+  /* Text */
+  --text-primary:   #181B20;
+  --text-secondary: #565E6B;
+  --text-tertiary:  #858D99;
+  --text-disabled:  #AAB0B9;
+
+  /* Brand accents */
+  --brand-navy:     #0B1929;
+  --accent-gold:    #D7B87A;
+  --accent-ink:     #8A6D2F;
+  --accent-wash:    #FBF3E1;
+
+  /* Radii — architectural, sharpened toward Linear / Stripe / Vercel while
+     keeping the calm editorial feel. Components consume the semantic aliases
+     (control / tile / panel), so tuning radius is one place and every workspace
+     inherits it automatically. Status badges stay pills (rounded-full). */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 8px;
+  --radius-xl: 10px;
+  --radius-control: 8px;   /* buttons, inputs, chips */
+  --radius-tile: 8px;      /* metric / stat tiles */
+  --radius-panel: 10px;    /* cards, large panels */
+
+  /* Elevation — whisper-light; borders carry structure */
+  --shadow-xs: 0 1px 2px rgba(16, 24, 40, 0.04);
+  --shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.05), 0 1px 3px rgba(16, 24, 40, 0.04);
+  --shadow-md: 0 4px 12px rgba(16, 24, 40, 0.06), 0 2px 4px rgba(16, 24, 40, 0.04);
+  --shadow-lg: 0 12px 32px rgba(16, 24, 40, 0.10), 0 4px 8px rgba(16, 24, 40, 0.05);
+
+  /* Content column width — shared by ProjectShell header/nav and PageContainer */
+  --page-max: 64rem;
 }
 
+/* The premium sans. Geist is loaded in app/layout.tsx as --font-geist; wire it
+   to Tailwind's --font-sans and the body so the whole app actually uses it.
+   (Previously --font-sans pointed at a non-existent --font-geist-sans and the
+   body fell back to Arial — Geist was loaded but never applied.) */
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-geist), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -200,5 +254,50 @@ html {
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* ── Workspace foundation helpers ──────────────────────────────────────────── */
+
+/* Tabular figures for stat tiles / metrics so digits line up as they change. */
+.fx-tabular-nums { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
+
+/* Shimmer used by the skeleton loading state (workspace-ui States). */
+@keyframes fx-skeleton-shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.fx-skeleton {
+  background: linear-gradient(90deg, var(--surface-sunken) 25%, #E9ECEF 37%, var(--surface-sunken) 63%);
+  background-size: 200% 100%;
+  animation: fx-skeleton-shimmer 1.4s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .fx-skeleton { animation: none; }
+}
+
+/* Indeterminate progress sweep (workspace-ui ProgressBar / GenerationProgress). */
+@keyframes fx-indeterminate-kf {
+  0%   { left: -40%; }
+  100% { left: 100%; }
+}
+.fx-indeterminate {
+  position: absolute;
+  top: 0; bottom: 0;
+  animation: fx-indeterminate-kf 1.3s ease-in-out infinite;
+}
+
+/* Gentle attention pulse for "the model is working" affordances. */
+@keyframes fx-pulse-kf {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.45; }
+}
+.fx-pulse { animation: fx-pulse-kf 1.6s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .fx-indeterminate { animation: none; left: 0; width: 100% !important; opacity: 0.5; }
+  .fx-pulse { animation: none; }
 }

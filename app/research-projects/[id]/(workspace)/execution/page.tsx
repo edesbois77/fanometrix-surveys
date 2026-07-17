@@ -1,13 +1,16 @@
 "use client";
 
-// The Execution area — the operational workspace where research is configured,
-// deployed and run: the per-source cards with campaigns, creative, deployment
-// and Run Research, plus the read-only Campaign Groups view. The (workspace)
-// shell layout provides AdminShell, the ProjectProvider data layer and the
-// project header + navigation, so this page renders the body chromeless. See
-// ExecutionBody.
-import { ExecutionBody } from "@/app/components/research-projects/ExecutionBody";
+// The Execution homepage — the operational twin of the Research homepage. It
+// presents the three operation workflows (Surveys · Conversation Searches ·
+// Documents) as live operational summary cards that guide the user into each.
+// The (workspace) shell layout provides AdminShell, the ProjectProvider data
+// layer and the project header + navigation, so this page renders the body
+// chromeless. See ExecutionHomeBody.
+//
+// The old single-page operational surface (ExecutionBody) is retired in a later
+// phase; the file is retained meanwhile.
+import { ExecutionHomeBody } from "@/app/components/research-projects/ExecutionHomeBody";
 
 export default function ResearchProjectExecutionPage() {
-  return <ExecutionBody />;
+  return <ExecutionHomeBody />;
 }

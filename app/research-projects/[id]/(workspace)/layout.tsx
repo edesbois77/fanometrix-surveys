@@ -17,6 +17,8 @@ import { useParams } from "next/navigation";
 import { AdminShell } from "@/app/components/AdminShell";
 import { ProjectProvider } from "@/app/components/research-projects/ProjectProvider";
 import { ProjectShell } from "@/app/components/research-projects/ProjectShell";
+import { ProjectPageHeader } from "@/app/components/research-projects/ProjectPageHeader";
+import { WorkspaceRecordProvider } from "@/app/components/research-projects/WorkspaceRecordContext";
 
 export default function ResearchProjectShellLayout({ children }: { children: React.ReactNode }) {
   const params = useParams();
@@ -24,8 +26,16 @@ export default function ResearchProjectShellLayout({ children }: { children: Rea
   return (
     <AdminShell>
       <ProjectProvider projectId={id}>
-        <ProjectShell />
-        {children}
+        {/* Shell = navigation only; page header = project introduction. Every
+            area inherits the same opening: nav (ProjectShell) → project header
+            (ProjectPageHeader) → the page's own content below. The record
+            provider lets a source opened inside the project (a survey, search or
+            document) surface its name into the header breadcrumb. */}
+        <WorkspaceRecordProvider>
+          <ProjectShell />
+          <ProjectPageHeader />
+          {children}
+        </WorkspaceRecordProvider>
       </ProjectProvider>
     </AdminShell>
   );

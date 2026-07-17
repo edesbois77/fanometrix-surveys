@@ -1,13 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth-server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { getProjectSocialSearchIds } from "@/lib/research-sources/project-searches";
+
+const EMPTY_STATS = { total: 0, positive_pct: 0, neutral_pct: 0, negative_pct: 0, topTopics: [], topPlatforms: [], topMarkets: [] };
 
 export async function GET(req: NextRequest) {
   try { await requireUser(req, ["admin"]); } catch (err) { return err as Response; }
 
   const searchId = req.nextUrl.searchParams.get("search_id");
+  // Additive project scope: aggregate across every conversation search attached
+  // to the project. `search_id` (single search) keeps priority; with neither the
+  // endpoint is platform-wide, exactly as before.
+  const projectId = req.nextUrl.searchParams.get("research_project_id");
+
   let q = supabaseAdmin.from("social_mentions").select("sentiment, topic, platform, market, published_at, content");
-  if (searchId) q = q.eq("search_id", searchId);
+  if (searchId) {
+    q = q.eq("search_id", searchId);
+  } else if (projectId) {
+    const ids = await getProjectSocialSearchIds(projectId);
+    if (ids.length === 0) return NextResponse.json(EMPTY_STATS);
+    q = q.in("search_id", ids);
+  }
 
   const { data: mentions, error } = await q;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

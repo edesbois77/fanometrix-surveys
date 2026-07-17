@@ -68,6 +68,7 @@ const BATCH_CHAR_BUDGET = 24000;
 
 const STAGE_A_RESPONSE_SHAPE = `{
   "title": "The document's actual title, as written — not a paraphrase",
+  "author": "The document's author(s) or byline exactly as written — a person or team name — or null if the document itself doesn't state one. Not the publisher.",
   "source_publisher": "Publisher or issuing organisation, or null if not stated",
   "publisher_description": "What the document itself says about its publisher's business, expertise or focus, e.g. an 'about us' section or byline — else null. Never anything you may know about this publisher from outside the document.",
   "publication_date": "ISO date (YYYY-MM-DD) if stated, else your best single-date estimate from context, else null — never a range",
@@ -77,7 +78,7 @@ const STAGE_A_RESPONSE_SHAPE = `{
   "audience_segments": ["Named fan/audience segments actually discussed, e.g. 'Gen Z fans', 'season ticket holders'"],
   "brands_mentioned": ["Brands or organisations actually named in the document"],
   "topics": ["3-8 topics/themes the document actually covers"],
-  "tags": ["5-10 short, specific tags a researcher would search by later"],
+  "tags": ["5-10 tags a researcher would search by later — prefer widely reusable thematic tags where they genuinely apply (e.g. Women's Football, Men's Football, Tournament, Club Football, International Football, UEFA, FIFA, Financial, Sponsorship, Fan Behaviour, Audience Research, Broadcast, Social Media, Brand, Commercial, Technology) alongside any document-specific ones"],
   "report_framework": {
     "name": "The report's own named model/framework if it proposes one (e.g. a set of named pillars or principles it organises its argument around), else the JSON literal null",
     "components": [{ "label": "A named component of the framework, exactly as the report names it", "description": "What this component means, per the report" }]
@@ -282,6 +283,7 @@ async function runMapReduceAnalysis(fileTitle: string, chunks: AnalyseDocumentCh
 // never invent" discipline this applies.
 type RawStageB = {
   executive_summary?: string;
+  summary?: string;
   commercial_interest_note?: string | null;
   independence_note?: string;
   key_finding_order?: number[];
@@ -336,6 +338,8 @@ YOUR TASK
 
 Write as many sentences as the evidence genuinely supports to do this properly — usually 4-7, never padded to reach a count, never rushed past a genuine tension or implication to stay short.
 
+Also write "summary": a tight abstract for the top of the document's own page — the way a research paper's abstract sits above the paper, DISTINCT from and shorter than the executive_summary above. In roughly 100-150 words, orientation first: say what this document actually is (its kind, scope and who produced it), state the 2-4 most important findings or conclusions in plain terms, and make clear why it matters to a sports/fan research team deciding whether to open it or use it in analysis. Natural, human prose someone can absorb in about 20 seconds — never a bare list of extracted facts, never padded narrative, and never just a re-wording of the executive_summary. If it runs to more than one short paragraph, separate paragraphs with a blank line (a literal \\n\\n in the JSON string): the first paragraph covering what the document is about, the next its most important findings and why they matter.
+
 Also return "key_finding_order" and "statistic_order": the 0-based indices from the KEY FINDINGS and STATISTICS lists above, each reordered from MOST to LEAST significant to the report's central argument (the same judgement behind your summary, not document order). Include every index exactly once.
 
 ${hasAuthorContext ? AUTHOR_PERSPECTIVE_INSTRUCTIONS : `There's no usable publisher description for this document — set both "commercial_interest_note" and "independence_note" to the JSON literal null (independence_note as a JSON null is fine here; there's nothing to note).`}
@@ -343,6 +347,7 @@ ${hasAuthorContext ? AUTHOR_PERSPECTIVE_INSTRUCTIONS : `There's no usable publis
 Return ONLY valid JSON:
 {
   "executive_summary": "...",
+  "summary": "...",
   "key_finding_order": [${stageA.key_findings.map((_, i) => i).join(", ")}],
   "statistic_order": [${stageA.statistics.map((_, i) => i).join(", ")}],
   "commercial_interest_note": ${hasAuthorContext ? '"..." or null' : "null"},
@@ -379,6 +384,9 @@ export async function analyseDocument(fileTitle: string, chunks: AnalyseDocument
     key_findings: reorderBySignificance(stageA.key_findings, rawStageB.key_finding_order),
     statistics: reorderBySignificance(stageA.statistics, rawStageB.statistic_order),
     executive_summary: rawStageB.executive_summary?.trim() || stageA.executive_summary,
+    // The abstract for the document page (falls back to the fuller synthesis
+    // if the model omitted it) — promoted to library_documents.description.
+    summary: rawStageB.summary?.trim() || rawStageB.executive_summary?.trim() || stageA.executive_summary,
     author_perspective: normaliseAuthorPerspective(
       {
         publisher_description: publisherDescription,

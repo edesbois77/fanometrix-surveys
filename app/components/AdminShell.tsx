@@ -309,7 +309,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             positioning for anything inside it, pinning descendants to
             main's own (never-scrolling) box instead of the real window
             scroll. */}
-        <main className="flex-1 bg-gray-50 print:bg-white">
+        <main className="flex-1 print:bg-white" style={{ background: "var(--page-bg)" }}>
           {children}
         </main>
       </div>

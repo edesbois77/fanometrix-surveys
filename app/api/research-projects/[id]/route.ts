@@ -271,8 +271,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const documentEvidenceRowIds = documentEvidenceRows.map(e => e.id);
   const [{ data: evidenceDocuments }, { data: documentSummaries }] = await Promise.all([
     documentEvidenceIds.length
-      ? supabaseAdmin.from("library_documents").select("id, title, document_type, status, page_count").in("id", documentEvidenceIds)
-      : Promise.resolve({ data: [] as { id: string; title: string; document_type: string; status: string; page_count: number | null }[] }),
+      ? supabaseAdmin.from("library_documents").select("id, title, author, document_type, status, page_count, uploaded_at, tags").in("id", documentEvidenceIds)
+      : Promise.resolve({ data: [] as { id: string; title: string; author: string | null; document_type: string; status: string; page_count: number | null; uploaded_at: string; tags: string[] }[] }),
     documentEvidenceRowIds.length
       ? supabaseAdmin
           .from("research_summaries")
@@ -296,8 +296,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       survey: e.evidence_type === "survey" ? evidenceSurveyById.get(e.evidence_id) ?? null : null,
       conversationSearch: e.evidence_type === "social_search" ? conversationSearchById.get(e.evidence_id) ?? null : null,
       document: doc ? {
-        id: doc.id, name: doc.title, document_type: doc.document_type,
-        library_status: doc.status, page_count: doc.page_count,
+        id: doc.id, name: doc.title, author: doc.author, document_type: doc.document_type,
+        library_status: doc.status, page_count: doc.page_count, uploaded_at: doc.uploaded_at, tags: doc.tags ?? [],
         summary_status: docSummary?.status ?? null,
         generated_at: docSummary?.generated_at ?? null,
       } : null,

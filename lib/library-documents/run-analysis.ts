@@ -14,7 +14,8 @@
 //     background race-prone trigger, so it doesn't need the claim).
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { analyseDocument, type AnalyseDocumentChunk } from "@/lib/intelligence/analysts/analyseDocument";
-import { saveNewAnalysis, type LibraryDocumentAnalysisRow } from "@/lib/library-documents/analysis-store";
+import { saveNewAnalysis, approveAnalysis, type LibraryDocumentAnalysisRow } from "@/lib/library-documents/analysis-store";
+import { promoteApprovedMetadata } from "@/lib/library-documents/promote-approved-metadata";
 
 /** Runs the analyst against a document's already-extracted chunks and
  * saves the result as a new library_document_analysis version. Does not
@@ -59,11 +60,15 @@ export async function runAnalysis(libraryDocumentId: string): Promise<void> {
   if (!claimed) return;
 
   try {
-    await performDocumentAnalysis(libraryDocumentId, claimed.title, "system");
-    await supabaseAdmin
-      .from("library_documents")
-      .update({ status: "pending_review", error_message: null })
-      .eq("id", libraryDocumentId);
+    // Auto-approve: the product has no human review gate in the Research
+    // Project workflow. Analysis runs, then its output is approved and
+    // promoted automatically, so the document lands on 'approved' ("Ready").
+    // promoteApprovedMetadata is guarded — it never overwrites a title,
+    // author or description a human has already edited. The internal
+    // pending_review/approved states still exist behind the scenes.
+    const saved = await performDocumentAnalysis(libraryDocumentId, claimed.title, "system");
+    const approved = await approveAnalysis(saved.id, "system");
+    await promoteApprovedMetadata(libraryDocumentId, approved.edited_content ?? approved.content, "system");
   } catch (err) {
     const message = err instanceof Error ? err.message : "Analysis failed.";
     await supabaseAdmin
