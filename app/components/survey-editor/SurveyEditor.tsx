@@ -33,7 +33,7 @@ import {
   type LangCode, type LocalisedQuestion, type LocalisedText, type LanguageOption,
 } from "@/lib/survey-locale";
 import { STUDY_TYPES, STUDY_TYPE_LABELS } from "@/lib/naming";
-import { Card, SectionHeading, Button, Icon } from "@/app/components/workspace-ui";
+import { Card, SectionHeading, Button, Icon, TONE } from "@/app/components/workspace-ui";
 
 const { MAX_QUESTIONS, MAX_OPTIONS, MAX_Q_CHARS, MAX_OPT_CHARS, MAX_TY_TITLE, MAX_TY_BODY } = SURVEY_LIMITS;
 
@@ -495,10 +495,10 @@ export function SurveyEditor({
         ) : (
           <>
             {isLocked && (
-              <div className="rounded-xl px-4 py-3 flex items-start gap-3" style={{ background: "var(--surface-sunken)", border: "1px solid var(--border-default)" }}>
+              <div className="rounded-xl px-4 py-3 flex items-start gap-3" style={{ background: TONE.danger.wash, border: `1px solid ${TONE.danger.line}` }}>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>🔒 This survey is Ready and locked</p>
-                  <p className="text-xs mt-0.5" style={{ color: "var(--text-secondary)" }}>
+                  <p className="text-sm font-semibold" style={{ color: TONE.danger.ink }}>🔒 This survey is Ready and locked</p>
+                  <p className="text-xs mt-0.5" style={{ color: TONE.danger.ink, opacity: 0.85 }}>
                     Editing is disabled to protect live collection. Unlocking sets it back to Draft and pauses collection on every live placement until you mark it Ready again.
                   </p>
                 </div>
