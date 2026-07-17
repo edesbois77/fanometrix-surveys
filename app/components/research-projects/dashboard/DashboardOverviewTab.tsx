@@ -115,7 +115,7 @@ export function DashboardOverviewTab({ projectId, project, campaigns, responses 
 
   const totalMentions = convStats?.total ?? conversationEvidence.reduce((s, e) => s + e.conversationSearch.mention_count, 0);
   const mentionsToday = convReports?.sentimentTrend.find(d => d.date === today)?.total ?? 0;
-  const activeSearches = conversationEvidence.filter(e => e.conversationSearch.reddit_collection_status === "collecting").length;
+  const activeSearches = conversationEvidence.filter(e => e.conversationSearch.latest_run_status === "running").length;
 
   // ── Document (pipeline + latest stored insight) ────────────────────────────
   const docsProcessing = documentEvidence.filter(e => isProcessing(e.document.library_status)).length;
@@ -159,7 +159,7 @@ export function DashboardOverviewTab({ projectId, project, campaigns, responses 
   type Action = { tone: Tone; text: string; href: string; cta: string };
   const actions: Action[] = [];
   documentEvidence.filter(e => e.document.library_status === "failed").forEach(e => actions.push({ tone: "danger", text: `“${e.document.name}” failed processing`, href: `/research-library/${e.evidence_id}`, cta: "Review" }));
-  conversationEvidence.filter(e => e.conversationSearch.reddit_collection_status === "failed").forEach(e => actions.push({ tone: "danger", text: `Collection failed for “${e.conversationSearch.name}”`, href: `${execBase}/conversation/${e.evidence_id}`, cta: "Review" }));
+  conversationEvidence.filter(e => e.conversationSearch.latest_run_status === "failed").forEach(e => actions.push({ tone: "danger", text: `Collection failed for “${e.conversationSearch.name}”`, href: `${execBase}/conversation/${e.evidence_id}`, cta: "Review" }));
   surveyEvidence.forEach(e => {
     const sc = campaigns.filter(c => c.effective_survey_id === e.evidence_id);
     if (sc.length === 0) actions.push({ tone: "warning", text: `“${e.survey.name}” has no campaigns yet`, href: `${execBase}/survey/${e.evidence_id}`, cta: "Create" });

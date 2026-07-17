@@ -670,7 +670,7 @@ function WalkthroughBodyContent() {
             positive_pct: item.conversationSearch!.positive_pct,
             neutral_pct: item.conversationSearch!.neutral_pct,
             negative_pct: item.conversationSearch!.negative_pct,
-            reddit_last_collected_at: item.conversationSearch!.reddit_last_collected_at,
+            reddit_last_collected_at: item.conversationSearch!.last_collected_at,
             run_status: item.run_status,
             run_error: item.run_error,
           }))}

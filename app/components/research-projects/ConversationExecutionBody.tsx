@@ -26,10 +26,11 @@ type ConversationSearch = NonNullable<EvidenceItem["conversationSearch"]>;
 // search's own Draft/Active lifecycle (that's a Research concern). "Collecting"
 // is the live/alive state; a finished run reads as a calm "Collected".
 function collectionStatus(cs: ConversationSearch): { label: string; tone: Tone } {
-  const rc = cs.reddit_collection_status;
-  if (rc === "collecting") return { label: "Collecting", tone: "success" };
-  if (rc === "failed") return { label: "Collection failed", tone: "danger" };
-  if (rc === "completed" || cs.mention_count > 0) return { label: "Collected", tone: "neutral" };
+  const rs = cs.latest_run_status;
+  if (rs === "running") return { label: "Collecting", tone: "success" };
+  if (rs === "failed") return { label: "Collection failed", tone: "danger" };
+  if (rs === "partial") return { label: "Collected (partial)", tone: "warning" };
+  if (rs === "completed" || cs.mention_count > 0) return { label: "Collected", tone: "neutral" };
   return { label: "Not collected", tone: "neutral" };
 }
 
@@ -78,8 +79,8 @@ export function ConversationExecutionBody() {
           {searchEvidence.map(item => {
             const cs = item.conversationSearch;
             const status = collectionStatus(cs);
-            const hasData = cs.mention_count > 0 || cs.reddit_collection_status === "collecting";
-            const lastCollected = cs.reddit_last_collected_at ? `Last collected ${formatRelativeTime(cs.reddit_last_collected_at)}` : "Not collected yet";
+            const hasData = cs.mention_count > 0 || cs.video_count > 0 || cs.latest_run_status === "running";
+            const lastCollected = cs.last_collected_at ? `Last collected ${formatRelativeTime(cs.last_collected_at)}` : "Not collected yet";
             return (
               <SourceCard
                 key={item.id}
@@ -88,8 +89,8 @@ export function ConversationExecutionBody() {
                 subtitle={cs.markets.length ? cs.markets.join(" · ") : lastCollected}
                 status={{ label: status.label, tone: status.tone, dot: true }}
                 metrics={[
+                  { label: "Videos", value: cs.video_count.toLocaleString() },
                   { label: "Mentions", value: cs.mention_count.toLocaleString() },
-                  { label: "Platforms", value: cs.platforms.length },
                   { label: "Markets", value: cs.markets.length },
                   { label: "Positive", value: cs.mention_count > 0 ? `${Math.round(cs.positive_pct)}%` : "—" },
                 ]}

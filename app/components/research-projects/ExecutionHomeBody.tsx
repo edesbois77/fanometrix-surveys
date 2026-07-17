@@ -123,7 +123,7 @@ export function ExecutionHomeBody() {
   );
 
   // ── Summary roll-ups ─────────────────────────────────────────────────────────
-  const csCollecting = conversationEvidence.filter(e => e.conversationSearch.reddit_collection_status === "collecting").length;
+  const csCollecting = conversationEvidence.filter(e => e.conversationSearch.latest_run_status === "running").length;
   const csMentions = conversationEvidence.reduce((sum, e) => sum + e.conversationSearch.mention_count, 0);
   const conversationChips: Chip[] = conversationEvidence.length === 0
     ? [{ label: "No searches yet", tone: "neutral" }]
@@ -132,8 +132,8 @@ export function ExecutionHomeBody() {
   // are collecting or have collected, out of the total configured.
   const csTotal = conversationEvidence.length;
   const csDone = conversationEvidence.filter(e => {
-    const rc = e.conversationSearch.reddit_collection_status;
-    return rc === "collecting" || rc === "completed" || e.conversationSearch.mention_count > 0;
+    const rc = e.conversationSearch.latest_run_status;
+    return rc === "running" || rc === "completed" || rc === "partial" || e.conversationSearch.mention_count > 0;
   }).length;
   const conversationProgress: Progress | undefined = csTotal > 0
     ? { label: "Collection progress", numeric: `${csDone} of ${csTotal} search${csTotal === 1 ? "" : "es"} collecting or complete`, value: (csDone / csTotal) * 100 }

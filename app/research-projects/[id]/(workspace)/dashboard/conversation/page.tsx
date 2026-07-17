@@ -23,8 +23,8 @@ export default function DashboardConversationPage() {
       evidence_id: e.evidence_id,
       name: e.conversationSearch.name,
       mention_count: e.conversationSearch.mention_count,
-      reddit_collection_status: e.conversationSearch.reddit_collection_status,
-      reddit_last_collected_at: e.conversationSearch.reddit_last_collected_at,
+      reddit_collection_status: e.conversationSearch.latest_run_status === "running" ? "collecting" : (e.conversationSearch.latest_run_status ?? ""),
+      reddit_last_collected_at: e.conversationSearch.last_collected_at,
     }));
 
   return <ConversationDashboardBody projectId={projectId} searches={searches} />;

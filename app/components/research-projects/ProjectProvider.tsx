@@ -24,7 +24,12 @@ export type ActivityRow = { id: string; event_type: string; description: string;
 export type ConversationSearchEvidence = {
   id: string; name: string; status: string; entity_type: string;
   keywords: string[]; markets: string[]; platforms: string[];
-  reddit_collection_status: string; reddit_last_collected_at: string | null;
+  // Generic collection engine (latest snapshot from collection_runs).
+  connectors: string[];
+  latest_run_status: "running" | "completed" | "partial" | "failed" | null;
+  last_collected_at: string | null;
+  run_count: number;
+  video_count: number; comment_count: number;
   mention_count: number;
   positive_pct: number; neutral_pct: number; negative_pct: number;
   summary_status: "draft" | "edited" | "approved" | "published" | null;

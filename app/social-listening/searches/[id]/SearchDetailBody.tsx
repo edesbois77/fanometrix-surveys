@@ -139,12 +139,15 @@ export function SearchDetailBody({ id, backHref, backLabel, onRecordLabel }: {
 
   async function handleCollectReddit() {
     setCollecting(true);
-    showToast("Fetching Reddit posts & comments…");
-    const res  = await fetch(`/api/social/searches/${id}/collect-reddit`, { method: "POST" });
-    const json = await res.json();
+    showToast("Collecting the latest content…");
+    const res  = await fetch(`/api/social/searches/${id}/collect`, { method: "POST" });
+    const json = await res.json().catch(() => ({}));
     setCollecting(false);
-    if (res.ok) showToast(`✓ Fetched ${json.fetched}, saved ${json.saved} new (${json.skipped} already collected).`);
-    else showToast(json.error ?? "Reddit collection failed.", false);
+    if (res.ok) {
+      const byKind = (json.stats?.by_kind ?? {}) as Record<string, number>;
+      const parts = Object.entries(byKind).filter(([, n]) => n > 0).map(([k, n]) => `${n} ${k}${n === 1 ? "" : "s"}`);
+      showToast(`✓ Collected ${parts.length ? parts.join(", ") : `${json.inserted ?? 0} items`}.`);
+    } else showToast(json.error ?? "Collection failed.", false);
     load();
   }
 

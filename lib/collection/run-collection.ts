@@ -22,6 +22,7 @@ type SearchRow = {
   collect_from: string | null; collect_to: string | null;
   connector_config: Record<string, Record<string, unknown>> | null;
   entity_type: string | null; research_goal: string | null; is_simulated: boolean | null;
+  reddit_subreddits: string[] | null; // legacy — TODO remove once configs migrate to connector_config
   social_keywords: { keyword: string }[] | null;
 };
 
@@ -42,7 +43,7 @@ export async function runCollection(opts: {
 }): Promise<RunCollectionResult> {
   const { data: search, error: sErr } = await supabaseAdmin
     .from("social_searches")
-    .select("id, name, markets, platforms, languages, collect_from, collect_to, connector_config, entity_type, research_goal, is_simulated, social_keywords(keyword)")
+    .select("id, name, markets, platforms, languages, collect_from, collect_to, connector_config, entity_type, research_goal, is_simulated, reddit_subreddits, social_keywords(keyword)")
     .eq("id", opts.searchId)
     .single<SearchRow>();
 
@@ -92,13 +93,20 @@ export async function runCollection(opts: {
   // ── Collect from every connector ─────────────────────────────────────────
   const collected: { connectorId: string; platform: string; item: NormalisedItem }[] = [];
   for (const connector of runnable) {
+    let config: Record<string, unknown> = (search.connector_config ?? {})[connector.id] ?? {};
+    // Temporary compat: existing Reddit searches store subreddits in the legacy
+    // reddit_subreddits column, not connector_config. Fall back to it until the
+    // config is migrated, then this shim is removed.
+    if (connector.id === "reddit" && !config.subreddits && search.reddit_subreddits?.length) {
+      config = { ...config, subreddits: search.reddit_subreddits };
+    }
     const ctx: CollectContext = {
       keywords,
       markets: search.markets ?? [],
       languages: search.languages ?? [],
       dateFrom: search.collect_from ? new Date(search.collect_from).toISOString() : null,
       dateTo: search.collect_to ? new Date(search.collect_to).toISOString() : null,
-      config: (search.connector_config ?? {})[connector.id] ?? {},
+      config,
     };
     try {
       const result = await connector.collect(ctx);
@@ -158,7 +166,9 @@ export async function runCollection(opts: {
   const bySentiment: Record<string, number> = {};
   for (const r of rows) {
     byKind[String(r.content_kind)] = (byKind[String(r.content_kind)] ?? 0) + 1;
-    if (r.sentiment) bySentiment[String(r.sentiment)] = (bySentiment[String(r.sentiment)] ?? 0) + 1;
+    // Sentiment % is about the conversation (comments/posts) — a video title
+    // isn't a fan opinion, so videos are excluded from the sentiment mix.
+    if (r.sentiment && r.content_kind !== "video") bySentiment[String(r.sentiment)] = (bySentiment[String(r.sentiment)] ?? 0) + 1;
   }
   const status: RunCollectionResult["status"] =
     inserted === 0 ? "failed" : (fatalCount > 0 || warnings.length > 0) ? "partial" : "completed";

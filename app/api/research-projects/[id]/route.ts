@@ -11,6 +11,7 @@ import type { EditorialArticle } from "@/lib/intelligence/analysts/analyseEditor
 import type { FullResearchReport } from "@/lib/intelligence/analysts/analyseFullResearchReport";
 import { logActivity } from "@/lib/research-project-activity";
 import { getSocialMentionStatsBySearchIds } from "@/lib/social-stats";
+import { getCollectionStatusBySearchIds } from "@/lib/collection/search-collection-status";
 import { deleteSimulatedProject } from "@/lib/simulation/delete-simulated-project";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -227,13 +228,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   // Campaigns/deployment concept needs to inherit from it), so every
   // attached search is resolved and shipped, never just one.
   const socialSearchEvidenceIds = (evidenceRows ?? []).filter(e => e.evidence_type === "social_search").map(e => e.evidence_id);
-  const [{ data: evidenceSocialSearches }, mentionStatsBySearchId, { data: conversationSummaries }] = await Promise.all([
+  const [{ data: evidenceSocialSearches }, mentionStatsBySearchId, { data: conversationSummaries }, collectionStatusBySearchId] = await Promise.all([
     socialSearchEvidenceIds.length
       ? supabaseAdmin
           .from("social_searches")
-          .select("id, name, status, entity_type, markets, platforms, reddit_collection_status, reddit_last_collected_at, social_keywords(keyword, keyword_type)")
+          .select("id, name, status, entity_type, markets, platforms, reddit_last_collected_at, social_keywords(keyword, keyword_type)")
           .in("id", socialSearchEvidenceIds)
-      : Promise.resolve({ data: [] as { id: string; name: string; status: string; entity_type: string; markets: string[]; platforms: string[]; reddit_collection_status: string; reddit_last_collected_at: string | null; social_keywords: { keyword: string; keyword_type: string }[] }[] }),
+      : Promise.resolve({ data: [] as { id: string; name: string; status: string; entity_type: string; markets: string[]; platforms: string[]; reddit_last_collected_at: string | null; social_keywords: { keyword: string; keyword_type: string }[] }[] }),
     getSocialMentionStatsBySearchIds(socialSearchEvidenceIds),
     socialSearchEvidenceIds.length
       ? supabaseAdmin
@@ -242,19 +243,29 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
           .eq("source_type", "conversation_search").eq("output_type", "research_summary")
           .in("source_id", socialSearchEvidenceIds)
       : Promise.resolve({ data: [] as { source_id: string; status: string; generated_at: string }[] }),
+    getCollectionStatusBySearchIds(socialSearchEvidenceIds),
   ]);
   const conversationSummaryBySearchId = new Map((conversationSummaries ?? []).map(s => [s.source_id, s]));
   const conversationSearchById = new Map((evidenceSocialSearches ?? []).map(s => {
     const stats = mentionStatsBySearchId.get(s.id);
     const summary = conversationSummaryBySearchId.get(s.id);
+    // Prefer the live collection engine's latest-run snapshot; fall back to the
+    // legacy all-mentions stats for simulated / never-run searches.
+    const live = collectionStatusBySearchId.get(s.id);
     return [s.id, {
       id: s.id, name: s.name, status: s.status, entity_type: s.entity_type,
       keywords: (s.social_keywords ?? []).map(k => k.keyword),
       markets: s.markets ?? [], platforms: s.platforms ?? [],
-      reddit_collection_status: s.reddit_collection_status,
-      reddit_last_collected_at: s.reddit_last_collected_at,
-      mention_count: stats?.total ?? 0,
-      positive_pct: stats?.positive_pct ?? 0, neutral_pct: stats?.neutral_pct ?? 0, negative_pct: stats?.negative_pct ?? 0,
+      connectors: live?.connectors ?? [],
+      latest_run_status: live?.latest_run_status ?? null,
+      last_collected_at: live?.last_collected_at ?? s.reddit_last_collected_at ?? null,
+      run_count: live?.run_count ?? 0,
+      video_count: live?.video_count ?? 0,
+      comment_count: live?.comment_count ?? 0,
+      mention_count: live?.mention_count ?? stats?.total ?? 0,
+      positive_pct: live ? live.positive_pct : (stats?.positive_pct ?? 0),
+      neutral_pct:  live ? live.neutral_pct  : (stats?.neutral_pct ?? 0),
+      negative_pct: live ? live.negative_pct : (stats?.negative_pct ?? 0),
       summary_status: summary?.status ?? null,
       generated_at: summary?.generated_at ?? null,
     }];

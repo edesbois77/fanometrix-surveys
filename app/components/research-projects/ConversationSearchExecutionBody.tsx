@@ -6,10 +6,11 @@
 // watched: trigger collection, monitor status/mentions/sentiment, then hand off
 // to Dashboard once it's collecting.
 //
-// Run Collection reuses the same POST /api/social/searches/[id]/collect-reddit
-// the standalone Social Listening tool uses (one real Reddit run: fetch, dedupe,
-// save), so the two surfaces can never disagree. Collection is on-demand — there
-// is no scheduled refresh yet, so "refresh" is simply running it again.
+// Run Collection posts to the unified POST /api/social/searches/[id]/collect —
+// the single collection pipeline shared with the standalone Social Listening
+// tool. It runs every connector the search has enabled (YouTube, Reddit, …) and
+// records the run as a timestamped snapshot. Collection is on-demand — "refresh"
+// is simply running it again, which captures a fresh snapshot.
 //
 // Chromeless: the (workspace) shell provides the project header + navigation;
 // this body sets the breadcrumb tail (the search name) via WorkspaceRecordContext.
@@ -26,11 +27,19 @@ import {
 type ConversationSearch = NonNullable<EvidenceItem["conversationSearch"]>;
 
 function collectionStatus(cs: ConversationSearch): { label: string; tone: Tone } {
-  const rc = cs.reddit_collection_status;
-  if (rc === "collecting") return { label: "Collecting", tone: "success" };
-  if (rc === "failed") return { label: "Collection failed", tone: "danger" };
-  if (rc === "completed" || cs.mention_count > 0) return { label: "Collected", tone: "neutral" };
+  const rs = cs.latest_run_status;
+  if (rs === "running") return { label: "Collecting", tone: "success" };
+  if (rs === "failed") return { label: "Collection failed", tone: "danger" };
+  if (rs === "partial") return { label: "Collected (partial)", tone: "warning" };
+  if (rs === "completed" || cs.mention_count > 0) return { label: "Collected", tone: "neutral" };
   return { label: "Not collected", tone: "neutral" };
+}
+
+// Human label for the sources this search collects from.
+function connectorLabel(cs: ConversationSearch): string {
+  const names = (cs.connectors.length ? cs.connectors : cs.platforms).map(c =>
+    c.toLowerCase() === "youtube" ? "YouTube" : c.toLowerCase() === "reddit" ? "Reddit" : c);
+  return names.length ? names.join(" · ") : "no sources";
 }
 
 function ChipRow({ label, values }: { label: string; values: string[] }) {
@@ -87,27 +96,34 @@ export function ConversationSearchExecutionBody({ searchEvidenceId }: { searchEv
 
   const cs = item.conversationSearch;
   const status = collectionStatus(cs);
-  const rc = cs.reddit_collection_status;
-  const collecting = running || rc === "collecting";
-  const hasData = cs.mention_count > 0;
-  const lastCollected = cs.reddit_last_collected_at ? formatRelativeTime(cs.reddit_last_collected_at) : "Never";
+  const collecting = running || cs.latest_run_status === "running";
+  const hasData = cs.mention_count > 0 || cs.video_count > 0;
+  const lastCollected = cs.last_collected_at ? formatRelativeTime(cs.last_collected_at) : "Never";
+  const failed = cs.latest_run_status === "failed";
 
-  const runLabel = collecting ? "Collecting…" : rc === "failed" ? "Retry collection" : hasData ? "Re-run collection" : "Run Collection";
+  const runLabel = collecting ? "Collecting…" : failed ? "Retry collection" : hasData ? "Re-run collection" : "Run Collection";
 
   const summaryParts = [
+    cs.video_count > 0 ? `${cs.video_count.toLocaleString()} video${cs.video_count === 1 ? "" : "s"}` : null,
     `${cs.mention_count.toLocaleString()} mention${cs.mention_count === 1 ? "" : "s"}`,
-    cs.platforms.length ? `${cs.platforms.length} platform${cs.platforms.length === 1 ? "" : "s"}` : null,
     cs.markets.length ? `${cs.markets.length} market${cs.markets.length === 1 ? "" : "s"}` : null,
     `Last collected ${lastCollected}`,
   ].filter(Boolean) as string[];
 
   async function handleRunCollection() {
     setRunning(true);
-    const res = await fetch(`/api/social/searches/${searchEvidenceId}/collect-reddit`, { method: "POST" });
+    const res = await fetch(`/api/social/searches/${searchEvidenceId}/collect`, { method: "POST" });
     const json = await res.json().catch(() => ({}));
     setRunning(false);
     if (!res.ok) { showToast(json.error ?? "Collection failed.", false); return; }
-    showToast(`Collected ${json.saved ?? 0} new mention${json.saved === 1 ? "" : "s"} (${json.skipped ?? 0} already had).`);
+    const byKind = (json.stats?.by_kind ?? {}) as Record<string, number>;
+    const parts = [
+      byKind.video ? `${byKind.video} video${byKind.video === 1 ? "" : "s"}` : null,
+      byKind.comment ? `${byKind.comment} comment${byKind.comment === 1 ? "" : "s"}` : null,
+      byKind.post ? `${byKind.post} post${byKind.post === 1 ? "" : "s"}` : null,
+    ].filter(Boolean);
+    const detail = parts.length ? parts.join(", ") : `${json.inserted ?? 0} items`;
+    showToast(`${json.status === "partial" ? "Collected (partial): " : "Collected "}${detail}.`, json.status !== "failed");
     load();
   }
 
@@ -128,19 +144,23 @@ export function ConversationSearchExecutionBody({ searchEvidenceId }: { searchEv
         {/* ── Collection ────────────────────────────────────────────────────── */}
         <Card padding="md">
           <SectionHeading
-            title="Reddit Collection"
-            description="Fetch the latest mentions from this search's target subreddits. Collection runs on demand — run it again to refresh."
+            title="Live Collection"
+            description={`Collect the latest content from ${connectorLabel(cs)} for this search's keywords. Runs on demand — run it again to capture a fresh snapshot.`}
             action={<Button variant="brand" onClick={handleRunCollection} disabled={collecting}>{runLabel}</Button>}
           />
           <div className="flex flex-wrap items-center gap-x-5 gap-y-2 mt-4">
             <StatusBadge label={status.label} tone={status.tone} dot size="md" />
+            <span className="inline-flex items-center text-[11px] font-semibold px-2 py-0.5 rounded-full" style={{ background: "var(--surface-sunken)", color: "var(--text-secondary)", border: "1px solid var(--border-subtle)" }}>
+              Live · {connectorLabel(cs)}
+            </span>
             <span className="text-xs fx-tabular-nums" style={{ color: "var(--text-tertiary)" }}>
-              {cs.mention_count.toLocaleString()} mention{cs.mention_count === 1 ? "" : "s"} collected
+              {cs.video_count > 0 && `${cs.video_count.toLocaleString()} video${cs.video_count === 1 ? "" : "s"} · `}
+              {cs.mention_count.toLocaleString()} mention{cs.mention_count === 1 ? "" : "s"}
             </span>
             <span className="text-xs" style={{ color: "var(--text-tertiary)" }}>Last collected {lastCollected}</span>
           </div>
-          {rc === "failed" && (
-            <p className="text-xs mt-2" style={{ color: "#B4694C" }}>The last collection run failed. Check the search&apos;s subreddits and keywords, then retry.</p>
+          {failed && (
+            <p className="text-xs mt-2" style={{ color: "#B4694C" }}>The last collection run failed. Check the search&apos;s keywords and connector settings, then retry.</p>
           )}
           {(cs.markets.length > 0 || cs.platforms.length > 0 || cs.keywords.length > 0) && (
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4 pt-4 border-t" style={{ borderColor: "var(--border-subtle)" }}>
