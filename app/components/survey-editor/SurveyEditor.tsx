@@ -197,6 +197,7 @@ export function SurveyEditor({
   // required" highlighting so it never shows before the first save attempt.
   const [attemptedSave, setAttemptedSave] = useState(false);
   const [editingOriginalStatus, setEditingOriginalStatus] = useState<"draft" | "ready" | "archived" | "deleted" | null>(null);
+  const [unlocking, setUnlocking] = useState(false);
   const [loading, setLoading] = useState(!!surveyId);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState("");
@@ -437,6 +438,33 @@ export function SurveyEditor({
     onSaved({ survey: json.data, isCreate: !surveyId, autoDowngraded });
   }
 
+  // ── Unlock ──────────────────────────────────────────────────────────────────
+  // A Ready survey is locked to protect live collection. Unlocking is a
+  // deliberate act: it sets the survey back to Draft (which pauses collection on
+  // every placement) and re-enables the editor. The user must re-validate and
+  // mark it Ready again to resume. This turns "editing a live survey" from an
+  // accident into an explicit, warned decision.
+  async function handleUnlock() {
+    if (!surveyId || unlocking) return;
+    const ok = confirm(
+      `Unlock "${fields.name || "this survey"}" for editing?\n\n` +
+      "This sets the survey back to Draft, which pauses collection on every live placement until you mark it Ready again."
+    );
+    if (!ok) return;
+    setUnlocking(true);
+    const res = await fetch(`/api/surveys/${surveyId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "draft" }),
+    });
+    const json = await res.json().catch(() => ({}));
+    setUnlocking(false);
+    if (!res.ok) { showToast(json.error ?? "Couldn't unlock the survey.", false); return; }
+    setEditingOriginalStatus("draft");
+    setFields(f => ({ ...f, status: "draft" }));
+    showToast("Survey unlocked and set to Draft. Collection is paused until you mark it Ready again.", true);
+  }
+
   // Char counters stay hidden until a field has focus (or its text approaches
   // the limit) — keeps the editor calm while still warning when it matters.
   const countHandlers = (key: string, over: boolean) => ({
@@ -444,6 +472,11 @@ export function SurveyEditor({
     onBlur: (e: React.FocusEvent<HTMLInputElement>) => { blurFor(over)(e); setFocusedField(null); },
   });
   const showCount = (key: string, len: number, max: number) => focusedField === key || len > max * 0.85;
+
+  // A Ready survey is locked: the editor opens read-only until the user
+  // deliberately unlocks it (which drops it to Draft). Derived purely from the
+  // persisted status, so it can't re-lock mid-edit after unlocking.
+  const isLocked = editingOriginalStatus === "ready";
 
   const rootClass = layout === "drawer" ? "flex-1 flex flex-col min-h-0" : "flex flex-col gap-6";
   const bodyClass = layout === "drawer" ? "flex-1 overflow-y-auto p-6 space-y-6" : "space-y-6";
@@ -461,6 +494,20 @@ export function SurveyEditor({
           <p className="text-sm py-8 text-center" style={{ color: "var(--text-tertiary)" }}>Loading survey…</p>
         ) : (
           <>
+            {isLocked && (
+              <div className="rounded-xl px-4 py-3 flex items-start gap-3" style={{ background: "var(--surface-sunken)", border: "1px solid var(--border-default)" }}>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>🔒 This survey is Ready and locked</p>
+                  <p className="text-xs mt-0.5" style={{ color: "var(--text-secondary)" }}>
+                    Editing is disabled to protect live collection. Unlocking sets it back to Draft and pauses collection on every live placement until you mark it Ready again.
+                  </p>
+                </div>
+                <Button variant="secondary" size="sm" onClick={handleUnlock} disabled={unlocking}>
+                  {unlocking ? "Unlocking…" : "Unlock to edit"}
+                </Button>
+              </div>
+            )}
+            <fieldset disabled={isLocked} className={`space-y-6 min-w-0 border-0 p-0 m-0 ${isLocked ? "opacity-70 pointer-events-none select-none" : ""}`}>
             {linkedProjects.length > 0 && (
               <div className="rounded-xl px-4 py-2.5" style={{ background: "var(--surface-sunken)", border: "1px solid var(--border-subtle)" }}>
                 <p className="text-[11px] font-semibold uppercase tracking-[0.06em] mb-1" style={{ color: "var(--text-tertiary)" }}>
@@ -683,13 +730,14 @@ export function SurveyEditor({
             </Card>
 
             {formError && <p className="text-xs whitespace-pre-line" style={{ color: ERR_BORDER }}>{formError}</p>}
+            </fieldset>
           </>
         )}
       </div>
 
       <div className={footerClass} style={footerStyle}>
         <Button variant="ghost" onClick={onCancel}>Cancel</Button>
-        <Button variant="primary" onClick={handleSave} disabled={saving || loading}>
+        <Button variant="primary" onClick={handleSave} disabled={saving || loading || isLocked}>
           {saving ? "Saving…" : surveyId ? "Save changes" : "Create survey"}
         </Button>
       </div>
