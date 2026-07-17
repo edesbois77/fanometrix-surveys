@@ -222,9 +222,9 @@ export function DeploymentBuilder({ campaignId, returnTo, embedded = false }: { 
 
               {campaign && (
                 <div className="space-y-2 pt-1 border-t border-gray-50">
-                  <div className="flex justify-between text-xs">
-                    <span className="text-gray-400">Campaign ID</span>
-                    <span className="font-mono text-[#0B1929]">{campaign.campaign_id}</span>
+                  <div className="text-xs">
+                    <p className="text-gray-400 mb-0.5">Campaign ID</p>
+                    <p className="font-mono text-[#0B1929] break-all">{campaign.campaign_id}</p>
                   </div>
                   {surveyName && (
                     <div className="flex justify-between text-xs">
