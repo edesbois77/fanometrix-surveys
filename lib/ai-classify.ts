@@ -2,16 +2,35 @@
 // Requires OPENAI_API_KEY in Vercel environment variables; without it (or
 // on any failure), falls back to keyword heuristics so callers always get
 // a usable result and never have to handle a thrown error.
-import { buildClassificationPrompt, FOOTBALL_TOPICS, type Sentiment } from "@/lib/social-taxonomy";
+import { buildClassificationPrompt, FOOTBALL_TOPICS, type Sentiment, type ClassificationContext } from "@/lib/social-taxonomy";
+
+export type ClassificationEntity = { name: string; type: string };
 
 export type ClassificationResult = {
   sentiment:  Sentiment;
   topic:      string;
   subtopic:   string | null;
   ai_summary: string;
+  entities:   ClassificationEntity[];
+  relevance:  number;   // 0.0–1.0 relevance to the research subject
+  confidence: number;   // 0.0–1.0 classifier confidence
 };
 
-async function classifyWithOpenAI(content: string): Promise<ClassificationResult> {
+const clamp01 = (v: unknown, dflt: number): number => {
+  const n = Number(v);
+  return Number.isFinite(n) ? Math.max(0, Math.min(1, n)) : dflt;
+};
+
+function parseEntities(raw: unknown): ClassificationEntity[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((e): e is { name: string; type?: unknown } => !!e && typeof (e as { name?: unknown }).name === "string")
+    .map(e => ({ name: e.name.trim(), type: typeof e.type === "string" ? e.type : "Topic" }))
+    .filter(e => e.name.length > 0)
+    .slice(0, 12);
+}
+
+async function classifyWithOpenAI(content: string, context?: ClassificationContext): Promise<ClassificationResult> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) throw new Error("OPENAI_API_KEY not configured");
 
@@ -21,8 +40,8 @@ async function classifyWithOpenAI(content: string): Promise<ClassificationResult
     body: JSON.stringify({
       model:       "gpt-4o-mini",
       temperature: 0.1,
-      max_tokens:  256,
-      messages:    [{ role: "user", content: buildClassificationPrompt(content) }],
+      max_tokens:  400,
+      messages:    [{ role: "user", content: buildClassificationPrompt(content, context) }],
     }),
   });
   if (!res.ok) throw new Error(`OpenAI error: ${res.status}`);
@@ -36,6 +55,9 @@ async function classifyWithOpenAI(content: string): Promise<ClassificationResult
     topic:      FOOTBALL_TOPICS.includes(parsed.topic) ? parsed.topic : "Transfers",
     subtopic:   parsed.subtopic ?? null,
     ai_summary: parsed.ai_summary ?? "Unable to summarise.",
+    entities:   parseEntities(parsed.entities),
+    relevance:  clamp01(parsed.relevance, 0.5),
+    confidence: clamp01(parsed.confidence, 0.5),
   };
 }
 
@@ -57,12 +79,15 @@ function classifyRuleBased(content: string): ClassificationResult {
     topic,
     subtopic:   null,
     ai_summary: `Fan ${sentiment === "Positive" ? "expresses positive views" : sentiment === "Negative" ? "expresses concerns" : "comments"} about ${topic.toLowerCase()}.`,
+    entities:   [],
+    relevance:  0.5,    // heuristic fallback can't judge subject relevance — neutral prior
+    confidence: 0.3,    // low: rule-based, not model-derived
   };
 }
 
-export async function classifyContent(content: string): Promise<ClassificationResult> {
+export async function classifyContent(content: string, context?: ClassificationContext): Promise<ClassificationResult> {
   try {
-    return await classifyWithOpenAI(content);
+    return await classifyWithOpenAI(content, context);
   } catch {
     return classifyRuleBased(content);
   }

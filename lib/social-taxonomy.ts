@@ -52,10 +52,25 @@ export const MARKETS = [
   { code: "MX", label: "Mexico"         },
 ] as const;
 
-/** Build the AI classification prompt for a single mention */
-export function buildClassificationPrompt(content: string): string {
-  return `You are a football fan intelligence analyst. Classify the following mention from a football fan.
+/** Optional research context that sharpens relevance + entity classification. */
+export type ClassificationContext = {
+  keywords?: string[];
+  entityType?: string;    // Brand | Club | Competition | Topic
+  researchGoal?: string;
+};
 
+/** Build the AI classification prompt for a single mention. Context (the search
+ *  subject) is optional and only sharpens the relevance/entity output — the
+ *  prompt is otherwise unchanged, so every existing caller keeps working. */
+export function buildClassificationPrompt(content: string, context?: ClassificationContext): string {
+  const subjectBits = [
+    context?.keywords?.length ? `Research subject / keywords: ${context.keywords.join(", ")}.` : "",
+    context?.entityType ? `Subject type: ${context.entityType}.` : "",
+    context?.researchGoal ? `Research goal: ${context.researchGoal}.` : "",
+  ].filter(Boolean).join(" ");
+
+  return `You are a football fan intelligence analyst. Classify the following mention from a football fan.
+${subjectBits ? subjectBits + "\n" : ""}
 Content: "${content}"
 
 Respond with valid JSON only, no markdown, no explanation:
@@ -63,13 +78,19 @@ Respond with valid JSON only, no markdown, no explanation:
   "sentiment": "Positive" | "Neutral" | "Negative" | "Unknown",
   "topic": one of [${FOOTBALL_TOPICS.map(t => `"${t}"`).join(", ")}],
   "subtopic": most specific subtopic or null if none applies,
-  "ai_summary": "One concise sentence summarising the fan sentiment and subject."
+  "ai_summary": "One concise sentence summarising the fan sentiment and subject.",
+  "entities": [ { "name": "string", "type": "Brand" | "Club" | "Competition" | "Player" | "Topic" } ],
+  "relevance": 0.0 to 1.0,
+  "confidence": 0.0 to 1.0
 }
 
 Rules:
 - sentiment must be one of: Positive, Neutral, Negative, Unknown
 - topic must be one of the listed topics
 - subtopic should be a specific aspect within the topic, or null
+- entities: named entities explicitly referenced (clubs, brands, competitions, players); [] if none
+- relevance: how relevant this mention is to the research subject above (1.0 = directly about it, 0.0 = unrelated). If no subject was given, judge general football relevance
+- confidence: your overall certainty in this classification
 - ai_summary should be written from a third-person analyst perspective, e.g. "Fans express frustration about..."
-- If the content is not clearly football-related, set topic to the closest match and sentiment to Unknown`;
+- If the content is not clearly football-related, set topic to the closest match, sentiment to Unknown and relevance low`;
 }
