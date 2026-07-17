@@ -2,6 +2,7 @@
 // Used by the dashboard to display real question text and resolve stored option IDs.
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { supabaseAdmin } from "@/lib/supabase-admin";
 import { resolveText, type LangCode, type LocalisedQuestion } from "@/lib/survey-locale";
 
 export type SurveyLabels = {
@@ -45,7 +46,7 @@ export async function GET(req: NextRequest) {
 
   const { data: campaign, error } = await supabase
     .from("campaigns")
-    .select("survey_language, surveys(questions)")
+    .select("survey_language, survey_id, research_project_id")
     .eq("campaign_id", campaignId!)
     .is("deleted_at", null)
     .single();
@@ -54,9 +55,34 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ questions: [] });
   }
 
+  // Resolve the survey the same way embed/campaign does: a campaign that leaves
+  // its survey blank inherits it from the linked Research Project. Reading only
+  // campaigns.survey_id here (as the old surveys(questions) FK join did) returns
+  // nothing for inherited campaigns, so the dashboard fell back to generic
+  // hardcoded question labels and raw option IDs. research_projects is
+  // service-role-only (RLS denies anon), so the project lookup uses supabaseAdmin.
+  let effectiveSurveyId = campaign.survey_id as string | null;
+  if (!effectiveSurveyId && campaign.research_project_id) {
+    const { data: project } = await supabaseAdmin
+      .from("research_projects")
+      .select("survey_id")
+      .eq("id", campaign.research_project_id)
+      .single();
+    effectiveSurveyId = project?.survey_id ?? null;
+  }
+
+  if (!effectiveSurveyId) {
+    return NextResponse.json({ questions: [] });
+  }
+
+  const { data: surveyRow } = await supabaseAdmin
+    .from("surveys")
+    .select("questions")
+    .eq("id", effectiveSurveyId)
+    .single();
+
   const resolvedLang = (lang !== "en" ? lang : (campaign.survey_language as LangCode | null) ?? "en") as LangCode;
-  const rawSurvey    = Array.isArray(campaign.surveys) ? campaign.surveys[0] : campaign.surveys;
-  const questions    = ((rawSurvey as { questions?: LocalisedQuestion[] } | null)?.questions ?? []);
+  const questions    = ((surveyRow as { questions?: LocalisedQuestion[] } | null)?.questions ?? []);
 
   const labels: SurveyLabels["questions"] = questions.map((q, i) => ({
     index: i,
