@@ -15,6 +15,7 @@
 // in later phases.
 import { useParams } from "next/navigation";
 import { SearchConfigForm } from "@/app/components/research-projects/SearchConfigForm";
+import { CreateConversationSearchBody } from "@/app/components/research-projects/CreateConversationSearchBody";
 import { LibraryDocConfigBody } from "@/app/components/research-projects/LibraryDocConfigBody";
 import { SurveyConfigBody } from "@/app/components/research-projects/SurveyConfigBody";
 import { PageContainer, ErrorState } from "@/app/components/workspace-ui";
@@ -34,13 +35,11 @@ export default function ResearchRecordPage() {
 
   if (method === "conversation") {
     const backHref = `/research-projects/${projectId}/research/conversation`;
-    return (
-      <SearchConfigForm
-        mode={recordId === "new" ? "create" : "edit"}
-        searchId={recordId === "new" ? undefined : recordId}
-        backHref={backHref}
-        backLabel={BACK_LABEL.conversation}
-      />
+    // Create = the focused, research-led page; Edit = the full config surface.
+    return recordId === "new" ? (
+      <CreateConversationSearchBody backHref={backHref} backLabel={BACK_LABEL.conversation} />
+    ) : (
+      <SearchConfigForm mode="edit" searchId={recordId} backHref={backHref} backLabel={BACK_LABEL.conversation} />
     );
   }
 
