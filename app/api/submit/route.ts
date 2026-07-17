@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
   // ── Look up campaign ────────────────────────────────────────────────────────
   const { data: campaign, error: campaignError } = await supabase
     .from("campaigns")
-    .select("id, research_project_id, brand_org_id, campaign_name, status, manual_status_override, start_date, end_date, target_responses, archive_after_days, is_simulated")
+    .select("id, research_project_id, survey_id, brand_org_id, campaign_name, status, manual_status_override, start_date, end_date, target_responses, archive_after_days, is_simulated")
     .eq("campaign_id", campaign_id as string)
     .single();
 
@@ -135,9 +135,28 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // ── Resolve the effective survey ────────────────────────────────────────────
+  // Attribute every response to its survey server-side, so vw_survey_stats (and
+  // Survey Intelligence's readiness gate, which reads it) count correctly. The
+  // campaign is authoritative: its own survey_id, or — when it inherits the
+  // survey from its research project (survey_id NULL) — the project's survey_id,
+  // mirroring the embed/campaign resolution. Only fall back to the client-sent
+  // survey_id if the campaign resolves to nothing. research_projects has
+  // deny_all_anon RLS, so the lookup uses supabaseAdmin.
+  let effectiveSurveyId = (campaign.survey_id as string | null) ?? null;
+  if (!effectiveSurveyId && campaign.research_project_id) {
+    const { data: proj } = await supabaseAdmin
+      .from("research_projects")
+      .select("survey_id")
+      .eq("id", campaign.research_project_id)
+      .single();
+    effectiveSurveyId = proj?.survey_id ?? null;
+  }
+  effectiveSurveyId = effectiveSurveyId ?? (survey_id as string | null) ?? null;
+
   // ── Insert response ────────────────────────────────────────────────────────
   const { error } = await supabase.from("responses").insert([{
-    campaign_id, survey_id, question_set_id,
+    campaign_id, survey_id: effectiveSurveyId, question_set_id,
     q1, q2, q3,
     country, fan_segment,
     publisher, placement,
