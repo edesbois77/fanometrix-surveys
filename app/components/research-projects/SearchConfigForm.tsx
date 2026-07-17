@@ -23,7 +23,7 @@ import {
   ENTITY_TYPES, RESEARCH_GOALS, FREQUENCIES, SEARCH_STATUSES,
   KEYWORD_TYPES, PLATFORMS, MARKETS,
 } from "@/lib/social-taxonomy";
-import { CONNECTOR_CATALOG, COLLECTION_LANGUAGES, connectorForPlatformId, type ConnectorField } from "@/lib/connectors/catalog";
+import { CONNECTOR_CATALOG, COLLECTION_LANGUAGES, COLLECTION_WINDOWS, connectorForPlatformId, type ConnectorField } from "@/lib/connectors/catalog";
 import { useResearchProject } from "@/app/components/research-projects/ProjectProvider";
 import { useWorkspaceRecord } from "@/app/components/research-projects/WorkspaceRecordContext";
 import {
@@ -36,7 +36,7 @@ type ConnectorConfig = Record<string, Record<string, unknown>>;
 type SearchForm = {
   name: string; description: string; entity_type: string; research_goal: string;
   markets: string[]; platforms: string[]; frequency: string; status: string;
-  languages: string[]; collect_from: string; collect_to: string;
+  languages: string[]; collect_window: string; collect_from: string; collect_to: string;
   connector_config: ConnectorConfig;
 };
 
@@ -44,7 +44,7 @@ const BLANK: SearchForm = {
   name: "", description: "", entity_type: "Brand", research_goal: "Fan Sentiment",
   markets: ["GB"], platforms: PLATFORMS.filter(p => p.defaultOn).map(p => p.id),
   frequency: "Manual", status: "Draft",
-  languages: ["en"], collect_from: "", collect_to: "", connector_config: {},
+  languages: ["en"], collect_window: "90d", collect_from: "", collect_to: "", connector_config: {},
 };
 
 const inputStyle: React.CSSProperties = {
@@ -100,6 +100,7 @@ export function SearchConfigForm({ mode, searchId, backHref, backLabel }: {
         research_goal: s.research_goal, markets: s.markets, platforms: s.platforms,
         frequency: s.frequency, status: s.status,
         languages: s.languages?.length ? s.languages : ["en"],
+        collect_window: s.collect_window ?? "90d",
         collect_from: s.collect_from ?? "", collect_to: s.collect_to ?? "",
         connector_config: (s.connector_config ?? {}) as ConnectorConfig,
       });
@@ -370,29 +371,42 @@ export function SearchConfigForm({ mode, searchId, backHref, backLabel }: {
           </div>
         </Card>
 
-        {/* Collection window & languages */}
+        {/* Time period & languages */}
         <Card>
-          <SectionHeading title="Collection window & languages" description="The date range and languages this search collects across its sources." />
+          <SectionHeading title="Time period & languages" description="How far back each collection run looks, and which languages it covers." />
           <div className="mt-5 space-y-5">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <FieldLabel>Collect from</FieldLabel>
-                <input type="date" value={form.collect_from} max={form.collect_to || undefined}
-                  onChange={e => setForm(f => ({ ...f, collect_from: e.target.value }))}
-                  onFocus={focusGold} onBlur={blurGold}
-                  className="w-full px-3 py-2 text-sm outline-none transition-colors" style={inputStyle} />
+            <div>
+              <FieldLabel>Time period</FieldLabel>
+              <div className="flex flex-wrap gap-1.5">
+                {COLLECTION_WINDOWS.map(w => (
+                  <FilterChip key={w.value} label={w.label} selected={form.collect_window === w.value} onClick={() => setForm(f => ({ ...f, collect_window: w.value }))} />
+                ))}
               </div>
-              <div>
-                <FieldLabel>Collect to</FieldLabel>
-                <input type="date" value={form.collect_to} min={form.collect_from || undefined}
-                  onChange={e => setForm(f => ({ ...f, collect_to: e.target.value }))}
-                  onFocus={focusGold} onBlur={blurGold}
-                  className="w-full px-3 py-2 text-sm outline-none transition-colors" style={inputStyle} />
-              </div>
+              {form.collect_window !== "custom" && (
+                <p className="text-[11px] mt-1.5" style={{ color: "var(--text-tertiary)" }}>Relative to each run — a re-run next month still collects that period.</p>
+              )}
             </div>
-            <p className="text-[11px]" style={{ color: "var(--text-tertiary)" }}>Leave blank to let each source use its default recency window.</p>
+            {form.collect_window === "custom" && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <FieldLabel>From</FieldLabel>
+                  <input type="date" value={form.collect_from} max={form.collect_to || undefined}
+                    onChange={e => setForm(f => ({ ...f, collect_from: e.target.value }))}
+                    onFocus={focusGold} onBlur={blurGold}
+                    className="w-full px-3 py-2 text-sm outline-none transition-colors" style={inputStyle} />
+                </div>
+                <div>
+                  <FieldLabel>To</FieldLabel>
+                  <input type="date" value={form.collect_to} min={form.collect_from || undefined}
+                    onChange={e => setForm(f => ({ ...f, collect_to: e.target.value }))}
+                    onFocus={focusGold} onBlur={blurGold}
+                    className="w-full px-3 py-2 text-sm outline-none transition-colors" style={inputStyle} />
+                </div>
+              </div>
+            )}
             <div>
               <FieldLabel>Languages</FieldLabel>
+              <p className="text-[11px] mb-2" style={{ color: "var(--text-tertiary)" }}>Normally inferred from your markets — adjust only if needed.</p>
               <div className="flex flex-wrap gap-1.5">
                 {COLLECTION_LANGUAGES.map(l => (
                   <FilterChip key={l.code} label={`${l.code} · ${l.label}`} selected={form.languages.includes(l.code)} onClick={() => toggleLanguage(l.code)} />

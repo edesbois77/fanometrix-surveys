@@ -21,6 +21,7 @@ import { useRouter } from "next/navigation";
 import { useSession } from "@/app/components/SessionProvider";
 import { AttachExistingSurveyModal } from "@/app/components/research-projects/AttachExistingSurveyModal";
 import { AttachExistingConversationSearchModal } from "@/app/components/research-projects/AttachExistingConversationSearchModal";
+import { CreateConversationSearchPanel } from "@/app/components/research-projects/CreateConversationSearchPanel";
 import { AttachExistingDocumentModal } from "@/app/components/research-projects/AttachExistingDocumentModal";
 import { UploadDocumentModal } from "@/app/components/library-documents/UploadDocumentModal";
 import { useResearchProject, type EvidenceItem } from "@/app/components/research-projects/ProjectProvider";
@@ -70,7 +71,7 @@ const CONFIG: Record<ResearchMethod, MethodConfig> = {
     // standalone Social Listening area.
     createHref: pid => `/research-projects/${pid}/research/conversation/new`,
     attachLabel: "+ Attach Existing Search",
-    openLabel: "Open Search →",
+    openLabel: "Edit Search →",
     emptyTitle: "No conversation searches attached yet",
   },
   library: {
@@ -114,6 +115,7 @@ export function ResearchMethodBody({ method }: { method: ResearchMethod }) {
   const { projectId, project, orgs, campaigns, loading, error, load } = useResearchProject();
 
   const [attachOpen, setAttachOpen] = useState(false);
+  const [createSearchOpen, setCreateSearchOpen] = useState(false); // Conversation: lightweight slide-over create
   const [uploadOpen, setUploadOpen] = useState(false); // Research Library: upload a new document inside the project
   const [toast, setToast] = useState<string | null>(null);
   function showToast(msg: string) { setToast(msg); setTimeout(() => setToast(null), 4000); }
@@ -217,9 +219,11 @@ export function ResearchMethodBody({ method }: { method: ResearchMethod }) {
           primaryAction={canManage
             ? (method === "library"
                 ? <Button variant="primary" onClick={() => setUploadOpen(true)}>+ Upload New Document</Button>
-                : cfg.createHref
-                  ? <Button variant="primary" onClick={() => router.push(cfg.createHref!(projectId))}>{cfg.createLabel}</Button>
-                  : undefined)
+                : method === "conversation"
+                  ? <Button variant="primary" onClick={() => setCreateSearchOpen(true)}>{cfg.createLabel}</Button>
+                  : cfg.createHref
+                    ? <Button variant="primary" onClick={() => router.push(cfg.createHref!(projectId))}>{cfg.createLabel}</Button>
+                    : undefined)
             : undefined}
         />
 
@@ -233,7 +237,9 @@ export function ResearchMethodBody({ method }: { method: ResearchMethod }) {
                 <Button variant="secondary" onClick={() => setAttachOpen(true)}>{cfg.attachLabel}</Button>
                 {method === "library"
                   ? <Button variant="primary" onClick={() => setUploadOpen(true)}>+ Upload New Document</Button>
-                  : cfg.createHref && <Button variant="primary" onClick={() => router.push(cfg.createHref!(projectId))}>{cfg.createLabel}</Button>}
+                  : method === "conversation"
+                    ? <Button variant="primary" onClick={() => setCreateSearchOpen(true)}>{cfg.createLabel}</Button>
+                    : cfg.createHref && <Button variant="primary" onClick={() => router.push(cfg.createHref!(projectId))}>{cfg.createLabel}</Button>}
               </div>
             ) : undefined}
           />
@@ -267,6 +273,16 @@ export function ResearchMethodBody({ method }: { method: ResearchMethod }) {
           isSimulated={project.research_mode === "simulated"}
           onClose={() => setAttachOpen(false)}
           onAttach={surveyId => attach(surveyId, "Survey attached.", "Failed to attach survey.")}
+        />
+      )}
+      {createSearchOpen && method === "conversation" && (
+        <CreateConversationSearchPanel
+          isSimulated={project.research_mode === "simulated"}
+          onClose={() => setCreateSearchOpen(false)}
+          onCreated={searchId => {
+            setCreateSearchOpen(false);
+            attach(searchId, "Conversation search created.", "Created, but couldn't attach to the project.");
+          }}
         />
       )}
       {attachOpen && method === "conversation" && (

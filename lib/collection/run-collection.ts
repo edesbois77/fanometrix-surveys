@@ -22,9 +22,23 @@ type SearchRow = {
   collect_from: string | null; collect_to: string | null;
   connector_config: Record<string, Record<string, unknown>> | null;
   entity_type: string | null; research_goal: string | null; is_simulated: boolean | null;
+  collect_window: string | null;
   reddit_subreddits: string[] | null; // legacy — TODO remove once configs migrate to connector_config
   social_keywords: { keyword: string }[] | null;
 };
+
+// Resolve the actual date window for a run. Relative presets are computed
+// against "now" so "Last 90 days" always means the 90 days before THIS run;
+// only 'custom' (or a legacy null) uses the stored collect_from/collect_to.
+const WINDOW_DAYS: Record<string, number> = { "7d": 7, "30d": 30, "90d": 90, "1y": 365 };
+function resolveWindow(collectWindow: string | null, from: string | null, to: string | null): { dateFrom: string | null; dateTo: string | null } {
+  const days = collectWindow ? WINDOW_DAYS[collectWindow] : undefined;
+  if (days) {
+    const now = new Date();
+    return { dateFrom: new Date(now.getTime() - days * 86_400_000).toISOString(), dateTo: now.toISOString() };
+  }
+  return { dateFrom: from ? new Date(from).toISOString() : null, dateTo: to ? new Date(to).toISOString() : null };
+}
 
 export type RunCollectionResult = {
   runId: string;
@@ -43,7 +57,7 @@ export async function runCollection(opts: {
 }): Promise<RunCollectionResult> {
   const { data: search, error: sErr } = await supabaseAdmin
     .from("social_searches")
-    .select("id, name, markets, platforms, languages, collect_from, collect_to, connector_config, entity_type, research_goal, is_simulated, reddit_subreddits, social_keywords(keyword)")
+    .select("id, name, markets, platforms, languages, collect_from, collect_to, collect_window, connector_config, entity_type, research_goal, is_simulated, reddit_subreddits, social_keywords(keyword)")
     .eq("id", opts.searchId)
     .single<SearchRow>();
 
@@ -63,14 +77,18 @@ export async function runCollection(opts: {
   const runnable = connectors.filter(c => c.isConfigured());
   const notConfigured = connectors.filter(c => !c.isConfigured()).map(c => c.name);
 
+  // Resolve the relative window once for this run.
+  const window = resolveWindow(search.collect_window, search.collect_from, search.collect_to);
+
   // Snapshot the exact config this run used, so the run stays reproducible even
   // after the search definition later changes.
   const configSnapshot = {
     keywords,
     markets: search.markets ?? [],
     languages: search.languages ?? [],
-    collect_from: search.collect_from,
-    collect_to: search.collect_to,
+    collect_window: search.collect_window,
+    collect_from: window.dateFrom,
+    collect_to: window.dateTo,
     connectors: runnable.map(c => c.id),
     connector_config: Object.fromEntries(runnable.map(c => [c.id, (search.connector_config ?? {})[c.id] ?? {}])),
   };
@@ -116,8 +134,8 @@ export async function runCollection(opts: {
       keywords,
       markets: search.markets ?? [],
       languages: search.languages ?? [],
-      dateFrom: search.collect_from ? new Date(search.collect_from).toISOString() : null,
-      dateTo: search.collect_to ? new Date(search.collect_to).toISOString() : null,
+      dateFrom: window.dateFrom,
+      dateTo: window.dateTo,
       config,
     };
     try {

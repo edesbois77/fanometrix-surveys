@@ -177,3 +177,16 @@ export const MARKET_REFERENCE_PAIRS = [
   { market: "Spain",          country_code: "ES", survey_language: "en"    },
   { market: "United States",  country_code: "US", survey_language: "en"    },
 ];
+
+// Infer collection languages from selected market codes (GB→en, DE→de, …).
+// Used to default a Conversation Search's languages so users rarely set them by
+// hand. Always returns at least ["en"].
+export function inferLanguagesForMarkets(marketCodes: string[]): string[] {
+  const langs = new Set<string>();
+  for (const m of marketCodes) {
+    const lang = COUNTRY_TO_LANGUAGE[(m ?? "").toUpperCase()];
+    if (lang) langs.add(lang);
+  }
+  if (!langs.size) langs.add("en");
+  return [...langs];
+}

@@ -36,6 +36,17 @@ export function connectorForPlatformId(platformId: string): ConnectorCatalogEntr
   return CONNECTOR_CATALOG.find(c => c.platformIds.includes(p)) ?? null;
 }
 
+// Relative time-period presets. Stored on the search as collect_window; the
+// pipeline resolves the actual window at each run so "Last 90 days" stays
+// current. Only "custom" uses explicit collect_from/collect_to dates.
+export const COLLECTION_WINDOWS = [
+  { value: "7d", label: "Last 7 days" },
+  { value: "30d", label: "Last 30 days" },
+  { value: "90d", label: "Last 90 days" },
+  { value: "1y", label: "Last year" },
+  { value: "custom", label: "Custom" },
+] as const;
+
 // Common collection languages (ISO 639-1) for the config form.
 export const COLLECTION_LANGUAGES: { code: string; label: string }[] = [
   { code: "en", label: "English" }, { code: "de", label: "German" }, { code: "fr", label: "French" },
