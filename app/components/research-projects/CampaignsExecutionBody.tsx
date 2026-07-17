@@ -62,6 +62,23 @@ function duplicatePayload(c: Campaign) {
   };
 }
 
+// Persist the campaigns-list filters per survey, so navigating into a campaign
+// (or editing one) and coming back restores exactly what was filtered — you
+// don't have to re-pick the publisher every time you go in and out. Scoped to
+// the browser session: it clears when the tab is closed.
+type ExecFilterState = {
+  search: string; statusFilter: string; publisherFilter: string;
+  countryFilter: string; typeFilter: string; usageFilter: string; sortBy: string;
+};
+const EXEC_FILTER_PREFIX = "execCampaignFilters:";
+function loadExecFilters(key: string): Partial<ExecFilterState> {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = window.sessionStorage.getItem(key);
+    return raw ? (JSON.parse(raw) as Partial<ExecFilterState>) : {};
+  } catch { return {}; }
+}
+
 export function CampaignsExecutionBody({ surveyEvidenceId }: { surveyEvidenceId: string }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -82,13 +99,26 @@ export function CampaignsExecutionBody({ surveyEvidenceId }: { surveyEvidenceId:
   }, []);
 
   // ── Operations Toolbar filters + multi-select (bulk-ops framework) ───────────
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [publisherFilter, setPublisherFilter] = useState("all");
-  const [countryFilter, setCountryFilter] = useState("all");
-  const [typeFilter, setTypeFilter] = useState("all");
-  const [usageFilter, setUsageFilter] = useState("all");
-  const [sortBy, setSortBy] = useState("status");
+  // Initialised from this survey's remembered filters (session storage) so the
+  // selection survives navigating into a campaign and back.
+  const filterKey = `${EXEC_FILTER_PREFIX}${surveyEvidenceId}`;
+  const [search, setSearch] = useState(() => loadExecFilters(filterKey).search ?? "");
+  const [statusFilter, setStatusFilter] = useState(() => loadExecFilters(filterKey).statusFilter ?? "all");
+  const [publisherFilter, setPublisherFilter] = useState(() => loadExecFilters(filterKey).publisherFilter ?? "all");
+  const [countryFilter, setCountryFilter] = useState(() => loadExecFilters(filterKey).countryFilter ?? "all");
+  const [typeFilter, setTypeFilter] = useState(() => loadExecFilters(filterKey).typeFilter ?? "all");
+  const [usageFilter, setUsageFilter] = useState(() => loadExecFilters(filterKey).usageFilter ?? "all");
+  const [sortBy, setSortBy] = useState(() => loadExecFilters(filterKey).sortBy ?? "status");
+
+  // Remember the current filters for this survey on every change.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      window.sessionStorage.setItem(filterKey, JSON.stringify({
+        search, statusFilter, publisherFilter, countryFilter, typeFilter, usageFilter, sortBy,
+      }));
+    } catch { /* storage unavailable / full — non-fatal, filters just won't persist */ }
+  }, [filterKey, search, statusFilter, publisherFilter, countryFilter, typeFilter, usageFilter, sortBy]);
   const { selectedIds, toggleSelect, toggleSelectAll, clearSelection } = useCampaignSelection();
   const { bulkWorking, handleBulkDelete, handleBulkAction } = useCampaignBulkActions({
     selectedIds, clearSelection, load, showToast, researchProjectId: projectId,
