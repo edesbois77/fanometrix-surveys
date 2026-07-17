@@ -54,7 +54,7 @@ function uniqueVals(data: SurveyResponse[], field: keyof SurveyResponse): string
   return [...new Set(data.map(r => r[field] as string).filter(Boolean))].sort();
 }
 
-type CampaignOption = { campaign_id: string; campaign_name: string; created_at: string; survey_id?: string | null };
+type CampaignOption = { campaign_id: string; campaign_name: string; created_at: string; survey_id?: string | null; effective_survey_id?: string | null };
 
 interface Props {
   allResponses: SurveyResponse[];
@@ -90,9 +90,12 @@ export function DashboardFilters({
     (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
   );
 
-  // When a survey is selected, restrict the campaign dropdown to campaigns using that survey
+  // When a survey is selected, restrict the campaign dropdown to campaigns using
+  // that survey. Match on the EFFECTIVE survey — a campaign that inherits its
+  // survey from the project has survey_id null, so keying on the raw survey_id
+  // would wrongly hide every inherited campaign.
   const campaignDropdownOptions = filters.survey_id
-    ? sortedCampaigns.filter(c => c.survey_id === filters.survey_id)
+    ? sortedCampaigns.filter(c => (c.effective_survey_id ?? c.survey_id) === filters.survey_id)
     : sortedCampaigns;
 
   // All active filter chips (dimensions + date + q answers)
@@ -162,35 +165,24 @@ export function DashboardFilters({
         </div>
       )}
 
-      {/* Scope selectors — Campaign Group / Survey / Campaign */}
-      <div className="px-4 py-3 border-b border-gray-50 space-y-2">
-        <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Study scope</p>
+      {/* Scope selectors — Survey (left) / Campaign (right) / Campaign Group */}
+      <div className="px-4 py-3 border-b border-gray-50">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-          {/* Campaign Group */}
-          {groupOptions.length > 0 && (
-            <div>
-              <select
-                value={filters.group_id}
-                onChange={e => setFilter("group_id", e.target.value)}
-                className="w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 text-gray-700 focus:outline-none focus:border-[#D7B87A]"
-              >
-                <option value="">All Campaign Groups</option>
-                {groupOptions.map(g => (
-                  <option key={g.id} value={g.id}>{g.name}</option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          {/* Survey */}
-          {surveyOptions.length > 1 && (
-            <div>
+          {/* Surveys — the project's surveys; picking one scopes everything below
+              (campaigns, charts, funnel) to that survey. */}
+          {surveyOptions.length > 0 && (
+            <div className="space-y-1">
+              <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Surveys</label>
               <select
                 value={filters.survey_id}
-                onChange={e => setFilter("survey_id", e.target.value)}
+                onChange={e => {
+                  setFilter("survey_id", e.target.value);
+                  // A campaign picked under a different survey no longer applies.
+                  if (filters.campaign_id) setFilter("campaign_id", "");
+                }}
                 className="w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 text-gray-700 focus:outline-none focus:border-[#D7B87A]"
               >
-                <option value="">All Surveys</option>
+                <option value="">{surveyOptions.length > 1 ? `All Surveys (${surveyOptions.length})` : "All Surveys"}</option>
                 {surveyOptions.map(s => (
                   <option key={s.id} value={s.id}>{s.name}</option>
                 ))}
@@ -198,8 +190,9 @@ export function DashboardFilters({
             </div>
           )}
 
-          {/* Single Campaign */}
-          <div>
+          {/* Campaigns — restricted to the selected survey's campaigns, if any. */}
+          <div className="space-y-1">
+            <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Campaigns</label>
             <select
               value={filters.campaign_id}
               onChange={e => setFilter("campaign_id", e.target.value)}
@@ -217,6 +210,23 @@ export function DashboardFilters({
               ))}
             </select>
           </div>
+
+          {/* Campaign Groups — only when the project has any. */}
+          {groupOptions.length > 0 && (
+            <div className="space-y-1">
+              <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Campaign Groups</label>
+              <select
+                value={filters.group_id}
+                onChange={e => setFilter("group_id", e.target.value)}
+                className="w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 text-gray-700 focus:outline-none focus:border-[#D7B87A]"
+              >
+                <option value="">All Campaign Groups</option>
+                {groupOptions.map(g => (
+                  <option key={g.id} value={g.id}>{g.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
       </div>
 

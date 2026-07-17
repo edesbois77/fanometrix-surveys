@@ -42,6 +42,7 @@ type CampaignInfo = {
   campaign_name:   string;
   survey_id:       string | null;
   effective_survey_id: string | null;
+  effective_survey_name: string | null;
   start_date:      string | null;
   end_date:        string | null;
   created_at:      string;
@@ -277,7 +278,9 @@ export function SurveyDashboardBody({ projectId }: { projectId?: string }) {
     const seen = new Map<string, string>();
     for (const c of campaigns) {
       const sid  = c.effective_survey_id;
-      const name = (c as unknown as { surveys?: { name: string } }).surveys?.name;
+      // Prefer the API-resolved effective survey name (covers project-inherited
+      // campaigns whose own survey_id is null); fall back to the direct join.
+      const name = c.effective_survey_name ?? (c as unknown as { surveys?: { name: string } }).surveys?.name;
       if (sid && name && !seen.has(sid)) seen.set(sid, name);
     }
     return [...seen.entries()].map(([id, name]) => ({ id, name }));

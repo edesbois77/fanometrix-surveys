@@ -145,6 +145,26 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  // Resolve the effective survey NAME (direct or project-inherited). The
+  // surveys(name) join above only covers a campaign's own survey_id; an
+  // inherited campaign (survey_id null) would otherwise have no survey name,
+  // so the dashboard's Surveys filter — which lists surveys by effective id —
+  // couldn't label them. Batch-fetch every effective survey id in one query.
+  const effectiveSurveyIds = new Set<string>();
+  for (const c of campaigns ?? []) {
+    const proj = c.research_project_id ? projectsById[c.research_project_id] : undefined;
+    const esid = c.survey_id ?? proj?.survey_id ?? null;
+    if (esid) effectiveSurveyIds.add(esid);
+  }
+  const surveyNameById = new Map<string, string>();
+  if (effectiveSurveyIds.size > 0) {
+    const { data: surveyRows } = await supabaseAdmin
+      .from("surveys")
+      .select("id, name")
+      .in("id", [...effectiveSurveyIds]);
+    for (const s of surveyRows ?? []) surveyNameById.set(s.id, s.name as string);
+  }
+
   const now = new Date();
 
   const enriched = await Promise.all(
@@ -216,6 +236,7 @@ export async function GET(req: NextRequest) {
         is_auto_transition: isAutoTransition,
         response_count:     responseCount,
         effective_survey_id,
+        effective_survey_name: effective_survey_id ? surveyNameById.get(effective_survey_id) ?? null : null,
         effective_start_date,
         effective_end_date,
         effective_target_responses,
@@ -254,7 +275,7 @@ export async function POST(req: NextRequest) {
     publisher: _pub, surveys: _s,
     // API-only resolved-inheritance fields (added to the GET response for the
     // Research Project override UI) — never real columns on campaigns.
-    effective_survey_id: _esi, effective_start_date: _esd, effective_end_date: _eed,
+    effective_survey_id: _esi, effective_survey_name: _esn, effective_start_date: _esd, effective_end_date: _eed,
     effective_target_responses: _etr, effective_archive_after_days: _ead,
     effective_tags: _et, effective_creative_design: _ecd, inherited: _inh,
     ...safe
