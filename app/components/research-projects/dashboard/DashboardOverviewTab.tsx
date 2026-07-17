@@ -75,9 +75,10 @@ export function DashboardOverviewTab({ projectId, project, campaigns, responses 
 
   // ── Survey (live campaign + response data) ─────────────────────────────────
   const surveyTargetFor = (e: typeof surveyEvidence[number]) => {
-    if (e.survey.target_responses != null) return e.survey.target_responses;
-    const sum = campaigns.filter(c => c.effective_survey_id === e.evidence_id).reduce((s, c) => s + (c.effective_target_responses ?? c.target_responses ?? 0), 0);
-    return sum > 0 ? sum : null;
+    // Prefer the sum of every linked campaign's target (reactive to campaigns),
+    // falling back to the survey's own target only when no campaigns reference it.
+    const sum = campaigns.filter(c => (c.effective_survey_id ?? c.survey_id) === e.evidence_id).reduce((s, c) => s + (c.effective_target_responses ?? c.target_responses ?? 0), 0);
+    return sum > 0 ? sum : (e.survey.target_responses ?? null);
   };
   const totalResponses = surveyEvidence.reduce((s, e) => s + e.survey.response_count, 0);
   const overallTarget = surveyEvidence.reduce((s, e) => s + (surveyTargetFor(e) ?? 0), 0) || null;

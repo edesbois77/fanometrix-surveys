@@ -155,7 +155,13 @@ export function ResearchMethodBody({ method }: { method: ResearchMethod }) {
   function renderCard(item: EvidenceItem) {
     if (method === "survey" && item.survey) {
       const s = item.survey;
-      const campaignCount = campaigns.filter(c => (c.effective_survey_id ?? c.survey_id) === item.evidence_id).length;
+      const linked = campaigns.filter(c => (c.effective_survey_id ?? c.survey_id) === item.evidence_id);
+      const campaignCount = linked.length;
+      // Target = the sum of every linked campaign's response target, so it stays
+      // reactive as campaigns (or their targets) change; falls back to the
+      // survey's own target only when no campaigns reference it yet.
+      const campaignTarget = linked.reduce((sum, c) => sum + (c.effective_target_responses ?? c.target_responses ?? 0), 0);
+      const surveyTarget = campaignTarget > 0 ? campaignTarget : (s.target_responses ?? 0);
       return (
         <SourceCard
           key={item.id}
@@ -164,7 +170,7 @@ export function ResearchMethodBody({ method }: { method: ResearchMethod }) {
           subtitle={s.brand_name ?? undefined}
           status={surveyStatusTone(s.status)}
           metrics={[
-            { label: "Responses", value: s.target_responses ? `${s.response_count.toLocaleString()} / ${s.target_responses.toLocaleString()}` : s.response_count.toLocaleString() },
+            { label: "Responses", value: surveyTarget > 0 ? `${s.response_count.toLocaleString()} / ${surveyTarget.toLocaleString()}` : s.response_count.toLocaleString() },
             { label: "Questions", value: s.question_count },
             { label: "Languages", value: s.completed_languages.length },
             { label: "Campaigns", value: campaignCount },
