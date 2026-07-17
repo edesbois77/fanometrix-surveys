@@ -52,7 +52,12 @@ export function SurveyExecutionCard({ projectId, item, campaigns }: {
   // when no campaign sets one, so the progress bar reflects the real goal.
   const campaignTargetSum = surveyCampaigns.reduce((sum, c) => sum + (c.effective_target_responses ?? c.target_responses ?? 0), 0);
   const target = campaignTargetSum > 0 ? campaignTargetSum : (s.target_responses ?? null);
-  const pct = target && target > 0 ? Math.min(100, Math.round((s.response_count / target) * 100)) : null;
+  // Responses collected = the sum of this survey's campaign counts. The
+  // survey-level count (vw_survey_stats) keys on responses.survey_id, which
+  // campaign embeds don't populate, so it reads 0 despite live collection —
+  // the campaign counts (keyed by campaign_id) are the reliable figure.
+  const responseCount = surveyCampaigns.reduce((sum, c) => sum + c.response_count, 0);
+  const pct = target && target > 0 ? Math.min(100, Math.round((responseCount / target) * 100)) : null;
 
   const m = SOURCE_META.survey;
   const Glyph = Icon[m.icon];
@@ -88,7 +93,7 @@ export function SurveyExecutionCard({ projectId, item, campaigns }: {
           <div className="flex items-center justify-between mb-1">
             <span className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>Response progress</span>
             <span className="text-xs font-semibold fx-tabular-nums" style={{ color: "var(--text-tertiary)" }}>
-              {target ? `${s.response_count.toLocaleString()} of ${target.toLocaleString()} responses` : `${s.response_count.toLocaleString()} responses · no target`}
+              {target ? `${responseCount.toLocaleString()} of ${target.toLocaleString()} target` : `${responseCount.toLocaleString()} responses · no target`}
             </span>
           </div>
           {target && <ProgressBar value={pct ?? 0} tone={live > 0 ? "success" : "accent"} showValue={false} />}
