@@ -119,6 +119,11 @@ function ProjectScopeReader({ onProjectId, onSurveyId }: { onProjectId: (id: str
 
 // ─── Body ────────────────────────────────────────────────────────────────────
 
+// How long between automatic dashboard refreshes. The "Refreshes in Ns"
+// countdown and the reload timer are both derived from this single value.
+const AUTO_REFRESH_SECONDS = 60;
+const AUTO_REFRESH_MS = AUTO_REFRESH_SECONDS * 1000;
+
 export function SurveyDashboardBody({ projectId }: { projectId?: string }) {
   const isProject = !!projectId;
 
@@ -207,13 +212,17 @@ export function SurveyDashboardBody({ projectId }: { projectId?: string }) {
     if (!loading) setLastUpdated(new Date());
   }, [loading]);
 
-  // Auto-refresh
+  // Auto-refresh AUTO_REFRESH_MS after the last successful update — anchored to
+  // lastUpdated (not a fixed cadence), so the reload fires exactly when the
+  // "Refreshes in Ns" countdown below reaches zero and the two never drift apart.
   useEffect(() => {
-    if (scopeProjectId === undefined) return;
-    const interval = setInterval(() => load(scopeProjectId), 60_000);
-    return () => clearInterval(interval);
-  }, [load, scopeProjectId]);
+    if (scopeProjectId === undefined || !lastUpdated) return;
+    const elapsed = Date.now() - lastUpdated.getTime();
+    const timer = setTimeout(() => load(scopeProjectId), Math.max(0, AUTO_REFRESH_MS - elapsed));
+    return () => clearTimeout(timer);
+  }, [lastUpdated, scopeProjectId, load]);
 
+  // Tick the countdown every second (seconds elapsed since the last update).
   useEffect(() => {
     const tick = setInterval(() => {
       setSecondsAgo(lastUpdated ? Math.floor((Date.now() - lastUpdated.getTime()) / 1000) : 0);
@@ -376,7 +385,7 @@ export function SurveyDashboardBody({ projectId }: { projectId?: string }) {
     <div className="flex items-center gap-2">
       {lastUpdated && (
         <span className="text-xs text-gray-400 hidden sm:block">
-          {loading ? "Updating…" : `Updated ${secondsAgo}s ago`}
+          {loading ? "Updating…" : `Refreshes in ${Math.max(0, AUTO_REFRESH_SECONDS - secondsAgo)}s`}
         </span>
       )}
       <button onClick={() => load(scopeProjectId ?? null)}
