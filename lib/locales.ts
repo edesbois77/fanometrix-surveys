@@ -102,6 +102,19 @@ export const COUNTRY_TO_LANGUAGE: Record<string, string> = {
   KR: "ko",
   IN: "en",   // India — English is the survey language used
   SA: "ar",
+
+  // Portuguese
+  BR: "pt",   // Brazil
+  PT: "pt",   // Portugal
+  // Spanish (Spain is above; Latin America here)
+  MX: "es", AR: "es", CO: "es", CL: "es", PE: "es", UY: "es",
+  // Other markets — each a country's real primary language, so a survey missing
+  // it is correctly flagged as a mismatch (all DeepL-authorable, never dead-ends).
+  RU: "ru", UA: "uk", TR: "tr",
+  NO: "nb", DK: "da", FI: "fi",
+  GR: "el", CZ: "cs", HU: "hu", RO: "ro", SK: "sk", SI: "sl", BG: "bg",
+  LT: "lt", LV: "lv", EE: "et", ID: "id",
+  IE: "en", NZ: "en", ZA: "en", CA: "en", SG: "en",
 };
 
 /**
@@ -134,6 +147,23 @@ export const LANGUAGE_DISPLAY_NAMES: Record<string, string> = {
   ar:      "Arabic",
   ja:      "Japanese",
   ko:      "Korean",
+  ru:      "Russian",
+  uk:      "Ukrainian",
+  tr:      "Turkish",
+  nb:      "Norwegian",
+  da:      "Danish",
+  fi:      "Finnish",
+  el:      "Greek",
+  cs:      "Czech",
+  hu:      "Hungarian",
+  ro:      "Romanian",
+  sk:      "Slovak",
+  sl:      "Slovenian",
+  bg:      "Bulgarian",
+  lt:      "Lithuanian",
+  lv:      "Latvian",
+  et:      "Estonian",
+  id:      "Indonesian",
 };
 
 // ── Reference pairs shown in the campaign form ────────────────────────────────

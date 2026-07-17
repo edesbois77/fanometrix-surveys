@@ -126,6 +126,9 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     deleted_at: _da, deleted_by: _db, delete_reason: _dr,
     effective_status: _es, status_reason: _sr, is_auto_transition: _iat, response_count: _rc,
     surveys: _s, created_by_admin: _cba,
+    // Computed display field the GET response adds from publisher_org_id → org
+    // name; not a real column, so strip it before the update.
+    publisher: _pub,
     // API-only resolved-inheritance fields (added to the GET response for the
     // Research Project override UI) — never real columns on campaigns.
     effective_survey_id: _esi, effective_start_date: _esd, effective_end_date: _eed,
