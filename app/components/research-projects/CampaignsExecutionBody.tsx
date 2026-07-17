@@ -361,6 +361,7 @@ export function CampaignsExecutionBody({ surveyEvidenceId }: { surveyEvidenceId:
                     key={c.id}
                     campaign={c}
                     basePath={thisPath}
+                    returnLabel="Campaigns"
                     orgName={orgName}
                     actioning={actioning}
                     onAction={handleAction}

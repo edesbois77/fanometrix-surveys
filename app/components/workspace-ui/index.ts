@@ -19,6 +19,7 @@ export * from "./Badges";
 export * from "./Surfaces";
 export * from "./WorkspaceHeader";
 export * from "./SubNav";
+export * from "./useBackTarget";
 export * from "./States";
 export * from "./Actions";
 

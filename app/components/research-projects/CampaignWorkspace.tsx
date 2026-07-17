@@ -22,7 +22,7 @@ import { CampaignOverview } from "@/app/components/research-projects/CampaignOve
 import { ACTION_LABELS, type CampaignAction, type CampaignStatus } from "@/lib/campaign-status";
 import { countryByCode } from "@/lib/countries";
 import {
-  PageContainer, WorkspaceHeader, PageLoadingState, ErrorState, Button, type Tone,
+  PageContainer, WorkspaceHeader, PageLoadingState, ErrorState, Button, useBackTarget, type Tone,
 } from "@/app/components/workspace-ui";
 
 const STATUS_TONE: Record<CampaignStatus, Tone> = {
@@ -61,21 +61,29 @@ export function CampaignWorkspace({ surveyEvidenceId, campaignId }: { surveyEvid
     setTimeout(() => setToast(null), 4000);
   }, []);
 
+  // Path + back target computed before the early returns so the hook order is
+  // stable. Back honours an explicit ?returnTo (the list the user opened this
+  // from), else the hierarchical parent for the current section.
+  const basePath = `/research-projects/${projectId}/execution/survey/${surveyEvidenceId}`;
+  const campaignPath = `${basePath}/campaign/${campaignId}`;
+  const section = searchParams.get("section") || "overview";
+  const backTarget = useBackTarget(
+    section === "overview"
+      ? { href: basePath, label: "Back to Campaigns" }
+      : { href: campaignPath, label: "Back to Campaign Dashboard" }
+  );
+
   if (loading && !project) return <PageContainer><PageLoadingState /></PageContainer>;
   if (error || !project) return (
     <PageContainer><ErrorState title="Research project not found" description={error || "We couldn't load this project."} /></PageContainer>
   );
 
-  const basePath = `/research-projects/${projectId}/execution/survey/${surveyEvidenceId}`;
-  const campaignPath = `${basePath}/campaign/${campaignId}`;
   const c = campaigns.find(x => x.id === campaignId) ?? null;
   if (!c) return (
     <PageContainer>
       <ErrorState title="Campaign not found" description="This campaign may have been deleted." backHref={basePath} backLabel="Back to Campaigns" />
     </PageContainer>
   );
-
-  const section = searchParams.get("section") || "overview";
   const orgName = (id: string | null) => (id ? orgs.find(o => o.id === id)?.name ?? "" : "");
   const st = c.effective_status;
   const futureStart = c.start_date ? new Date(`${c.start_date}T00:00:00`) > new Date() : false;
@@ -105,9 +113,11 @@ export function CampaignWorkspace({ surveyEvidenceId, campaignId }: { surveyEvid
     <>
       <PageContainer>
         <WorkspaceHeader
-          back={section === "overview"
-            ? { href: basePath, label: "Back to Campaigns" }
-            : { href: campaignPath, label: "Back to Campaign Dashboard" }}
+          // Honours an explicit ?returnTo (e.g. the campaigns list the user
+          // opened this from); otherwise falls back to the hierarchical parent —
+          // the campaigns list from the overview, the campaign overview from a
+          // sub-section.
+          back={backTarget}
           title={c.campaign_name}
           description={`Campaign #${String(c.campaign_number).padStart(6, "0")}`}
           status={{ label: st.charAt(0).toUpperCase() + st.slice(1), tone: STATUS_TONE[st] ?? "neutral", dot: true }}

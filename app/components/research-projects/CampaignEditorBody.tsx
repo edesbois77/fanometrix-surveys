@@ -11,7 +11,7 @@ import { useRouter } from "next/navigation";
 import { useResearchProject, type EvidenceItem } from "@/app/components/research-projects/ProjectProvider";
 import { useWorkspaceRecord } from "@/app/components/research-projects/WorkspaceRecordContext";
 import { CampaignEditor } from "@/app/components/campaigns/CampaignEditor";
-import { PageContainer, WorkspaceHeader, PageLoadingState, ErrorState } from "@/app/components/workspace-ui";
+import { PageContainer, WorkspaceHeader, PageLoadingState, ErrorState, useBackTarget } from "@/app/components/workspace-ui";
 import type { Campaign } from "@/app/components/campaigns/types";
 
 export function CampaignEditorBody({ surveyEvidenceId, campaignId }: { surveyEvidenceId: string; campaignId: string }) {
@@ -50,6 +50,12 @@ export function CampaignEditorBody({ surveyEvidenceId, campaignId }: { surveyEvi
   }, [surveyItem?.survey.name, setRecordLabel]);
 
   const campaignsPath = `/research-projects/${projectId}/execution/survey/${surveyEvidenceId}`;
+  // Honour an explicit ?returnTo (the list this was opened from), else the
+  // hierarchical parent — the campaigns list when creating, the campaign
+  // dashboard when editing.
+  const backTarget = useBackTarget(isNew
+    ? { href: campaignsPath, label: "Back to Campaigns" }
+    : { href: `${campaignsPath}/campaign/${campaignId}`, label: "Back to Campaign Dashboard" });
 
   if (loading && !project) return <PageContainer><PageLoadingState /></PageContainer>;
   if (error || !project) return (
@@ -70,9 +76,7 @@ export function CampaignEditorBody({ surveyEvidenceId, campaignId }: { surveyEvi
   return (
     <PageContainer>
       <WorkspaceHeader
-        back={isNew
-          ? { href: campaignsPath, label: "Back to Campaigns" }
-          : { href: `${campaignsPath}/campaign/${campaignId}`, label: "Back to Campaign Dashboard" }}
+        back={backTarget}
         title={isNew ? "Create Campaign" : "Edit Campaign"}
         description={`Deploy “${surveyItem.survey.name}” to a publisher and market. Fields left blank inherit from the project.`}
       />

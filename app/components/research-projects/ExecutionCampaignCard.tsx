@@ -17,7 +17,8 @@
 // so this and the standalone page can never disagree.
 import { useState, useRef } from "react";
 import { createPortal } from "react-dom";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
+import { withReturn } from "@/app/components/workspace-ui";
 import { Button, StatusBadge, ProgressBar, TONE, type Tone } from "@/app/components/workspace-ui";
 import type { CampaignAction, CampaignStatus } from "@/lib/campaign-status";
 import { countryByCode } from "@/lib/countries";
@@ -111,7 +112,7 @@ function OverflowMenu({ items }: { items: MenuItem[] }) {
 export function ExecutionCampaignCard({
   campaign: c, basePath, orgName,
   actioning, onAction, onPreview, onDuplicate, onDelete,
-  selected, onToggleSelect,
+  selected, onToggleSelect, returnLabel,
 }: {
   campaign: Campaign;
   /** The survey's Campaigns page path; campaign sub-pages hang off it. */
@@ -125,8 +126,12 @@ export function ExecutionCampaignCard({
   /** Multi-select for bulk operations — a checkbox appears when provided. */
   selected?: boolean;
   onToggleSelect?: () => void;
+  /** When set, links into this campaign remember where they were opened from, so
+   *  the campaign's back button returns here ("Back to {returnLabel}"). */
+  returnLabel?: string;
 }) {
   const router = useRouter();
+  const pathname = usePathname();
   const st = c.effective_status;
   const tone: Tone = STATUS_TONE[st] ?? "danger";
   const ink = TONE[tone].ink;
@@ -140,9 +145,11 @@ export function ExecutionCampaignCard({
   const chips = [orgName(c.publisher_org_id), country].filter(Boolean) as string[];
   const busy = primary.kind === "action" && actioning === c.id + primary.action;
 
-  const dashboardHref = `${basePath}/campaign/${c.id}`;
-  const tagsHref = `${dashboardHref}?section=deployment`;
-  const editHref = `${dashboardHref}/edit`;
+  // Remember this list as the origin so the campaign's back button returns here.
+  const withOrigin = (href: string) => (returnLabel ? withReturn(href, pathname, returnLabel) : href);
+  const dashboardHref = withOrigin(`${basePath}/campaign/${c.id}`);
+  const tagsHref = withOrigin(`${basePath}/campaign/${c.id}?section=deployment`);
+  const editHref = withOrigin(`${basePath}/campaign/${c.id}/edit`);
 
   const overflow: MenuItem[] = [
     { label: "Duplicate", onClick: () => onDuplicate(c) },
