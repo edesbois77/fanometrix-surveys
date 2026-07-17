@@ -46,11 +46,12 @@ export function SurveyExecutionCard({ projectId, item, campaigns }: {
   const paused = surveyCampaigns.filter(c => c.effective_status === "paused").length;
   const status = surveyDeploymentStatus(live, paused, surveyCampaigns.length);
 
-  // Response target: the survey's own if set, otherwise the aggregate of its
-  // campaigns' targets (targets are usually set per-campaign, not survey-level)
-  // — so the progress bar reflects the real goal instead of vanishing.
+  // Response target: prefer the aggregate of this survey's campaign targets
+  // (targets are set per-campaign in the field), exactly like the Research and
+  // Analysis survey cards — the survey's own target_responses is only a fallback
+  // when no campaign sets one, so the progress bar reflects the real goal.
   const campaignTargetSum = surveyCampaigns.reduce((sum, c) => sum + (c.effective_target_responses ?? c.target_responses ?? 0), 0);
-  const target = s.target_responses ?? (campaignTargetSum > 0 ? campaignTargetSum : null);
+  const target = campaignTargetSum > 0 ? campaignTargetSum : (s.target_responses ?? null);
   const pct = target && target > 0 ? Math.min(100, Math.round((s.response_count / target) * 100)) : null;
 
   const m = SOURCE_META.survey;
