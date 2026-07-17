@@ -391,6 +391,8 @@ export function CampaignsExecutionBody({ surveyEvidenceId }: { surveyEvidenceId:
                     campaign={c}
                     basePath={thisPath}
                     returnLabel="Campaigns"
+                    surveyStatus={survey.status}
+                    fixSurveyHref={`/research-projects/${projectId}/research/survey/${surveyEvidenceId}`}
                     orgName={orgName}
                     actioning={actioning}
                     onAction={handleAction}

@@ -22,7 +22,7 @@ import { CampaignOverview } from "@/app/components/research-projects/CampaignOve
 import { ACTION_LABELS, type CampaignAction, type CampaignStatus } from "@/lib/campaign-status";
 import { countryByCode } from "@/lib/countries";
 import {
-  PageContainer, WorkspaceHeader, PageLoadingState, ErrorState, Button, useBackTarget, type Tone,
+  PageContainer, WorkspaceHeader, PageLoadingState, ErrorState, Button, useBackTarget, TONE, type Tone,
 } from "@/app/components/workspace-ui";
 
 const STATUS_TONE: Record<CampaignStatus, Tone> = {
@@ -89,6 +89,14 @@ export function CampaignWorkspace({ surveyEvidenceId, campaignId }: { surveyEvid
   const futureStart = c.start_date ? new Date(`${c.start_date}T00:00:00`) > new Date() : false;
   const primary = canManage ? principalAction(st, futureStart) : null;
 
+  // The linked survey must be Ready or the embed this campaign hands out (see
+  // the Deployment tab) serves nothing — flag it wherever the campaign is open.
+  const surveyStatus = project.evidence.find(
+    e => e.evidence_type === "survey" && e.evidence_id === surveyEvidenceId
+  )?.survey?.status;
+  const surveyNotReady = !!surveyStatus && surveyStatus !== "ready";
+  const fixSurveyHref = `/research-projects/${projectId}/research/survey/${surveyEvidenceId}`;
+
   const country = c.market || (c.country_code ? countryByCode(c.country_code)?.name ?? c.country_code : null);
   const target = c.effective_target_responses ?? c.target_responses;
   const metaParts = [
@@ -125,6 +133,24 @@ export function CampaignWorkspace({ surveyEvidenceId, campaignId }: { surveyEvid
           secondaryActions={canManage ? <Button variant="secondary" href={`${campaignPath}/edit`}>Edit</Button> : undefined}
           primaryAction={primary ? <Button variant="primary" disabled={actioning} onClick={() => handleAction(primary.action)}>{actioning ? "…" : primary.label}</Button> : undefined}
         />
+
+        {surveyNotReady && (
+          <div
+            className="flex items-start gap-2.5 px-4 py-3"
+            style={{ borderRadius: "var(--radius-panel)", background: TONE.warning.wash, border: `1px solid ${TONE.warning.line}` }}
+          >
+            <span aria-hidden className="text-sm leading-none mt-[1px]" style={{ color: TONE.warning.ink }}>⚠</span>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold" style={{ color: TONE.warning.ink }}>
+                Survey {surveyStatus === "draft" ? "is still in Draft" : `status is "${surveyStatus}"`}
+              </p>
+              <p className="text-xs mt-0.5" style={{ color: TONE.warning.ink }}>
+                This campaign&apos;s live embed will collect nothing until the survey is set to Ready. Preview links still work.
+              </p>
+              <Button variant="secondary" size="sm" href={fixSurveyHref} className="mt-2">Open survey to set it Ready →</Button>
+            </div>
+          </div>
+        )}
 
         {/* Section tabs — the campaign's operational areas. */}
         <div className="flex items-center gap-1 border-b" style={{ borderColor: "var(--border-subtle)" }}>

@@ -113,6 +113,7 @@ export function ExecutionCampaignCard({
   campaign: c, basePath, orgName,
   actioning, onAction, onPreview, onDuplicate, onDelete,
   selected, onToggleSelect, returnLabel,
+  surveyStatus, fixSurveyHref,
 }: {
   campaign: Campaign;
   /** The survey's Campaigns page path; campaign sub-pages hang off it. */
@@ -129,6 +130,12 @@ export function ExecutionCampaignCard({
   /** When set, links into this campaign remember where they were opened from, so
    *  the campaign's back button returns here ("Back to {returnLabel}"). */
   returnLabel?: string;
+  /** The linked survey's own status (draft/ready/…). Anything other than
+   *  "ready" means the live embed serves nothing (embed/campaign route gate),
+   *  so the card flags it — the exact trap of a Live campaign on a Draft survey. */
+  surveyStatus?: string;
+  /** Where to send the user to set the survey Ready (the survey editor). */
+  fixSurveyHref?: string;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -139,6 +146,9 @@ export function ExecutionCampaignCard({
   const target = c.effective_target_responses ?? c.target_responses;
   const pct = target && target > 0 ? Math.min(100, Math.round((c.response_count / target) * 100)) : null;
   const isLiveOrPaused = st === "live" || st === "paused";
+  // The linked survey must be Ready or the live embed returns nothing — the
+  // failure the user hit (Live campaign, Draft survey). Flag it on the card.
+  const surveyNotReady = !!surveyStatus && surveyStatus !== "ready";
   const country = c.market || (c.country_code ? countryByCode(c.country_code)?.name ?? c.country_code : null);
   // Operational identifiers only — publisher and market. Brand/agency belong to
   // the project, not the deployment, so they'd only add administrative noise.
@@ -194,6 +204,30 @@ export function ExecutionCampaignCard({
             {chips.map((ch, i) => (
               <span key={i} className="inline-flex items-center text-[11px] font-medium px-2 py-0.5 rounded-full" style={{ background: "var(--surface-sunken)", color: "var(--text-secondary)", border: "1px solid var(--border-subtle)" }}>{ch}</span>
             ))}
+          </div>
+        )}
+
+        {surveyNotReady && (
+          <div
+            onClick={e => e.stopPropagation()}
+            className="mt-3 flex items-start gap-2 px-3 py-2"
+            style={{ borderRadius: "var(--radius-control)", background: TONE.warning.wash, border: `1px solid ${TONE.warning.line}` }}
+          >
+            <span aria-hidden className="text-xs leading-none mt-[1px]" style={{ color: TONE.warning.ink }}>⚠</span>
+            <div className="min-w-0">
+              <p className="text-[11px] font-semibold leading-snug" style={{ color: TONE.warning.ink }}>
+                Survey {surveyStatus === "draft" ? "is in Draft" : `status is "${surveyStatus}"`} — the live embed won&apos;t collect responses until the survey is set to Ready.
+              </p>
+              {fixSurveyHref && (
+                <button
+                  onClick={() => router.push(fixSurveyHref)}
+                  className="text-[11px] font-semibold hover:underline mt-0.5"
+                  style={{ color: "var(--accent-ink)" }}
+                >
+                  Open survey to set it Ready →
+                </button>
+              )}
+            </div>
           </div>
         )}
 
