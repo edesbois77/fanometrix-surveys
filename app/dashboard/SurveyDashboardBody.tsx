@@ -125,6 +125,26 @@ function ProjectScopeReader({ onProjectId, onSurveyId }: { onProjectId: (id: str
 const AUTO_REFRESH_SECONDS = 60;
 const AUTO_REFRESH_MS = AUTO_REFRESH_SECONDS * 1000;
 
+// The "Refreshes in Ns" countdown ticks once a second. Isolated into its own
+// component so that per-second re-render is confined to this tiny label — if it
+// lived in the body it would re-render the whole dashboard every second, which
+// made Recharts re-run its bar/label entrance animation (the flashing numbers).
+function RefreshCountdown({ lastUpdated, loading }: { lastUpdated: Date | null; loading: boolean }) {
+  const [secondsAgo, setSecondsAgo] = useState(0);
+  useEffect(() => {
+    const tick = setInterval(() => {
+      setSecondsAgo(lastUpdated ? Math.floor((Date.now() - lastUpdated.getTime()) / 1000) : 0);
+    }, 1000);
+    return () => clearInterval(tick);
+  }, [lastUpdated]);
+  if (!lastUpdated) return null;
+  return (
+    <span className="text-xs text-gray-400 hidden sm:block">
+      {loading ? "Updating…" : `Refreshes in ${Math.max(0, AUTO_REFRESH_SECONDS - secondsAgo)}s`}
+    </span>
+  );
+}
+
 export function SurveyDashboardBody({ projectId }: { projectId?: string }) {
   const isProject = !!projectId;
 
@@ -143,7 +163,6 @@ export function SurveyDashboardBody({ projectId }: { projectId?: string }) {
   const [eventCounts,   setEventCounts]   = useState<EventCounts | null>(null);
   const [eventsLoading, setEventsLoading] = useState(false);
   const [lastUpdated,   setLastUpdated]   = useState<Date | null>(null);
-  const [secondsAgo,    setSecondsAgo]    = useState(0);
 
   // Filter state — persisted in localStorage for the GLOBAL host only. The
   // project host starts clean so it never inherits (or overwrites) a global
@@ -222,14 +241,6 @@ export function SurveyDashboardBody({ projectId }: { projectId?: string }) {
     const timer = setTimeout(() => load(scopeProjectId), Math.max(0, AUTO_REFRESH_MS - elapsed));
     return () => clearTimeout(timer);
   }, [lastUpdated, scopeProjectId, load]);
-
-  // Tick the countdown every second (seconds elapsed since the last update).
-  useEffect(() => {
-    const tick = setInterval(() => {
-      setSecondsAgo(lastUpdated ? Math.floor((Date.now() - lastUpdated.getTime()) / 1000) : 0);
-    }, 1000);
-    return () => clearInterval(tick);
-  }, [lastUpdated]);
 
   // Fetch event counts — re-runs when filters or date bounds change
   useEffect(() => {
@@ -386,11 +397,7 @@ export function SurveyDashboardBody({ projectId }: { projectId?: string }) {
 
   const controls = (
     <div className="flex items-center gap-2">
-      {lastUpdated && (
-        <span className="text-xs text-gray-400 hidden sm:block">
-          {loading ? "Updating…" : `Refreshes in ${Math.max(0, AUTO_REFRESH_SECONDS - secondsAgo)}s`}
-        </span>
-      )}
+      <RefreshCountdown lastUpdated={lastUpdated} loading={loading} />
       <button onClick={() => load(scopeProjectId ?? null)}
         className="border border-gray-200 text-gray-600 hover:bg-gray-50 text-sm font-medium px-3 py-1.5 rounded-lg transition-colors">
         {loading ? "…" : "Refresh"}
