@@ -106,13 +106,36 @@ function normaliseFanSegment(val: string | null | undefined): string | null {
     .trim();
 }
 
+// Ad-server macros (%%COUNTRY%%, ${SITE}, {{cb}}, [ZONE], __POS__, %country% …)
+// that a publisher's ad server failed to substitute arrive as literal tokens in
+// the embed URL, and would otherwise be stored as a bogus country / publisher /
+// placement etc. Treat any value that is WHOLLY such a placeholder as "no value"
+// so it never enters the data, the dimension charts or exports.
+const AD_MACRO_RE = /^\s*(?:%%.*%%|%[a-z0-9_.]+%|\$\{.*\}|\{.*\}|\[.*\]|__.+__)\s*$/i;
+export function stripAdMacro(val: string | number | null | undefined): string | null {
+  if (val === null || val === undefined) return null;
+  const str = String(val).trim();
+  if (str === "" || AD_MACRO_RE.test(str)) return null;
+  return str;
+}
+
 export function normalisePayload(body: Record<string, unknown>): Record<string, unknown> {
   return {
     ...body,
-    country:     normalise(COUNTRY_MAP,     body.country     as string),
-    club:        normalise(CLUB_MAP,        body.club        as string),
-    competition: normalise(COMPETITION_MAP, body.competition as string),
-    fan_segment: normaliseFanSegment(body.fan_segment as string),
+    // Strip unreplaced ad macros from every free-text dimension. Mapped fields
+    // strip first, then normalise; passthrough fields strip only.
+    publisher:    stripAdMacro(body.publisher    as string),
+    placement:    stripAdMacro(body.placement    as string),
+    placement_id: stripAdMacro(body.placement_id as string),
+    creative_id:  stripAdMacro(body.creative_id  as string),
+    device:       stripAdMacro(body.device       as string),
+    browser:      stripAdMacro(body.browser      as string),
+    market:       stripAdMacro(body.market       as string),
+    country_code: stripAdMacro(body.country_code as string),
+    country:     normalise(COUNTRY_MAP,     stripAdMacro(body.country     as string)),
+    club:        normalise(CLUB_MAP,        stripAdMacro(body.club        as string)),
+    competition: normalise(COMPETITION_MAP, stripAdMacro(body.competition as string)),
+    fan_segment: normaliseFanSegment(stripAdMacro(body.fan_segment as string)),
     q1:          normalise(Q_VALUE_MAP,     body.q1          as string),
     q2:          normalise(Q_VALUE_MAP,     body.q2          as string),
     q3:          normalise(Q_VALUE_MAP,     body.q3          as string),
