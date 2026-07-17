@@ -33,6 +33,7 @@ import { CampaignPreviewModal } from "@/app/components/campaigns/CampaignPreview
 import { AttachExistingCampaignModal } from "@/app/components/campaigns/AttachExistingCampaignModal";
 import { useCampaignSelection } from "@/app/components/campaigns/useCampaignSelection";
 import { useCampaignBulkActions } from "@/app/components/campaigns/useCampaignBulkActions";
+import { BulkEditCampaignsModal } from "@/app/components/research-projects/BulkEditCampaignsModal";
 import { DeploymentWizardModal } from "@/app/components/research-projects/workspace-shared";
 import { ACTION_LABELS, type CampaignAction, type CampaignStatus } from "@/lib/campaign-status";
 import { studyTypeLabel } from "@/lib/naming";
@@ -92,6 +93,24 @@ export function CampaignsExecutionBody({ surveyEvidenceId }: { surveyEvidenceId:
   const { bulkWorking, handleBulkDelete, handleBulkAction } = useCampaignBulkActions({
     selectedIds, clearSelection, load, showToast, researchProjectId: projectId,
   });
+  const [bulkEditOpen, setBulkEditOpen] = useState(false);
+  const [bulkEditWorking, setBulkEditWorking] = useState(false);
+
+  // Apply a set of shared field changes across every selected campaign at once.
+  async function handleBulkEdit(patch: Record<string, unknown>) {
+    setBulkEditWorking(true);
+    const res = await fetch("/api/campaigns/bulk-update", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids: Array.from(selectedIds), patch }),
+    });
+    const json = await res.json().catch(() => ({}));
+    setBulkEditWorking(false);
+    if (!res.ok) { showToast(json.error ?? "Couldn't update the campaigns.", false); return; }
+    setBulkEditOpen(false);
+    clearSelection();
+    showToast(`Updated ${json.data?.updated ?? selectedIds.size} campaign${(json.data?.updated ?? 0) === 1 ? "" : "s"}.`);
+    load();
+  }
 
   const surveyItem = project?.evidence.find(
     (e): e is EvidenceItem & { survey: NonNullable<EvidenceItem["survey"]> } =>
@@ -330,6 +349,16 @@ export function CampaignsExecutionBody({ surveyEvidenceId }: { surveyEvidenceId:
                     {b.label}
                   </button>
                 ))}
+                {user?.role === "admin" && (
+                  <button
+                    disabled={bulkWorking}
+                    onClick={() => setBulkEditOpen(true)}
+                    className="text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors disabled:opacity-40"
+                    style={{ background: "var(--accent-gold)", color: "var(--brand-navy)" }}
+                  >
+                    Edit
+                  </button>
+                )}
                 <button
                   disabled={bulkWorking}
                   onClick={() => handleBulkDelete(surveyCampaigns)}
@@ -408,6 +437,18 @@ export function CampaignsExecutionBody({ surveyEvidenceId }: { surveyEvidenceId:
 
       {previewCampaign && (
         <CampaignPreviewModal campaign={previewCampaign} onClose={() => setPreviewCampaign(null)} />
+      )}
+
+      {bulkEditOpen && (
+        <BulkEditCampaignsModal
+          count={selectedIds.size}
+          brandOrgs={orgs.filter(o => o.type === "brand")}
+          agencyOrgs={orgs.filter(o => o.type === "agency")}
+          publisherOrgs={orgs.filter(o => o.type === "publisher")}
+          working={bulkEditWorking}
+          onApply={handleBulkEdit}
+          onClose={() => setBulkEditOpen(false)}
+        />
       )}
 
       {attachOpen && (
