@@ -174,10 +174,15 @@ export function AnalysisOverview() {
   const documentEvidence = project.evidence.filter((e): e is EvidenceItem & { document: NonNullable<EvidenceItem["document"]> } => e.evidence_type === "document" && !!e.document);
   const totalSources = surveyEvidence.length + conversationEvidence.length + documentEvidence.length;
 
+  // Prefer the sum of this survey's campaign targets (what's actually being
+  // collected in the field), exactly like the Research survey card — the
+  // survey's own target_responses is only a fallback when no campaigns set one.
   const surveyTarget = (e: typeof surveyEvidence[number]) => {
-    if (e.survey.target_responses != null) return e.survey.target_responses;
-    const sum = (campaigns as Campaign[]).filter(c => c.effective_survey_id === e.evidence_id).reduce((s, c) => s + (c.effective_target_responses ?? c.target_responses ?? 0), 0);
-    return sum > 0 ? sum : null;
+    const sum = (campaigns as Campaign[])
+      .filter(c => (c.effective_survey_id ?? c.survey_id) === e.evidence_id)
+      .reduce((s, c) => s + (c.effective_target_responses ?? c.target_responses ?? 0), 0);
+    if (sum > 0) return sum;
+    return e.survey.target_responses ?? null;
   };
 
   const kf = preview?.keyFindings;
