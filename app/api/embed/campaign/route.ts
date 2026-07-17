@@ -46,14 +46,31 @@ export async function GET(req: NextRequest) {
   // uses supabaseAdmin even though the rest of this public route uses the anon client.
   let effectiveSurveyId = campaign.survey_id as string | null;
   let effectiveCreativeDesign = campaign.creative_design as string | null;
-  if (campaign.research_project_id && (!effectiveSurveyId || !effectiveCreativeDesign)) {
-    const { data: project } = await supabaseAdmin
-      .from("research_projects")
-      .select("survey_id, creative_design")
-      .eq("id", campaign.research_project_id)
-      .single();
-    effectiveSurveyId ??= project?.survey_id ?? null;
-    effectiveCreativeDesign ??= project?.creative_design ?? null;
+  if (campaign.research_project_id) {
+    if (!effectiveSurveyId) {
+      const { data: project } = await supabaseAdmin
+        .from("research_projects")
+        .select("survey_id")
+        .eq("id", campaign.research_project_id)
+        .single();
+      effectiveSurveyId ??= project?.survey_id ?? null;
+    }
+    // Inherited creative design is survey-scoped (migration 094): it lives on the
+    // survey's research_project_evidence row, NOT the deprecated project-level
+    // research_projects.creative_design. Mirror the campaign editor / list
+    // resolution so the embed renders the same creative the editor shows —
+    // otherwise a campaign inheriting a per-survey creative (e.g. a Countdown
+    // theme chosen in the multi-campaign wizard) falls back to the base theme.
+    if (effectiveCreativeDesign == null && effectiveSurveyId) {
+      const { data: evidenceRow } = await supabaseAdmin
+        .from("research_project_evidence")
+        .select("creative_design")
+        .eq("research_project_id", campaign.research_project_id)
+        .eq("evidence_type", "survey")
+        .eq("evidence_id", effectiveSurveyId)
+        .maybeSingle();
+      effectiveCreativeDesign ??= evidenceRow?.creative_design ?? null;
+    }
   }
 
   if (!effectiveSurveyId) {

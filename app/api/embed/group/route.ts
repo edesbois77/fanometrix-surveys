@@ -118,27 +118,49 @@ export async function GET(req: NextRequest) {
   const responsesBySlug: Record<string, number> = {};
   for (const s of statsData ?? []) responsesBySlug[s.campaign_id] = Number(s.response_count ?? 0);
 
-  // Resolve each campaign's effective survey and creative design — its own
-  // values, or (if left blank to inherit) the linked Research Project's
-  // defaults. research_projects is service-role-only, so this lookup uses
-  // supabaseAdmin even though the rest of this public route uses the anon client.
+  // Resolve each campaign's effective survey (its own value or the linked
+  // Research Project's default). research_projects is service-role-only, so this
+  // lookup uses supabaseAdmin even though the rest of this public route uses the
+  // anon client.
   const projectIdsNeeded = Array.from(new Set(
-    campaigns.filter(c => (!c.survey_id || !c.creative_design) && c.research_project_id).map(c => c.research_project_id as string)
+    campaigns.filter(c => !c.survey_id && c.research_project_id).map(c => c.research_project_id as string)
   ));
-  const projectDefaultsById: Record<string, { survey_id: string | null; creative_design: string | null }> = {};
+  const projectSurveyById: Record<string, string | null> = {};
   if (projectIdsNeeded.length > 0) {
     const { data: projects } = await supabaseAdmin
       .from("research_projects")
-      .select("id, survey_id, creative_design")
+      .select("id, survey_id")
       .in("id", projectIdsNeeded);
-    for (const p of projects ?? []) projectDefaultsById[p.id] = p;
+    for (const p of projects ?? []) projectSurveyById[p.id] = p.survey_id ?? null;
   }
 
   const effectiveSurveyId = (c: CampaignRow): string | null =>
-    c.survey_id ?? (c.research_project_id ? projectDefaultsById[c.research_project_id]?.survey_id ?? null : null);
+    c.survey_id ?? (c.research_project_id ? projectSurveyById[c.research_project_id] ?? null : null);
 
-  const effectiveCreativeDesign = (c: CampaignRow): string | null =>
-    c.creative_design ?? (c.research_project_id ? projectDefaultsById[c.research_project_id]?.creative_design ?? null : null);
+  // Inherited creative design is SURVEY-SCOPED (migration 094): it lives on the
+  // survey's research_project_evidence row, NOT the deprecated project-level
+  // research_projects.creative_design — mirror the campaign editor / list so the
+  // embed renders the same creative the editor shows. Batched across campaigns.
+  const evidenceKey = (projectId: string, surveyId: string) => `${projectId}:${surveyId}`;
+  const inheritPairs = campaigns
+    .filter(c => c.creative_design == null && c.research_project_id && effectiveSurveyId(c))
+    .map(c => ({ projectId: c.research_project_id as string, surveyId: effectiveSurveyId(c) as string }));
+  const evidenceCreativeByKey: Record<string, string | null> = {};
+  if (inheritPairs.length > 0) {
+    const { data: evidence } = await supabaseAdmin
+      .from("research_project_evidence")
+      .select("research_project_id, evidence_id, creative_design")
+      .eq("evidence_type", "survey")
+      .in("research_project_id", Array.from(new Set(inheritPairs.map(p => p.projectId))))
+      .in("evidence_id", Array.from(new Set(inheritPairs.map(p => p.surveyId))));
+    for (const e of evidence ?? []) evidenceCreativeByKey[evidenceKey(e.research_project_id, e.evidence_id)] = e.creative_design ?? null;
+  }
+
+  const effectiveCreativeDesign = (c: CampaignRow): string | null => {
+    if (c.creative_design != null) return c.creative_design;
+    const sid = effectiveSurveyId(c);
+    return c.research_project_id && sid ? evidenceCreativeByKey[evidenceKey(c.research_project_id, sid)] ?? null : null;
+  };
 
   const surveyIdsNeeded = Array.from(new Set(
     campaigns.map(effectiveSurveyId).filter((id): id is string => !!id)
