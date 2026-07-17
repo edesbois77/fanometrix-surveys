@@ -63,11 +63,23 @@ export async function runCollection(opts: {
   const runnable = connectors.filter(c => c.isConfigured());
   const notConfigured = connectors.filter(c => !c.isConfigured()).map(c => c.name);
 
+  // Snapshot the exact config this run used, so the run stays reproducible even
+  // after the search definition later changes.
+  const configSnapshot = {
+    keywords,
+    markets: search.markets ?? [],
+    languages: search.languages ?? [],
+    collect_from: search.collect_from,
+    collect_to: search.collect_to,
+    connectors: runnable.map(c => c.id),
+    connector_config: Object.fromEntries(runnable.map(c => [c.id, (search.connector_config ?? {})[c.id] ?? {}])),
+  };
+
   // Open the run (the snapshot) up-front so it's visible while collecting.
   const startedAt = new Date().toISOString();
   const { data: run, error: rErr } = await supabaseAdmin
     .from("collection_runs")
-    .insert({ search_id: search.id, connectors: runnable.map(c => c.id), status: "running", started_at: startedAt, triggered_by: opts.triggeredBy ?? null })
+    .insert({ search_id: search.id, connectors: runnable.map(c => c.id), status: "running", started_at: startedAt, config: configSnapshot, triggered_by: opts.triggeredBy ?? null })
     .select("id")
     .single<{ id: string }>();
   if (rErr || !run) throw new Error(`Could not open collection run: ${rErr?.message ?? "unknown"}`);
@@ -164,16 +176,27 @@ export async function runCollection(opts: {
   // ── Snapshot stats + status ──────────────────────────────────────────────
   const byKind: Record<string, number> = {};
   const bySentiment: Record<string, number> = {};
+  const byTopic: Record<string, number> = {};
+  const entityCounts: Record<string, number> = {};
   for (const r of rows) {
     byKind[String(r.content_kind)] = (byKind[String(r.content_kind)] ?? 0) + 1;
-    // Sentiment % is about the conversation (comments/posts) — a video title
-    // isn't a fan opinion, so videos are excluded from the sentiment mix.
-    if (r.sentiment && r.content_kind !== "video") bySentiment[String(r.sentiment)] = (bySentiment[String(r.sentiment)] ?? 0) + 1;
+    // AI-output rollups describe the conversation (comments/posts) — a video
+    // title isn't a fan opinion, so videos are excluded from these mixes.
+    if (r.content_kind !== "video") {
+      if (r.sentiment) bySentiment[String(r.sentiment)] = (bySentiment[String(r.sentiment)] ?? 0) + 1;
+      if (r.topic) byTopic[String(r.topic)] = (byTopic[String(r.topic)] ?? 0) + 1;
+      if (Array.isArray(r.entities)) {
+        for (const e of r.entities as { name?: string }[]) {
+          if (e?.name) entityCounts[e.name] = (entityCounts[e.name] ?? 0) + 1;
+        }
+      }
+    }
   }
+  const topEntities = Object.entries(entityCounts).sort((a, b) => b[1] - a[1]).slice(0, 10).map(([name, count]) => ({ name, count }));
   const status: RunCollectionResult["status"] =
     inserted === 0 ? "failed" : (fatalCount > 0 || warnings.length > 0) ? "partial" : "completed";
 
-  await finalise(status, inserted, { by_kind: byKind, by_sentiment: bySentiment, collected: unique.length });
+  await finalise(status, inserted, { by_kind: byKind, by_sentiment: bySentiment, by_topic: byTopic, top_entities: topEntities, collected: unique.length });
 
   return {
     runId, status, inserted,

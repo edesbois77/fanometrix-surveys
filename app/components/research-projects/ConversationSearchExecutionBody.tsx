@@ -18,6 +18,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useResearchProject, type EvidenceItem } from "@/app/components/research-projects/ProjectProvider";
 import { useWorkspaceRecord } from "@/app/components/research-projects/WorkspaceRecordContext";
+import { CollectionRunHistory } from "@/app/components/research-projects/CollectionRunHistory";
 import { formatRelativeTime } from "@/lib/format-relative-time";
 import {
   PageContainer, WorkspaceHeader, PageLoadingState, ErrorState,
@@ -61,6 +62,7 @@ export function ConversationSearchExecutionBody({ searchEvidenceId }: { searchEv
   const { setRecordLabel } = useWorkspaceRecord();
 
   const [running, setRunning] = useState(false);
+  const [runsVersion, setRunsVersion] = useState(0);
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
   const showToast = useCallback((msg: string, ok = true) => {
     setToast({ msg, ok });
@@ -124,6 +126,7 @@ export function ConversationSearchExecutionBody({ searchEvidenceId }: { searchEv
     ].filter(Boolean);
     const detail = parts.length ? parts.join(", ") : `${json.inserted ?? 0} items`;
     showToast(`${json.status === "partial" ? "Collected (partial): " : "Collected "}${detail}.`, json.status !== "failed");
+    setRunsVersion(v => v + 1);
     load();
   }
 
@@ -186,6 +189,9 @@ export function ConversationSearchExecutionBody({ searchEvidenceId }: { searchEv
             </Panel>
           </div>
         )}
+
+        {/* ── Collection history — timestamped snapshots ────────────────────── */}
+        <CollectionRunHistory searchId={searchEvidenceId} version={runsVersion} />
 
         <p className="text-xs px-1" style={{ color: "var(--text-tertiary)" }}>
           Configured in{" "}
