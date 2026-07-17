@@ -2,10 +2,13 @@
 
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { AdminShell } from "@/app/components/AdminShell";
+import { useCreativeDesignNames } from "@/lib/creative-designs";
+import { countryByCode } from "@/lib/countries";
 
 type Campaign = {
   id: string;
   campaign_id: string;
+  campaign_number?: number | null;
   brand_org_id: string | null;
   campaign_name: string;
   survey_id: string | null;
@@ -13,6 +16,9 @@ type Campaign = {
   publisher_org_id: string | null;
   survey_language: string | null;
   country_code: string | null;
+  market?: string | null;
+  creative_design?: string | null;
+  effective_creative_design?: string | null;
 };
 
 const BASE = process.env.NEXT_PUBLIC_SURVEYS_URL ?? "https://fanometrix-surveys.vercel.app";
@@ -114,6 +120,14 @@ export function DeploymentBuilder({ campaignId, returnTo, embedded = false }: { 
 
   const campaignIdValue = campaign?.campaign_id ?? "";
   const surveyName      = campaign?.surveys?.name ?? null;
+
+  // Human-facing campaign identity for the card (the long campaign_id slug stays
+  // in the embed tags below, where the ad server routes on it).
+  const designNames = useCreativeDesignNames();
+  const campaignNumber = campaign?.campaign_number != null ? `#${String(campaign.campaign_number).padStart(6, "0")}` : null;
+  const country = campaign ? (campaign.market || (campaign.country_code ? countryByCode(campaign.country_code)?.name ?? campaign.country_code : null)) : null;
+  const creativeSlug = campaign?.effective_creative_design ?? campaign?.creative_design ?? null;
+  const creativeName = creativeSlug ? (designNames[creativeSlug] ?? creativeSlug) : null;
 
   const params = useMemo(() => {
     const p = new URLSearchParams();
@@ -221,15 +235,33 @@ export function DeploymentBuilder({ campaignId, returnTo, embedded = false }: { 
               )}
 
               {campaign && (
-                <div className="space-y-2 pt-1 border-t border-gray-50">
-                  <div className="text-xs">
-                    <p className="text-gray-400 mb-0.5">Campaign ID</p>
-                    <p className="font-mono text-[#0B1929] break-all">{campaign.campaign_id}</p>
+                <div className="space-y-3 pt-3 border-t border-gray-50 text-xs">
+                  <div>
+                    <p className="text-gray-400 mb-0.5">Campaign Name</p>
+                    <p className="text-gray-900 font-medium break-words">{campaign.campaign_name}</p>
                   </div>
+                  {country && (
+                    <div>
+                      <p className="text-gray-400 mb-0.5">Country</p>
+                      <p className="text-gray-800">{country}</p>
+                    </div>
+                  )}
+                  {campaignNumber && (
+                    <div>
+                      <p className="text-gray-400 mb-0.5">Campaign ID</p>
+                      <p className="font-mono text-[#0B1929]">{campaignNumber}</p>
+                    </div>
+                  )}
+                  {creativeName && (
+                    <div>
+                      <p className="text-gray-400 mb-0.5">Creative Format</p>
+                      <p className="text-gray-800 break-words">{creativeName}</p>
+                    </div>
+                  )}
                   {surveyName && (
-                    <div className="flex justify-between text-xs">
-                      <span className="text-gray-400">Survey</span>
-                      <span className="text-gray-700">{surveyName}</span>
+                    <div>
+                      <p className="text-gray-400 mb-0.5">Survey</p>
+                      <p className="text-gray-800 break-words">{surveyName}</p>
                     </div>
                   )}
                 </div>
