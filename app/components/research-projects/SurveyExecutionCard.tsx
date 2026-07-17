@@ -8,9 +8,9 @@
 //
 // No "SURVEY" eyebrow — the section heading and the glyph already say it, and
 // keeping the card quiet matters when several stack on the homepage. The grey
-// footer carries the two navigations: "Manage Campaigns →" (the primary
-// workflow, left) and "Edit Survey" (a quiet jump back to Research, right);
-// once live, a Dashboard hand-off joins the right side.
+// footer is a tidy ghost-button action row (no trailing arrows): "Manage
+// Campaigns" (the primary workflow, gold, left) with quiet "View Dashboard"
+// (once live) and "Edit Survey" jumps grouped to the right.
 import Link from "next/link";
 import { StatusBadge, ProgressBar, Icon, SOURCE_META, type Tone } from "@/app/components/workspace-ui";
 import type { EvidenceItem } from "@/app/components/research-projects/ProjectProvider";
@@ -95,18 +95,32 @@ export function SurveyExecutionCard({ projectId, item, campaigns }: {
         </div>
       </div>
 
-      <div className="px-4 md:px-5 py-2.5 border-t flex items-center justify-between gap-3" style={{ borderColor: "var(--border-subtle)", background: "var(--surface-sunken)" }}>
-        <Link href={campaignsHref} className="inline-flex items-center gap-1 text-xs font-semibold hover:underline" style={{ color: "var(--accent-ink)" }}>
+      <div className="px-3 md:px-3.5 py-2 border-t flex items-center justify-between gap-2" style={{ borderColor: "var(--border-subtle)", background: "var(--surface-sunken)" }}>
+        {/* Primary workflow, emphasised in gold; secondary jumps sit quietly to
+            the right. All three share one ghost-button treatment — no trailing
+            arrows or chevrons, so the footer reads as a tidy action row. */}
+        <Link
+          href={campaignsHref}
+          className="text-xs font-semibold px-2.5 py-1.5 rounded-md transition-colors hover:bg-[var(--surface-hover)]"
+          style={{ color: "var(--accent-ink)" }}
+        >
           Manage Campaigns
-          <Icon.chevronRight size={14} />
         </Link>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-0.5">
           {live > 0 && (
-            <Link href={`/research-projects/${projectId}/dashboard`} className="text-xs font-medium hover:underline" style={{ color: "var(--text-secondary)" }}>
-              View Dashboard →
+            <Link
+              href={`/research-projects/${projectId}/dashboard`}
+              className="text-xs font-medium px-2.5 py-1.5 rounded-md transition-colors hover:bg-[var(--surface-hover)]"
+              style={{ color: "var(--text-secondary)" }}
+            >
+              View Dashboard
             </Link>
           )}
-          <Link href={researchHref} className="text-xs font-medium hover:underline" style={{ color: "var(--text-tertiary)" }}>
+          <Link
+            href={researchHref}
+            className="text-xs font-medium px-2.5 py-1.5 rounded-md transition-colors hover:bg-[var(--surface-hover)]"
+            style={{ color: "var(--text-secondary)" }}
+          >
             Edit Survey
           </Link>
         </div>
