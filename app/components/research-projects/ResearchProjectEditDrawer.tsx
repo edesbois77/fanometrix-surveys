@@ -59,18 +59,6 @@ export function ResearchProjectEditDrawer({
   const tagOptions = existingTags.map(t => ({ value: t, label: t }));
   const suggestibleTags = popularTags.filter(t => !(editing.tags ?? []).includes(t));
 
-  // The actual project_name is derived from this, computed live as the user
-  // fills in the Research Brief — Research Name (topic) is the only
-  // freehand part; everything else is picked from the classification
-  // fields already on the form.
-  const finalResearchName = [
-    editing.topic?.trim(),
-    editing.study_type ? STUDY_TYPE_LABELS[editing.study_type as (typeof STUDY_TYPES)[number]] : null,
-    editing.brand_org_id ? orgName(editing.brand_org_id) : null,
-    editing.research_subject ? RESEARCH_SUBJECT_LABELS[editing.research_subject as (typeof RESEARCH_SUBJECTS)[number]] : null,
-    editing.agency_org_id ? orgName(editing.agency_org_id) : null,
-  ].filter(Boolean).join(" | ");
-
   async function handleSave() {
     if (!editing.topic?.trim()) { setError("Research Name is required."); return; }
     if (isNew && !editing.research_question?.trim()) { setError("A research question is required."); return; }
@@ -88,7 +76,10 @@ export function ResearchProjectEditDrawer({
     const method = editing.id ? "PUT" : "POST";
     const res = await fetch(url, {
       method, headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...editing, project_id: projectId, project_name: finalResearchName }),
+      // The project name is simply the Research Name the user typed — the
+      // classification (type / brand / category / agency) is kept in its own
+      // fields, not baked into a composite display name.
+      body: JSON.stringify({ ...editing, project_id: projectId, project_name: (editing.topic ?? "").trim() }),
     });
     const json = await res.json();
     setSaving(false);
@@ -149,10 +140,10 @@ export function ResearchProjectEditDrawer({
               </Field>
             </div>
 
-            {finalResearchName && (
+            {editing.topic?.trim() && (
               <div className="border-t border-gray-100 pt-3">
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Final Research Name</p>
-                <p className="text-xs font-mono text-gray-600 leading-relaxed">{finalResearchName}</p>
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Project Name</p>
+                <p className="text-sm font-medium text-gray-700">{editing.topic.trim()}</p>
               </div>
             )}
           </DrawerSection>
