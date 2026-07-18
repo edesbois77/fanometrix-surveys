@@ -73,10 +73,24 @@ export type EvidenceItemRef = {
 
 export type AspectKeyFinding = { finding: string; evidence: EvidenceItemRef[] };
 export type AspectRecommendedAction = { action: string; rationale: string; based_on_findings: number[] };
+
+// A contradiction is SURFACED, never averaged away — where evidence genuinely
+// diverges (e.g. survey approval vs negative conversations), each side keeps its
+// own evidence so the disagreement is traceable. Derived from the same synthesis
+// pass; the model describes the detected divergence, it does not resolve it.
+export type AspectContradictionSide = { position: string; evidence: EvidenceItemRef[] };
+export type AspectContradiction = { tension: string; sides: AspectContradictionSide[] };
+
+// A gap is what's MISSING — computed deterministically from source coverage +
+// evidence strength, so Analysis says "we don't yet know" instead of inferring.
+export type AspectGap = { kind: "missing_source" | "low_confidence"; message: string; suggested_action: string };
+
 export type AspectSection = {
   aspect: string;
   summary: string;
   key_findings: AspectKeyFinding[];
+  contradictions: AspectContradiction[];
+  gaps: AspectGap[];
   recommended_actions: AspectRecommendedAction[];
   evidence_count: number;
   sentiment: { positive_pct: number; neutral_pct: number; negative_pct: number };
@@ -325,6 +339,9 @@ Return ONLY valid JSON:
   "key_findings": [
     { "finding": "a specific, evidence-backed finding (one sentence)", "evidence": [array of the evidence indices above that support THIS finding] }
   ],
+  "contradictions": [
+    { "tension": "one sentence naming the disagreement and what it suggests", "sides": [ { "position": "what this side of the evidence shows", "evidence": [indices supporting this side] }, { "position": "what the other side shows", "evidence": [indices supporting it] } ] }
+  ],
   "recommended_actions": [
     { "action": "a concrete action this aspect's evidence supports", "rationale": "why the evidence supports it", "based_on_findings": [indices into key_findings] }
   ]
@@ -332,7 +349,8 @@ Return ONLY valid JSON:
 
 Rules:
 - Ground every finding in the evidence shown. Each finding MUST cite the indices of the evidence items that support it; never cite an index not shown above.
-${multi ? "- Where sources agree, a finding backed by more than one source type is stronger — cite all supporting items. Where survey/document/conversation evidence points in DIFFERENT directions, do not average it away; state the finding the evidence supports and let the divergence stand.\n" : ""}- 2–5 key findings — only what the evidence genuinely supports; do not pad.
+${multi ? "- Where sources agree, a finding backed by more than one source type is stronger — cite all supporting items. Where survey/document/conversation evidence points in DIFFERENT directions, do not average it away; state the finding the evidence supports and let the divergence stand.\n" : ""}- CONTRADICTIONS: only when the evidence GENUINELY DIVERGES — one body of evidence points one way while another points the opposite (e.g. survey approval vs largely negative conversations, or sources disagreeing). Give both sides, each citing its own evidence indices, and name what the divergence suggests (e.g. prompted opinion vs unsolicited discussion). Do NOT invent a contradiction where evidence is merely thin or absent, and never resolve it by averaging. Return an empty array if there is no genuine contradiction.
+- 2–5 key findings — only what the evidence genuinely supports; do not pad.
 - 0–3 recommended actions — omit rather than invent. An action must follow from the findings, not restate them.
 - Do not generalise a single voice into "fans" plural; if only one or two items raise something specific, say so or describe the broader theme.
 - Write in plain, confident analyst prose. No hedging boilerplate, no mention of AI, prompts or scores.`;
@@ -341,13 +359,39 @@ ${multi ? "- Where sources agree, a finding backed by more than one source type 
 type RawAspectOut = {
   summary?: unknown;
   key_findings?: { finding?: unknown; evidence?: unknown }[];
+  contradictions?: { tension?: unknown; sides?: { position?: unknown; evidence?: unknown }[] }[];
   recommended_actions?: { action?: unknown; rationale?: unknown; based_on_findings?: unknown }[];
 };
+
+const GAP_COPY: Record<EvidenceSourceType, { message: string; action: string }> = {
+  survey:       { message: "No survey evidence yet",       action: "Run a survey to measure this directly, rather than inferring it." },
+  conversation: { message: "No conversation evidence yet", action: "Collect conversations to hear how people discuss this unprompted." },
+  document:     { message: "No published research yet",    action: "Add a research document or desk research to corroborate." },
+};
+
+// Research gaps — DETERMINISTIC, from source coverage + evidence strength. No AI:
+// Analysis states what is missing rather than inferring an answer.
+function computeAspectGaps(items: Evidence[]): AspectGap[] {
+  const present = new Set(items.map(i => i.ref.type));
+  const gaps: AspectGap[] = [];
+  for (const t of ["survey", "conversation", "document"] as EvidenceSourceType[]) {
+    if (!present.has(t)) gaps.push({ kind: "missing_source", message: GAP_COPY[t].message, suggested_action: GAP_COPY[t].action });
+  }
+  const meanRel = items.length ? items.reduce((s, i) => s + i.relevance, 0) / items.length : 0;
+  if (items.length < 5 || meanRel < 0.6) {
+    gaps.push({
+      kind: "low_confidence",
+      message: `Evidence for this aspect is ${items.length < 5 ? "thin" : "moderate"} (${items.length} item${items.length === 1 ? "" : "s"}${meanRel < 0.6 ? ", lower average relevance" : ""})`,
+      suggested_action: "Gather more evidence before relying heavily on this aspect.",
+    });
+  }
+  return gaps;
+}
 
 async function synthesiseAspect(aspect: string, researchQuestion: string | null, items: Evidence[]): Promise<AspectSection> {
   // Feed the most relevant items (bounded); findings cite from what's shown.
   const shown = [...items].sort((a, b) => b.relevance - a.relevance).slice(0, MAX_EVIDENCE_PER_ASPECT);
-  const raw = await completeJSON<RawAspectOut>({ prompt: buildAspectPrompt(aspect, researchQuestion, shown), maxTokens: 1600 });
+  const raw = await completeJSON<RawAspectOut>({ prompt: buildAspectPrompt(aspect, researchQuestion, shown), maxTokens: 1900 });
 
   const str = (v: unknown): string => (typeof v === "string" ? v.trim() : "");
   const intArr = (v: unknown): number[] => (Array.isArray(v) ? v.filter((n): n is number => Number.isInteger(n)) : []);
@@ -358,6 +402,17 @@ async function synthesiseAspect(aspect: string, researchQuestion: string | null,
       evidence: clampReferences(intArr(f?.evidence), shown.length).map(i => toItemRef(shown[i])),
     }))
     .filter(f => f.finding.length > 0);
+
+  // Contradictions: only keep a genuine two-sided divergence where each side has
+  // its own evidence — never a one-sided "contradiction".
+  const contradictions: AspectContradiction[] = (raw.contradictions ?? [])
+    .map(c => ({
+      tension: str(c?.tension),
+      sides: (c?.sides ?? [])
+        .map(s => ({ position: str(s?.position), evidence: clampReferences(intArr(s?.evidence), shown.length).map(i => toItemRef(shown[i])) }))
+        .filter(s => s.position.length > 0 && s.evidence.length > 0),
+    }))
+    .filter(c => c.tension.length > 0 && c.sides.length >= 2);
 
   const recommended_actions: AspectRecommendedAction[] = (raw.recommended_actions ?? [])
     .map(a => ({
@@ -371,6 +426,8 @@ async function synthesiseAspect(aspect: string, researchQuestion: string | null,
     aspect,
     summary: str(raw.summary),
     key_findings,
+    contradictions,
+    gaps: computeAspectGaps(items),
     recommended_actions,
     evidence_count: items.length,
     sentiment: sentimentSplit(items),

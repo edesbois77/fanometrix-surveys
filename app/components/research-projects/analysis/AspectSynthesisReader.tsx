@@ -21,7 +21,7 @@ import { formatRelativeTime } from "@/lib/format-relative-time";
 import {
   PageContainer, WorkspaceHeader, PageLoadingState, ErrorState, EmptyState, Card, Button, Icon,
 } from "@/app/components/workspace-ui";
-import type { AspectSynthesisReport, AspectSection, EvidenceItemRef, EvidenceSourceType } from "@/lib/intelligence/analysts/analyseAspectSynthesis";
+import type { AspectSynthesisReport, AspectSection, EvidenceItemRef, EvidenceSourceType, AspectContradiction, AspectGap } from "@/lib/intelligence/analysts/analyseAspectSynthesis";
 import {
   deriveFindingConfidence, confidenceTone,
   type ConfidenceLevel, type FindingSourceType, type FindingConfidence, type ConfidenceFactor,
@@ -158,6 +158,97 @@ function SourceEvidenceCard({ item }: { item: EvidenceItemRef }) {
   );
 }
 
+// Renders a set of evidence items grouped by source, with counts — the shared
+// "expand to the evidence, grouped by source" surface used by both findings and
+// contradiction sides.
+function EvidenceGroups({ items, evidenceById }: { items: EvidenceItemRef[]; evidenceById: Map<string, Conversation> }) {
+  const groups = groupBySource(items);
+  const present = EVIDENCE_ORDER.filter(t => groups[t].length > 0);
+  return (
+    <div className="space-y-3">
+      {present.map(type => (
+        <div key={type}>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.07em] mb-1.5" style={{ color: "var(--text-tertiary)" }}>
+            {GROUP_LABEL[type][groups[type].length === 1 ? 0 : 1]} ({groups[type].length})
+          </p>
+          <div className="space-y-2.5">
+            {groups[type].map((e, j) => {
+              const conv = type === "conversation" ? evidenceById.get(e.id) : undefined;
+              return conv
+                ? <ConversationEvidenceCard key={e.id} c={conv} showAspect={false} />
+                : <SourceEvidenceCard key={`${e.id}-${j}`} item={e} />;
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// A contradiction, surfaced not averaged: the tension, then each side with its
+// own evidence. Expands to show both sides' evidence, grouped by source.
+function ContradictionCard({ c, evidenceById }: { c: AspectContradiction; evidenceById: Map<string, Conversation> }) {
+  const [open, setOpen] = useState(false);
+  const total = c.sides.reduce((n, s) => n + s.evidence.length, 0);
+  return (
+    <div className="rounded-lg p-3.5" style={{ background: "#F6EEEA", border: "1px solid #E4D2C8" }}>
+      <div className="flex items-start gap-2">
+        <span aria-hidden className="mt-0.5 flex-shrink-0" style={{ color: "#8A4B33" }}><Icon.alert size={15} /></span>
+        <p className="text-sm font-semibold leading-relaxed" style={{ color: "#6E3D2A" }}>{c.tension}</p>
+      </div>
+      <div className="grid md:grid-cols-2 gap-2.5 mt-3">
+        {c.sides.map((s, i) => {
+          const types = EVIDENCE_ORDER.filter(t => s.evidence.some(e => e.type === t));
+          return (
+            <div key={i} className="rounded-lg p-2.5" style={{ background: "var(--surface)", border: "1px solid var(--border-subtle)" }}>
+              <p className="text-xs leading-relaxed" style={{ color: "var(--text-primary)" }}>{s.position}</p>
+              <p className="text-[11px] mt-1.5" style={{ color: "var(--text-tertiary)" }}>
+                {types.map(t => `${s.evidence.filter(e => e.type === t).length} ${GROUP_LABEL[t][1].toLowerCase()}`).join(" · ")}
+              </p>
+            </div>
+          );
+        })}
+      </div>
+      {total > 0 && (
+        <button type="button" onClick={() => setOpen(o => !o)}
+          className="inline-flex items-center gap-1 text-[11px] font-semibold mt-2.5" style={{ color: "#8A4B33", cursor: "pointer" }}>
+          <span aria-hidden className="inline-flex" style={{ transform: open ? "rotate(90deg)" : "none", transition: "transform 0.15s" }}><Icon.chevronRight size={12} strokeWidth={2.5} /></span>
+          {open ? "Hide" : "Show"} the evidence on both sides
+        </button>
+      )}
+      {open && (
+        <div className="mt-2.5 space-y-3">
+          {c.sides.map((s, i) => (
+            <div key={i}>
+              <p className="text-[11px] font-semibold mb-1.5" style={{ color: "var(--text-secondary)" }}>{s.position}</p>
+              <EvidenceGroups items={s.evidence} evidenceById={evidenceById} />
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Research gaps — what's missing, stated plainly with the research that would fill it.
+function GapList({ gaps }: { gaps: AspectGap[] }) {
+  return (
+    <ul className="space-y-2">
+      {gaps.map((g, i) => (
+        <li key={i} className="flex items-start gap-2.5">
+          <span aria-hidden className="mt-0.5 flex-shrink-0 inline-flex items-center justify-center" style={{ width: 14, color: g.kind === "low_confidence" ? "#8A4B33" : "var(--text-disabled)" }}>
+            {g.kind === "low_confidence" ? <Icon.alert size={13} /> : <span style={{ fontWeight: 700 }}>–</span>}
+          </span>
+          <span className="min-w-0">
+            <span className="text-sm block" style={{ color: "var(--text-secondary)" }}>{g.message}</span>
+            <span className="text-xs" style={{ color: "var(--text-tertiary)" }}>{g.suggested_action}</span>
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 function AspectBlock({ section, evidenceById }: { section: AspectSection; evidenceById: Map<string, Conversation> }) {
   const [open, setOpen] = useState<Set<number>>(new Set());
   const toggle = (i: number) => setOpen(prev => { const n = new Set(prev); if (n.has(i)) n.delete(i); else n.add(i); return n; });
@@ -236,30 +327,34 @@ function AspectBlock({ section, evidenceById }: { section: AspectSection; eviden
                     </div>
                   </div>
                   {isOpen && items.length > 0 && (
-                    <div className="px-3.5 pb-3.5 space-y-3">
-                      {present.map(type => (
-                        <div key={type}>
-                          <p className="text-[10px] font-semibold uppercase tracking-[0.07em] mb-1.5" style={{ color: "var(--text-tertiary)" }}>
-                            {GROUP_LABEL[type][groups[type].length === 1 ? 0 : 1]} ({groups[type].length})
-                          </p>
-                          <div className="space-y-2.5">
-                            {groups[type].map((e, j) => {
-                              // Conversations render as the full Evidence card when loaded;
-                              // otherwise (and for survey/document) the captured snapshot.
-                              const conv = type === "conversation" ? evidenceById.get(e.id) : undefined;
-                              return conv
-                                ? <ConversationEvidenceCard key={e.id} c={conv} showAspect={false} />
-                                : <SourceEvidenceCard key={`${e.id}-${j}`} item={e} />;
-                            })}
-                          </div>
-                        </div>
-                      ))}
+                    <div className="px-3.5 pb-3.5">
+                      <EvidenceGroups items={items} evidenceById={evidenceById} />
                     </div>
                   )}
                 </li>
               );
             })}
           </ol>
+        </div>
+      )}
+
+      {/* Contradictions — surfaced where evidence genuinely diverges, not averaged */}
+      {(section.contradictions ?? []).length > 0 && (
+        <div className="mt-5">
+          <h3 className="text-[11px] font-semibold uppercase tracking-[0.07em] mb-2 flex items-center gap-1.5" style={{ color: "#8A4B33" }}>
+            <Icon.alert size={13} /> Contradictions
+          </h3>
+          <div className="space-y-2.5">
+            {section.contradictions.map((c, i) => <ContradictionCard key={i} c={c} evidenceById={evidenceById} />)}
+          </div>
+        </div>
+      )}
+
+      {/* Research gaps — what's missing, stated rather than inferred */}
+      {(section.gaps ?? []).length > 0 && (
+        <div className="mt-5">
+          <h3 className="text-[11px] font-semibold uppercase tracking-[0.07em] mb-2" style={{ color: "var(--text-tertiary)" }}>Research Gaps</h3>
+          <GapList gaps={section.gaps} />
         </div>
       )}
 
