@@ -14,6 +14,7 @@ import { classifyContent } from "@/lib/ai-classify";
 import { getProjectResearchQuestionForSearch } from "@/lib/research-sources/project-searches";
 import { getConnector, connectorIdForPlatform } from "@/lib/connectors";
 import type { CollectContext, NormalisedItem } from "@/lib/connectors/types";
+import type { SearchStrategy } from "@/lib/search-strategy";
 
 const CLASSIFY_CONCURRENCY = 8;
 const DEFAULT_RELEVANCE_THRESHOLD = 50; // 0–100; below this, evidence is hidden by default
@@ -25,6 +26,7 @@ type SearchRow = {
   connector_config: Record<string, Record<string, unknown>> | null;
   entity_type: string | null; research_goal: string | null; is_simulated: boolean | null;
   collect_window: string | null; relevance_threshold: number | null;
+  search_strategy: SearchStrategy | null;
   reddit_subreddits: string[] | null; // legacy — TODO remove once configs migrate to connector_config
   social_keywords: { keyword: string }[] | null;
 };
@@ -59,7 +61,7 @@ export async function runCollection(opts: {
 }): Promise<RunCollectionResult> {
   const { data: search, error: sErr } = await supabaseAdmin
     .from("social_searches")
-    .select("id, name, description, markets, platforms, languages, collect_from, collect_to, collect_window, connector_config, entity_type, research_goal, is_simulated, relevance_threshold, reddit_subreddits, social_keywords(keyword)")
+    .select("id, name, description, markets, platforms, languages, collect_from, collect_to, collect_window, connector_config, entity_type, research_goal, is_simulated, relevance_threshold, search_strategy, reddit_subreddits, social_keywords(keyword)")
     .eq("id", opts.searchId)
     .single<SearchRow>();
 
@@ -201,7 +203,7 @@ export async function runCollection(opts: {
   // ── Stage 2: classify ONLY new items, then append them to the base.
   // (sentiment/topic + entities/relevance/rationale/confidence). Store
   // EVERYTHING — relevance decides what SURFACES later, never what is kept.
-  const classifyCtx = { keywords, entityType: search.entity_type ?? undefined, researchGoal: search.research_goal ?? undefined, researchQuestion: researchQuestion ?? undefined };
+  const classifyCtx = { keywords, entityType: search.entity_type ?? undefined, researchGoal: search.research_goal ?? undefined, researchQuestion: researchQuestion ?? undefined, primarySubject: search.search_strategy?.primary_entity?.term ?? undefined };
   const rows: Record<string, unknown>[] = new Array(newItems.length);
   for (let i = 0; i < newItems.length; i += CLASSIFY_CONCURRENCY) {
     const slice = newItems.slice(i, i + CLASSIFY_CONCURRENCY);

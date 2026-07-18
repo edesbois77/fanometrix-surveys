@@ -136,7 +136,7 @@ export function ConversationEvidenceTab() {
         {searches.length > 1 && (
           <div className="flex flex-wrap items-center gap-1.5">
             <span className="text-[11px] font-semibold uppercase tracking-[0.05em] mr-1" style={{ color: "var(--text-tertiary)" }}>Search</span>
-            <FilterChip label="All" selected={searchFilter === "all"} onClick={() => setSearchFilter("all")} />
+            <FilterChip label="All Conversations" selected={searchFilter === "all"} onClick={() => setSearchFilter("all")} />
             {searches.map(s => <FilterChip key={s.id} label={s.name} selected={searchFilter === s.id} onClick={() => setSearchFilter(s.id)} />)}
           </div>
         )}

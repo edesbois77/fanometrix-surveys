@@ -96,6 +96,9 @@ export type ClassificationContext = {
   entityType?: string;    // Brand | Club | Competition | Topic
   researchGoal?: string;
   researchQuestion?: string;
+  /** The primary subject the conversation must ENGAGE to be relevant — distinct
+   *  from the surrounding context. Sharing the context alone is not relevance. */
+  primarySubject?: string;
 };
 
 /** Build the AI classification prompt for a single mention. Context is optional;
@@ -114,14 +117,19 @@ export function buildClassificationPrompt(content: string, context?: Classificat
   // The relevance anchor and its rules differ when a research question is given:
   // question-relevance is the whole point of Stage 2, and it must not be fooled
   // by keyword matches.
+  const primary = context?.primarySubject?.trim();
   const relevanceAnchor = q
-    ? `RESEARCH QUESTION (judge relevance against THIS): "${q}"`
+    ? `RESEARCH QUESTION (judge relevance against THIS): "${q}"${primary ? `\nPRIMARY SUBJECT of the question — the conversation MUST engage THIS, not merely the surrounding context: ${primary}` : ""}`
     : "";
 
   const relevanceRule = q
-    ? `- relevance: how much this conversation genuinely helps ANSWER the research question above — an opinion, reaction, experience or fact that bears on it (1.0 = directly and substantively helps answer it; 0.0 = no meaningful bearing).
-- Keyword presence is NOT relevance. A conversation can name the subject and still be irrelevant. Example: for "How do football fans perceive FedEx's UEFA Champions League sponsorship?", a video titled "FedEx driver falls into a swimming pool" mentions FedEx but says nothing about football, sponsorship or fan opinion — it is NOT relevant (relevance near 0.0).
-- Coincidental keyword matches, spam, unrelated news, and off-topic content are NOT relevant, however many keywords they contain.
+    ? `- relevance: how much this conversation MATERIALLY HELPS ANSWER the research question — a fan opinion, reaction, experience or fact that actually bears on it (1.0 = directly and substantively helps answer it; 0.0 = no meaningful bearing).
+- The test is "does this help ANSWER the question?", NOT "does this share an entity, competition or topic with the question?". Sharing the competition, event, club or topic named in the question is NOT enough on its own.
+- The conversation must engage the PRIMARY SUBJECT of the question AND the specific thing it asks about. Worked example for "How do football fans perceive FedEx's UEFA Champions League sponsorship?":
+    • RELEVANT: fans reacting to, praising, criticising or opining on FedEx's sponsorship, its presence around the Champions League, its brand fit, or their perception of it.
+    • NOT RELEVANT (context only, subject absent): "For me, it has to be Eze's goal" — this is about a Champions League moment but says nothing about FedEx or the sponsorship, so it does not help answer the question. Score ~0.0 even though it is clearly about football.
+    • NOT RELEVANT (wrong meaning of the subject): a FedEx logistics, delivery, parcel or driver story — mentions FedEx but not the sponsorship. Score ~0.0.
+- Do NOT inflate relevance for detailed, on-topic-for-football content that never touches the subject of the question. Topic or competition overlap is not evidence. When the subject is absent or only incidental, relevance is low regardless of how football-relevant the content otherwise is.
 - why_this_matters: 1–2 sentences explaining WHY this conversation is (or isn't) useful to the research question and what it lets the researcher learn — e.g. "This directly discusses fan perceptions of FedEx's UCL sponsorship, making it strong evidence for overall sponsorship sentiment." Do NOT merely restate the sentiment.
 - research_aspect: the single facet of the research this conversation most contributes to — a short 1–3 word Title Case label you generate to fit THIS research question (e.g. Brand Perception, Sponsorship Awareness, Fan Benefits, Brand Fit, Purchase Intent, Activation Recall). Pick the most fitting; invent an apt one if none of these fit. If the conversation is not relevant, use "Off-topic".`
     : `- relevance: how relevant this mention is to the research subject above (1.0 = directly about it, 0.0 = unrelated). If no subject was given, judge general football relevance.
