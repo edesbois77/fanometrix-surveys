@@ -58,11 +58,43 @@ function ChipRow({ label, values }: { label: string; values: string[] }) {
   );
 }
 
+// Indeterminate progress narration while a collection runs — reassures the
+// researcher that work is happening across a 20–60s run. These are illustrative
+// stages (the collect API is a single request with no real progress feed), so we
+// cycle them under an indeterminate spinner rather than fake a percentage.
+const PROGRESS_MESSAGES = ["Connecting to source…", "Retrieving conversations…", "Analysing relevance…", "Building evidence…"];
+
+function Spinner() {
+  return <span aria-hidden className="inline-block w-3.5 h-3.5 rounded-full animate-spin flex-shrink-0" style={{ border: "2px solid currentColor", borderTopColor: "transparent" }} />;
+}
+
+function CollectingIndicator({ message }: { message: string }) {
+  return (
+    <span className="inline-flex items-center gap-2 text-sm font-semibold px-3 py-1.5 rounded-full" role="status" aria-live="polite"
+      style={{ background: "var(--accent-wash)", color: "var(--accent-ink)", border: "1px solid #ECDCB8" }}>
+      <Spinner />
+      <span>{message}</span>
+    </span>
+  );
+}
+
+function CollectionCompleteIndicator({ newCount }: { newCount: number }) {
+  return (
+    <span className="inline-flex items-center gap-2 text-sm font-semibold px-3 py-1.5 rounded-full" role="status" aria-live="polite"
+      style={{ background: "#EEF3EC", color: "#3F5D42", border: "1px solid #D3E0D0" }}>
+      <Icon.check size={15} strokeWidth={2.5} />
+      <span>Collection complete{newCount > 0 ? ` · ${newCount.toLocaleString()} new conversation${newCount === 1 ? "" : "s"} added` : " · no new conversations"}</span>
+    </span>
+  );
+}
+
 export function ConversationSearchExecutionBody({ searchEvidenceId }: { searchEvidenceId: string }) {
   const { projectId, project, loading, error, load } = useResearchProject();
   const { setRecordLabel } = useWorkspaceRecord();
 
   const [running, setRunning] = useState(false);
+  const [progressStep, setProgressStep] = useState(0);
+  const [justFinished, setJustFinished] = useState<{ newCount: number } | null>(null);
   const [runsVersion, setRunsVersion] = useState(0);
   const [lastResult, setLastResult] = useState<{ conversations: number; status: string } | null>(null);
   const [evidenceBuilt, setEvidenceBuilt] = useState<{ conversations: number; runs: number; sources: string[]; markets: string[] } | null>(null);
@@ -91,6 +123,14 @@ export function ConversationSearchExecutionBody({ searchEvidenceId }: { searchEv
       .catch(() => {});
     return () => { cancelled = true; };
   }, [searchEvidenceId, runsVersion]);
+
+  // Cycle the indeterminate progress narration while a collection is running.
+  useEffect(() => {
+    if (!running) return;
+    setProgressStep(0);
+    const id = setInterval(() => setProgressStep(s => (s + 1) % PROGRESS_MESSAGES.length), 2600);
+    return () => clearInterval(id);
+  }, [running]);
 
   if (loading && !project) return <PageContainer><PageLoadingState /></PageContainer>;
   if (error || !project) return (
@@ -160,7 +200,12 @@ export function ConversationSearchExecutionBody({ searchEvidenceId }: { searchEv
       const detail = parts.length ? parts.join(", ") : `${newCount} item${newCount === 1 ? "" : "s"}`;
       showToast(`Added ${detail}${relDetail}.`, json.status !== "failed");
     }
-    if (json.status !== "failed" && newCount > 0) setLastResult({ conversations: newCount, status: json.status });
+    if (json.status !== "failed") {
+      if (newCount > 0) setLastResult({ conversations: newCount, status: json.status });
+      // Brief success state so the button doesn't just snap back to idle.
+      setJustFinished({ newCount });
+      setTimeout(() => setJustFinished(null), 3000);
+    }
     setRunsVersion(v => v + 1);
     load();
   }
@@ -213,10 +258,16 @@ export function ConversationSearchExecutionBody({ searchEvidenceId }: { searchEv
             title="Research Scope"
             description="What this search collects against. Refine the scope and run again — the evidence keeps growing."
             action={
-              <div className="flex flex-wrap items-center gap-2">
-                <Button variant="secondary" href={`/research-projects/${projectId}/research/conversation/${searchEvidenceId}`}>Edit Scope</Button>
-                <Button variant="brand" onClick={handleRunCollection} disabled={collecting}>{runLabel}</Button>
-              </div>
+              collecting ? (
+                <CollectingIndicator message={PROGRESS_MESSAGES[progressStep]} />
+              ) : justFinished ? (
+                <CollectionCompleteIndicator newCount={justFinished.newCount} />
+              ) : (
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button variant="secondary" href={`/research-projects/${projectId}/research/conversation/${searchEvidenceId}`}>Edit Scope</Button>
+                  <Button variant="brand" onClick={handleRunCollection} disabled={collecting}>{runLabel}</Button>
+                </div>
+              )
             }
           />
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4 pt-4 border-t" style={{ borderColor: "var(--border-subtle)" }}>

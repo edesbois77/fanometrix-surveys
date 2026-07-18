@@ -51,25 +51,25 @@ export function strategyContextTerms(s: SearchStrategy, max = 5): string[] {
   return Array.from(new Set(terms.filter(Boolean))).slice(0, max);
 }
 
-/** Plain-language description of what Fanometrix intends to search for — NO
- *  boolean syntax, no query strings. `platform` names the source when given
- *  ("On YouTube, …"); otherwise it's a general statement. */
+/** A short, research-brief-style description of what this search sets out to
+ *  find — NO boolean syntax, no query strings. `platform` names the source when
+ *  given ("On YouTube, …"); otherwise it's a general statement. */
 export function describeStrategy(s: SearchStrategy, platform?: string): string {
   const subject = s.primary_entity?.term?.trim();
-  if (!subject) return "Add a research question and generate a strategy to see what Fanometrix will search for.";
+  if (!subject) return "Generate a strategy from your research question to see what this search sets out to find.";
 
-  const context = strategyContextTerms(s);
-  const lead = platform ? `On ${platform}, Fanometrix will look for` : "Fanometrix will look for";
+  const context = s.context_entities.map(e => e.term.trim()).filter(Boolean).slice(0, 4);
+  const lead = platform ? `On ${platform}, Fanometrix will surface` : "Fanometrix will surface";
 
   let core: string;
   if (!context.length || s.breadth === "broad") {
-    core = `content mentioning ${subject}`;
+    core = `conversations that mention ${subject}`;
   } else if (s.breadth === "strict") {
-    core = `content about ${subject} specifically in the context of ${orList(context)}`;
+    core = `conversations about ${subject}, specifically where it appears alongside ${orList(context)}`;
   } else {
-    core = `content about ${subject} that also relates to ${orList(context)}`;
+    core = `conversations about ${subject} in the context of ${orList(context)}`;
   }
 
-  const reduce = s.exclusions.length ? `, while reducing general ${orList(s.exclusions.slice(0, 4))} content` : "";
+  const reduce = s.exclusions.length ? `, while setting aside unrelated ${orList(s.exclusions.slice(0, 4))} discussion` : "";
   return `${lead} ${core}${reduce}.`;
 }

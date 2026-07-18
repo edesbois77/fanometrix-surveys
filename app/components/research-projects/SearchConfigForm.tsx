@@ -424,25 +424,27 @@ export function SearchConfigForm({ mode, searchId, backHref, backLabel }: {
         <Card>
           <SectionHeading
             title="Search strategy"
-            description="A plain-language plan for what Fanometrix should look for, generated from your research question. Review and refine it below — it sharpens retrieval planning; connectors still search your keywords in this release."
+            description="Fanometrix reads your research question and drafts a plan for what this search should focus on — the subject, the context that makes a conversation relevant, and the topics to steer away from. Review and refine it in plain language below."
             action={<Button variant={form.search_strategy ? "secondary" : "primary"} onClick={generateStrategy} disabled={strategyBusy}>{strategyBusy ? "Generating…" : form.search_strategy ? "Regenerate" : "Generate strategy"}</Button>}
           />
           {strategyErr && <p className="text-xs mt-3" style={{ color: "#B4694C" }}>{strategyErr}</p>}
 
           {!form.search_strategy ? (
-            <p className="text-xs mt-4" style={{ color: "var(--text-tertiary)" }}>No strategy yet. Generate one from your research question and keywords, then refine the context and exclusions.</p>
+            <p className="text-sm mt-4 leading-relaxed" style={{ color: "var(--text-tertiary)" }}>No strategy yet. Generate one from your research question and keywords — then refine the subject, context, themes and excluded topics to match exactly what you&apos;re researching.</p>
           ) : (
-            <div className="mt-5 space-y-5">
+            <div className="mt-6 space-y-6">
               {form.search_strategy.primary_entity && (
                 <div>
-                  <FieldLabel>Primary subject</FieldLabel>
+                  <FieldLabel>Primary Subject</FieldLabel>
+                  <p className="text-[11px] mb-2 leading-relaxed" style={{ color: "var(--text-tertiary)" }}>The one thing your research is about. Everything else below anchors relevance back to it.</p>
                   <span className="inline-flex items-center text-sm font-semibold px-2.5 py-1 rounded-full" style={{ background: "var(--accent-ink)", color: "#fff" }}>{form.search_strategy.primary_entity.term}</span>
-                  {form.search_strategy.primary_entity.aliases.length > 0 && <span className="text-[11px] ml-2" style={{ color: "var(--text-tertiary)" }}>also: {form.search_strategy.primary_entity.aliases.join(", ")}</span>}
+                  {form.search_strategy.primary_entity.aliases.length > 0 && <span className="text-[11px] ml-2" style={{ color: "var(--text-tertiary)" }}>also known as {form.search_strategy.primary_entity.aliases.join(", ")}</span>}
                 </div>
               )}
 
               <div>
-                <FieldLabel>Context &amp; concepts</FieldLabel>
+                <FieldLabel>Context</FieldLabel>
+                <p className="text-[11px] mb-2 leading-relaxed" style={{ color: "var(--text-tertiary)" }}>The competitions, organisations, people and ideas that make a conversation genuinely about your subject. Add or remove terms to sharpen what counts as relevant.</p>
                 <div className="flex flex-wrap gap-1.5 mb-2">
                   {form.search_strategy.context_entities.map((e, i) => (
                     <RemovableChip key={i} label={e.term} tone="context" onRemove={() => patchStrategy({ context_entities: form.search_strategy!.context_entities.filter((_, j) => j !== i) })} />
@@ -457,7 +459,8 @@ export function SearchConfigForm({ mode, searchId, backHref, backLabel }: {
 
               {(form.search_strategy.synonyms.length > 0 || form.search_strategy.campaigns.length > 0) && (
                 <div>
-                  <FieldLabel>Also matching</FieldLabel>
+                  <FieldLabel>Research Themes</FieldLabel>
+                  <p className="text-[11px] mb-2 leading-relaxed" style={{ color: "var(--text-tertiary)" }}>Related themes, phrasings and named campaigns Fanometrix will also recognise, so relevant conversations aren&apos;t missed for using different words.</p>
                   <div className="flex flex-wrap gap-1.5">
                     {form.search_strategy.synonyms.map((t, i) => <RemovableChip key={`s${i}`} label={t} tone="muted" onRemove={() => patchStrategy({ synonyms: form.search_strategy!.synonyms.filter((_, j) => j !== i) })} />)}
                     {form.search_strategy.campaigns.map((t, i) => <RemovableChip key={`c${i}`} label={t} tone="muted" onRemove={() => patchStrategy({ campaigns: form.search_strategy!.campaigns.filter((_, j) => j !== i) })} />)}
@@ -466,34 +469,35 @@ export function SearchConfigForm({ mode, searchId, backHref, backLabel }: {
               )}
 
               <div>
-                <FieldLabel>Reduce / disambiguate</FieldLabel>
+                <FieldLabel>Excluded Topics</FieldLabel>
+                <p className="text-[11px] mb-2 leading-relaxed" style={{ color: "var(--text-tertiary)" }}>Unrelated meanings of your subject to steer away from — for example, FedEx the logistics company rather than the sponsor. Keep this short: excluding too much can hide useful evidence.</p>
                 <div className="flex flex-wrap gap-1.5 mb-2">
                   {form.search_strategy.exclusions.map((t, i) => <RemovableChip key={i} label={t} tone="danger" onRemove={() => patchStrategy({ exclusions: form.search_strategy!.exclusions.filter((_, j) => j !== i) })} />)}
-                  {form.search_strategy.exclusions.length === 0 && <span className="text-[11px]" style={{ color: "var(--text-tertiary)" }}>No exclusions — nothing is being reduced.</span>}
+                  {form.search_strategy.exclusions.length === 0 && <span className="text-[11px]" style={{ color: "var(--text-tertiary)" }}>Nothing excluded.</span>}
                 </div>
                 <div className="flex gap-2 sm:max-w-md">
-                  <input value={exclInput} onChange={e => setExclInput(e.target.value)} onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addExclusion(); } }} placeholder="Add a term to reduce…" onFocus={focusGold} onBlur={blurGold} className="flex-1 px-3 py-1.5 text-sm outline-none transition-colors" style={inputStyle} />
+                  <input value={exclInput} onChange={e => setExclInput(e.target.value)} onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addExclusion(); } }} placeholder="Add a topic to steer away from…" onFocus={focusGold} onBlur={blurGold} className="flex-1 px-3 py-1.5 text-sm outline-none transition-colors" style={inputStyle} />
                   <Button variant="secondary" onClick={addExclusion}>Add</Button>
                 </div>
-                <p className="text-[11px] mt-1.5 leading-relaxed" style={{ color: "var(--text-tertiary)" }}>Only for clearly unrelated meanings of your subject (e.g. FedEx logistics vs the sponsorship). Keep it conservative — over-excluding can drop useful evidence.</p>
               </div>
 
               <div>
                 <FieldLabel>Breadth</FieldLabel>
+                <p className="text-[11px] mb-2 leading-relaxed" style={{ color: "var(--text-tertiary)" }}>How tightly a conversation must relate to your context before it&apos;s worth collecting.</p>
                 <div className="flex flex-wrap gap-1.5">
                   {BREADTHS.map(b => <FilterChip key={b.value} label={b.label} selected={form.search_strategy!.breadth === b.value} onClick={() => patchStrategy({ breadth: b.value })} />)}
                 </div>
                 <p className="text-[11px] mt-1.5 leading-relaxed" style={{ color: "var(--text-tertiary)" }}>{BREADTHS.find(b => b.value === form.search_strategy!.breadth)?.help}</p>
               </div>
 
-              <div className="border-t pt-4" style={{ borderColor: "var(--border-subtle)" }}>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.05em] mb-2" style={{ color: "var(--text-tertiary)" }}>What Fanometrix will look for</p>
-                <div className="space-y-1.5">
+              <div className="rounded-lg p-4 mt-1" style={{ background: "var(--surface-sunken)", border: "1px solid var(--border-subtle)" }}>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.06em] mb-2" style={{ color: "var(--accent-ink)" }}>What this search sets out to find</p>
+                <div className="space-y-2">
                   {(form.platforms.length ? form.platforms : [""]).map((p, i) => (
-                    <p key={i} className="text-sm leading-relaxed" style={{ color: "var(--text-secondary)" }}>{describeStrategy(form.search_strategy!, p || undefined)}</p>
+                    <p key={i} className="text-sm leading-relaxed" style={{ color: "var(--text-primary)" }}>{describeStrategy(form.search_strategy!, p || undefined)}</p>
                   ))}
                 </div>
-                <p className="text-[11px] mt-2" style={{ color: "var(--text-tertiary)" }}>Planning only — collection still runs on your keywords in this release.</p>
+                <p className="text-[11px] mt-3 leading-relaxed" style={{ color: "var(--text-tertiary)" }}>This is your search brief. Collection still runs on your keywords in this release — the strategy is here to plan and refine your intent.</p>
               </div>
             </div>
           )}
