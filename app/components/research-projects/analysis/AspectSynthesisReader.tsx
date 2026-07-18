@@ -26,6 +26,7 @@ import {
   deriveFindingConfidence, confidenceTone,
   type ConfidenceLevel, type FindingSourceType, type FindingConfidence, type ConfidenceFactor,
 } from "@/lib/intelligence/finding-confidence";
+import { NotesPanel, findingKey, type ResearcherNote } from "@/app/components/research-projects/analysis/ResearcherNotes";
 
 type StoredRow = { content: AspectSynthesisReport; edited_content: AspectSynthesisReport | null; status: string; generated_at: string | null } | null;
 
@@ -249,11 +250,20 @@ function GapList({ gaps }: { gaps: AspectGap[] }) {
   );
 }
 
-function AspectBlock({ section, evidenceById }: { section: AspectSection; evidenceById: Map<string, Conversation> }) {
+function AspectBlock({ section, evidenceById, projectId, notes, onNotesChanged }: {
+  section: AspectSection; evidenceById: Map<string, Conversation>;
+  projectId: string; notes: ResearcherNote[]; onNotesChanged: () => void;
+}) {
   const [open, setOpen] = useState<Set<number>>(new Set());
   const toggle = (i: number) => setOpen(prev => { const n = new Set(prev); if (n.has(i)) n.delete(i); else n.add(i); return n; });
   const [confOpen, setConfOpen] = useState<Set<number>>(new Set());
   const toggleConf = (i: number) => setConfOpen(prev => { const n = new Set(prev); if (n.has(i)) n.delete(i); else n.add(i); return n; });
+
+  // Notes for this aspect, and finding-note anchoring (finding-scoped notes whose
+  // finding no longer exists are kept and surfaced here, flagged — never dropped).
+  const aspectNotes = notes.filter(n => n.scope === "aspect" && n.scope_ref === section.aspect);
+  const currentFindingKeys = new Set(section.key_findings.map(f => findingKey(section.aspect, f.finding)));
+  const orphanedFindingNotes = notes.filter(n => n.scope === "finding" && n.scope_ref.startsWith(`${section.aspect}::`) && !currentFindingKeys.has(n.scope_ref));
 
   return (
     <Card padding="lg">
@@ -331,6 +341,16 @@ function AspectBlock({ section, evidenceById }: { section: AspectSection; eviden
                       <EvidenceGroups items={items} evidenceById={evidenceById} />
                     </div>
                   )}
+                  {/* Finding-level researcher note — survives regeneration */}
+                  {(() => {
+                    const key = findingKey(section.aspect, f.finding);
+                    const fNotes = notes.filter(n => n.scope === "finding" && n.scope_ref === key);
+                    return (
+                      <div className="px-3.5 pb-3.5">
+                        <NotesPanel projectId={projectId} scope="finding" scopeRef={key} notes={fNotes} onChanged={onNotesChanged} compact />
+                      </div>
+                    );
+                  })()}
                 </li>
               );
             })}
@@ -375,6 +395,19 @@ function AspectBlock({ section, evidenceById }: { section: AspectSection; eviden
           </ul>
         </div>
       )}
+
+      {/* Aspect-level researcher notes (+ any notes whose finding changed) */}
+      <div className="mt-5">
+        {orphanedFindingNotes.length > 0 && (
+          <p className="text-[10px] mb-1.5" style={{ color: "var(--text-tertiary)" }}>
+            Notes below include {orphanedFindingNotes.length} kept from a finding that changed on a later regeneration.
+          </p>
+        )}
+        <NotesPanel
+          projectId={projectId} scope="aspect" scopeRef={section.aspect}
+          notes={[...aspectNotes, ...orphanedFindingNotes]} onChanged={onNotesChanged}
+        />
+      </div>
     </Card>
   );
 }
@@ -385,16 +418,23 @@ export function AspectSynthesisReader() {
   const [loaded, setLoaded] = useState(false);
   const [evidenceById, setEvidenceById] = useState<Map<string, Conversation>>(new Map());
   const [keyFindings, setKeyFindings] = useState<string[]>([]);
+  const [notes, setNotes] = useState<ResearcherNote[]>([]);
   const [freshness, setFreshness] = useState<{ stale: boolean; new_since: number } | null>(null);
   const [busy, setBusy] = useState(false);
   const [genError, setGenError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
+  const loadNotes = useCallback(async () => {
+    const res = await fetch(`/api/research-projects/${projectId}/notes`).then(r => (r.ok ? r.json() : null)).catch(() => null);
+    setNotes(res?.notes ?? []);
+  }, [projectId]);
+
   const load = useCallback(async () => {
-    const [synthRes, evRows, kfRes] = await Promise.all([
+    const [synthRes, evRows, kfRes, notesRes] = await Promise.all([
       fetch(`/api/research-projects/${projectId}/aspect-synthesis`).then(r => (r.ok ? r.json() : { data: null })).catch(() => ({ data: null })),
       fetchAllProjectConversations(projectId).catch(() => [] as Conversation[]),
       fetch(`/api/research-projects/${projectId}/findings-preview`).then(r => (r.ok ? r.json() : null)).catch(() => null),
+      fetch(`/api/research-projects/${projectId}/notes`).then(r => (r.ok ? r.json() : null)).catch(() => null),
     ]);
     setRow(synthRes.data ?? null);
     setFreshness(synthRes.freshness ?? null);
@@ -402,6 +442,7 @@ export function AspectSynthesisReader() {
     for (const c of evRows) map.set(c.id, c);
     setEvidenceById(map);
     setKeyFindings(kfRes?.keyFindings?.findings ?? []);
+    setNotes(notesRes?.notes ?? []);
     setLoaded(true);
   }, [projectId]);
 
@@ -484,6 +525,12 @@ export function AspectSynthesisReader() {
           </Card>
         )}
 
+        {/* Project-level researcher notes — the human layer over the whole analysis. */}
+        {report && (
+          <NotesPanel projectId={projectId} scope="project" scopeRef=""
+            notes={notes.filter(n => n.scope === "project")} onChanged={loadNotes} />
+        )}
+
         {/* Aspect sections — the synthesis itself. */}
         {!loaded ? (
           <PageLoadingState />
@@ -499,7 +546,8 @@ export function AspectSynthesisReader() {
         ) : (
           <div className="space-y-4">
             {report.aspects.map(section => (
-              <AspectBlock key={section.aspect} section={section} evidenceById={evidenceById} />
+              <AspectBlock key={section.aspect} section={section} evidenceById={evidenceById}
+                projectId={projectId} notes={notes} onNotesChanged={loadNotes} />
             ))}
             {report.omitted_note && (
               <p className="text-xs px-1 leading-relaxed" style={{ color: "var(--text-tertiary)" }}>{report.omitted_note}</p>
