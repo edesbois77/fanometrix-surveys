@@ -35,10 +35,11 @@ function collectionMeta(status: string, mentions: number): { label: string; colo
   return { label: "Not collected", color: SL_GREY };
 }
 
-// Research observations describe PATTERNS across the collected evidence — not
-// single comments. Derived from the same aggregates the charts use (no new
-// analysis), so they read as findings a researcher would draw.
-function researchObservations(stats: ConversationStats | null, searchesCount: number): string[] {
+// A FACTUAL evidence summary — descriptive only (what/how much/where/sentiment/
+// topics). Dashboard is descriptive intelligence; interpretation ("what does
+// this mean / what should we do") is Analysis's job, never derived here. These
+// lines are read straight from the same aggregates the charts use — no reasoning.
+function evidenceSummary(stats: ConversationStats | null, searchesCount: number): string[] {
   if (!stats || stats.total === 0) return [];
   const obs: string[] = [];
   const net = stats.positive_pct - stats.negative_pct;
@@ -77,7 +78,7 @@ export function ConversationDashboardBody({ projectId, searches }: { projectId: 
   const trend = reports?.sentimentTrend ?? [];
   const today = new Date().toISOString().slice(0, 10);
   const conversationsToday = trend.find(d => d.date === today)?.total ?? 0;
-  const observations = researchObservations(stats, searches.length);
+  const evidenceFacts = evidenceSummary(stats, searches.length);
 
   if (searches.length === 0) {
     return (
@@ -127,18 +128,21 @@ export function ConversationDashboardBody({ projectId, searches }: { projectId: 
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-        {observations.length > 0 && (
-          <div className="bg-white border border-gray-100 rounded-xl p-5 shadow-sm">
-            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Research Observations</h3>
-            <p className="text-[11px] text-gray-400 mb-4">Patterns across the evidence collected so far.</p>
+        {evidenceFacts.length > 0 && (
+          <div className="bg-white border border-gray-100 rounded-xl p-5 shadow-sm flex flex-col">
+            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Evidence Summary</h3>
+            <p className="text-[11px] text-gray-400 mb-4">A factual snapshot of what&apos;s been collected — the interpretation happens in Analysis.</p>
             <ul className="space-y-2.5">
-              {observations.map((o, i) => (
+              {evidenceFacts.map((o, i) => (
                 <li key={i} className="flex items-start gap-2 text-sm text-gray-600 leading-relaxed">
                   <span className="mt-1.5 w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: SL_GOLD }} aria-hidden />
                   {o}
                 </li>
               ))}
             </ul>
+            <Link href={`/research-projects/${projectId}/analysis`} className="text-xs font-semibold mt-4 hover:underline" style={{ color: "#8A6D2F" }}>
+              What does this mean? Generate findings in Analysis →
+            </Link>
           </div>
         )}
 
