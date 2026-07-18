@@ -52,6 +52,7 @@ const COLLECTION_SIZES: { key: string; label: string; max_videos: number; commen
   { key: "large",  label: "Large",  max_videos: 50, comments_per_video: 50 },
 ];
 import { CONNECTOR_CATALOG, COLLECTION_LANGUAGES, COLLECTION_WINDOWS, connectorForPlatformId, type ConnectorField } from "@/lib/connectors/catalog";
+import { SourceLogo } from "@/app/components/research-projects/SourceLogo";
 import { useResearchProject } from "@/app/components/research-projects/ProjectProvider";
 import { useWorkspaceRecord } from "@/app/components/research-projects/WorkspaceRecordContext";
 import {
@@ -380,12 +381,17 @@ export function SearchConfigForm({ mode, searchId, backHref, backLabel }: {
                         border: on ? "1px solid #ECDCB8" : "1px solid var(--border-default)",
                         background: on ? "var(--accent-wash)" : "var(--surface)",
                       }}>
-                      <span className="flex items-center gap-1.5 text-sm font-semibold" style={{ color: on ? "var(--accent-ink)" : "var(--text-primary)" }}>
-                        {on && <Icon.check size={13} strokeWidth={2.5} />}
-                        {p.label}
-                        {disabled && <span className="text-[10px] font-medium" style={{ color: "var(--text-disabled)" }}>· soon</span>}
-                      </span>
-                      <span className="block text-[11px] mt-0.5" style={{ color: "var(--text-tertiary)" }}>{SOURCE_DESCRIPTIONS[p.id] ?? ""}</span>
+                      <div className="flex items-start gap-2.5">
+                        <span className="mt-0.5"><SourceLogo id={p.id} size={18} /></span>
+                        <div className="min-w-0 flex-1">
+                          <span className="flex items-center gap-1.5 text-sm font-semibold" style={{ color: on ? "var(--accent-ink)" : "var(--text-primary)" }}>
+                            {p.label}
+                            {disabled && <span className="text-[10px] font-medium" style={{ color: "var(--text-disabled)" }}>· soon</span>}
+                            {on && <Icon.check className="ml-auto" size={13} strokeWidth={2.5} />}
+                          </span>
+                          <span className="block text-[11px] mt-0.5" style={{ color: "var(--text-tertiary)" }}>{SOURCE_DESCRIPTIONS[p.id] ?? ""}</span>
+                        </div>
+                      </div>
                     </button>
                   );
                 })}
