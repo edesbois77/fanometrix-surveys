@@ -72,6 +72,17 @@ export function NotesPanel({
   const textareaCls = "w-full text-sm rounded-lg p-2.5 resize-y";
   const textareaStyle = { background: "var(--surface)", border: "1px solid var(--border-subtle)", color: "var(--text-primary)", minHeight: 60 } as const;
 
+  // Compact + empty: a near-invisible "Add note" link, no gold box, so a finding
+  // stays clean until the researcher actually annotates it (report-feel).
+  if (compact && notes.length === 0 && !adding) {
+    return (
+      <button type="button" onClick={() => setAdding(true)}
+        className="inline-flex items-center gap-1 text-[11px] font-medium" style={{ color: "var(--text-tertiary)", cursor: "pointer" }}>
+        <Icon.sparkles size={11} /> Add note
+      </button>
+    );
+  }
+
   return (
     <div className="rounded-lg" style={{ background: "var(--accent-wash)", borderLeft: "3px solid var(--accent-gold)", padding: compact ? "8px 10px" : "12px 14px" }}>
       {!compact && (

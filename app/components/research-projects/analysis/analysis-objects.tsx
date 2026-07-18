@@ -133,7 +133,12 @@ function SourceEvidenceCard({ item }: { item: EvidenceItemRef }) {
         <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold min-w-0" style={{ color: "var(--text-secondary)" }}>
           <span aria-hidden style={{ color: "var(--accent-ink)" }}><IconEl size={13} /></span>
           <span className="truncate">{item.source_label}</span>
-          {item.provenance && <span className="truncate font-normal" style={{ color: "var(--text-tertiary)" }}>· {item.provenance}</span>}
+          {item.provenance && (
+            <span className="inline-flex items-center text-[10px] font-medium px-1.5 py-0.5 rounded flex-shrink-0"
+              style={{ color: "var(--text-tertiary)", background: "var(--surface-sunken)", border: "1px solid var(--border-subtle)" }} title="Where this evidence is from">
+              {item.provenance}
+            </span>
+          )}
         </span>
         {band && pct !== null && (
           <span className="inline-flex items-center text-[10px] font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0"

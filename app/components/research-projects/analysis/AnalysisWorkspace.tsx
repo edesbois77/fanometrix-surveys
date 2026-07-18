@@ -69,8 +69,29 @@ function SectionNav({ available }: { available: Set<string> }) {
 
 const EMPTY_EVIDENCE: AspectSection["key_findings"][number]["evidence"] = [];
 
-function AHeading({ children, tone }: { children: ReactNode; tone?: string }) {
-  return <h3 className="text-[11px] font-semibold uppercase tracking-[0.07em] mb-2" style={{ color: tone ?? "var(--text-tertiary)" }}>{children}</h3>;
+// A gold "token" number — the old readers' briefing texture, in workspace tokens.
+function TokenNumber({ n }: { n: number }) {
+  return (
+    <span aria-hidden className="fx-tabular-nums flex-shrink-0 inline-flex items-center justify-center text-[11px] font-bold rounded-full"
+      style={{ width: 22, height: 22, color: "var(--accent-ink)", background: "var(--accent-wash)", border: "1px solid #ECDCB8" }}>{n}</span>
+  );
+}
+
+// A chapter sub-section: a hairline rule, a small-caps eyebrow with a tone tick,
+// and optional one-line micro-copy that says what the section is — the editorial
+// cadence the old Intelligence reports had and the flat stack lost.
+function ChapterSection({ eyebrow, tone, hint, children }: { eyebrow: ReactNode; tone?: string; hint?: string; children: ReactNode }) {
+  return (
+    <section className="mt-6 pt-5 border-t" style={{ borderColor: "var(--border-subtle)" }}>
+      <div className="flex items-center gap-2">
+        <span aria-hidden className="rounded-full" style={{ width: 3, height: 14, background: tone ?? "var(--accent-gold)" }} />
+        <h3 className="text-[11px] font-semibold uppercase tracking-[0.11em]" style={{ color: tone ?? "var(--text-tertiary)" }}>{eyebrow}</h3>
+      </div>
+      {hint && <p className="text-[11px] leading-relaxed mt-1.5 mb-3" style={{ color: "var(--text-tertiary)", marginLeft: 11 }}>{hint}</p>}
+      {!hint && <div className="mb-3" />}
+      {children}
+    </section>
+  );
 }
 
 function StatChip({ value, label }: { value: string; label: string }) {
@@ -181,28 +202,28 @@ function FindingCard({
   const fNotes = notes.filter(n => n.scope === "finding" && n.scope_ref === key);
 
   return (
-    <li className="border" style={{ borderRadius: "var(--radius-panel)", borderColor: "var(--border-subtle)", background: "var(--surface)" }}>
-      <div className="flex items-start gap-3 p-3.5">
-        <span className="fx-tabular-nums text-sm font-bold flex-shrink-0 mt-0.5" style={{ color: "var(--accent-ink)" }}>{index + 1}</span>
+    <li>
+      <div className="flex items-start gap-3">
+        <div className="pt-0.5"><TokenNumber n={index + 1} /></div>
         <div className="flex-1 min-w-0">
-          <span className="text-sm leading-relaxed block" style={{ color: "var(--text-primary)" }}>{finding.finding}</span>
-          <div className="flex items-center gap-2 flex-wrap mt-2">
+          {/* The finding statement leads — it is the sentence, not a widget. */}
+          <p className="text-[15px] leading-relaxed" style={{ color: "var(--text-primary)" }}>{finding.finding}</p>
+          {/* Trust signals sit quietly beneath the claim. */}
+          <div className="flex items-center gap-2 flex-wrap mt-1.5">
             <Confidence conf={conf} />
             <SourceDiversity sources={conf.sources} />
             <span className="text-[11px] fx-tabular-nums" style={{ color: "var(--text-tertiary)" }}>{conf.evidenceCount.toLocaleString()} piece{conf.evidenceCount === 1 ? "" : "s"} of evidence</span>
           </div>
           {items.length > 0 && (
             <button type="button" onClick={() => setOpen(o => !o)}
-              className="inline-flex items-center gap-1 text-[11px] font-semibold mt-2 text-left" style={{ color: "var(--accent-ink)", cursor: "pointer" }}>
+              className="inline-flex items-center gap-1 text-[11px] font-semibold mt-1.5 text-left" style={{ color: "var(--accent-ink)", cursor: "pointer" }}>
               <span aria-hidden className="inline-flex flex-shrink-0" style={{ transform: open ? "rotate(90deg)" : "none", transition: "transform 0.15s" }}><Icon.chevronRight size={12} strokeWidth={2.5} /></span>
               {open ? "Hide" : "Show"} the evidence — {breakdown}
             </button>
           )}
+          {open && items.length > 0 && <div className="mt-2.5"><EvidenceGroups items={items} evidenceById={evidenceById} /></div>}
+          <div className="mt-2"><NotesPanel projectId={projectId} scope="finding" scopeRef={key} notes={fNotes} onChanged={onNotesChanged} compact /></div>
         </div>
-      </div>
-      {open && items.length > 0 && <div className="px-3.5 pb-3.5"><EvidenceGroups items={items} evidenceById={evidenceById} /></div>}
-      <div className="px-3.5 pb-3.5">
-        <NotesPanel projectId={projectId} scope="finding" scopeRef={key} notes={fNotes} onChanged={onNotesChanged} compact />
       </div>
     </li>
   );
@@ -218,6 +239,9 @@ function AspectChapter({
   const [evOpen, setEvOpen] = useState(false);
   const pool = useMemo(() => aspectEvidence(section), [section]);
   const conf = useMemo(() => confidenceForEvidence(pool), [pool]);
+  // A representative peek so provenance stays visible, the way the old Document
+  // report always kept citations on the page — the two most-relevant items.
+  const peek = useMemo(() => [...pool].sort((a, b) => (b.relevance ?? 0) - (a.relevance ?? 0)).slice(0, 2), [pool]);
 
   const aspectNotes = notes.filter(n => n.scope === "aspect" && n.scope_ref === section.aspect);
   const currentKeys = new Set(section.key_findings.map(f => findingKey(section.aspect, f.finding)));
@@ -227,69 +251,70 @@ function AspectChapter({
 
   return (
     <Card padding="lg">
-      {/* Chapter title */}
-      <div className="pb-3 border-b" style={{ borderColor: "var(--border-default)" }}>
-        <p className="text-[10px] font-semibold uppercase tracking-[0.09em]" style={{ color: "var(--text-tertiary)" }}>Research Aspect</p>
-        <h2 className="text-xl font-bold tracking-[-0.02em] mt-0.5" style={{ color: "var(--text-primary)" }}>{section.aspect}</h2>
-      </div>
+      {/* Chapter header — the aspect, opened with its verdict (confidence + sources). */}
+      <header className="flex items-start justify-between gap-4 flex-wrap pb-4 border-b" style={{ borderColor: "var(--border-default)" }}>
+        <div className="min-w-0">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.11em]" style={{ color: "var(--text-tertiary)" }}>Research Aspect</p>
+          <h2 className="text-[22px] font-bold tracking-[-0.02em] mt-0.5 leading-tight" style={{ color: "var(--text-primary)" }}>{section.aspect}</h2>
+          <div className="flex items-center gap-2 mt-2">
+            <SentimentDots s={section.sentiment} />
+            <span className="text-[11px]" style={{ color: "var(--text-disabled)" }}>·</span>
+            <span className="text-[11px] fx-tabular-nums" style={{ color: "var(--text-tertiary)" }}>{section.evidence_count.toLocaleString()} piece{section.evidence_count === 1 ? "" : "s"} of evidence</span>
+          </div>
+        </div>
+        <div className="flex items-center gap-2.5 flex-wrap flex-shrink-0 pt-0.5">
+          <Confidence conf={conf} />
+          <SourceDiversity sources={section.source_types ?? []} />
+        </div>
+      </header>
 
-      {/* 1. Summary */}
-      {section.summary && <p className="text-sm leading-relaxed mt-4" style={{ color: "var(--text-secondary)" }}>{section.summary}</p>}
+      {/* Lead — the chapter's thesis sentence. */}
+      {section.summary && <p className="text-[15px] leading-7 mt-4" style={{ color: "var(--text-secondary)" }}>{section.summary}</p>}
 
-      {/* 2. Confidence + Source Diversity */}
-      <div className="flex items-center gap-3 flex-wrap mt-4">
-        <Confidence conf={conf} />
-        <SourceDiversity sources={section.source_types ?? []} />
-        <SentimentDots s={section.sentiment} />
-        <span className="text-[11px] fx-tabular-nums" style={{ color: "var(--text-tertiary)" }}>{section.evidence_count.toLocaleString()} piece{section.evidence_count === 1 ? "" : "s"} of evidence</span>
-      </div>
-
-      {/* 3. Contradictions (only if present) */}
+      {/* Contradictions (only if present) */}
       {contradictions.length > 0 && (
-        <div className="mt-5">
-          <AHeading tone="#8A4B33"><span className="inline-flex items-center gap-1.5"><Icon.alert size={13} /> Contradictions</span></AHeading>
+        <ChapterSection eyebrow={<span className="inline-flex items-center gap-1.5"><Icon.alert size={12} /> Contradictions</span>} tone="#8A4B33"
+          hint="Where the evidence disagrees — shown with both sides, not averaged away.">
           <div className="space-y-2.5">{contradictions.map((c, i) => <ContradictionCard key={i} c={c} evidenceById={evidenceById} />)}</div>
-        </div>
+        </ChapterSection>
       )}
 
-      {/* 4. Research Gaps (only if present) */}
+      {/* Research Gaps (only if present) */}
       {gaps.length > 0 && (
-        <div className="mt-5">
-          <AHeading>Research Gaps</AHeading>
+        <ChapterSection eyebrow="Research Gaps" hint="What the evidence does not yet cover, and the research that would close it.">
           <GapList gaps={gaps} />
-        </div>
+        </ChapterSection>
       )}
 
-      {/* 5. Key Findings */}
+      {/* Key Findings — numbered prose, the claim leading. */}
       {section.key_findings.length > 0 && (
-        <div className="mt-5">
-          <AHeading>Key Findings</AHeading>
-          <ol className="space-y-2.5">
+        <ChapterSection eyebrow="Key Findings">
+          <ol className="space-y-4">
             {section.key_findings.map((f, i) => (
               <FindingCard key={i} aspect={section.aspect} index={i} finding={f}
                 projectId={projectId} notes={notes} onNotesChanged={onNotesChanged} evidenceById={evidenceById} />
             ))}
           </ol>
-        </div>
+        </ChapterSection>
       )}
 
-      {/* 6. Supporting Evidence — the aspect's full evidence base, grouped by source */}
+      {/* Supporting Evidence — a peek stays on the page; expand for the full base. */}
       {pool.length > 0 && (
-        <div className="mt-5">
-          <AHeading>Supporting Evidence</AHeading>
-          <button type="button" onClick={() => setEvOpen(o => !o)}
-            className="inline-flex items-center gap-1 text-[11px] font-semibold" style={{ color: "var(--accent-ink)", cursor: "pointer" }}>
-            <span aria-hidden className="inline-flex" style={{ transform: evOpen ? "rotate(90deg)" : "none", transition: "transform 0.15s" }}><Icon.chevronRight size={12} strokeWidth={2.5} /></span>
-            {evOpen ? "Hide" : "Show"} all {pool.length} evidence item{pool.length === 1 ? "" : "s"} behind this aspect
-          </button>
-          {evOpen && <div className="mt-2.5"><EvidenceGroups items={pool} evidenceById={evidenceById} /></div>}
-        </div>
+        <ChapterSection eyebrow="Supporting Evidence" hint="The evidence these findings rest on, grouped by source and traceable to where it came from.">
+          <EvidenceGroups items={evOpen ? pool : peek} evidenceById={evidenceById} />
+          {pool.length > peek.length && (
+            <button type="button" onClick={() => setEvOpen(o => !o)}
+              className="inline-flex items-center gap-1 text-[11px] font-semibold mt-3" style={{ color: "var(--accent-ink)", cursor: "pointer" }}>
+              <span aria-hidden className="inline-flex" style={{ transform: evOpen ? "rotate(90deg)" : "none", transition: "transform 0.15s" }}><Icon.chevronRight size={12} strokeWidth={2.5} /></span>
+              {evOpen ? "Show less" : `Show all ${pool.length} evidence items behind this aspect`}
+            </button>
+          )}
+        </ChapterSection>
       )}
 
-      {/* 7. Recommended Actions */}
+      {/* Recommended Actions */}
       {section.recommended_actions.length > 0 && (
-        <div className="mt-5">
-          <AHeading>Recommended Actions</AHeading>
+        <ChapterSection eyebrow="Recommended Actions" hint="What the evidence above supports doing.">
           <ul className="space-y-2.5">
             {section.recommended_actions.map((a, i) => (
               <li key={i} className="flex items-start gap-2.5">
@@ -301,18 +326,18 @@ function AspectChapter({
               </li>
             ))}
           </ul>
-        </div>
+        </ChapterSection>
       )}
 
-      {/* 8. Researcher Notes */}
-      <div className="mt-5">
+      {/* Researcher Notes */}
+      <section className="mt-6 pt-5 border-t" style={{ borderColor: "var(--border-subtle)" }}>
         {orphanedNotes.length > 0 && (
           <p className="text-[10px] mb-1.5" style={{ color: "var(--text-tertiary)" }}>
             Includes {orphanedNotes.length} note{orphanedNotes.length === 1 ? "" : "s"} kept from a finding that changed on a later regeneration.
           </p>
         )}
         <NotesPanel projectId={projectId} scope="aspect" scopeRef={section.aspect} notes={[...aspectNotes, ...orphanedNotes]} onChanged={onNotesChanged} />
-      </div>
+      </section>
     </Card>
   );
 }
@@ -395,12 +420,13 @@ export function AnalysisWorkspace() {
     return { conf, sourceTypes, contradictions, gaps };
   }, [report]);
 
+  const available = useMemo(() => new Set<string>(report ? ["summary", "confidence", "findings", "aspects", "notes"] : []), [report]);
+
   if (loading && !project) return <PageContainer><PageLoadingState /></PageContainer>;
   if (error || !project) return <PageContainer><ErrorState title="Research project not found" description={error || "We couldn't load this project."} /></PageContainer>;
 
   const generatedLabel = row?.generated_at ? formatRelativeTime(row.generated_at) : null;
   const conclusion = project.published_conclusion;
-  const available = useMemo(() => new Set<string>(report ? ["summary", "confidence", "findings", "aspects", "notes"] : []), [report]);
 
   return (
     <>
