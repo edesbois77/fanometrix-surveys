@@ -10,17 +10,12 @@
 // Project workspace layout (breadcrumb, header, cards, footer actions).
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { PLATFORMS, MARKETS, detectKeywordType } from "@/lib/social-taxonomy";
-import { connectorForPlatformId } from "@/lib/connectors/catalog";
+import { PLATFORMS, MARKETS, detectKeywordType, SOURCE_DESCRIPTIONS } from "@/lib/social-taxonomy";
 import { inferLanguagesForMarkets } from "@/lib/locales";
 import { useResearchProject } from "@/app/components/research-projects/ProjectProvider";
 import {
   PageContainer, WorkspaceHeader, BackLink, Card, SectionHeading, Button, FilterChip, Icon,
 } from "@/app/components/workspace-ui";
-
-// Only offer sources that have a live connector today (YouTube, Reddit). Others
-// (News, …) appear here automatically once their connector ships.
-const SOURCE_OPTIONS = PLATFORMS.filter(p => connectorForPlatformId(p.id));
 
 const inputStyle: React.CSSProperties = {
   background: "var(--surface)", border: "1px solid var(--border-default)",
@@ -39,7 +34,7 @@ export function CreateConversationSearchBody({ backHref, backLabel }: { backHref
   const [terms, setTerms] = useState<string[]>([]);
   const [termInput, setTermInput] = useState("");
   const [markets, setMarkets] = useState<string[]>(["GB"]);
-  const [sources, setSources] = useState<string[]>(SOURCE_OPTIONS.some(s => s.id === "YouTube") ? ["YouTube"] : []);
+  const [sources, setSources] = useState<string[]>(["YouTube"]);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
   function showToast(msg: string, ok = true) { setToast({ msg, ok }); setTimeout(() => setToast(null), 4000); }
@@ -170,10 +165,28 @@ export function CreateConversationSearchBody({ backHref, backLabel }: { backHref
           <div className="mt-5 space-y-5">
             <div>
               <label className={FIELD_LABEL} style={{ color: "var(--text-secondary)" }}>Sources</label>
-              <div className="flex flex-wrap gap-1.5">
-                {SOURCE_OPTIONS.map(s => (
-                  <FilterChip key={s.id} label={s.label} selected={sources.includes(s.id)} onClick={() => setSources(prev => toggle(prev, s.id))} />
-                ))}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {PLATFORMS.map(p => {
+                  const on = sources.includes(p.id);
+                  const disabled = !p.defaultOn;
+                  return (
+                    <button key={p.id} type="button" disabled={disabled}
+                      onClick={() => !disabled && setSources(prev => toggle(prev, p.id))}
+                      className="text-left px-3 py-2.5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      style={{
+                        borderRadius: "var(--radius-tile)",
+                        border: on ? "1px solid #ECDCB8" : "1px solid var(--border-default)",
+                        background: on ? "var(--accent-wash)" : "var(--surface)",
+                      }}>
+                      <span className="flex items-center gap-1.5 text-sm font-semibold" style={{ color: on ? "var(--accent-ink)" : "var(--text-primary)" }}>
+                        {on && <Icon.check size={13} strokeWidth={2.5} />}
+                        {p.label}
+                        {disabled && <span className="text-[10px] font-medium" style={{ color: "var(--text-disabled)" }}>· soon</span>}
+                      </span>
+                      <span className="block text-[11px] mt-0.5" style={{ color: "var(--text-tertiary)" }}>{SOURCE_DESCRIPTIONS[p.id] ?? ""}</span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
             <div>
