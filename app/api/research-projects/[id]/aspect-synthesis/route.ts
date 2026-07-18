@@ -8,7 +8,7 @@
 // lose, same as key_findings). Reuses research_summaries via store.ts.
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth-server";
-import { analyseAspectSynthesis } from "@/lib/intelligence/analysts/analyseAspectSynthesis";
+import { analyseAspectSynthesis, countRelevantEvidenceSince } from "@/lib/intelligence/analysts/analyseAspectSynthesis";
 import { getSummary, saveDraft } from "@/lib/intelligence/store";
 import { IntelligenceError } from "@/lib/intelligence/types";
 import { logActivity } from "@/lib/research-project-activity";
@@ -23,7 +23,14 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   try { await requireUser(req, ["admin"]); } catch (err) { return err as Response; }
   const { id } = await params;
   const data = await getSummary("research_project", id, "aspect_synthesis");
-  return NextResponse.json({ data });
+  // Staleness: how many relevant conversations were collected AFTER this
+  // synthesis was generated. new_since > 0 => Out of date. Never auto-regenerated.
+  let freshness = { stale: false, new_since: 0, generated_at: null as string | null };
+  if (data?.generated_at) {
+    const newSince = await countRelevantEvidenceSince(id, data.generated_at);
+    freshness = { stale: newSince > 0, new_since: newSince, generated_at: data.generated_at };
+  }
+  return NextResponse.json({ data, freshness });
 }
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {

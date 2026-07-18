@@ -24,6 +24,12 @@ export type ConnectorCapabilities = {
   supportsDateWindow: boolean;
   /** Returns paginated results the pipeline can page through (within caps). */
   paginated: boolean;
+  /** Reliably discovers genuinely NEW child evidence since the last run (e.g.
+   *  newest-first comment paging that stops at already-seen items) rather than
+   *  re-fetching a fixed top-N sample. When true, the pipeline passes
+   *  ctx.knownExternalIds so the connector can stop at what it already has. A
+   *  connector that only ever returns a top-N sample must set this false. */
+  incremental: boolean;
   /** connector_config keys this connector reads, with UI hints. */
   configSchema?: Record<string, { type: "number" | "text" | "string[]"; label: string; required?: boolean; default?: unknown }>;
   /** Rough quota note for operators (not enforced here). */
@@ -64,6 +70,11 @@ export type CollectContext = {
   dateTo: string | null;
   /** This connector's slice of social_searches.connector_config. */
   config: Record<string, unknown>;
+  /** External ids already in this search's evidence base. An incremental
+   *  connector uses this to stop paging at already-seen items and fetch only
+   *  genuinely new evidence. Absent/empty on a first run; non-incremental
+   *  connectors ignore it (the pipeline dedups their output regardless). */
+  knownExternalIds?: Set<string>;
 };
 
 /** A connector's result for one run — partial success is normal. */

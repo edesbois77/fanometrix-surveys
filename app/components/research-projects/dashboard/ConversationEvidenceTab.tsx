@@ -13,8 +13,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useResearchProject, type EvidenceItem } from "@/app/components/research-projects/ProjectProvider";
-import { ConversationEvidenceCard, type Conversation } from "@/app/components/research-projects/ConversationEvidenceCard";
+import { ConversationEvidenceCard, fetchAllProjectConversations, type Conversation } from "@/app/components/research-projects/ConversationEvidenceCard";
 import { FilterChip, Icon, Card } from "@/app/components/workspace-ui";
+
+// Videos/trends are containers, not conversations — excluded so the Evidence
+// list's total matches the Dashboard's "conversations" total exactly.
+const NON_CONVERSATION = new Set(["video", "trend"]);
 
 export function ConversationEvidenceTab() {
   const { projectId, project } = useResearchProject();
@@ -50,9 +54,10 @@ export function ConversationEvidenceTab() {
   useEffect(() => {
     let cancelled = false;
     setFetching(true);
-    fetch(`/api/social/mentions?research_project_id=${projectId}&limit=500`)
-      .then(r => (r.ok ? r.json() : { data: [] }))
-      .then(j => { if (!cancelled) { setConversations(j.data ?? []); setFetching(false); } })
+    // Full cumulative base (all pages) so the Evidence list never truncates and
+    // always matches the Dashboard total.
+    fetchAllProjectConversations(projectId)
+      .then(rows => { if (!cancelled) { setConversations(rows.filter(c => !(c.content_kind && NON_CONVERSATION.has(c.content_kind)))); setFetching(false); } })
       .catch(() => { if (!cancelled) setFetching(false); });
     return () => { cancelled = true; };
   }, [projectId]);

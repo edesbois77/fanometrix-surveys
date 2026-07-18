@@ -14,10 +14,6 @@ const EMPTY_STATS = {
 // the comment/post/article. They're excluded from the conversation stats, same
 // as the collection run's own by_sentiment rollup.
 const NON_CONVERSATION = new Set(["video", "trend"]);
-// A conversation is "included in the sentiment analysis" only if the classifier
-// gave it a determinate sentiment. "Unknown"/null is undetermined, not a fourth
-// slice — so it's excluded from the split's denominator and reported separately.
-const DETERMINATE = new Set(["Positive", "Neutral", "Negative"]);
 
 export async function GET(req: NextRequest) {
   try { await requireUser(req, ["admin"]); } catch (err) { return err as Response; }
@@ -28,30 +24,36 @@ export async function GET(req: NextRequest) {
   // endpoint is platform-wide, exactly as before.
   const projectId = req.nextUrl.searchParams.get("research_project_id");
 
-  let q = supabaseAdmin.from("social_mentions").select("sentiment, topic, platform, market, content_kind");
-  if (searchId) {
-    q = q.eq("search_id", searchId);
-  } else if (projectId) {
-    const ids = await getProjectSocialSearchIds(projectId);
+  // Resolve the scope to a set of search ids (null = platform-wide).
+  let ids: string[] | null = null;
+  if (searchId) ids = [searchId];
+  else if (projectId) {
+    ids = await getProjectSocialSearchIds(projectId);
     if (ids.length === 0) return NextResponse.json(EMPTY_STATS);
-    q = q.in("search_id", ids);
   }
 
-  const { data: rows, error } = await q;
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  // EXACT totals + sentiment from the same per-search aggregate the read model
+  // uses (vw_conversation_search_stats) — server-side, so it never caps and
+  // always agrees with the Dashboard/Execution/Evidence base.
+  let aggQ = supabaseAdmin.from("vw_conversation_search_stats").select("conversations, positive, neutral, negative");
+  if (ids) aggQ = aggQ.in("search_id", ids);
+  const { data: agg, error: aggErr } = await aggQ;
+  if (aggErr) return NextResponse.json({ error: aggErr.message }, { status: 500 });
 
-  // The stats describe conversations (opinions), so drop container/signal rows.
-  const conversations = (rows ?? []).filter(m => !(m.content_kind && NON_CONVERSATION.has(m.content_kind)));
-
-  const total     = conversations.length;
-  const positive  = conversations.filter(m => m.sentiment === "Positive").length;
-  const neutral   = conversations.filter(m => m.sentiment === "Neutral").length;
-  const negative  = conversations.filter(m => m.sentiment === "Negative").length;
-  // The denominator for the split is ONLY conversations the classifier could
-  // place — so positive/neutral/negative always sum to 100%.
-  const classified   = positive + neutral + negative;
-  const undetermined = conversations.filter(m => !(m.sentiment && DETERMINATE.has(m.sentiment))).length;
+  const sum = (k: "conversations" | "positive" | "neutral" | "negative") => (agg ?? []).reduce((s, r) => s + (r[k] as number), 0);
+  const total = sum("conversations");
+  const positive = sum("positive"), neutral = sum("neutral"), negative = sum("negative");
+  const classified = positive + neutral + negative;
+  const undetermined = total - classified;
   const pct = (n: number) => (classified ? Math.round((n / classified) * 100) : 0);
+
+  // Top-N lists come from a bounded sample of the base (top lists are inherently
+  // approximate; exact per-facet grouping isn't worth a per-facet view here).
+  let sampleQ = supabaseAdmin.from("social_mentions").select("topic, platform, market, content_kind").limit(2000);
+  if (searchId) sampleQ = sampleQ.eq("search_id", searchId);
+  else if (ids) sampleQ = sampleQ.in("search_id", ids);
+  const { data: rows } = await sampleQ;
+  const conversations = (rows ?? []).filter(m => !(m.content_kind && NON_CONVERSATION.has(m.content_kind)));
 
   const topN = (key: "topic" | "platform" | "market", fallbackUnknown: boolean) => {
     const counts: Record<string, number> = {};

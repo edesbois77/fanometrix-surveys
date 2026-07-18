@@ -16,7 +16,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useResearchProject } from "@/app/components/research-projects/ProjectProvider";
-import { ConversationEvidenceCard, type Conversation } from "@/app/components/research-projects/ConversationEvidenceCard";
+import { ConversationEvidenceCard, fetchAllProjectConversations, type Conversation } from "@/app/components/research-projects/ConversationEvidenceCard";
 import { formatRelativeTime } from "@/lib/format-relative-time";
 import {
   PageContainer, WorkspaceHeader, PageLoadingState, ErrorState, EmptyState, Card, Button, Icon,
@@ -39,7 +39,7 @@ function SentimentDots({ s }: { s: { positive_pct: number; neutral_pct: number; 
 
 function AspectBlock({ section, evidenceById }: { section: AspectSection; evidenceById: Map<string, Conversation> }) {
   const [open, setOpen] = useState<Set<number>>(new Set());
-  const toggle = (i: number) => setOpen(prev => { const n = new Set(prev); n.has(i) ? n.delete(i) : n.add(i); return n; });
+  const toggle = (i: number) => setOpen(prev => { const n = new Set(prev); if (n.has(i)) n.delete(i); else n.add(i); return n; });
 
   return (
     <Card padding="lg">
@@ -128,19 +128,21 @@ export function AspectSynthesisReader() {
   const [loaded, setLoaded] = useState(false);
   const [evidenceById, setEvidenceById] = useState<Map<string, Conversation>>(new Map());
   const [keyFindings, setKeyFindings] = useState<string[]>([]);
+  const [freshness, setFreshness] = useState<{ stale: boolean; new_since: number } | null>(null);
   const [busy, setBusy] = useState(false);
   const [genError, setGenError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    const [synthRes, evRes, kfRes] = await Promise.all([
+    const [synthRes, evRows, kfRes] = await Promise.all([
       fetch(`/api/research-projects/${projectId}/aspect-synthesis`).then(r => (r.ok ? r.json() : { data: null })).catch(() => ({ data: null })),
-      fetch(`/api/social/mentions?research_project_id=${projectId}&limit=500`).then(r => (r.ok ? r.json() : { data: [] })).catch(() => ({ data: [] })),
+      fetchAllProjectConversations(projectId).catch(() => [] as Conversation[]),
       fetch(`/api/research-projects/${projectId}/findings-preview`).then(r => (r.ok ? r.json() : null)).catch(() => null),
     ]);
     setRow(synthRes.data ?? null);
+    setFreshness(synthRes.freshness ?? null);
     const map = new Map<string, Conversation>();
-    for (const c of (evRes.data ?? []) as Conversation[]) map.set(c.id, c);
+    for (const c of evRows) map.set(c.id, c);
     setEvidenceById(map);
     setKeyFindings(kfRes?.keyFindings?.findings ?? []);
     setLoaded(true);
@@ -187,6 +189,23 @@ export function AspectSynthesisReader() {
           <div className="flex items-start gap-2.5 px-4 py-3" style={{ borderRadius: "var(--radius-panel)", background: "var(--surface-sunken)", border: "1px solid var(--border-subtle)" }}>
             <span aria-hidden className="mt-0.5 flex-shrink-0" style={{ color: "#8A4B33" }}><Icon.alert size={15} /></span>
             <p className="text-sm" style={{ color: "var(--text-secondary)" }}>{genError}</p>
+          </div>
+        )}
+
+        {/* Out of date — new evidence collected since this synthesis was generated.
+            Never regenerated automatically; the researcher chooses to update. */}
+        {report && freshness?.stale && (
+          <div className="flex items-start justify-between gap-3 px-4 py-3.5 flex-wrap" style={{ borderRadius: "var(--radius-panel)", background: "var(--accent-wash)", border: "1px solid #ECDCB8" }}>
+            <div className="flex items-start gap-2.5 min-w-0">
+              <span aria-hidden className="mt-0.5 flex-shrink-0" style={{ color: "var(--accent-ink)" }}><Icon.alert size={15} /></span>
+              <div className="min-w-0">
+                <p className="text-sm font-bold" style={{ color: "var(--accent-ink)" }}>Analysis out of date</p>
+                <p className="text-xs mt-0.5" style={{ color: "var(--text-secondary)" }}>
+                  {freshness.new_since.toLocaleString()} new relevant conversation{freshness.new_since === 1 ? "" : "s"} {freshness.new_since === 1 ? "has" : "have"} been collected since this analysis was generated. Update it to include the latest evidence.
+                </p>
+              </div>
+            </div>
+            <Button variant="primary" onClick={synthesise} disabled={busy}>{busy ? "Updating…" : "Update Analysis"}</Button>
           </div>
         )}
 

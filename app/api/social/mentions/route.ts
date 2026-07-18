@@ -10,13 +10,19 @@ export async function GET(req: NextRequest) {
   const projectId = req.nextUrl.searchParams.get("research_project_id");
   const sentiment = req.nextUrl.searchParams.get("sentiment");
   const topic     = req.nextUrl.searchParams.get("topic");
-  const limit     = Math.min(parseInt(req.nextUrl.searchParams.get("limit") ?? "100"), 500);
+  // Paged so the caller can load the FULL cumulative base (no silent 500 cap) —
+  // one page ≤ 1000 (PostgREST's ceiling); the client loops on `offset` until it
+  // has `count` rows, so the Evidence list always matches the Dashboard total.
+  const limit  = Math.min(Math.max(parseInt(req.nextUrl.searchParams.get("limit") ?? "1000", 10) || 1000, 1), 1000);
+  const offset = Math.max(parseInt(req.nextUrl.searchParams.get("offset") ?? "0", 10) || 0, 0);
 
   let q = supabaseAdmin
     .from("social_mentions")
-    .select("*")
-    .order("published_at", { ascending: false })
-    .limit(limit);
+    .select("*", { count: "exact" })
+    // Stable total order (published_at, id) so pages never skip or repeat a row.
+    .order("published_at", { ascending: false, nullsFirst: false })
+    .order("id", { ascending: true })
+    .range(offset, offset + limit - 1);
 
   if (searchId) {
     // A single search's evidence.

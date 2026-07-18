@@ -107,30 +107,39 @@ async function fetchVideoDetails(ids: string[], key: string): Promise<Map<string
 type YtComment = {
   id: string; text: string; author: string | null; likeCount: number; replyCount: number; publishedAt: string | null;
 };
-async function fetchComments(videoId: string, max: number, key: string): Promise<YtComment[]> {
+// Incremental comment fetch: newest-first, stopping as soon as an already-seen
+// comment id is reached (everything older is already in the base). This
+// genuinely discovers NEW comments since the last run rather than re-fetching a
+// fixed top-N. `cap` bounds one run's quota; if the cap is hit before a known
+// comment, there may be more new comments than one run captured (reported).
+async function fetchComments(videoId: string, cap: number, known: Set<string>, key: string): Promise<{ comments: YtComment[]; hitCap: boolean }> {
   const out: YtComment[] = [];
   let pageToken: string | undefined;
-  while (out.length < max) {
+  let reachedKnown = false;
+  while (out.length < cap && !reachedKnown) {
     const params: Record<string, string> = {
-      part: "snippet", videoId, order: "relevance", maxResults: String(Math.min(100, max - out.length)), textFormat: "plainText",
+      part: "snippet", videoId, order: "time", maxResults: String(Math.min(100, cap - out.length)), textFormat: "plainText",
     };
     const json = await ytGet("commentThreads", pageToken ? { ...params, pageToken } : params, key);
     for (const thread of (json.items as Record<string, Record<string, unknown>>[]) ?? []) {
       const top = ((thread.snippet as Record<string, unknown>)?.topLevelComment as Record<string, unknown>) ?? {};
       const sn = (top.snippet as Record<string, unknown>) ?? {};
+      const id = String(top.id ?? "");
+      if (id && known.has(id)) { reachedKnown = true; break; } // older comments already stored → stop
       out.push({
-        id: String(top.id ?? ""),
+        id,
         text: String(sn.textDisplay ?? sn.textOriginal ?? ""),
         author: sn.authorDisplayName ? String(sn.authorDisplayName) : null,
         likeCount: Number(sn.likeCount ?? 0),
         replyCount: Number((thread.snippet as Record<string, unknown>)?.totalReplyCount ?? 0),
         publishedAt: sn.publishedAt ? String(sn.publishedAt) : null,
       });
+      if (out.length >= cap) break;
     }
     pageToken = json.nextPageToken as string | undefined;
     if (!pageToken) break;
   }
-  return out.slice(0, max);
+  return { comments: out.slice(0, cap), hitCap: out.length >= cap && !reachedKnown };
 }
 
 export const youtubeConnector: Connector = {
@@ -145,6 +154,9 @@ export const youtubeConnector: Connector = {
     supportsLanguageFilter: true,
     supportsDateWindow: true,
     paginated: true,
+    // Newest-first comment paging that stops at already-seen ids — genuinely
+    // discovers new comments since the last run (not a re-fetched top-N sample).
+    incremental: true,
     configSchema: {
       max_videos: { type: "number", label: "Max videos per run", default: DEFAULT_MAX_VIDEOS },
       comments_per_video: { type: "number", label: "Comments per video", default: DEFAULT_COMMENTS_PER_VIDEO },
@@ -224,10 +236,11 @@ export const youtubeConnector: Connector = {
         },
       });
 
-      // ── 3. Comments on the video ──────────────────────────────────────────
+      // ── 3. New comments on the video (incremental: stop at already-seen) ───
       if (fatalError || commentsPerVideo === 0 || d.commentCount === 0) continue;
       try {
-        const comments = await fetchComments(id, commentsPerVideo, key);
+        const { comments, hitCap } = await fetchComments(id, commentsPerVideo, ctx.knownExternalIds ?? new Set(), key);
+        if (hitCap) warnings.push(`"${d.title}" had more new comments than the per-run limit (${commentsPerVideo}) — newest kept; run again to catch up`);
         for (const c of comments) {
           if (!c.id || !c.text) continue;
           items.push({

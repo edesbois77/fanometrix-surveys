@@ -129,6 +129,23 @@ export async function runCollection(opts: {
     return { runId, status: "failed", inserted: 0, connectorsRun: [], stats: { connectors: connectorStats }, warnings, error: "No configured connectors to run" };
   }
 
+  // ── The current evidence base for this search (append-only diff basis) ────
+  // Fetched up-front so incremental connectors know what's already stored and
+  // fetch only genuinely new child evidence (docs/evidence-lifecycle.md).
+  const { data: existingRows } = await supabaseAdmin
+    .from("social_mentions")
+    .select("id, connector, external_id, metadata")
+    .eq("search_id", search.id)
+    .not("external_id", "is", null);
+  const idByKey = new Map<string, string>();
+  const metaById = new Map<string, unknown>();
+  const knownExternalIds = new Set<string>();
+  for (const r of (existingRows ?? []) as { id: string; connector: string | null; external_id: string | null; metadata: unknown }[]) {
+    idByKey.set(`${r.connector}:${r.external_id}`, r.id);
+    metaById.set(r.id, r.metadata);
+    if (r.external_id) knownExternalIds.add(r.external_id);
+  }
+
   // ── Collect from every connector ─────────────────────────────────────────
   const collected: { connectorId: string; platform: string; item: NormalisedItem }[] = [];
   for (const connector of runnable) {
@@ -146,6 +163,7 @@ export async function runCollection(opts: {
       dateFrom: window.dateFrom,
       dateTo: window.dateTo,
       config,
+      knownExternalIds,
     };
     try {
       const result = await connector.collect(ctx);
@@ -169,27 +187,16 @@ export async function runCollection(opts: {
     return true;
   });
 
-  // ── Diff against the append-only evidence base ────────────────────────────
-  // A Conversation Search owns ONE evidence base (docs/evidence-lifecycle.md).
-  // This run imports only genuinely NEW items and re-observes the rest — it
-  // never re-imports or re-classifies evidence already in the base.
-  const { data: existingRows } = await supabaseAdmin
-    .from("social_mentions")
-    .select("id, connector, external_id")
-    .eq("search_id", search.id)
-    .not("external_id", "is", null);
-  const idByKey = new Map<string, string>();
-  for (const r of (existingRows ?? []) as { id: string; connector: string | null; external_id: string | null }[]) {
-    idByKey.set(`${r.connector}:${r.external_id}`, r.id);
-  }
-
+  // ── Diff against the base: genuinely NEW items vs. re-observed existing ────
+  // Never re-import or re-classify evidence already in the base.
   const newItems: typeof unique = [];
-  const reobservedIds = new Set<string>();   // existing base rows seen again this run
+  const reobservedPairs: { id: string; item: NormalisedItem }[] = [];
   for (const c of unique) {
     const existingId = c.item.external_id ? idByKey.get(`${c.connectorId}:${c.item.external_id}`) : undefined;
-    if (existingId) reobservedIds.add(existingId);
+    if (existingId) reobservedPairs.push({ id: existingId, item: c.item });
     else newItems.push(c);   // no external_id → cannot dedup → treated as new
   }
+  const reobservedIds = new Set(reobservedPairs.map(p => p.id));
 
   // ── Stage 2: classify ONLY new items, then append them to the base.
   // (sentiment/topic + entities/relevance/rationale/confidence). Store
@@ -227,13 +234,28 @@ export async function runCollection(opts: {
     else { inserted += chunk.length; for (const d of (data ?? []) as { id: string }[]) newIds.push(d.id); }
   }
 
-  // ── Re-observe existing rows: refresh last_seen (append-only, never re-import).
-  const reobserved = [...reobservedIds];
-  for (let i = 0; i < reobserved.length; i += 200) {
+  // ── Re-observe existing rows: refresh last_seen always, and mutable metadata
+  // (view/like/comment counts) in place where it changed — never re-import,
+  // never re-classify. Metadata change => "updated"; unchanged => "duplicate".
+  const stableMeta = (m: unknown) => { try { return JSON.stringify(m ?? null); } catch { return ""; } };
+  const changedMeta: { id: string; metadata: unknown }[] = [];
+  const unchangedIds: string[] = [];
+  for (const { id, item } of reobservedPairs) {
+    if (stableMeta(item.metadata) !== stableMeta(metaById.get(id))) changedMeta.push({ id, metadata: item.metadata });
+    else unchangedIds.push(id);
+  }
+  const updatedCount = changedMeta.length;
+  for (let i = 0; i < unchangedIds.length; i += 200) {
     await supabaseAdmin.from("social_mentions")
       .update({ last_seen_at: startedAt, last_seen_run_id: runId })
-      .in("id", reobserved.slice(i, i + 200));
+      .in("id", unchangedIds.slice(i, i + 200));
   }
+  for (const { id, metadata } of changedMeta) {
+    await supabaseAdmin.from("social_mentions")
+      .update({ last_seen_at: startedAt, last_seen_run_id: runId, metadata })
+      .eq("id", id);
+  }
+  const reobserved = [...reobservedIds];
 
   // ── Observations ledger: one row per item ENCOUNTERED this run (new + re-seen).
   const observations = [...newIds, ...reobserved].map(id => ({ mention_id: id, collection_run_id: runId, search_id: search.id, observed_at: startedAt }));
@@ -270,8 +292,7 @@ export async function runCollection(opts: {
   // never "failed". Failure is reserved for a run that collected nothing at all
   // because every connector errored.
   const newCount = inserted;
-  const duplicateCount = reobserved.length;
-  const updatedCount = 0;  // metadata refresh is connector-gated — none support deltas yet
+  const duplicateCount = reobserved.length - updatedCount;  // re-seen with nothing new
   const status: RunCollectionResult["status"] =
     collected.length === 0 && fatalCount > 0 ? "failed"
     : (fatalCount > 0 || warnings.length > 0) ? "partial" : "completed";

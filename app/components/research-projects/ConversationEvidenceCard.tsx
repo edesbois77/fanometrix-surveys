@@ -32,6 +32,24 @@ export type Conversation = {
   research_aspect: string | null;          // AI-generated facet of the research this informs
 };
 
+// Load the FULL cumulative conversation base for a project, paging through
+// /api/social/mentions (≤1000 per page) until every row is fetched. Both the
+// Evidence view and Analysis's citation resolution use this, so neither ever
+// truncates — the Evidence list and Dashboard totals read the same base.
+export async function fetchAllProjectConversations(projectId: string): Promise<Conversation[]> {
+  const all: Conversation[] = [];
+  const pageSize = 1000;
+  for (let offset = 0; ; offset += pageSize) {
+    const res = await fetch(`/api/social/mentions?research_project_id=${projectId}&limit=${pageSize}&offset=${offset}`);
+    if (!res.ok) break;
+    const j = await res.json();
+    const rows = (j.data ?? []) as Conversation[];
+    all.push(...rows);
+    if (rows.length < pageSize) break;   // last page
+  }
+  return all;
+}
+
 const SENTIMENT_TONE = { Positive: "success", Neutral: "neutral", Negative: "danger", Unknown: "neutral" } as const;
 
 export function fmtDate(d: string | null): string {

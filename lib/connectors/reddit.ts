@@ -17,6 +17,11 @@ export const redditConnector: Connector = {
     supportsLanguageFilter: false,
     supportsDateWindow: false,     // uses "new" ordering, not an explicit window
     paginated: false,
+    // The current fetcher returns a search/top sample, not a reliable
+    // "everything since last seen" stream — so it is NOT incremental. The
+    // pipeline still dedups its output against the base (no re-imports); it just
+    // won't proactively discover new comments beyond what its search returns.
+    incremental: false,
     configSchema: {
       subreddits: { type: "string[]", label: "Target subreddits", required: true },
     },

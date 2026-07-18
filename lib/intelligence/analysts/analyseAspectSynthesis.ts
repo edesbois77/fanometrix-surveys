@@ -185,6 +185,38 @@ async function synthesiseAspect(aspect: string, researchQuestion: string | null,
   };
 }
 
+// Staleness watermark: how many relevant conversations entered the base AFTER a
+// given moment (the synthesis's generated_at). Evidence is append-only, so
+// first_seen_at is stable — a duplicate-only or metadata-only run adds no rows
+// with a newer first_seen_at, so it never marks a synthesis stale. Mirrors the
+// same relevance filter gatherConversationEvidence uses.
+export async function countRelevantEvidenceSince(projectId: string, since: string): Promise<number> {
+  const searchIds = await getProjectSocialSearchIds(projectId);
+  if (searchIds.length === 0) return 0;
+  const { data: searches } = await supabaseAdmin
+    .from("social_searches").select("id, relevance_threshold").in("id", searchIds);
+  const thresholdBySearch = new Map((searches ?? []).map(s => [s.id as string, (s.relevance_threshold as number | null) ?? 50]));
+
+  const { data: rows } = await supabaseAdmin
+    .from("social_mentions")
+    .select("search_id, research_aspect, relevance_score, first_seen_at")
+    .in("search_id", searchIds)
+    .not("research_aspect", "is", null)
+    .not("relevance_score", "is", null)
+    .gt("first_seen_at", since)
+    .limit(5000);
+
+  let n = 0;
+  for (const r of (rows ?? []) as { search_id: string | null; research_aspect: string | null; relevance_score: number | null }[]) {
+    const aspect = r.research_aspect?.trim();
+    if (!aspect || aspect.toLowerCase() === "off-topic") continue;
+    const threshold = (thresholdBySearch.get(r.search_id ?? "") ?? 50) / 100;
+    if (typeof r.relevance_score !== "number" || r.relevance_score < threshold) continue;
+    n++;
+  }
+  return n;
+}
+
 export async function analyseAspectSynthesis(projectId: string): Promise<AspectSynthesisReport> {
   // Source-agnostic assembly — concatenate every source's evidence here.
   const evidence = [
