@@ -22,8 +22,84 @@ import {
   PageContainer, WorkspaceHeader, PageLoadingState, ErrorState, EmptyState, Card, Button, Icon,
 } from "@/app/components/workspace-ui";
 import type { AspectSynthesisReport, AspectSection } from "@/lib/intelligence/analysts/analyseAspectSynthesis";
+import {
+  deriveFindingConfidence, confidenceTone,
+  type ConfidenceLevel, type FindingSourceType, type FindingConfidence, type ConfidenceFactor,
+} from "@/lib/intelligence/finding-confidence";
 
 type StoredRow = { content: AspectSynthesisReport; edited_content: AspectSynthesisReport | null; status: string; generated_at: string | null } | null;
+
+// ── Richer finding presentation (derived, not generated) ─────────────────────
+
+// The badge is a toggle: it shows the grade, and expands to reveal the
+// deterministic breakdown behind it (never a black box).
+function ConfidenceBadge({ level, expanded, onToggle }: { level: ConfidenceLevel; expanded: boolean; onToggle: () => void }) {
+  const t = confidenceTone(level);
+  return (
+    <button type="button" onClick={onToggle} aria-expanded={expanded}
+      className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full"
+      style={{ color: t.ink, background: t.bg, border: `1px solid ${t.border}`, cursor: "pointer" }}
+      title="Why this confidence? — see the evidence behind the grade">
+      <span aria-hidden className="w-1.5 h-1.5 rounded-full" style={{ background: "currentColor" }} />
+      {level} confidence
+      <span aria-hidden className="inline-flex ml-0.5" style={{ transform: expanded ? "rotate(180deg)" : "none", transition: "transform 0.15s" }}><Icon.chevronDown size={12} strokeWidth={2.5} /></span>
+    </button>
+  );
+}
+
+// "Why this confidence?" — the deterministic factors, spelled out. Each line is a
+// fact from the confidence calculation; nothing here is inferred.
+function FactorIcon({ state }: { state: ConfidenceFactor["state"] }) {
+  if (state === "on") return <span aria-hidden style={{ color: "#3F5D42" }}><Icon.check size={12} strokeWidth={2.5} /></span>;
+  if (state === "off") return <span aria-hidden className="inline-flex items-center justify-center" style={{ width: 12, height: 12, color: "var(--text-disabled)" }}>–</span>;
+  return <span aria-hidden className="w-1.5 h-1.5 rounded-full inline-block" style={{ background: "var(--accent-gold)" }} />;
+}
+
+function ConfidenceExplain({ conf }: { conf: FindingConfidence }) {
+  return (
+    <div className="mt-2 p-3 rounded-lg" style={{ background: "var(--surface-sunken)", border: "1px solid var(--border-subtle)" }}>
+      <p className="text-[11px] font-semibold uppercase tracking-[0.06em] mb-2" style={{ color: "var(--text-tertiary)" }}>Why this confidence?</p>
+      <ul className="space-y-1.5">
+        {conf.factors.map((factor, i) => (
+          <li key={i} className="flex items-center gap-2 text-xs" style={{ color: factor.state === "off" ? "var(--text-tertiary)" : "var(--text-secondary)" }}>
+            <span className="flex-shrink-0 inline-flex items-center justify-center" style={{ width: 14 }}><FactorIcon state={factor.state} /></span>
+            {factor.label}
+          </li>
+        ))}
+      </ul>
+      <p className="text-[11px] leading-relaxed mt-2.5 pt-2.5 border-t" style={{ color: "var(--text-tertiary)", borderColor: "var(--border-subtle)" }}>{conf.rationale}</p>
+    </div>
+  );
+}
+
+// Source diversity — models all three sources now, even though only conversations
+// contribute today, so the surface expands unchanged as surveys and documents
+// begin classifying into aspects. Present sources read solid; absent ones ghost.
+const SOURCE_META: { type: FindingSourceType; label: string; icon: "survey" | "conversation" | "document" }[] = [
+  { type: "survey", label: "Survey", icon: "survey" },
+  { type: "conversation", label: "Conversation", icon: "conversation" },
+  { type: "document", label: "Document", icon: "document" },
+];
+
+function SourceDiversity({ sources }: { sources: FindingSourceType[] }) {
+  return (
+    <span className="inline-flex items-center gap-1" title="Which evidence sources support this finding — findings backed by more sources are stronger">
+      {SOURCE_META.map(s => {
+        const on = sources.includes(s.type);
+        const IconEl = Icon[s.icon];
+        return (
+          <span key={s.type} className="inline-flex items-center gap-1 text-[11px] font-medium px-1.5 py-0.5 rounded-full"
+            style={on
+              ? { color: "var(--text-secondary)", background: "var(--surface-sunken)", border: "1px solid var(--border-subtle)" }
+              : { color: "var(--text-disabled)", background: "transparent", border: "1px dashed var(--border-subtle)" }}>
+            <span aria-hidden style={{ opacity: on ? 1 : 0.5 }}><IconEl size={11} /></span>
+            {s.label}
+          </span>
+        );
+      })}
+    </span>
+  );
+}
 
 function SentimentDots({ s }: { s: { positive_pct: number; neutral_pct: number; negative_pct: number } }) {
   return (
@@ -40,6 +116,8 @@ function SentimentDots({ s }: { s: { positive_pct: number; neutral_pct: number; 
 function AspectBlock({ section, evidenceById }: { section: AspectSection; evidenceById: Map<string, Conversation> }) {
   const [open, setOpen] = useState<Set<number>>(new Set());
   const toggle = (i: number) => setOpen(prev => { const n = new Set(prev); if (n.has(i)) n.delete(i); else n.add(i); return n; });
+  const [confOpen, setConfOpen] = useState<Set<number>>(new Set());
+  const toggleConf = (i: number) => setConfOpen(prev => { const n = new Set(prev); if (n.has(i)) n.delete(i); else n.add(i); return n; });
 
   return (
     <Card padding="lg">
@@ -72,23 +150,45 @@ function AspectBlock({ section, evidenceById }: { section: AspectSection; eviden
                 .filter(r => r.type === "conversation")
                 .map(r => evidenceById.get(r.id))
                 .filter((c): c is Conversation => !!c);
+              // Confidence, source diversity and evidence count are DERIVED from
+              // the finding's own supporting evidence — no second AI pass, no
+              // change to how the finding was generated.
+              const conf = deriveFindingConfidence(evidence.map(c => ({
+                type: "conversation" as const,
+                relevanceScore: c.relevance_score,
+                relevanceConfidence: c.relevance_confidence,
+                sentiment: c.sentiment,
+              })));
               const isOpen = open.has(i);
               return (
                 <li key={i} className="border" style={{ borderRadius: "var(--radius-panel)", borderColor: "var(--border-subtle)", background: "var(--surface)" }}>
-                  <button type="button" onClick={() => evidence.length && toggle(i)}
-                    className="w-full flex items-start gap-3 text-left p-3.5"
-                    style={{ cursor: evidence.length ? "pointer" : "default" }}>
+                  <div className="flex items-start gap-3 p-3.5">
                     <span className="fx-tabular-nums text-sm font-bold flex-shrink-0 mt-0.5" style={{ color: "var(--accent-ink)" }}>{i + 1}</span>
-                    <span className="flex-1 min-w-0">
+                    <div className="flex-1 min-w-0">
                       <span className="text-sm leading-relaxed block" style={{ color: "var(--text-primary)" }}>{f.finding}</span>
+
+                      {/* Trust signals — confidence (expandable), source diversity, evidence count */}
+                      <div className="flex items-center gap-2 flex-wrap mt-2">
+                        <ConfidenceBadge level={conf.level} expanded={confOpen.has(i)} onToggle={() => toggleConf(i)} />
+                        <SourceDiversity sources={conf.sources} />
+                        <span className="text-[11px] fx-tabular-nums" style={{ color: "var(--text-tertiary)" }}>
+                          {conf.evidenceCount.toLocaleString()} piece{conf.evidenceCount === 1 ? "" : "s"} of evidence
+                        </span>
+                      </div>
+
+                      {/* Why this confidence — the deterministic breakdown, on demand */}
+                      {confOpen.has(i) && <ConfidenceExplain conf={conf} />}
+
+                      {/* Supporting evidence — the same cards the Evidence view shows */}
                       {evidence.length > 0 && (
-                        <span className="inline-flex items-center gap-1 text-[11px] font-semibold mt-1.5" style={{ color: "var(--accent-ink)" }}>
+                        <button type="button" onClick={() => toggle(i)}
+                          className="inline-flex items-center gap-1 text-[11px] font-semibold mt-2" style={{ color: "var(--accent-ink)", cursor: "pointer" }}>
                           <span aria-hidden className="inline-flex" style={{ transform: isOpen ? "rotate(90deg)" : "none", transition: "transform 0.15s" }}><Icon.chevronRight size={12} strokeWidth={2.5} /></span>
                           {isOpen ? "Hide" : "Show"} {evidence.length} supporting conversation{evidence.length === 1 ? "" : "s"}
-                        </span>
+                        </button>
                       )}
-                    </span>
-                  </button>
+                    </div>
+                  </div>
                   {isOpen && evidence.length > 0 && (
                     <div className="px-3.5 pb-3.5 space-y-2.5">
                       {evidence.map(c => <ConversationEvidenceCard key={c.id} c={c} showAspect={false} />)}
