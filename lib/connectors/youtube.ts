@@ -9,6 +9,7 @@
 // ~1 unit each (default 10,000 units/day). Caps below keep a run well inside that.
 import { MARKETS } from "@/lib/social-taxonomy";
 import type { Connector, CollectContext, CollectResult, NormalisedItem } from "@/lib/connectors/types";
+import type { SearchStrategy } from "@/lib/search-strategy";
 
 const API = "https://www.googleapis.com/youtube/v3";
 
@@ -49,15 +50,36 @@ function buildQuery(keywords: string[]): string {
   return keywords.map(k => (k.includes(" ") ? `"${k}"` : k)).join("|");
 }
 
+const ytPhrase = (t: string): string => (t.trim().includes(" ") ? `"${t.trim()}"` : t.trim());
+
+// Compile a Search Strategy into anchored YouTube queries. YouTube's q has no
+// reliable parenthesised OR-grouping, so instead of one loose query we FAN OUT:
+// one query per top context term, each requiring the primary subject AND that
+// context (space = AND in q) and subtracting the exclusions (-term). This makes
+// football context part of RETRIEVAL — e.g. `"FedEx" "Champions League"
+// -logistics -delivery` — rather than relying on post-collection filtering.
+// Returns [] when there's no primary subject (caller falls back to keywords).
+function compileYouTubeQueries(s: SearchStrategy): string[] {
+  const primary = s.primary_entity?.term?.trim();
+  if (!primary) return [];
+  const suffix = s.exclusions.length ? " " + s.exclusions.map(e => `-${ytPhrase(e)}`).join(" ") : "";
+  const context = s.context_entities.map(e => e.term.trim()).filter(Boolean);
+  if (s.breadth === "broad" || context.length === 0) {
+    return [`${ytPhrase(primary)}${suffix}`];
+  }
+  // balanced / strict: primary anchored to each of the top context terms.
+  return context.slice(0, 3).map(t => `${ytPhrase(primary)} ${ytPhrase(t)}${suffix}`);
+}
+
 type SearchHit = { videoId: string };
 async function searchVideos(
-  ctx: CollectContext, regionCode: string | null, relevanceLanguage: string | null, limit: number, key: string,
+  q: string, ctx: CollectContext, regionCode: string | null, relevanceLanguage: string | null, limit: number, key: string,
 ): Promise<SearchHit[]> {
   const hits: SearchHit[] = [];
   let pageToken: string | undefined;
   const params: Record<string, string> = {
     part: "snippet", type: "video", order: "relevance",
-    q: buildQuery(ctx.keywords), maxResults: String(Math.min(SEARCH_PAGE_SIZE, limit)),
+    q, maxResults: String(Math.min(SEARCH_PAGE_SIZE, limit)),
   };
   if (regionCode) params.regionCode = regionCode;
   if (relevanceLanguage) params.relevanceLanguage = relevanceLanguage;
@@ -182,7 +204,12 @@ export const youtubeConnector: Connector = {
     let fatalError: string | undefined;
 
     // ── 1. Search videos across markets (dedup ids within this run) ──────────
-    const perMarket = Math.max(1, Math.ceil(maxVideos / markets.length));
+    // Compile the Search Strategy into anchored queries when present; otherwise
+    // fall back to the flat keyword OR (unchanged behaviour). The video budget is
+    // split across markets × queries so quota stays bounded despite the fan-out.
+    const queries = (ctx.strategy?.primary_entity?.term ? compileYouTubeQueries(ctx.strategy) : [buildQuery(ctx.keywords)]).filter(Boolean);
+    if (!queries.length) return { items, warnings: [...warnings, "No query to search"], stats: { videos: 0, comments: 0 } };
+    const perSearch = Math.max(1, Math.ceil(maxVideos / (markets.length * queries.length)));
     const videoMarket = new Map<string, string | null>();
     const orderedIds: string[] = [];
     try {
@@ -190,9 +217,12 @@ export const youtubeConnector: Connector = {
         if (orderedIds.length >= maxVideos) break;
         const regionCode = market ? resolveRegionCode(market) : null;
         if (market && !regionCode) { warnings.push(`Unknown market "${market}" — searched without a region filter`); }
-        const hits = await searchVideos(ctx, regionCode, relevanceLanguage, perMarket, key);
-        for (const h of hits) {
-          if (!videoMarket.has(h.videoId)) { videoMarket.set(h.videoId, market || null); orderedIds.push(h.videoId); }
+        for (const q of queries) {
+          if (orderedIds.length >= maxVideos) break;
+          const hits = await searchVideos(q, ctx, regionCode, relevanceLanguage, perSearch, key);
+          for (const h of hits) {
+            if (!videoMarket.has(h.videoId)) { videoMarket.set(h.videoId, market || null); orderedIds.push(h.videoId); }
+          }
         }
       }
     } catch (err) {

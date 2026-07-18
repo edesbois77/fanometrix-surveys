@@ -1,3 +1,5 @@
+import type { SearchStrategy } from "@/lib/search-strategy";
+
 // The generic Conversation Intelligence connector contract.
 //
 // A connector is one live source (YouTube, Reddit, News, Bluesky, Google Trends,
@@ -75,6 +77,11 @@ export type CollectContext = {
    *  genuinely new evidence. Absent/empty on a first run; non-incremental
    *  connectors ignore it (the pipeline dedups their output regardless). */
   knownExternalIds?: Set<string>;
+  /** The compiled Search Strategy for this search. When present, a connector
+   *  should compile it into its own native query (anchoring the primary subject
+   *  to its context, applying exclusions) instead of using flat `keywords`.
+   *  When absent, connectors fall back to `keywords` (unchanged behaviour). */
+  strategy?: SearchStrategy | null;
 };
 
 /** A connector's result for one run — partial success is normal. */

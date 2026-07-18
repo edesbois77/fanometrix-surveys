@@ -4,6 +4,25 @@
 // unchanged; this only normalises its output and declares its capabilities.
 import { fetchRedditMentions } from "@/lib/reddit-collector";
 import type { Connector, CollectContext, CollectResult, NormalisedItem } from "@/lib/connectors/types";
+import type { SearchStrategy } from "@/lib/search-strategy";
+
+const rp = (t: string): string => (t.trim().includes(" ") ? `"${t.trim()}"` : t.trim());
+
+// Compile a Search Strategy into an anchored Reddit boolean query (Reddit search
+// supports full AND/OR/NOT), plus the subject+context terms used to keep only
+// on-topic comments. Returns null when there's no primary subject (fall back to
+// the flat keyword OR). e.g. `FedEx AND ("Champions League" OR sponsorship) NOT
+// (parcel OR delivery)`.
+function compileRedditQuery(s: SearchStrategy): { query: string; matchTerms: string[] } | null {
+  const primary = s.primary_entity?.term?.trim();
+  if (!primary) return null;
+  const context = s.context_entities.map(e => e.term.trim()).filter(Boolean);
+  const excl = s.exclusions.map(e => e.trim()).filter(Boolean);
+  let query = rp(primary);
+  if (context.length && s.breadth !== "broad") query += ` AND (${context.map(rp).join(" OR ")})`;
+  if (excl.length) query += ` NOT (${excl.map(rp).join(" OR ")})`;
+  return { query, matchTerms: [primary, ...context] };
+}
 
 export const redditConnector: Connector = {
   id: "reddit",
@@ -39,9 +58,10 @@ export const redditConnector: Connector = {
     if (!subreddits.length) return { items: [], warnings: ["No target subreddits configured"], stats: {} };
     if (!ctx.keywords.length) return { items: [], warnings: ["No keywords to search"], stats: {} };
 
+    const compiled = ctx.strategy?.primary_entity?.term ? compileRedditQuery(ctx.strategy) : null;
     let raw;
     try {
-      raw = await fetchRedditMentions(subreddits, ctx.keywords);
+      raw = await fetchRedditMentions(subreddits, ctx.keywords, compiled ?? undefined);
     } catch (err) {
       return { items: [], warnings, stats: {}, fatalError: err instanceof Error ? err.message : "Reddit collection failed" };
     }

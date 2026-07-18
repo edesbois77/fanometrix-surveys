@@ -166,6 +166,7 @@ export async function runCollection(opts: {
       dateTo: window.dateTo,
       config,
       knownExternalIds,
+      strategy: search.search_strategy,
     };
     try {
       const result = await connector.collect(ctx);

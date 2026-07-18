@@ -117,8 +117,14 @@ function flattenComments(listing: unknown): RedditData[] {
   });
 }
 
-async function fetchSubredditMentions(subreddit: string, keywords: string[], session: RedditSession): Promise<RedditMention[]> {
-  const q = buildQuery(keywords);
+type RedditQueryOptions = { query?: string; matchTerms?: string[] };
+
+async function fetchSubredditMentions(subreddit: string, keywords: string[], session: RedditSession, options?: RedditQueryOptions): Promise<RedditMention[]> {
+  // Compiled Search-Strategy query when provided (anchored boolean); otherwise
+  // the flat keyword OR. Comment matching uses the strategy's subject+context
+  // terms when given, else the raw keywords.
+  const q = options?.query ?? buildQuery(keywords);
+  const matchTerms = options?.matchTerms?.length ? options.matchTerms : keywords;
   const searchPath = `/r/${encodeURIComponent(subreddit)}/search?` + new URLSearchParams({
     q, restrict_sr: "on", sort: "new", limit: String(POSTS_PER_SUBREDDIT), type: "link", raw_json: "1",
   }).toString();
@@ -133,7 +139,7 @@ async function fetchSubredditMentions(subreddit: string, keywords: string[], ses
       const commentsPath = `/r/${encodeURIComponent(subreddit)}/comments/${post.id}?limit=100&depth=4&raw_json=1`;
       const [, commentListing] = await redditGet(commentsPath, session);
       const matching = flattenComments(commentListing)
-        .filter(c => matchesKeyword(String(c.body ?? ""), keywords))
+        .filter(c => matchesKeyword(String(c.body ?? ""), matchTerms))
         .slice(0, COMMENTS_PER_POST);
       for (const c of matching) {
         const mention = commentToMention(c, subreddit);
@@ -147,15 +153,17 @@ async function fetchSubredditMentions(subreddit: string, keywords: string[], ses
   return mentions;
 }
 
-/** Fetch recent posts + matching comments across all given subreddits for the given keywords. */
-export async function fetchRedditMentions(subreddits: string[], keywords: string[]): Promise<RedditMention[]> {
+/** Fetch recent posts + matching comments across all given subreddits. `options`
+ *  carries a compiled Search-Strategy query + match terms; without it, the flat
+ *  keyword behaviour is unchanged. */
+export async function fetchRedditMentions(subreddits: string[], keywords: string[], options?: RedditQueryOptions): Promise<RedditMention[]> {
   const session = await getSession();
 
   const mentions: RedditMention[] = [];
   for (const raw of subreddits) {
     const subreddit = raw.replace(/^\/?r\//i, "").trim();
     if (!subreddit) continue;
-    mentions.push(...await fetchSubredditMentions(subreddit, keywords, session));
+    mentions.push(...await fetchSubredditMentions(subreddit, keywords, session, options));
   }
 
   const seen = new Set<string>();
