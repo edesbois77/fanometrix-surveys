@@ -9,7 +9,7 @@
 // for the backing schema.
 
 export type IntelligenceSourceType = "conversation_search" | "survey" | "research_project" | "document_project";
-export type IntelligenceOutputType = "research_summary" | "executive_report" | "key_findings" | "conclusion" | "editorial_article" | "full_research_report";
+export type IntelligenceOutputType = "research_summary" | "executive_report" | "key_findings" | "conclusion" | "editorial_article" | "full_research_report" | "aspect_synthesis";
 export type IntelligenceStatus = "draft" | "edited" | "approved" | "published";
 
 export type ResearchSummaryRow<Content = unknown> = {

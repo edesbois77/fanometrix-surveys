@@ -1,11 +1,14 @@
 "use client";
 
-// Analysis homepage — the project's executive Intelligence Overview: a dominant
-// Research Intelligence briefing over the supporting Evidence Sources, each card
-// previewing its most significant approved findings. The (workspace) layout
-// provides the shell; AnalysisOverview provides its own PageContainer + header.
-import { AnalysisOverview } from "@/app/components/research-projects/analysis/AnalysisOverview";
+// Analysis homepage — the research synthesis workspace. Structured evidence is
+// synthesised into findings organised by Research Aspect, each finding expandable
+// to the conversations that support it. Analysis answers "what does it mean?"
+// (Dashboard answers "what have we collected?", Reports "how do we deliver it?").
+// The (workspace) layout provides the shell; AspectSynthesisReader provides its
+// own PageContainer + header. Per-source finding readers remain as drill-downs
+// behind the evidence, not first-class analysis pages.
+import { AspectSynthesisReader } from "@/app/components/research-projects/analysis/AspectSynthesisReader";
 
-export default function AnalysisOverviewPage() {
-  return <AnalysisOverview />;
+export default function AnalysisPage() {
+  return <AspectSynthesisReader />;
 }
