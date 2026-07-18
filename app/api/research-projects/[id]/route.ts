@@ -262,6 +262,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       run_count: live?.run_count ?? 0,
       video_count: live?.video_count ?? 0,
       comment_count: live?.comment_count ?? 0,
+      by_kind: live?.by_kind ?? {},
       mention_count: live?.mention_count ?? stats?.total ?? 0,
       positive_pct: live ? live.positive_pct : (stats?.positive_pct ?? 0),
       neutral_pct:  live ? live.neutral_pct  : (stats?.neutral_pct ?? 0),

@@ -19,6 +19,7 @@ import Link from "next/link";
 import { useResearchProject, type EvidenceItem } from "@/app/components/research-projects/ProjectProvider";
 import { useWorkspaceRecord } from "@/app/components/research-projects/WorkspaceRecordContext";
 import { CollectionRunHistory } from "@/app/components/research-projects/CollectionRunHistory";
+import { collectionBreakdown, conversationCount } from "@/lib/connectors/content-kinds";
 import { formatRelativeTime } from "@/lib/format-relative-time";
 import {
   PageContainer, WorkspaceHeader, PageLoadingState, ErrorState,
@@ -109,6 +110,8 @@ export function ConversationSearchExecutionBody({ searchEvidenceId }: { searchEv
 
   const cs = item.conversationSearch;
   const status = collectionStatus(cs);
+  const hasKinds = Object.keys(cs.by_kind ?? {}).length > 0;
+  const conversationTotal = hasKinds ? conversationCount(cs.by_kind) : cs.mention_count;
   const collecting = running || cs.latest_run_status === "running";
   const hasData = cs.mention_count > 0 || cs.video_count > 0;
   const lastCollected = cs.last_collected_at ? formatRelativeTime(cs.last_collected_at) : "Never";
@@ -177,12 +180,14 @@ export function ConversationSearchExecutionBody({ searchEvidenceId }: { searchEv
             description={`Collect the latest conversations from ${connectorLabel(cs)} for this search's keywords. Runs on demand — run it again to capture a fresh snapshot.`}
             action={<Button variant="brand" onClick={handleRunCollection} disabled={collecting}>{runLabel}</Button>}
           />
-          {/* Health summary — the at-a-glance state of this search's collection */}
+          {/* Health summary — the at-a-glance state of this search's collection.
+              Counts render generically from content kinds, so a new source's
+              items (articles, posts, …) appear here with no code change. */}
           <div className="grid grid-cols-2 md:grid-cols-5 gap-2.5 mt-4">
             <StatTile label="Collection Status"><StatusBadge label={status.label} tone={status.tone} dot size="sm" /></StatTile>
-            <StatTile label="Platform(s)">{connectorLabel(cs)}</StatTile>
-            <StatTile label="Videos collected"><span className="fx-tabular-nums">{cs.video_count.toLocaleString()}</span></StatTile>
-            <StatTile label="Mentions collected"><span className="fx-tabular-nums">{cs.mention_count.toLocaleString()}</span></StatTile>
+            <StatTile label="Source(s)">{connectorLabel(cs)}</StatTile>
+            <StatTile label="Collected"><span className="text-xs font-semibold">{hasKinds ? collectionBreakdown(cs.by_kind) : `${cs.mention_count.toLocaleString()} items`}</span></StatTile>
+            <StatTile label="Conversations"><span className="fx-tabular-nums">{conversationTotal.toLocaleString()}</span></StatTile>
             <StatTile label="Last collected"><span style={{ fontWeight: 500 }}>{lastCollected}</span></StatTile>
           </div>
           {failed && (

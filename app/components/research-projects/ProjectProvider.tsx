@@ -30,6 +30,7 @@ export type ConversationSearchEvidence = {
   last_collected_at: string | null;
   run_count: number;
   video_count: number; comment_count: number;
+  by_kind: Record<string, number>;   // generic per-content-kind counts (video/comment/article/…)
   mention_count: number;
   positive_pct: number; neutral_pct: number; negative_pct: number;
   summary_status: "draft" | "edited" | "approved" | "published" | null;

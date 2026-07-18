@@ -15,6 +15,7 @@
 import { useRouter } from "next/navigation";
 import { useResearchProject, type EvidenceItem } from "@/app/components/research-projects/ProjectProvider";
 import { formatRelativeTime } from "@/lib/format-relative-time";
+import { conversationCount, totalItems } from "@/lib/connectors/content-kinds";
 import {
   PageContainer, WorkspaceHeader, PageLoadingState, ErrorState, EmptyState,
   SourceCard, Button, Icon, type Tone,
@@ -79,7 +80,10 @@ export function ConversationExecutionBody() {
           {searchEvidence.map(item => {
             const cs = item.conversationSearch;
             const status = collectionStatus(cs);
-            const hasData = cs.mention_count > 0 || cs.video_count > 0 || cs.latest_run_status === "running";
+            const hasKinds = Object.keys(cs.by_kind ?? {}).length > 0;
+            const conv = hasKinds ? conversationCount(cs.by_kind) : cs.mention_count;
+            const collected = hasKinds ? totalItems(cs.by_kind) : cs.mention_count;
+            const hasData = collected > 0 || cs.latest_run_status === "running";
             const lastCollected = cs.last_collected_at ? `Last collected ${formatRelativeTime(cs.last_collected_at)}` : "Not collected yet";
             return (
               <SourceCard
@@ -89,8 +93,8 @@ export function ConversationExecutionBody() {
                 subtitle={cs.markets.length ? cs.markets.join(" · ") : lastCollected}
                 status={{ label: status.label, tone: status.tone, dot: true }}
                 metrics={[
-                  { label: "Videos", value: cs.video_count.toLocaleString() },
-                  { label: "Mentions", value: cs.mention_count.toLocaleString() },
+                  { label: "Collected", value: collected.toLocaleString() },
+                  { label: "Conversations", value: conv.toLocaleString() },
                   { label: "Markets", value: cs.markets.length },
                   { label: "Positive", value: cs.mention_count > 0 ? `${Math.round(cs.positive_pct)}%` : "—" },
                 ]}

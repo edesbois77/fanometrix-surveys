@@ -7,6 +7,7 @@
 // is always inspectable here.
 import { useEffect, useState } from "react";
 import { SectionHeading, StatusBadge, type Tone } from "@/app/components/workspace-ui";
+import { collectionBreakdown, conversationCount } from "@/lib/connectors/content-kinds";
 
 type Run = {
   id: string;
@@ -63,8 +64,7 @@ function RunCard({ run }: { run: Run }) {
   const connectorStats = (stats.connectors ?? {}) as Record<string, Record<string, unknown>>;
   const cfg = run.config ?? {};
 
-  const videos = num(byKind.video);
-  const mentions = num(byKind.comment) + num(byKind.post);
+  const conversations = conversationCount(byKind);
   const sentTotal = num(bySent.Positive) + num(bySent.Neutral) + num(bySent.Negative);
   const pct = (v: number) => (sentTotal ? Math.round((v / sentTotal) * 100) : 0);
   const topTopics = Object.entries(byTopic).sort((a, b) => b[1] - a[1]).slice(0, 4);
@@ -80,10 +80,10 @@ function RunCard({ run }: { run: Run }) {
         <span className="ml-auto text-[11px] font-medium" style={{ color: "var(--text-tertiary)" }}>{run.connectors.join(" · ") || "—"}</span>
       </div>
 
-      {/* Totals */}
+      {/* Totals — generic per-content-kind breakdown */}
       <div className="flex flex-wrap gap-x-5 gap-y-1 mt-2.5 text-xs" style={{ color: "var(--text-secondary)" }}>
-        <span><span className="font-bold fx-tabular-nums" style={{ color: "var(--text-primary)" }}>{videos.toLocaleString()}</span> videos collected</span>
-        <span><span className="font-bold fx-tabular-nums" style={{ color: "var(--text-primary)" }}>{mentions.toLocaleString()}</span> mentions collected</span>
+        <span><span className="font-semibold" style={{ color: "var(--text-primary)" }}>{collectionBreakdown(byKind)}</span></span>
+        <span><span className="font-bold fx-tabular-nums" style={{ color: "var(--text-primary)" }}>{conversations.toLocaleString()}</span> conversations analysed</span>
       </div>
 
       {/* Sentiment summary */}
