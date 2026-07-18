@@ -27,7 +27,28 @@ export const ENTITY_TYPES    = ["Brand", "Club", "Competition", "Topic"] as cons
 export const RESEARCH_GOALS  = ["Fan Sentiment", "Emerging Topics", "Sponsorship Perception", "Market Comparison", "Custom"] as const;
 export const FREQUENCIES     = ["Manual", "Daily", "Every 12 Hours", "Every 6 Hours"] as const;
 export const SEARCH_STATUSES = ["Draft", "Active", "Paused", "Archived"] as const;
-export const KEYWORD_TYPES   = ["Brand", "Club", "Player", "Hashtag", "Topic", "Competition"] as const;
+export const KEYWORD_TYPES   = ["Brand", "Club", "Player", "Hashtag", "Topic", "Competition", "Campaign"] as const;
+
+// Researcher-facing display labels for the stored research_goal values — the
+// stored value is unchanged; only what the user reads changes.
+export const RESEARCH_GOAL_LABELS: Record<string, string> = {
+  "Fan Sentiment": "Understand Fan Opinion",
+  "Emerging Topics": "Identify Emerging Themes",
+  "Sponsorship Perception": "Evaluate Sponsorship Impact",
+  "Market Comparison": "Compare Markets",
+  "Custom": "Custom Analysis",
+};
+
+// A one-line description of what each source contributes.
+export const SOURCE_DESCRIPTIONS: Record<string, string> = {
+  "YouTube": "Video conversations",
+  "Reddit": "Community discussions",
+  "News": "Editorial coverage",
+  "Google Trends": "Search behaviour",
+  "X": "Real-time posts",
+  "Instagram": "Visual posts",
+  "TikTok": "Short-form video",
+};
 
 export const PLATFORMS = [
   { id: "Reddit",        label: "Reddit",         defaultOn: true  },
