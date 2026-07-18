@@ -52,6 +52,7 @@ const COLLECTION_SIZES: { key: string; label: string; max_videos: number; commen
   { key: "large",  label: "Large",  max_videos: 50, comments_per_video: 50 },
 ];
 import { CONNECTOR_CATALOG, COLLECTION_LANGUAGES, COLLECTION_WINDOWS, connectorForPlatformId, type ConnectorField } from "@/lib/connectors/catalog";
+import { describeStrategy, BREADTHS, type SearchStrategy } from "@/lib/search-strategy";
 import { SourceLogo } from "@/app/components/research-projects/SourceLogo";
 import { useResearchProject } from "@/app/components/research-projects/ProjectProvider";
 import { useWorkspaceRecord } from "@/app/components/research-projects/WorkspaceRecordContext";
@@ -67,6 +68,7 @@ type SearchForm = {
   markets: string[]; platforms: string[]; frequency: string; status: string;
   languages: string[]; collect_window: string; collect_from: string; collect_to: string;
   connector_config: ConnectorConfig; relevance_threshold: number;
+  search_strategy: SearchStrategy | null;
 };
 
 const BLANK: SearchForm = {
@@ -74,7 +76,7 @@ const BLANK: SearchForm = {
   markets: ["GB"], platforms: PLATFORMS.filter(p => p.defaultOn).map(p => p.id),
   frequency: "Manual", status: "Draft",
   languages: ["en"], collect_window: "90d", collect_from: "", collect_to: "", connector_config: {},
-  relevance_threshold: 50,
+  relevance_threshold: 50, search_strategy: null,
 };
 
 const inputStyle: React.CSSProperties = {
@@ -87,6 +89,20 @@ const FIELD_LABEL = "text-xs font-semibold block mb-1.5";
 
 function FieldLabel({ children }: { children: React.ReactNode }) {
   return <label className={FIELD_LABEL} style={{ color: "var(--text-secondary)" }}>{children}</label>;
+}
+
+const CHIP_TONE = {
+  context: { background: "var(--accent-wash)", color: "var(--accent-ink)", border: "1px solid #ECDCB8" },
+  muted:   { background: "var(--surface-sunken)", color: "var(--text-secondary)", border: "1px solid var(--border-subtle)" },
+  danger:  { background: "#F7ECE6", color: "#8A4B33", border: "1px solid #E8D2C4" },
+} as const;
+function RemovableChip({ label, onRemove, tone = "context" }: { label: string; onRemove: () => void; tone?: keyof typeof CHIP_TONE }) {
+  return (
+    <span className="inline-flex items-center gap-1 text-[11px] font-medium pl-2 pr-1 py-0.5 rounded-full" style={CHIP_TONE[tone]}>
+      {label}
+      <button type="button" onClick={onRemove} aria-label={`Remove ${label}`} className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full hover:opacity-60 leading-none">×</button>
+    </span>
+  );
 }
 
 export function SearchConfigForm({ mode, searchId, backHref, backLabel }: {
@@ -108,6 +124,45 @@ export function SearchConfigForm({ mode, searchId, backHref, backLabel }: {
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
   function showToast(msg: string, ok = true) { setToast({ msg, ok }); setTimeout(() => setToast(null), 4000); }
+
+  // ── Search Strategy (retrieval planning; not consumed by connectors yet) ────
+  const [strategyBusy, setStrategyBusy] = useState(false);
+  const [strategyErr, setStrategyErr] = useState<string | null>(null);
+  const [ctxInput, setCtxInput] = useState("");
+  const [exclInput, setExclInput] = useState("");
+
+  async function generateStrategy() {
+    setStrategyBusy(true); setStrategyErr(null);
+    try {
+      const res = await fetch("/api/social/search-strategy", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          research_question: form.description, keywords: keywords.map(k => k.keyword),
+          research_goal: form.research_goal, entity_type: form.entity_type,
+          markets: form.markets, languages: form.languages,
+        }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) { setStrategyErr(j.error ?? "Couldn't generate the strategy."); return; }
+      setForm(f => ({ ...f, search_strategy: j.strategy as SearchStrategy }));
+    } finally { setStrategyBusy(false); }
+  }
+  // Mutate the current strategy and mark it hand-edited.
+  function patchStrategy(patch: Partial<SearchStrategy>) {
+    setForm(f => (f.search_strategy ? { ...f, search_strategy: { ...f.search_strategy, ...patch, edited: true } } : f));
+  }
+  function addContextTerm() {
+    const t = ctxInput.trim(); const s = form.search_strategy; if (!t || !s) return;
+    if (!s.context_entities.some(e => e.term.toLowerCase() === t.toLowerCase())) {
+      patchStrategy({ context_entities: [...s.context_entities, { term: t, type: "Concept", aliases: [] }] });
+    }
+    setCtxInput("");
+  }
+  function addExclusion() {
+    const t = exclInput.trim(); const s = form.search_strategy; if (!t || !s) return;
+    if (!s.exclusions.some(x => x.toLowerCase() === t.toLowerCase())) patchStrategy({ exclusions: [...s.exclusions, t] });
+    setExclInput("");
+  }
 
   function toggleLanguage(code: string) {
     setForm(f => ({ ...f, languages: f.languages.includes(code) ? f.languages.filter(l => l !== code) : [...f.languages, code] }));
@@ -133,6 +188,7 @@ export function SearchConfigForm({ mode, searchId, backHref, backLabel }: {
         collect_from: s.collect_from ?? "", collect_to: s.collect_to ?? "",
         connector_config: (s.connector_config ?? {}) as ConnectorConfig,
         relevance_threshold: s.relevance_threshold ?? 50,
+        search_strategy: (s.search_strategy ?? null) as SearchStrategy | null,
       });
       setKeywords(s.social_keywords ?? []);
     } catch {
@@ -362,6 +418,85 @@ export function SearchConfigForm({ mode, searchId, backHref, backLabel }: {
               </div>
             )}
           </div>
+        </Card>
+
+        {/* 2b — Search strategy (retrieval planning; not consumed by connectors yet) */}
+        <Card>
+          <SectionHeading
+            title="Search strategy"
+            description="A plain-language plan for what Fanometrix should look for, generated from your research question. Review and refine it below — it sharpens retrieval planning; connectors still search your keywords in this release."
+            action={<Button variant={form.search_strategy ? "secondary" : "primary"} onClick={generateStrategy} disabled={strategyBusy}>{strategyBusy ? "Generating…" : form.search_strategy ? "Regenerate" : "Generate strategy"}</Button>}
+          />
+          {strategyErr && <p className="text-xs mt-3" style={{ color: "#B4694C" }}>{strategyErr}</p>}
+
+          {!form.search_strategy ? (
+            <p className="text-xs mt-4" style={{ color: "var(--text-tertiary)" }}>No strategy yet. Generate one from your research question and keywords, then refine the context and exclusions.</p>
+          ) : (
+            <div className="mt-5 space-y-5">
+              {form.search_strategy.primary_entity && (
+                <div>
+                  <FieldLabel>Primary subject</FieldLabel>
+                  <span className="inline-flex items-center text-sm font-semibold px-2.5 py-1 rounded-full" style={{ background: "var(--accent-ink)", color: "#fff" }}>{form.search_strategy.primary_entity.term}</span>
+                  {form.search_strategy.primary_entity.aliases.length > 0 && <span className="text-[11px] ml-2" style={{ color: "var(--text-tertiary)" }}>also: {form.search_strategy.primary_entity.aliases.join(", ")}</span>}
+                </div>
+              )}
+
+              <div>
+                <FieldLabel>Context &amp; concepts</FieldLabel>
+                <div className="flex flex-wrap gap-1.5 mb-2">
+                  {form.search_strategy.context_entities.map((e, i) => (
+                    <RemovableChip key={i} label={e.term} tone="context" onRemove={() => patchStrategy({ context_entities: form.search_strategy!.context_entities.filter((_, j) => j !== i) })} />
+                  ))}
+                  {form.search_strategy.context_entities.length === 0 && <span className="text-[11px]" style={{ color: "var(--text-tertiary)" }}>No context terms.</span>}
+                </div>
+                <div className="flex gap-2 sm:max-w-md">
+                  <input value={ctxInput} onChange={e => setCtxInput(e.target.value)} onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addContextTerm(); } }} placeholder="Add a context term…" onFocus={focusGold} onBlur={blurGold} className="flex-1 px-3 py-1.5 text-sm outline-none transition-colors" style={inputStyle} />
+                  <Button variant="secondary" onClick={addContextTerm}>Add</Button>
+                </div>
+              </div>
+
+              {(form.search_strategy.synonyms.length > 0 || form.search_strategy.campaigns.length > 0) && (
+                <div>
+                  <FieldLabel>Also matching</FieldLabel>
+                  <div className="flex flex-wrap gap-1.5">
+                    {form.search_strategy.synonyms.map((t, i) => <RemovableChip key={`s${i}`} label={t} tone="muted" onRemove={() => patchStrategy({ synonyms: form.search_strategy!.synonyms.filter((_, j) => j !== i) })} />)}
+                    {form.search_strategy.campaigns.map((t, i) => <RemovableChip key={`c${i}`} label={t} tone="muted" onRemove={() => patchStrategy({ campaigns: form.search_strategy!.campaigns.filter((_, j) => j !== i) })} />)}
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <FieldLabel>Reduce / disambiguate</FieldLabel>
+                <div className="flex flex-wrap gap-1.5 mb-2">
+                  {form.search_strategy.exclusions.map((t, i) => <RemovableChip key={i} label={t} tone="danger" onRemove={() => patchStrategy({ exclusions: form.search_strategy!.exclusions.filter((_, j) => j !== i) })} />)}
+                  {form.search_strategy.exclusions.length === 0 && <span className="text-[11px]" style={{ color: "var(--text-tertiary)" }}>No exclusions — nothing is being reduced.</span>}
+                </div>
+                <div className="flex gap-2 sm:max-w-md">
+                  <input value={exclInput} onChange={e => setExclInput(e.target.value)} onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addExclusion(); } }} placeholder="Add a term to reduce…" onFocus={focusGold} onBlur={blurGold} className="flex-1 px-3 py-1.5 text-sm outline-none transition-colors" style={inputStyle} />
+                  <Button variant="secondary" onClick={addExclusion}>Add</Button>
+                </div>
+                <p className="text-[11px] mt-1.5 leading-relaxed" style={{ color: "var(--text-tertiary)" }}>Only for clearly unrelated meanings of your subject (e.g. FedEx logistics vs the sponsorship). Keep it conservative — over-excluding can drop useful evidence.</p>
+              </div>
+
+              <div>
+                <FieldLabel>Breadth</FieldLabel>
+                <div className="flex flex-wrap gap-1.5">
+                  {BREADTHS.map(b => <FilterChip key={b.value} label={b.label} selected={form.search_strategy!.breadth === b.value} onClick={() => patchStrategy({ breadth: b.value })} />)}
+                </div>
+                <p className="text-[11px] mt-1.5 leading-relaxed" style={{ color: "var(--text-tertiary)" }}>{BREADTHS.find(b => b.value === form.search_strategy!.breadth)?.help}</p>
+              </div>
+
+              <div className="border-t pt-4" style={{ borderColor: "var(--border-subtle)" }}>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.05em] mb-2" style={{ color: "var(--text-tertiary)" }}>What Fanometrix will look for</p>
+                <div className="space-y-1.5">
+                  {(form.platforms.length ? form.platforms : [""]).map((p, i) => (
+                    <p key={i} className="text-sm leading-relaxed" style={{ color: "var(--text-secondary)" }}>{describeStrategy(form.search_strategy!, p || undefined)}</p>
+                  ))}
+                </div>
+                <p className="text-[11px] mt-2" style={{ color: "var(--text-tertiary)" }}>Planning only — collection still runs on your keywords in this release.</p>
+              </div>
+            </div>
+          )}
         </Card>
 
         {/* 3 — Where should Fanometrix search? */}
