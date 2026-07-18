@@ -152,24 +152,30 @@ export function ConversationSearchExecutionBody({ searchEvidenceId }: { searchEv
         <WorkspaceHeader
           back={{ href: `/research-projects/${projectId}/execution/conversation`, label: "Back to Conversation Searches" }}
           title={cs.name}
-          description="Run and monitor collection for this search."
+          description="Collect and review the conversations for this search."
           status={{ label: status.label, tone: status.tone, dot: true }}
           meta={<span className="fx-tabular-nums">{summaryParts.join(" · ")}</span>}
-          primaryAction={(collecting || hasData)
-            ? <Button variant="primary" href={`/research-projects/${projectId}/dashboard`}>View Dashboard →</Button>
+          primaryAction={hasData
+            ? <Button variant="primary" href={`/research-projects/${projectId}/execution/conversation/${searchEvidenceId}/evidence`}>Review Evidence →</Button>
+            : undefined}
+          secondaryActions={(collecting || hasData)
+            ? <Button variant="secondary" href={`/research-projects/${projectId}/dashboard`}>View Dashboard →</Button>
             : undefined}
         />
 
-        {/* ── Collection complete → next step is analysis ───────────────────── */}
+        {/* ── Collection complete → review the evidence, then generate findings ── */}
         {lastResult && (
           <div className="flex items-start gap-3 px-4 py-3.5" style={{ borderRadius: "var(--radius-panel)", background: "var(--accent-wash)", border: "1px solid #ECDCB8" }}>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-bold" style={{ color: "var(--accent-ink)" }}>Collection complete</p>
               <p className="text-xs mt-0.5" style={{ color: "var(--text-secondary)" }}>
-                {lastResult.conversations.toLocaleString()} conversation{lastResult.conversations === 1 ? "" : "s"} have been collected and classified. Your evidence is now ready for analysis.
+                {lastResult.conversations.toLocaleString()} conversation{lastResult.conversations === 1 ? "" : "s"} collected. Review the evidence, then generate your findings.
               </p>
             </div>
-            <Button variant="primary" size="sm" href={`/research-projects/${projectId}/analysis`}>View Analysis →</Button>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <Button variant="secondary" size="sm" href={`/research-projects/${projectId}/execution/conversation/${searchEvidenceId}/evidence`}>Review Evidence</Button>
+              <Button variant="primary" size="sm" href={`/research-projects/${projectId}/analysis/conversation/${searchEvidenceId}`}>Generate Findings →</Button>
+            </div>
           </div>
         )}
 
@@ -197,7 +203,7 @@ export function ConversationSearchExecutionBody({ searchEvidenceId }: { searchEv
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4 pt-4 border-t" style={{ borderColor: "var(--border-subtle)" }}>
               <ChipRow label="Keywords" values={cs.keywords} />
               <ChipRow label="Markets" values={cs.markets} />
-              <ChipRow label="Platforms" values={cs.platforms} />
+              <ChipRow label="Sources" values={cs.platforms} />
             </div>
           )}
         </Card>

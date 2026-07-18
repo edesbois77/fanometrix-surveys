@@ -98,8 +98,8 @@ export function DashboardSection({
     tiles.push({
       key: cs.evidence_id, badge: "Conversation Search", title: cs.name, target: mentionTarget, current: cs.mention_count,
       unitLabel: "mention", status,
-      href: `/social-listening/dashboard?search_id=${cs.evidence_id}`,
-      hrefLabel: "Open Conversation Dashboard",
+      href: `/research-projects/${projectId}/execution/conversation/${cs.evidence_id}`,
+      hrefLabel: "Open",
       breakdown: [
         ...(cs.markets.length ? [{ label: "markets", value: distinct(cs.markets).slice(0, 3).join(", ") + (distinct(cs.markets).length > 3 ? "…" : "") }] : []),
         ...(cs.platforms.length ? [{ label: "platforms", value: distinct(cs.platforms).slice(0, 3).join(", ") + (distinct(cs.platforms).length > 3 ? "…" : "") }] : []),

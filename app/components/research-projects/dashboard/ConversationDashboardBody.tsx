@@ -95,8 +95,8 @@ export function ConversationDashboardBody({ projectId, searches }: { projectId: 
           Evidence from {searches.length} conversation search{searches.length === 1 ? "" : "es"} in this project.
           {stats && stats.total > 0 ? ` ${conversationsToday.toLocaleString()} new today.` : ""}
         </p>
-        <Link href="/social-listening/mentions" className="text-xs font-semibold text-gray-500 hover:text-[#D7B87A] transition-colors">
-          View underlying conversations →
+        <Link href={`/research-projects/${projectId}/execution/conversation`} className="text-xs font-semibold text-gray-500 hover:text-[#D7B87A] transition-colors">
+          Review the conversations →
         </Link>
       </div>
 
@@ -153,7 +153,7 @@ export function ConversationDashboardBody({ projectId, searches }: { projectId: 
               const meta = collectionMeta(s.reddit_collection_status, s.mention_count);
               return (
                 <li key={s.evidence_id} className="flex items-center justify-between gap-3">
-                  <Link href={`/social-listening/searches/${s.evidence_id}`} className="min-w-0 truncate text-sm text-gray-700 hover:text-[#D7B87A] transition-colors">
+                  <Link href={`/research-projects/${projectId}/execution/conversation/${s.evidence_id}/evidence`} className="min-w-0 truncate text-sm text-gray-700 hover:text-[#D7B87A] transition-colors">
                     {s.name}
                   </Link>
                   <span className="flex items-center gap-2 flex-shrink-0 text-xs text-gray-400">
