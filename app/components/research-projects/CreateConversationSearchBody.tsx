@@ -10,7 +10,7 @@
 // Project workspace layout (breadcrumb, header, cards, footer actions).
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { PLATFORMS, MARKETS } from "@/lib/social-taxonomy";
+import { PLATFORMS, MARKETS, detectKeywordType } from "@/lib/social-taxonomy";
 import { connectorForPlatformId } from "@/lib/connectors/catalog";
 import { inferLanguagesForMarkets } from "@/lib/locales";
 import { useResearchProject } from "@/app/components/research-projects/ProjectProvider";
@@ -65,7 +65,7 @@ export function CreateConversationSearchBody({ backHref, backLabel }: { backHref
         name: name.trim(),
         description: question.trim() || null,
         markets, platforms: sources,
-        keywords: terms.map(t => ({ keyword: t, keyword_type: "Topic" })),
+        keywords: terms.map(t => ({ keyword: t, keyword_type: detectKeywordType(t) })),
         // Sensible defaults — refined later under Edit Search.
         research_goal: "Fan Sentiment",
         entity_type: "Brand",

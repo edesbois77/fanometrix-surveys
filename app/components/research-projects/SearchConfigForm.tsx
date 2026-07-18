@@ -21,8 +21,18 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
   ENTITY_TYPES, RESEARCH_GOALS, FREQUENCIES, SEARCH_STATUSES,
-  KEYWORD_TYPES, PLATFORMS, MARKETS,
+  KEYWORD_TYPES, PLATFORMS, MARKETS, detectKeywordType,
 } from "@/lib/social-taxonomy";
+
+// What each research goal focuses the AI on — shown beneath the selector so its
+// purpose is clear (may later be recommended automatically from Project Type).
+const RESEARCH_GOAL_HELP: Record<string, string> = {
+  "Fan Sentiment": "Focuses the analysis on how fans feel — the balance of positive, neutral and negative opinion across the conversation.",
+  "Emerging Topics": "Directs the analysis to surface new and rising themes fans are talking about, beyond overall mood.",
+  "Sponsorship Perception": "Tunes the analysis to how fans perceive brands, sponsors and commercial partnerships.",
+  "Market Comparison": "Guides the analysis to compare how opinion differs across your selected markets.",
+  "Custom": "No specific lens — the conversation is analysed broadly against your research question.",
+};
 import { CONNECTOR_CATALOG, COLLECTION_LANGUAGES, COLLECTION_WINDOWS, connectorForPlatformId, type ConnectorField } from "@/lib/connectors/catalog";
 import { useResearchProject } from "@/app/components/research-projects/ProjectProvider";
 import { useWorkspaceRecord } from "@/app/components/research-projects/WorkspaceRecordContext";
@@ -72,7 +82,6 @@ export function SearchConfigForm({ mode, searchId, backHref, backLabel }: {
   const [form, setForm] = useState<SearchForm>(BLANK);
   const [keywords, setKeywords] = useState<Keyword[]>([]);
   const [kwInput, setKwInput] = useState("");
-  const [kwType, setKwType] = useState<string>(KEYWORD_TYPES[0]);
   const [loading, setLoading] = useState(mode === "edit");
   const [notFound, setNotFound] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -129,8 +138,17 @@ export function SearchConfigForm({ mode, searchId, backHref, backLabel }: {
   function addKeyword() {
     const k = kwInput.trim();
     if (!k || keywords.some(kw => kw.keyword.toLowerCase() === k.toLowerCase())) return;
-    setKeywords(prev => [...prev, { keyword: k, keyword_type: kwType }]);
+    // Auto-detect the type; the user overrides by clicking the chip if it's wrong.
+    setKeywords(prev => [...prev, { keyword: k, keyword_type: detectKeywordType(k) }]);
     setKwInput("");
+  }
+  // Cycle a keyword's type on click — override without a dropdown.
+  function cycleKeywordType(idx: number) {
+    setKeywords(prev => prev.map((k, i) => {
+      if (i !== idx) return k;
+      const next = KEYWORD_TYPES[(Math.max(0, KEYWORD_TYPES.indexOf(k.keyword_type as typeof KEYWORD_TYPES[number])) + 1) % KEYWORD_TYPES.length];
+      return { ...k, keyword_type: next };
+    }));
   }
 
   async function handleSave() {
@@ -242,90 +260,65 @@ export function SearchConfigForm({ mode, searchId, backHref, backLabel }: {
             one Save placement, consistent across all Research source editors. */}
         <WorkspaceHeader
           title={titleText}
-          description="Define and configure this conversation search. Running collection and reviewing results happens in Execution, Dashboard and Analysis."
+          description="Refine how this conversation search understands fan opinion. Collecting and reviewing results happens in Execution, Dashboard and Analysis."
         />
 
-        {/* Basic information */}
+        {/* 1 — What do you want to understand? */}
         <Card>
-          <SectionHeading title="Basic information" />
+          <SectionHeading title="What do you want to understand?" />
           <div className="mt-5 space-y-4">
             <div>
-              <FieldLabel>Search name *</FieldLabel>
+              <FieldLabel>Conversation Search Name</FieldLabel>
               <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
                 onFocus={focusGold} onBlur={blurGold}
                 className="w-full px-3 py-2 text-sm outline-none transition-colors" style={inputStyle}
-                placeholder="e.g. Carlsberg — Fan Sentiment" />
+                placeholder="e.g. FedEx UCL Sponsorship" />
             </div>
             <div>
-              <FieldLabel>Description</FieldLabel>
+              <FieldLabel>Research Question</FieldLabel>
               <textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
                 onFocus={focusGold} onBlur={blurGold} rows={2}
                 className="w-full px-3 py-2 text-sm outline-none transition-colors" style={inputStyle}
-                placeholder="What are you trying to understand?" />
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div>
-                <FieldLabel>Status</FieldLabel>
-                <select value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))}
-                  onFocus={focusGold} onBlur={blurGold}
-                  className="w-full px-3 py-2 text-sm outline-none transition-colors" style={inputStyle}>
-                  {SEARCH_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
-                </select>
-              </div>
-              <div>
-                <FieldLabel>Frequency</FieldLabel>
-                <select value={form.frequency} onChange={e => setForm(f => ({ ...f, frequency: e.target.value }))}
-                  onFocus={focusGold} onBlur={blurGold}
-                  className="w-full px-3 py-2 text-sm outline-none transition-colors" style={inputStyle}>
-                  {FREQUENCIES.map(fr => <option key={fr} value={fr}>{fr}</option>)}
-                </select>
-              </div>
-              <div>
-                <FieldLabel>Entity type</FieldLabel>
-                <select value={form.entity_type} onChange={e => setForm(f => ({ ...f, entity_type: e.target.value }))}
-                  onFocus={focusGold} onBlur={blurGold}
-                  className="w-full px-3 py-2 text-sm outline-none transition-colors" style={inputStyle}>
-                  {ENTITY_TYPES.map(en => <option key={en} value={en}>{en}</option>)}
-                </select>
-              </div>
+                placeholder="e.g. How do fans perceive FedEx's UEFA Champions League sponsorship?" />
             </div>
             <div>
-              <FieldLabel>Research goal</FieldLabel>
+              <FieldLabel>Research Goal</FieldLabel>
               <select value={form.research_goal} onChange={e => setForm(f => ({ ...f, research_goal: e.target.value }))}
                 onFocus={focusGold} onBlur={blurGold}
-                className="w-full px-3 py-2 text-sm outline-none transition-colors" style={inputStyle}>
+                className="w-full px-3 py-2 text-sm outline-none transition-colors sm:max-w-sm" style={inputStyle}>
                 {RESEARCH_GOALS.map(g => <option key={g} value={g}>{g}</option>)}
               </select>
+              <p className="text-[11px] mt-1.5 leading-relaxed" style={{ color: "var(--text-tertiary)" }}>{RESEARCH_GOAL_HELP[form.research_goal] ?? ""}</p>
             </div>
           </div>
         </Card>
 
-        {/* Keywords */}
+        {/* 2 — What should Fanometrix search for? */}
         <Card>
-          <SectionHeading title="Keywords" description="What this search listens for." />
+          <SectionHeading title="What should Fanometrix search for?" />
           <div className="mt-5">
-            <div className="flex flex-wrap gap-2">
+            <FieldLabel>Search Keywords</FieldLabel>
+            <div className="flex gap-2">
               <input value={kwInput} onChange={e => setKwInput(e.target.value)}
                 onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addKeyword(); } }}
                 onFocus={focusGold} onBlur={blurGold}
                 className="flex-1 min-w-[180px] px-3 py-2 text-sm outline-none transition-colors" style={inputStyle}
-                placeholder="e.g. Liverpool, #LFC, YNWA" />
-              <select value={kwType} onChange={e => setKwType(e.target.value)}
-                onFocus={focusGold} onBlur={blurGold}
-                className="px-3 py-2 text-sm outline-none transition-colors" style={inputStyle}>
-                {KEYWORD_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-              </select>
+                placeholder="e.g. FedEx, Champions League sponsor, #UCL" />
               <Button variant="secondary" onClick={addKeyword}>Add</Button>
             </div>
+            <p className="text-[11px] mt-1.5" style={{ color: "var(--text-tertiary)" }}>The words and phrases Fanometrix looks for across your sources. We detect each keyword&apos;s type automatically — click a type to change it.</p>
             {keywords.length > 0 && (
               <div className="flex flex-wrap gap-1.5 mt-3">
                 {keywords.map((k, i) => (
-                  <span key={i} className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full"
+                  <span key={i} className="inline-flex items-center gap-1.5 text-xs font-medium pl-2.5 pr-1.5 py-1 rounded-full"
                     style={{ background: "var(--surface-sunken)", color: "var(--text-secondary)", border: "1px solid var(--border-subtle)" }}>
                     {k.keyword}
-                    <span style={{ color: "var(--text-disabled)" }}>· {k.keyword_type}</span>
+                    <button type="button" onClick={() => cycleKeywordType(i)} title="Click to change type"
+                      className="text-[10px] font-semibold px-1.5 py-0.5 rounded hover:opacity-80" style={{ color: "var(--accent-ink)", background: "var(--accent-wash)" }}>
+                      {k.keyword_type}
+                    </button>
                     <button onClick={() => setKeywords(prev => prev.filter((_, j) => j !== i))}
-                      className="ml-0.5 hover:opacity-70" style={{ color: "var(--text-tertiary)" }} aria-label={`Remove ${k.keyword}`}>
+                      className="hover:opacity-70" style={{ color: "var(--text-tertiary)" }} aria-label={`Remove ${k.keyword}`}>
                       <Icon.close size={12} />
                     </button>
                   </span>
@@ -335,18 +328,10 @@ export function SearchConfigForm({ mode, searchId, backHref, backLabel }: {
           </div>
         </Card>
 
-        {/* Markets & sources */}
+        {/* 3 — Where should Fanometrix search? */}
         <Card>
-          <SectionHeading title="Markets & sources" />
+          <SectionHeading title="Where should Fanometrix search?" />
           <div className="mt-5 space-y-5">
-            <div>
-              <FieldLabel>Markets</FieldLabel>
-              <div className="flex flex-wrap gap-1.5">
-                {MARKETS.map(m => (
-                  <FilterChip key={m.code} label={`${m.code} · ${m.label}`} selected={form.markets.includes(m.code)} onClick={() => toggleMarket(m.code)} />
-                ))}
-              </div>
-            </div>
             <div>
               <FieldLabel>Sources</FieldLabel>
               <div className="flex flex-wrap gap-2">
@@ -368,13 +353,31 @@ export function SearchConfigForm({ mode, searchId, backHref, backLabel }: {
                 })}
               </div>
             </div>
+            <div>
+              <FieldLabel>Markets</FieldLabel>
+              <div className="flex flex-wrap gap-1.5">
+                {MARKETS.map(m => (
+                  <FilterChip key={m.code} label={`${m.code} · ${m.label}`} selected={form.markets.includes(m.code)} onClick={() => toggleMarket(m.code)} />
+                ))}
+              </div>
+            </div>
+            <div>
+              <FieldLabel>Languages</FieldLabel>
+              <p className="text-[11px] mb-2 leading-relaxed" style={{ color: "var(--text-tertiary)" }}>Fanometrix automatically infers the most appropriate languages from your selected markets. Override only if required.</p>
+              <div className="flex flex-wrap gap-1.5">
+                {COLLECTION_LANGUAGES.map(l => (
+                  <FilterChip key={l.code} label={`${l.code} · ${l.label}`} selected={form.languages.includes(l.code)} onClick={() => toggleLanguage(l.code)} />
+                ))}
+              </div>
+            </div>
           </div>
         </Card>
 
-        {/* Time period & languages */}
+        {/* 4 — Collection Settings */}
         <Card>
-          <SectionHeading title="Time period & languages" description="How far back each collection run looks, and which languages it covers." />
+          <SectionHeading title="Collection Settings" description="How and how often Fanometrix collects." />
           <div className="mt-5 space-y-5">
+            {/* Time period */}
             <div>
               <FieldLabel>Time period</FieldLabel>
               <div className="flex flex-wrap gap-1.5">
@@ -404,39 +407,67 @@ export function SearchConfigForm({ mode, searchId, backHref, backLabel }: {
                 </div>
               </div>
             )}
+
+            {/* Collection frequency */}
             <div>
-              <FieldLabel>Languages</FieldLabel>
-              <p className="text-[11px] mb-2" style={{ color: "var(--text-tertiary)" }}>Normally inferred from your markets — adjust only if needed.</p>
-              <div className="flex flex-wrap gap-1.5">
-                {COLLECTION_LANGUAGES.map(l => (
-                  <FilterChip key={l.code} label={`${l.code} · ${l.label}`} selected={form.languages.includes(l.code)} onClick={() => toggleLanguage(l.code)} />
-                ))}
-              </div>
+              <FieldLabel>Collection frequency</FieldLabel>
+              <select value={form.frequency} onChange={e => setForm(f => ({ ...f, frequency: e.target.value }))}
+                onFocus={focusGold} onBlur={blurGold}
+                className="w-full px-3 py-2 text-sm outline-none transition-colors sm:max-w-xs" style={inputStyle}>
+                {FREQUENCIES.map(fr => <option key={fr} value={fr}>{fr === "Manual" ? "Manual (recommended)" : fr}</option>)}
+              </select>
+              {form.frequency === "Manual" ? (
+                <p className="text-[11px] mt-1.5" style={{ color: "var(--text-tertiary)" }}>Manual is the default — you run each collection yourself from Execution.</p>
+              ) : (
+                <div className="mt-2 flex items-start gap-2 px-3 py-2" style={{ borderRadius: "var(--radius-control)", background: "#FBF3E1", border: "1px solid #ECDCB8" }}>
+                  <span aria-hidden className="text-xs leading-none mt-0.5" style={{ color: "#8A6A2F" }}>⚠</span>
+                  <p className="text-[11px] leading-relaxed" style={{ color: "#8A6A2F" }}>
+                    This search will collect automatically ({form.frequency.toLowerCase()}) and keep running until you pause or archive it.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Status */}
+            <div>
+              <FieldLabel>Status</FieldLabel>
+              <select value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))}
+                onFocus={focusGold} onBlur={blurGold}
+                className="w-full px-3 py-2 text-sm outline-none transition-colors sm:max-w-xs" style={inputStyle}>
+                {SEARCH_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+
+            {/* Advanced source settings — connector-specific + subject type */}
+            <div className="pt-3 border-t" style={{ borderColor: "var(--border-subtle)" }}>
+              <button type="button" onClick={() => setAdvancedOpen(o => !o)} className="w-full flex items-center justify-between text-left py-0.5">
+                <span className="text-xs font-semibold" style={{ color: "var(--text-secondary)" }}>Advanced source settings</span>
+                <span className="text-xs" style={{ color: "var(--text-tertiary)" }}>{advancedOpen ? "Hide ▲" : "Show ▼"}</span>
+              </button>
+              {advancedOpen && (
+                <div className="mt-4 space-y-6">
+                  {advancedConnectors.map(conn => (
+                    <div key={conn.id}>
+                      <p className="text-xs font-semibold mb-3 uppercase tracking-[0.05em]" style={{ color: "var(--text-tertiary)" }}>{conn.name}</p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {conn.advanced.map(field => renderConnectorField(conn.id, field))}
+                      </div>
+                    </div>
+                  ))}
+                  <div>
+                    <FieldLabel>Subject type</FieldLabel>
+                    <select value={form.entity_type} onChange={e => setForm(f => ({ ...f, entity_type: e.target.value }))}
+                      onFocus={focusGold} onBlur={blurGold}
+                      className="w-full px-3 py-2 text-sm outline-none transition-colors sm:max-w-xs" style={inputStyle}>
+                      {ENTITY_TYPES.map(en => <option key={en} value={en}>{en}</option>)}
+                    </select>
+                    <p className="text-[11px] mt-1" style={{ color: "var(--text-tertiary)" }}>What this search is mainly about — helps the AI classify entities in the conversation.</p>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </Card>
-
-        {/* Advanced — per-source collection limits, tucked away so the normal flow stays simple */}
-        {advancedConnectors.length > 0 && (
-          <Card>
-            <button type="button" onClick={() => setAdvancedOpen(o => !o)} className="w-full flex items-center justify-between text-left">
-              <SectionHeading title="Advanced source settings" description="Per-source collection limits and targeting. Optional — sensible defaults apply." />
-              <span className="ml-3 flex-shrink-0 text-xs" style={{ color: "var(--text-tertiary)" }}>{advancedOpen ? "Hide ▲" : "Show ▼"}</span>
-            </button>
-            {advancedOpen && (
-              <div className="mt-5 space-y-6">
-                {advancedConnectors.map(conn => (
-                  <div key={conn.id}>
-                    <p className="text-xs font-semibold mb-3 uppercase tracking-[0.05em]" style={{ color: "var(--text-tertiary)" }}>{conn.name}</p>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      {conn.advanced.map(field => renderConnectorField(conn.id, field))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </Card>
-        )}
 
         {/* Where operational controls live — keeps the separation explicit. */}
         <p className="text-xs px-1" style={{ color: "var(--text-tertiary)" }}>

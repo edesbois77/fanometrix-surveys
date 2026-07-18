@@ -52,6 +52,20 @@ export const MARKETS = [
   { code: "MX", label: "Mexico"         },
 ] as const;
 
+// Best-effort auto-detection of a keyword's type, so users don't classify every
+// term by hand — they only override when it's wrong. Unambiguous cases only
+// (hashtags, well-known clubs/competitions); everything else defaults to Topic.
+const KNOWN_CLUBS = ["liverpool", "arsenal", "chelsea", "tottenham", "spurs", "everton", "newcastle", "west ham", "aston villa", "barcelona", "real madrid", "atletico", "atlético", "bayern", "dortmund", "juventus", "juve", "ac milan", "inter milan", "psg", "manchester city", "man city", "manchester united", "man united", "man utd"];
+const KNOWN_COMPETITIONS = ["champions league", "ucl", "europa league", "uel", "premier league", "epl", "la liga", "bundesliga", "serie a", "ligue 1", "world cup", "euros", "uefa"];
+export function detectKeywordType(keyword: string): string {
+  const k = keyword.trim().toLowerCase();
+  if (!k) return "Topic";
+  if (k.startsWith("#")) return "Hashtag";
+  if (KNOWN_CLUBS.some(c => k === c || k.includes(c))) return "Club";
+  if (KNOWN_COMPETITIONS.some(c => k === c || k.includes(c))) return "Competition";
+  return "Topic";
+}
+
 /** Optional research context that sharpens relevance + entity classification. */
 export type ClassificationContext = {
   keywords?: string[];
