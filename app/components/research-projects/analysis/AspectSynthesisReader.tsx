@@ -16,12 +16,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useResearchProject } from "@/app/components/research-projects/ProjectProvider";
-import { ConversationEvidenceCard, fetchAllProjectConversations, type Conversation } from "@/app/components/research-projects/ConversationEvidenceCard";
+import { ConversationEvidenceCard, fetchAllProjectConversations, relevancePct, relevanceBand, type Conversation } from "@/app/components/research-projects/ConversationEvidenceCard";
 import { formatRelativeTime } from "@/lib/format-relative-time";
 import {
   PageContainer, WorkspaceHeader, PageLoadingState, ErrorState, EmptyState, Card, Button, Icon,
 } from "@/app/components/workspace-ui";
-import type { AspectSynthesisReport, AspectSection } from "@/lib/intelligence/analysts/analyseAspectSynthesis";
+import type { AspectSynthesisReport, AspectSection, EvidenceItemRef, EvidenceSourceType } from "@/lib/intelligence/analysts/analyseAspectSynthesis";
 import {
   deriveFindingConfidence, confidenceTone,
   type ConfidenceLevel, type FindingSourceType, type FindingConfidence, type ConfidenceFactor,
@@ -113,6 +113,51 @@ function SentimentDots({ s }: { s: { positive_pct: number; neutral_pct: number; 
   );
 }
 
+// Evidence is shown GROUPED BY SOURCE so provenance stays explicit — a finding
+// merges interpretation, never the evidence behind it.
+const EVIDENCE_ORDER: EvidenceSourceType[] = ["conversation", "survey", "document"];
+const GROUP_LABEL: Record<EvidenceSourceType, [string, string]> = {
+  conversation: ["Conversation item", "Conversation items"],
+  survey: ["Survey finding", "Survey findings"],
+  document: ["Document finding", "Document findings"],
+};
+const GROUP_ICON: Record<EvidenceSourceType, "conversation" | "survey" | "document"> = {
+  conversation: "conversation", survey: "survey", document: "document",
+};
+
+function groupBySource(items: EvidenceItemRef[]): Record<EvidenceSourceType, EvidenceItemRef[]> {
+  const g: Record<EvidenceSourceType, EvidenceItemRef[]> = { conversation: [], survey: [], document: [] };
+  for (const it of items) (g[it.type] ??= []).push(it);
+  return g;
+}
+
+// A compact card for a survey/document evidence item (and the fallback for a
+// conversation whose full record isn't loaded). Renders the captured snapshot —
+// source, snippet, provenance, relevance — so it's traceable without a re-fetch.
+function SourceEvidenceCard({ item }: { item: EvidenceItemRef }) {
+  const pct = relevancePct(item.relevance);
+  const band = pct !== null ? relevanceBand(pct) : null;
+  const IconEl = Icon[GROUP_ICON[item.type]];
+  return (
+    <div className="p-3 rounded-lg" style={{ background: "var(--surface)", border: "1px solid var(--border-subtle)" }}>
+      <div className="flex items-center justify-between gap-2 mb-1.5">
+        <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold min-w-0" style={{ color: "var(--text-secondary)" }}>
+          <span aria-hidden style={{ color: "var(--accent-ink)" }}><IconEl size={13} /></span>
+          <span className="truncate">{item.source_label}</span>
+          {item.provenance && <span className="truncate font-normal" style={{ color: "var(--text-tertiary)" }}>· {item.provenance}</span>}
+        </span>
+        {band && pct !== null && (
+          <span className="inline-flex items-center text-[10px] font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0"
+            style={{ color: band.ink, background: band.bg, border: `1px solid ${band.border}` }} title="Relevance to the research question">
+            {pct}%{item.confidence ? ` · ${item.confidence}` : ""}
+          </span>
+        )}
+      </div>
+      <p className="text-sm leading-relaxed" style={{ color: "var(--text-primary)" }}>{item.snippet}</p>
+    </div>
+  );
+}
+
 function AspectBlock({ section, evidenceById }: { section: AspectSection; evidenceById: Map<string, Conversation> }) {
   const [open, setOpen] = useState<Set<number>>(new Set());
   const toggle = (i: number) => setOpen(prev => { const n = new Set(prev); if (n.has(i)) n.delete(i); else n.add(i); return n; });
@@ -124,10 +169,11 @@ function AspectBlock({ section, evidenceById }: { section: AspectSection; eviden
       {/* Aspect heading */}
       <div className="flex items-center justify-between gap-3 flex-wrap pb-3 border-b" style={{ borderColor: "var(--border-default)" }}>
         <h2 className="text-lg font-bold tracking-[-0.01em]" style={{ color: "var(--text-primary)" }}>{section.aspect}</h2>
-        <span className="flex items-center gap-3">
+        <span className="flex items-center gap-3 flex-wrap">
+          {(section.source_types ?? []).length > 0 && <SourceDiversity sources={section.source_types} />}
           <SentimentDots s={section.sentiment} />
           <span className="text-xs" style={{ color: "var(--text-tertiary)" }}>
-            {section.evidence_count.toLocaleString()} conversation{section.evidence_count === 1 ? "" : "s"}
+            {section.evidence_count.toLocaleString()} piece{section.evidence_count === 1 ? "" : "s"} of evidence
           </span>
         </span>
       </div>
@@ -146,19 +192,19 @@ function AspectBlock({ section, evidenceById }: { section: AspectSection; eviden
           <h3 className="text-[11px] font-semibold uppercase tracking-[0.07em] mb-2" style={{ color: "var(--text-tertiary)" }}>Key Findings</h3>
           <ol className="space-y-2.5">
             {section.key_findings.map((f, i) => {
-              const evidence = f.evidence
-                .filter(r => r.type === "conversation")
-                .map(r => evidenceById.get(r.id))
-                .filter((c): c is Conversation => !!c);
+              const items = f.evidence ?? [];
               // Confidence, source diversity and evidence count are DERIVED from
-              // the finding's own supporting evidence — no second AI pass, no
-              // change to how the finding was generated.
-              const conf = deriveFindingConfidence(evidence.map(c => ({
-                type: "conversation" as const,
-                relevanceScore: c.relevance_score,
-                relevanceConfidence: c.relevance_confidence,
-                sentiment: c.sentiment,
+              // the finding's own supporting evidence (captured at synthesis) —
+              // no second AI pass, no change to how the finding was generated.
+              const conf = deriveFindingConfidence(items.map(e => ({
+                type: e.type,
+                relevanceScore: e.relevance ?? null,
+                relevanceConfidence: e.confidence ?? null,
+                sentiment: e.sentiment ?? null,
               })));
+              const groups = groupBySource(items);
+              const present = EVIDENCE_ORDER.filter(t => groups[t].length > 0);
+              const breakdown = present.map(t => `${groups[t].length} ${GROUP_LABEL[t][groups[t].length === 1 ? 0 : 1].toLowerCase()}`).join(" · ");
               const isOpen = open.has(i);
               return (
                 <li key={i} className="border" style={{ borderRadius: "var(--radius-panel)", borderColor: "var(--border-subtle)", background: "var(--surface)" }}>
@@ -179,19 +225,35 @@ function AspectBlock({ section, evidenceById }: { section: AspectSection; eviden
                       {/* Why this confidence — the deterministic breakdown, on demand */}
                       {confOpen.has(i) && <ConfidenceExplain conf={conf} />}
 
-                      {/* Supporting evidence — the same cards the Evidence view shows */}
-                      {evidence.length > 0 && (
+                      {/* Supporting evidence — expands GROUPED BY SOURCE, provenance intact */}
+                      {items.length > 0 && (
                         <button type="button" onClick={() => toggle(i)}
-                          className="inline-flex items-center gap-1 text-[11px] font-semibold mt-2" style={{ color: "var(--accent-ink)", cursor: "pointer" }}>
-                          <span aria-hidden className="inline-flex" style={{ transform: isOpen ? "rotate(90deg)" : "none", transition: "transform 0.15s" }}><Icon.chevronRight size={12} strokeWidth={2.5} /></span>
-                          {isOpen ? "Hide" : "Show"} {evidence.length} supporting conversation{evidence.length === 1 ? "" : "s"}
+                          className="inline-flex items-center gap-1 text-[11px] font-semibold mt-2 text-left" style={{ color: "var(--accent-ink)", cursor: "pointer" }}>
+                          <span aria-hidden className="inline-flex flex-shrink-0" style={{ transform: isOpen ? "rotate(90deg)" : "none", transition: "transform 0.15s" }}><Icon.chevronRight size={12} strokeWidth={2.5} /></span>
+                          {isOpen ? "Hide" : "Show"} supporting evidence — {breakdown}
                         </button>
                       )}
                     </div>
                   </div>
-                  {isOpen && evidence.length > 0 && (
-                    <div className="px-3.5 pb-3.5 space-y-2.5">
-                      {evidence.map(c => <ConversationEvidenceCard key={c.id} c={c} showAspect={false} />)}
+                  {isOpen && items.length > 0 && (
+                    <div className="px-3.5 pb-3.5 space-y-3">
+                      {present.map(type => (
+                        <div key={type}>
+                          <p className="text-[10px] font-semibold uppercase tracking-[0.07em] mb-1.5" style={{ color: "var(--text-tertiary)" }}>
+                            {GROUP_LABEL[type][groups[type].length === 1 ? 0 : 1]} ({groups[type].length})
+                          </p>
+                          <div className="space-y-2.5">
+                            {groups[type].map((e, j) => {
+                              // Conversations render as the full Evidence card when loaded;
+                              // otherwise (and for survey/document) the captured snapshot.
+                              const conv = type === "conversation" ? evidenceById.get(e.id) : undefined;
+                              return conv
+                                ? <ConversationEvidenceCard key={e.id} c={conv} showAspect={false} />
+                                : <SourceEvidenceCard key={`${e.id}-${j}`} item={e} />;
+                            })}
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   )}
                 </li>
@@ -348,7 +410,7 @@ export function AspectSynthesisReader() {
               <p className="text-xs px-1 leading-relaxed" style={{ color: "var(--text-tertiary)" }}>{report.omitted_note}</p>
             )}
             <p className="text-xs px-1" style={{ color: "var(--text-tertiary)" }}>
-              Synthesised from {report.evidence_total.toLocaleString()} relevant conversation{report.evidence_total === 1 ? "" : "s"} across {report.aspects.length} research aspect{report.aspects.length === 1 ? "" : "s"}.
+              Synthesised from {report.evidence_total.toLocaleString()} relevant evidence item{report.evidence_total === 1 ? "" : "s"} across {report.aspects.length} research aspect{report.aspects.length === 1 ? "" : "s"}.
               {" "}These findings package into deliverables in{" "}
               <Link href={`/research-projects/${projectId}/reports`} className="font-semibold hover:underline" style={{ color: "var(--accent-ink)" }}>Reports →</Link>
             </p>
