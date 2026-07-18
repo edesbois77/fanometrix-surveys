@@ -75,7 +75,7 @@ export function ConversationStatsView({ stats, loading, emptyState, totalLabel =
                 <BarChart data={stats?.topTopics} layout="vertical" margin={{ left: 0, right: 16 }}>
                   <XAxis type="number" tick={{ fontSize: 11 }} />
                   <YAxis type="category" dataKey="topic" tick={{ fontSize: 11 }} width={130} />
-                  <Tooltip formatter={(v) => [Number(v), "mentions"]} />
+                  <Tooltip formatter={(v) => [Number(v), "conversations"]} />
                   <Bar dataKey="count" fill={SL_GOLD} radius={[0, 4, 4, 0]} />
                 </BarChart>
               </ResponsiveContainer>
@@ -85,12 +85,12 @@ export function ConversationStatsView({ stats, loading, emptyState, totalLabel =
           {/* Top Platforms */}
           {(stats?.topPlatforms ?? []).length > 0 && (
             <div className="bg-white border border-gray-100 rounded-xl p-5 shadow-sm">
-              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-4">By Platform</h3>
+              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-4">By Source</h3>
               <ResponsiveContainer width="100%" height={200}>
                 <BarChart data={stats?.topPlatforms} layout="vertical" margin={{ left: 0, right: 16 }}>
                   <XAxis type="number" tick={{ fontSize: 11 }} />
                   <YAxis type="category" dataKey="platform" tick={{ fontSize: 11 }} width={80} />
-                  <Tooltip formatter={(v) => [Number(v), "mentions"]} />
+                  <Tooltip formatter={(v) => [Number(v), "conversations"]} />
                   <Bar dataKey="count" fill={SL_TEAL} radius={[0, 4, 4, 0]} />
                 </BarChart>
               </ResponsiveContainer>
@@ -105,7 +105,7 @@ export function ConversationStatsView({ stats, loading, emptyState, totalLabel =
                 <BarChart data={stats?.topMarkets} layout="vertical" margin={{ left: 0, right: 16 }}>
                   <XAxis type="number" tick={{ fontSize: 11 }} />
                   <YAxis type="category" dataKey="market" tick={{ fontSize: 11 }} width={80} />
-                  <Tooltip formatter={(v) => [Number(v), "mentions"]} />
+                  <Tooltip formatter={(v) => [Number(v), "conversations"]} />
                   <Bar dataKey="count" radius={[0, 4, 4, 0]}>
                     {(stats?.topMarkets ?? []).map((_, i) => (
                       <Cell key={i} fill={[SL_GOLD, SL_TEAL, "#5B6CFA", "#4FAF7B", "#7A63D1"][i % 5]} />

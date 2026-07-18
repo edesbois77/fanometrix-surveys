@@ -96,7 +96,7 @@ export function ConversationExecutionBody() {
       <WorkspaceHeader
         back={{ href: `/research-projects/${projectId}/execution`, label: "Back to Execution" }}
         title="Conversation Searches"
-        description="Run and monitor conversation collection across markets and platforms, and watch the mentions come in."
+        description="Collect and review the conversations gathered for each search across your sources and markets."
       />
 
       {searchEvidence.length === 0 ? (

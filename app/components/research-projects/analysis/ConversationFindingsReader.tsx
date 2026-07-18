@@ -225,10 +225,10 @@ function ConversationIntelligenceBody({ search, evidenceRowId, runStatus, isSimu
             <p className="text-xs font-semibold tracking-widest uppercase mb-3" style={{ color: GOLD }}>
               Evidence Progress
             </p>
-            <h3 className="text-xl font-bold text-white mb-3">No classified mentions yet</h3>
+            <h3 className="text-xl font-bold text-white mb-3">No conversations collected yet</h3>
             <p className="text-sm text-white/60 max-w-sm mx-auto leading-relaxed">
-              This Conversation Search hasn&apos;t collected and classified any mentions yet. Once it has, Fanometrix
-              will turn them into a client-ready summary, positive drivers, key concerns, market differences and
+              This conversation search hasn&apos;t collected any conversations yet. Once it has, Fanometrix
+              turns them into your findings, positive drivers, key concerns, market differences and
               recommended actions.
             </p>
           </div>
@@ -245,7 +245,7 @@ function ConversationIntelligenceBody({ search, evidenceRowId, runStatus, isSimu
             <p className="text-sm text-white/60 max-w-sm mx-auto leading-relaxed">
               {runStatus === "generating"
                 ? "This search's simulated evidence is still being generated, check back in a moment."
-                : "Run Research for this conversation search in Research Sources before generating Intelligence."}
+                : "Run Research for this conversation search in Research Sources before generating findings."}
             </p>
           </div>
         )}
@@ -256,24 +256,24 @@ function ConversationIntelligenceBody({ search, evidenceRowId, runStatus, isSimu
               Conversation Intelligence
             </p>
             <h3 className="text-lg font-bold text-white mb-3">
-              Generate client-ready intelligence from {search.mention_count.toLocaleString()} classified mentions
+              Generate findings from {search.mention_count.toLocaleString()} conversations analysed
             </h3>
             <p className="text-sm text-white/60 max-w-sm mx-auto leading-relaxed mb-6">
-              Fanometrix analyses every classified mention and produces a structured summary: positive drivers, key
+              Fanometrix reviews the collected conversations and produces your findings: positive drivers, key
               concerns, market differences and recommended actions, written for brands, clubs and agencies.
             </p>
             <button onClick={() => generate(false)}
               className="text-sm font-semibold px-6 py-3 rounded-xl"
               style={{ background: GOLD, color: NAVY }}>
-              Generate Intelligence →
+              Generate Findings →
             </button>
           </div>
         )}
 
         {showGenerating && (
           <GeneratingProgress
-            label={`Analysing ${search.name} mentions…`}
-            sublabel="Reviewing the captured mentions to generate client-ready intelligence"
+            label={`Analysing ${search.name}…`}
+            sublabel="Reviewing the collected evidence to generate your findings"
             estimatedSeconds={20}
           />
         )}
@@ -289,7 +289,7 @@ function ConversationIntelligenceBody({ search, evidenceRowId, runStatus, isSimu
 
             <ReportHero
               variant="flat"
-              kicker={`${current.mention_count.toLocaleString()} mentions · ${new Date(row.generated_at).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}`}
+              kicker={`${current.mention_count.toLocaleString()} conversations · ${new Date(row.generated_at).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}`}
               headline={editing && draft ? draft.headline : current.headline}
               editing={editing && !!draft}
               onHeadlineChange={v => draft && setDraft({ ...draft, headline: v })}
@@ -311,7 +311,7 @@ function ConversationIntelligenceBody({ search, evidenceRowId, runStatus, isSimu
                 <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-widest mb-2">Sources</p>
                 <div className="flex flex-wrap gap-x-6 gap-y-1.5 text-xs text-gray-600">
                   {current.sources_summary.platforms.length > 0 && (
-                    <span><span className="text-gray-400">Platforms </span>{current.sources_summary.platforms.join(", ")}</span>
+                    <span><span className="text-gray-400">Sources </span>{current.sources_summary.platforms.join(", ")}</span>
                   )}
                   {current.sources_summary.markets.length > 0 && (
                     <span><span className="text-gray-400">Markets </span>{current.sources_summary.markets.join(", ")}</span>
