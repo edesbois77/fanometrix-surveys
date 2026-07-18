@@ -142,19 +142,25 @@ export function ConversationSearchExecutionBody({ searchEvidenceId }: { searchEv
     const json = await res.json().catch(() => ({}));
     setRunning(false);
     if (!res.ok) { showToast(json.error ?? "Collection failed.", false); return; }
-    const byKind = (json.stats?.by_kind ?? {}) as Record<string, number>;
-    const parts = [
-      byKind.video ? `${byKind.video} video${byKind.video === 1 ? "" : "s"}` : null,
-      byKind.comment ? `${byKind.comment} comment${byKind.comment === 1 ? "" : "s"}` : null,
-      byKind.post ? `${byKind.post} post${byKind.post === 1 ? "" : "s"}` : null,
-    ].filter(Boolean);
-    const detail = parts.length ? parts.join(", ") : `${json.inserted ?? 0} items`;
-    // Stage 2 outcome — how many candidates the relevance classifier kept.
-    const relevant = json.stats?.relevant;
-    const relDetail = typeof relevant === "number" ? ` · ${relevant.toLocaleString()} relevant to the research question` : "";
-    showToast(`${json.status === "partial" ? "Collected (partial): " : "Collected "}${detail}${relDetail}.`, json.status !== "failed");
-    const conversations = (byKind.comment ?? 0) + (byKind.post ?? 0);
-    if (json.status !== "failed") setLastResult({ conversations, status: json.status });
+    // Append-only: a run imports only genuinely new evidence and re-observes the
+    // rest, so report what was ADDED, not what was matched.
+    const stats = (json.stats ?? {}) as { by_kind?: Record<string, number>; new_count?: number; duplicate_count?: number; relevant?: number };
+    const byKind = stats.by_kind ?? {};
+    const newCount = typeof stats.new_count === "number" ? stats.new_count : (byKind.comment ?? 0) + (byKind.post ?? 0);
+    const duplicates = stats.duplicate_count ?? 0;
+    const relDetail = typeof stats.relevant === "number" && newCount > 0 ? ` · ${stats.relevant.toLocaleString()} relevant to the research question` : "";
+    if (newCount === 0) {
+      showToast(duplicates > 0 ? `No new conversations — ${duplicates.toLocaleString()} already in your evidence base.` : "No new conversations found for this scope.", true);
+    } else {
+      const parts = [
+        byKind.video ? `${byKind.video} video${byKind.video === 1 ? "" : "s"}` : null,
+        byKind.comment ? `${byKind.comment} comment${byKind.comment === 1 ? "" : "s"}` : null,
+        byKind.post ? `${byKind.post} post${byKind.post === 1 ? "" : "s"}` : null,
+      ].filter(Boolean);
+      const detail = parts.length ? parts.join(", ") : `${newCount} item${newCount === 1 ? "" : "s"}`;
+      showToast(`Added ${detail}${relDetail}.`, json.status !== "failed");
+    }
+    if (json.status !== "failed" && newCount > 0) setLastResult({ conversations: newCount, status: json.status });
     setRunsVersion(v => v + 1);
     load();
   }
@@ -179,7 +185,7 @@ export function ConversationSearchExecutionBody({ searchEvidenceId }: { searchEv
             <div className="flex-1 min-w-0">
               <p className="text-sm font-bold" style={{ color: "var(--accent-ink)" }}>Collection complete</p>
               <p className="text-xs mt-0.5" style={{ color: "var(--text-secondary)" }}>
-                {lastResult.conversations.toLocaleString()} conversation{lastResult.conversations === 1 ? "" : "s"} collected. Review them in Dashboard, then generate your findings.
+{lastResult.conversations.toLocaleString()} new conversation{lastResult.conversations === 1 ? "" : "s"} added to your evidence base. Review them in Dashboard, then generate your findings.
               </p>
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
@@ -242,7 +248,7 @@ export function ConversationSearchExecutionBody({ searchEvidenceId }: { searchEv
           <Card padding="md">
             <p className="text-[10px] font-semibold uppercase tracking-[0.07em]" style={{ color: "var(--text-tertiary)" }}>Last Collection</p>
             <p className="text-[26px] font-bold mt-1.5 leading-none fx-tabular-nums" style={{ color: "var(--text-primary)" }}>
-              {cs.mention_count.toLocaleString()}
+              {cs.new_count.toLocaleString()}
               <span className="text-sm font-medium ml-1.5" style={{ color: "var(--text-tertiary)" }}>new conversations</span>
             </p>
             <p className="text-xs mt-2" style={{ color: "var(--text-secondary)" }}>

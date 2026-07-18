@@ -3,7 +3,21 @@ import { requireUser } from "@/lib/auth-server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { getProjectSocialSearchIds } from "@/lib/research-sources/project-searches";
 
-const EMPTY_STATS = { total: 0, positive_pct: 0, neutral_pct: 0, negative_pct: 0, topTopics: [], topPlatforms: [], topMarkets: [] };
+const EMPTY_STATS = {
+  total: 0, classified: 0, undetermined: 0,
+  positive: 0, neutral: 0, negative: 0,
+  positive_pct: 0, neutral_pct: 0, negative_pct: 0,
+  topTopics: [], topPlatforms: [], topMarkets: [],
+};
+
+// Videos/trends are containers and signals, not opinions — the conversation is
+// the comment/post/article. They're excluded from the conversation stats, same
+// as the collection run's own by_sentiment rollup.
+const NON_CONVERSATION = new Set(["video", "trend"]);
+// A conversation is "included in the sentiment analysis" only if the classifier
+// gave it a determinate sentiment. "Unknown"/null is undetermined, not a fourth
+// slice — so it's excluded from the split's denominator and reported separately.
+const DETERMINATE = new Set(["Positive", "Neutral", "Negative"]);
 
 export async function GET(req: NextRequest) {
   try { await requireUser(req, ["admin"]); } catch (err) { return err as Response; }
@@ -14,7 +28,7 @@ export async function GET(req: NextRequest) {
   // endpoint is platform-wide, exactly as before.
   const projectId = req.nextUrl.searchParams.get("research_project_id");
 
-  let q = supabaseAdmin.from("social_mentions").select("sentiment, topic, platform, market, published_at, content");
+  let q = supabaseAdmin.from("social_mentions").select("sentiment, topic, platform, market, content_kind");
   if (searchId) {
     q = q.eq("search_id", searchId);
   } else if (projectId) {
@@ -23,48 +37,39 @@ export async function GET(req: NextRequest) {
     q = q.in("search_id", ids);
   }
 
-  const { data: mentions, error } = await q;
+  const { data: rows, error } = await q;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  const total    = mentions?.length ?? 0;
-  const positive = mentions?.filter(m => m.sentiment === "Positive").length ?? 0;
-  const neutral  = mentions?.filter(m => m.sentiment === "Neutral").length  ?? 0;
-  const negative = mentions?.filter(m => m.sentiment === "Negative").length ?? 0;
+  // The stats describe conversations (opinions), so drop container/signal rows.
+  const conversations = (rows ?? []).filter(m => !(m.content_kind && NON_CONVERSATION.has(m.content_kind)));
 
-  // Top topics
-  const topicCounts: Record<string, number> = {};
-  for (const m of mentions ?? []) {
-    if (m.topic) topicCounts[m.topic] = (topicCounts[m.topic] ?? 0) + 1;
-  }
-  const topTopics = Object.entries(topicCounts)
-    .sort((a, b) => b[1] - a[1]).slice(0, 5)
-    .map(([topic, count]) => ({ topic, count }));
+  const total     = conversations.length;
+  const positive  = conversations.filter(m => m.sentiment === "Positive").length;
+  const neutral   = conversations.filter(m => m.sentiment === "Neutral").length;
+  const negative  = conversations.filter(m => m.sentiment === "Negative").length;
+  // The denominator for the split is ONLY conversations the classifier could
+  // place — so positive/neutral/negative always sum to 100%.
+  const classified   = positive + neutral + negative;
+  const undetermined = conversations.filter(m => !(m.sentiment && DETERMINATE.has(m.sentiment))).length;
+  const pct = (n: number) => (classified ? Math.round((n / classified) * 100) : 0);
 
-  // Top platforms
-  const platformCounts: Record<string, number> = {};
-  for (const m of mentions ?? []) {
-    const p = m.platform || "Unknown";
-    platformCounts[p] = (platformCounts[p] ?? 0) + 1;
-  }
-  const topPlatforms = Object.entries(platformCounts)
-    .sort((a, b) => b[1] - a[1]).slice(0, 5)
-    .map(([platform, count]) => ({ platform, count }));
-
-  // Top markets
-  const marketCounts: Record<string, number> = {};
-  for (const m of mentions ?? []) {
-    const mk = m.market || "Unknown";
-    marketCounts[mk] = (marketCounts[mk] ?? 0) + 1;
-  }
-  const topMarkets = Object.entries(marketCounts)
-    .sort((a, b) => b[1] - a[1]).slice(0, 5)
-    .map(([market, count]) => ({ market, count }));
+  const topN = (key: "topic" | "platform" | "market", fallbackUnknown: boolean) => {
+    const counts: Record<string, number> = {};
+    for (const m of conversations) {
+      const v = m[key] || (fallbackUnknown ? "Unknown" : null);
+      if (v) counts[v] = (counts[v] ?? 0) + 1;
+    }
+    return Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 5);
+  };
 
   return NextResponse.json({
-    total,
-    positive_pct: total ? Math.round((positive / total) * 100) : 0,
-    neutral_pct:  total ? Math.round((neutral  / total) * 100) : 0,
-    negative_pct: total ? Math.round((negative / total) * 100) : 0,
-    topTopics, topPlatforms, topMarkets,
+    total, classified, undetermined,
+    positive, neutral, negative,
+    positive_pct: pct(positive),
+    neutral_pct:  pct(neutral),
+    negative_pct: pct(negative),
+    topTopics:    topN("topic", false).map(([topic, count]) => ({ topic, count })),
+    topPlatforms: topN("platform", true).map(([platform, count]) => ({ platform, count })),
+    topMarkets:   topN("market", true).map(([market, count]) => ({ market, count })),
   });
 }

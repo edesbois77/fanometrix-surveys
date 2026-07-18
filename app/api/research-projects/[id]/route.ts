@@ -262,6 +262,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       latest_run_status: live?.latest_run_status ?? null,
       last_collected_at: live?.last_collected_at ?? s.reddit_last_collected_at ?? null,
       run_count: live?.run_count ?? 0,
+      new_count: live?.new_count ?? 0,
       video_count: live?.video_count ?? 0,
       comment_count: live?.comment_count ?? 0,
       by_kind: live?.by_kind ?? {},

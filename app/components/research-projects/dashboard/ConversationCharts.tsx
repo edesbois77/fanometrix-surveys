@@ -12,8 +12,11 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recha
 import { GOLD, SENTIMENT, CHART_INK, ChartContainer, Card } from "@/app/components/workspace-ui";
 
 export type ConversationStats = {
-  total: number;
-  positive_pct: number; neutral_pct: number; negative_pct: number;
+  total: number;                              // conversations analysed (excludes video/trend containers)
+  classified?: number;                        // conversations with a determined sentiment — the split's denominator
+  undetermined?: number;                      // conversations the classifier couldn't place (excluded from the split)
+  positive?: number; neutral?: number; negative?: number;  // absolute counts
+  positive_pct: number; neutral_pct: number; negative_pct: number;  // over `classified`, so they sum to 100
   topTopics:    { topic: string; count: number }[];
   topPlatforms: { platform: string; count: number }[];
   topMarkets:   { market: string; count: number }[];
@@ -82,18 +85,29 @@ export function ConversationCharts({ stats, loading, emptyState, totalLabel = "C
   totalLabel?: string;
 }) {
   const total = stats?.total ?? 0;
+  const classified = stats?.classified ?? 0;
+  const undetermined = stats?.undetermined ?? 0;
   const direction = sentimentDirection(stats?.positive_pct ?? 0, stats?.negative_pct ?? 0);
   const dash = loading ? "—" : undefined;
 
   return (
     <>
-      {/* KPI row — white cards, navy total, muted sentiment ink. No colour borders. */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+      {/* KPI row — absolute counts (no percentages here). The three sentiment
+          counts sum to the "classified" conversations; the split's proportions
+          live in the Overall Sentiment chart, so the denominator is never
+          ambiguous. White cards, muted sentiment ink, no colour borders. */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-2">
         <Kpi label={totalLabel} value={dash ?? total.toLocaleString()} />
-        <Kpi label="Positive" value={dash ?? `${stats?.positive_pct ?? 0}%`} tone={SENTIMENT.positive.ink} />
-        <Kpi label="Neutral"  value={dash ?? `${stats?.neutral_pct  ?? 0}%`} tone={SENTIMENT.neutral.ink} />
-        <Kpi label="Negative" value={dash ?? `${stats?.negative_pct ?? 0}%`} tone={SENTIMENT.negative.ink} />
+        <Kpi label="Positive" value={dash ?? (stats?.positive ?? 0).toLocaleString()} tone={SENTIMENT.positive.ink} />
+        <Kpi label="Neutral"  value={dash ?? (stats?.neutral  ?? 0).toLocaleString()} tone={SENTIMENT.neutral.ink} />
+        <Kpi label="Negative" value={dash ?? (stats?.negative ?? 0).toLocaleString()} tone={SENTIMENT.negative.ink} />
       </div>
+      {!loading && undetermined > 0 && (
+        <p className="text-[11px] mb-6" style={{ color: "var(--text-tertiary)" }}>
+          Sentiment is shown for the {classified.toLocaleString()} conversation{classified === 1 ? "" : "s"} the classifier could place. {undetermined.toLocaleString()} further conversation{undetermined === 1 ? " was" : "s were"} collected but couldn&apos;t be classified for sentiment, and {undetermined === 1 ? "is" : "are"} excluded from the split below.
+        </p>
+      )}
+      {(loading || undetermined === 0) && <div className="mb-6" />}
 
       {total === 0 ? emptyState : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -109,15 +123,19 @@ export function ConversationCharts({ stats, loading, emptyState, totalLabel = "C
             <EvidenceBars title="By Market" data={(stats?.topMarkets ?? []).map(m => ({ name: m.market, count: m.count }))} dataKey="count" categoryWidth={90} loading={loading} />
           )}
 
-          {/* Sentiment — the one place colour is allowed, in muted tones. */}
+          {/* Sentiment — the one place colour is allowed, in muted tones. The
+              proportional split lives here (KPIs above are counts). */}
           <Card padding="md">
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center justify-between mb-1">
               <h3 className="text-sm font-bold" style={{ color: "var(--text-primary)" }}>Overall Sentiment</h3>
               <span className="inline-flex items-center gap-1.5 text-xs font-semibold" style={{ color: direction.color }}>
                 <span className="w-1.5 h-1.5 rounded-full" style={{ background: direction.color }} aria-hidden />
                 {direction.label}
               </span>
             </div>
+            <p className="text-[11px] mb-4" style={{ color: "var(--text-tertiary)" }}>
+              Share of the {classified.toLocaleString()} classified conversation{classified === 1 ? "" : "s"}{undetermined > 0 ? ` · ${undetermined.toLocaleString()} undetermined excluded` : ""}
+            </p>
             <div className="space-y-3">
               {[
                 { label: "Positive", pct: stats?.positive_pct ?? 0, color: SENTIMENT.positive.fill },

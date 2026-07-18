@@ -65,6 +65,13 @@ function RunCard({ run }: { run: Run }) {
   const cfg = run.config ?? {};
 
   const conversations = conversationCount(byKind);
+  // Append-only ledger: what this run added to the evidence base. Legacy runs
+  // (pre-migration 118) have no new_count — fall back to the old "collected" view.
+  const hasLedger = typeof stats.new_count === "number";
+  const newCount = num(stats.new_count);
+  const updatedCount = num(stats.updated_count);
+  const duplicateCount = num(stats.duplicate_count);
+  const totalAfter = typeof stats.total_after === "number" ? (stats.total_after as number) : null;
   const sentTotal = num(bySent.Positive) + num(bySent.Neutral) + num(bySent.Negative);
   const pct = (v: number) => (sentTotal ? Math.round((v / sentTotal) * 100) : 0);
   const topTopics = Object.entries(byTopic).sort((a, b) => b[1] - a[1]).slice(0, 4);
@@ -80,10 +87,21 @@ function RunCard({ run }: { run: Run }) {
         <span className="ml-auto text-[11px] font-medium" style={{ color: "var(--text-tertiary)" }}>{run.connectors.join(" · ") || "—"}</span>
       </div>
 
-      {/* Totals — generic per-content-kind breakdown */}
+      {/* Ledger — what this run added to the evidence base (append-only). */}
       <div className="flex flex-wrap gap-x-5 gap-y-1 mt-2.5 text-xs" style={{ color: "var(--text-secondary)" }}>
-        <span><span className="font-semibold" style={{ color: "var(--text-primary)" }}>{collectionBreakdown(byKind)}</span></span>
-        <span><span className="font-bold fx-tabular-nums" style={{ color: "var(--text-primary)" }}>{conversations.toLocaleString()}</span> conversations analysed</span>
+        {hasLedger ? (
+          <>
+            <span><span className="font-bold fx-tabular-nums" style={{ color: "var(--text-primary)" }}>{newCount.toLocaleString()}</span> new{collectionBreakdown(byKind) && newCount > 0 ? ` · ${collectionBreakdown(byKind)}` : ""}</span>
+            {updatedCount > 0 && <span><span className="fx-tabular-nums font-semibold" style={{ color: "var(--text-primary)" }}>{updatedCount.toLocaleString()}</span> updated</span>}
+            {duplicateCount > 0 && <span><span className="fx-tabular-nums">{duplicateCount.toLocaleString()}</span> already collected</span>}
+            {totalAfter != null && <span>Total evidence <span className="font-bold fx-tabular-nums" style={{ color: "var(--text-primary)" }}>{totalAfter.toLocaleString()}</span></span>}
+          </>
+        ) : (
+          <>
+            <span><span className="font-semibold" style={{ color: "var(--text-primary)" }}>{collectionBreakdown(byKind)}</span></span>
+            <span><span className="font-bold fx-tabular-nums" style={{ color: "var(--text-primary)" }}>{conversations.toLocaleString()}</span> conversations</span>
+          </>
+        )}
       </div>
 
       {/* Sentiment summary */}

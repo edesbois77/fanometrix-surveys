@@ -31,9 +31,10 @@ export type ConversationSearchEvidence = {
   latest_run_status: "running" | "completed" | "partial" | "failed" | null;
   last_collected_at: string | null;
   run_count: number;
+  new_count: number;                 // conversations the most recent run added to the base
   video_count: number; comment_count: number;
   by_kind: Record<string, number>;   // generic per-content-kind counts (video/comment/article/…)
-  mention_count: number;
+  mention_count: number;             // cumulative unique conversations in the base
   positive_pct: number; neutral_pct: number; negative_pct: number;
   summary_status: "draft" | "edited" | "approved" | "published" | null;
   generated_at: string | null;

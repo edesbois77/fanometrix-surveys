@@ -169,17 +169,40 @@ export async function runCollection(opts: {
     return true;
   });
 
-  // ── Stage 2: classify + judge relevance to the Research Question.
+  // ── Diff against the append-only evidence base ────────────────────────────
+  // A Conversation Search owns ONE evidence base (docs/evidence-lifecycle.md).
+  // This run imports only genuinely NEW items and re-observes the rest — it
+  // never re-imports or re-classifies evidence already in the base.
+  const { data: existingRows } = await supabaseAdmin
+    .from("social_mentions")
+    .select("id, connector, external_id")
+    .eq("search_id", search.id)
+    .not("external_id", "is", null);
+  const idByKey = new Map<string, string>();
+  for (const r of (existingRows ?? []) as { id: string; connector: string | null; external_id: string | null }[]) {
+    idByKey.set(`${r.connector}:${r.external_id}`, r.id);
+  }
+
+  const newItems: typeof unique = [];
+  const reobservedIds = new Set<string>();   // existing base rows seen again this run
+  for (const c of unique) {
+    const existingId = c.item.external_id ? idByKey.get(`${c.connectorId}:${c.item.external_id}`) : undefined;
+    if (existingId) reobservedIds.add(existingId);
+    else newItems.push(c);   // no external_id → cannot dedup → treated as new
+  }
+
+  // ── Stage 2: classify ONLY new items, then append them to the base.
   // (sentiment/topic + entities/relevance/rationale/confidence). Store
   // EVERYTHING — relevance decides what SURFACES later, never what is kept.
   const classifyCtx = { keywords, entityType: search.entity_type ?? undefined, researchGoal: search.research_goal ?? undefined, researchQuestion: researchQuestion ?? undefined };
-  const rows: Record<string, unknown>[] = new Array(unique.length);
-  for (let i = 0; i < unique.length; i += CLASSIFY_CONCURRENCY) {
-    const slice = unique.slice(i, i + CLASSIFY_CONCURRENCY);
+  const rows: Record<string, unknown>[] = new Array(newItems.length);
+  for (let i = 0; i < newItems.length; i += CLASSIFY_CONCURRENCY) {
+    const slice = newItems.slice(i, i + CLASSIFY_CONCURRENCY);
     await Promise.all(slice.map(async ({ connectorId, platform, item }, j) => {
       const c = item.content.trim() ? await classifyContent(item.content, classifyCtx) : null;
       rows[i + j] = {
         search_id: search.id, collection_run_id: runId, collected_at: startedAt,
+        first_seen_at: startedAt, first_seen_run_id: runId, last_seen_at: startedAt, last_seen_run_id: runId,
         connector: connectorId, platform, content_kind: item.content_kind,
         external_id: item.external_id, parent_external_id: item.parent_external_id,
         author: item.author, source_url: item.source_url, content: item.content,
@@ -194,52 +217,77 @@ export async function runCollection(opts: {
     }));
   }
 
-  // ── Insert (chunked) ─────────────────────────────────────────────────────
+  // ── Append new base rows (chunked), capturing their ids for observations ──
   let inserted = 0;
+  const newIds: string[] = [];
   for (let i = 0; i < rows.length; i += 100) {
     const chunk = rows.slice(i, i + 100);
-    const { error: insErr } = await supabaseAdmin.from("social_mentions").insert(chunk);
+    const { data, error: insErr } = await supabaseAdmin.from("social_mentions").insert(chunk).select("id");
     if (insErr) warnings.push(`Insert error: ${insErr.message}`);
-    else inserted += chunk.length;
+    else { inserted += chunk.length; for (const d of (data ?? []) as { id: string }[]) newIds.push(d.id); }
   }
 
-  // ── Snapshot stats + status ──────────────────────────────────────────────
+  // ── Re-observe existing rows: refresh last_seen (append-only, never re-import).
+  const reobserved = [...reobservedIds];
+  for (let i = 0; i < reobserved.length; i += 200) {
+    await supabaseAdmin.from("social_mentions")
+      .update({ last_seen_at: startedAt, last_seen_run_id: runId })
+      .in("id", reobserved.slice(i, i + 200));
+  }
+
+  // ── Observations ledger: one row per item ENCOUNTERED this run (new + re-seen).
+  const observations = [...newIds, ...reobserved].map(id => ({ mention_id: id, collection_run_id: runId, search_id: search.id, observed_at: startedAt }));
+  for (let i = 0; i < observations.length; i += 100) {
+    await supabaseAdmin.from("evidence_observations")
+      .upsert(observations.slice(i, i + 100), { onConflict: "mention_id,collection_run_id", ignoreDuplicates: true });
+  }
+
+  // ── Cumulative base size after this run (the "total evidence" figure). ─────
+  const { count: totalAfter } = await supabaseAdmin
+    .from("social_mentions").select("id", { count: "exact", head: true }).eq("search_id", search.id);
+
+  // ── Ledger stats — describe what this run ADDED (by_kind over new items). ──
   const byKind: Record<string, number> = {};
   const bySentiment: Record<string, number> = {};
   const byTopic: Record<string, number> = {};
   const entityCounts: Record<string, number> = {};
-  // Stage-2 outcome: judged-relevant vs. judged-low-relevance (unscored items —
-  // e.g. the fallback classifier — count as neither; they're never hidden).
   let relevant = 0, lowRelevance = 0;
   for (const r of rows) {
     const rs = r.relevance_score;
-    if (typeof rs === "number") {
-      if (Math.round(rs * 100) >= threshold) relevant++; else lowRelevance++;
-    }
+    if (typeof rs === "number") { if (Math.round(rs * 100) >= threshold) relevant++; else lowRelevance++; }
     byKind[String(r.content_kind)] = (byKind[String(r.content_kind)] ?? 0) + 1;
-    // AI-output rollups describe the conversation (comments/posts) — a video
-    // title isn't a fan opinion, so videos are excluded from these mixes.
     if (r.content_kind !== "video") {
       if (r.sentiment) bySentiment[String(r.sentiment)] = (bySentiment[String(r.sentiment)] ?? 0) + 1;
       if (r.topic) byTopic[String(r.topic)] = (byTopic[String(r.topic)] ?? 0) + 1;
       if (Array.isArray(r.entities)) {
-        for (const e of r.entities as { name?: string }[]) {
-          if (e?.name) entityCounts[e.name] = (entityCounts[e.name] ?? 0) + 1;
-        }
+        for (const e of r.entities as { name?: string }[]) { if (e?.name) entityCounts[e.name] = (entityCounts[e.name] ?? 0) + 1; }
       }
     }
   }
   const topEntities = Object.entries(entityCounts).sort((a, b) => b[1] - a[1]).slice(0, 10).map(([name, count]) => ({ name, count }));
-  const status: RunCollectionResult["status"] =
-    inserted === 0 ? "failed" : (fatalCount > 0 || warnings.length > 0) ? "partial" : "completed";
 
-  await finalise(status, inserted, { by_kind: byKind, by_sentiment: bySentiment, by_topic: byTopic, top_entities: topEntities, collected: unique.length, relevant, low_relevance: lowRelevance, relevance_threshold: threshold });
+  // A run that collected items but added nothing new is COMPLETE (nothing new),
+  // never "failed". Failure is reserved for a run that collected nothing at all
+  // because every connector errored.
+  const newCount = inserted;
+  const duplicateCount = reobserved.length;
+  const updatedCount = 0;  // metadata refresh is connector-gated — none support deltas yet
+  const status: RunCollectionResult["status"] =
+    collected.length === 0 && fatalCount > 0 ? "failed"
+    : (fatalCount > 0 || warnings.length > 0) ? "partial" : "completed";
+
+  const ledger = {
+    new_count: newCount, updated_count: updatedCount, duplicate_count: duplicateCount, total_after: totalAfter ?? null,
+    by_kind: byKind, by_sentiment: bySentiment, by_topic: byTopic, top_entities: topEntities,
+    matched: unique.length, relevant, low_relevance: lowRelevance, relevance_threshold: threshold,
+  };
+  await finalise(status, newCount, ledger);
 
   return {
-    runId, status, inserted,
+    runId, status, inserted: newCount,
     connectorsRun: runnable.map(c => c.id),
-    stats: { inserted, by_kind: byKind, by_sentiment: bySentiment, relevant, low_relevance: lowRelevance, relevance_threshold: threshold, connectors: connectorStats },
+    stats: { new_count: newCount, updated_count: updatedCount, duplicate_count: duplicateCount, total_after: totalAfter ?? null, by_kind: byKind, by_sentiment: bySentiment, relevant, low_relevance: lowRelevance, relevance_threshold: threshold, connectors: connectorStats },
     warnings,
-    error: inserted === 0 ? (warnings[0] ?? "No items collected") : undefined,
+    error: collected.length === 0 && fatalCount > 0 ? (warnings[0] ?? "No items collected") : undefined,
   };
 }
