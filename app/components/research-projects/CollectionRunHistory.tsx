@@ -43,6 +43,16 @@ function Chips({ label, values }: { label: string; values: string[] }) {
   );
 }
 
+function SnapshotFacts({ label, items }: { label: string; items: string[] }) {
+  if (!items.length) return null;
+  return (
+    <div>
+      <p className="text-[10px] font-semibold uppercase tracking-[0.06em] mb-1" style={{ color: "var(--text-tertiary)" }}>{label}</p>
+      <p className="text-xs leading-relaxed" style={{ color: "var(--text-secondary)" }}>{items.join(" · ")}</p>
+    </div>
+  );
+}
+
 function RunCard({ run }: { run: Run }) {
   const [open, setOpen] = useState(false);
   const stats = run.stats ?? {};
@@ -53,86 +63,86 @@ function RunCard({ run }: { run: Run }) {
   const connectorStats = (stats.connectors ?? {}) as Record<string, Record<string, unknown>>;
   const cfg = run.config ?? {};
 
-  const totals = Object.entries(byKind).filter(([, n]) => n > 0).map(([k, n]) => `${n} ${k}${n === 1 ? "" : "s"}`).join(" · ") || "no items";
+  const videos = num(byKind.video);
+  const mentions = num(byKind.comment) + num(byKind.post);
   const sentTotal = num(bySent.Positive) + num(bySent.Neutral) + num(bySent.Negative);
   const pct = (v: number) => (sentTotal ? Math.round((v / sentTotal) * 100) : 0);
-  const topTopics = Object.entries(byTopic).sort((a, b) => b[1] - a[1]).slice(0, 5);
+  const topTopics = Object.entries(byTopic).sort((a, b) => b[1] - a[1]).slice(0, 4);
+
+  const hasDetails = (run.warnings?.length ?? 0) > 0 || !!run.error || ((cfg.keywords as string[])?.length ?? 0) > 0;
 
   return (
-    <div className="border overflow-hidden" style={{ borderRadius: "var(--radius-panel)", borderColor: "var(--border-default)", background: "var(--surface)" }}>
-      <button type="button" onClick={() => setOpen(o => !o)} className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-[var(--surface-hover)]">
+    <div className="border p-4" style={{ borderRadius: "var(--radius-panel)", borderColor: "var(--border-default)", background: "var(--surface)" }}>
+      {/* Snapshot header — date · status · platforms */}
+      <div className="flex items-center gap-2.5 flex-wrap">
         <StatusBadge label={STATUS_LABEL[run.status]} tone={STATUS_TONE[run.status]} dot size="sm" />
-        <span className="text-xs font-semibold fx-tabular-nums" style={{ color: "var(--text-primary)" }}>{fmt(run.started_at)}</span>
-        <span className="text-[11px] hidden sm:inline" style={{ color: "var(--text-tertiary)" }}>{run.connectors.join(" · ")}</span>
-        <span className="ml-auto text-[11px] fx-tabular-nums" style={{ color: "var(--text-secondary)" }}>{totals}</span>
-        <span className="text-xs" style={{ color: "var(--text-tertiary)" }}>{open ? "▲" : "▼"}</span>
-      </button>
+        <span className="text-sm font-semibold fx-tabular-nums" style={{ color: "var(--text-primary)" }}>{fmt(run.started_at)}</span>
+        <span className="ml-auto text-[11px] font-medium" style={{ color: "var(--text-tertiary)" }}>{run.connectors.join(" · ") || "—"}</span>
+      </div>
 
-      {open && (
-        <div className="px-4 py-3 border-t space-y-4" style={{ borderColor: "var(--border-subtle)", background: "var(--surface-sunken)" }}>
-          {run.error && <p className="text-xs" style={{ color: "#B4694C" }}>{run.error}</p>}
+      {/* Totals */}
+      <div className="flex flex-wrap gap-x-5 gap-y-1 mt-2.5 text-xs" style={{ color: "var(--text-secondary)" }}>
+        <span><span className="font-bold fx-tabular-nums" style={{ color: "var(--text-primary)" }}>{videos.toLocaleString()}</span> videos collected</span>
+        <span><span className="font-bold fx-tabular-nums" style={{ color: "var(--text-primary)" }}>{mentions.toLocaleString()}</span> mentions collected</span>
+      </div>
 
-          {/* Configuration snapshot */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <Chips label="Keywords" values={(cfg.keywords as string[]) ?? []} />
-            <Chips label="Markets" values={(cfg.markets as string[]) ?? []} />
-            <Chips label="Languages" values={(cfg.languages as string[]) ?? []} />
-            <div>
-              <p className="text-[10px] font-semibold uppercase tracking-[0.06em] mb-1" style={{ color: "var(--text-tertiary)" }}>Window</p>
-              <p className="text-[11px]" style={{ color: "var(--text-secondary)" }}>
-                {cfg.collect_from || cfg.collect_to ? `${cfg.collect_from ?? "…"} → ${cfg.collect_to ?? "…"}` : "Source defaults"}
-              </p>
-            </div>
-          </div>
+      {/* Sentiment summary */}
+      {sentTotal > 0 && (
+        <p className="text-xs mt-2 fx-tabular-nums" style={{ color: "var(--text-secondary)" }}>
+          <span className="font-semibold" style={{ color: "var(--text-tertiary)" }}>Sentiment </span>
+          {pct(num(bySent.Positive))}% positive · {pct(num(bySent.Neutral))}% neutral · {pct(num(bySent.Negative))}% negative
+        </p>
+      )}
 
-          {/* Per-connector status */}
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.06em] mb-1.5" style={{ color: "var(--text-tertiary)" }}>Connectors</p>
-            <div className="flex flex-wrap gap-2">
-              {run.connectors.map(cid => {
-                const cs = connectorStats[cid] ?? {};
-                const parts = Object.entries(cs).filter(([k, v]) => typeof v === "number" && (v as number) > 0 && k !== "warnings").map(([k, v]) => `${v} ${k}`);
-                const err = typeof cs.error === "string" ? cs.error : null;
-                return (
-                  <span key={cid} className="inline-flex items-center gap-1.5 text-[11px] px-2 py-0.5 rounded-full" style={{ background: "var(--surface)", color: err ? "#B4694C" : "var(--text-secondary)", border: "1px solid var(--border-default)" }}>
-                    <span className="font-semibold">{cid}</span>{err ? `· ${err}` : parts.length ? `· ${parts.join(", ")}` : "· no items"}
-                  </span>
-                );
-              })}
-            </div>
-          </div>
+      {/* Top topics & entities — the scannable research signal */}
+      {(topTopics.length > 0 || topEntities.length > 0) && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3 pt-3 border-t" style={{ borderColor: "var(--border-subtle)" }}>
+          <SnapshotFacts label="Top topics" items={topTopics.map(([t, n]) => `${t} (${n})`)} />
+          <SnapshotFacts label="Top entities" items={topEntities.slice(0, 6).map(e => `${e.name} (${e.count})`)} />
+        </div>
+      )}
 
-          {/* AI-output rollups */}
-          {sentTotal > 0 && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <p className="text-[10px] font-semibold uppercase tracking-[0.06em] mb-1.5" style={{ color: "var(--text-tertiary)" }}>Sentiment</p>
-                <p className="text-[11px] fx-tabular-nums" style={{ color: "var(--text-secondary)" }}>
-                  {pct(num(bySent.Positive))}% positive · {pct(num(bySent.Neutral))}% neutral · {pct(num(bySent.Negative))}% negative
-                </p>
-                {topTopics.length > 0 && (
-                  <p className="text-[11px] mt-1.5" style={{ color: "var(--text-tertiary)" }}>
-                    Top topics: {topTopics.map(([t, n]) => `${t} (${n})`).join(", ")}
+      {/* Optional details — configuration, connector status, warnings */}
+      {hasDetails && (
+        <>
+          <button type="button" onClick={() => setOpen(o => !o)} className="text-[11px] font-semibold mt-3 hover:underline" style={{ color: "var(--accent-ink)" }}>
+            {open ? "Hide details" : "Details"}
+          </button>
+          {open && (
+            <div className="mt-3 pt-3 border-t space-y-3" style={{ borderColor: "var(--border-subtle)" }}>
+              {run.error && <p className="text-xs" style={{ color: "#B4694C" }}>{run.error}</p>}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <Chips label="Keywords" values={(cfg.keywords as string[]) ?? []} />
+                <Chips label="Markets" values={(cfg.markets as string[]) ?? []} />
+                <Chips label="Languages" values={(cfg.languages as string[]) ?? []} />
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.06em] mb-1" style={{ color: "var(--text-tertiary)" }}>Window</p>
+                  <p className="text-[11px]" style={{ color: "var(--text-secondary)" }}>
+                    {cfg.collect_from || cfg.collect_to ? `${cfg.collect_from ?? "…"} → ${cfg.collect_to ?? "…"}` : "Source defaults"}
                   </p>
-                )}
+                </div>
               </div>
-              {topEntities.length > 0 && (
-                <Chips label="Top entities" values={topEntities.map(e => `${e.name} (${e.count})`)} />
+              <div className="flex flex-wrap gap-2">
+                {run.connectors.map(cid => {
+                  const cs = connectorStats[cid] ?? {};
+                  const parts = Object.entries(cs).filter(([k, v]) => typeof v === "number" && (v as number) > 0 && k !== "warnings").map(([k, v]) => `${v} ${k}`);
+                  const err = typeof cs.error === "string" ? cs.error : null;
+                  return (
+                    <span key={cid} className="inline-flex items-center gap-1.5 text-[11px] px-2 py-0.5 rounded-full" style={{ background: "var(--surface-sunken)", color: err ? "#B4694C" : "var(--text-secondary)", border: "1px solid var(--border-default)" }}>
+                      <span className="font-semibold">{cid}</span>{err ? `· ${err}` : parts.length ? `· ${parts.join(", ")}` : "· no items"}
+                    </span>
+                  );
+                })}
+              </div>
+              {run.warnings?.length > 0 && (
+                <ul className="space-y-0.5">
+                  {run.warnings.slice(0, 8).map((w, i) => <li key={i} className="text-[11px]" style={{ color: "var(--text-tertiary)" }}>• {w}</li>)}
+                  {run.warnings.length > 8 && <li className="text-[11px]" style={{ color: "var(--text-tertiary)" }}>…and {run.warnings.length - 8} more</li>}
+                </ul>
               )}
             </div>
           )}
-
-          {/* Warnings */}
-          {run.warnings?.length > 0 && (
-            <div>
-              <p className="text-[10px] font-semibold uppercase tracking-[0.06em] mb-1" style={{ color: "var(--text-tertiary)" }}>Warnings ({run.warnings.length})</p>
-              <ul className="space-y-0.5">
-                {run.warnings.slice(0, 8).map((w, i) => <li key={i} className="text-[11px]" style={{ color: "var(--text-tertiary)" }}>• {w}</li>)}
-                {run.warnings.length > 8 && <li className="text-[11px]" style={{ color: "var(--text-tertiary)" }}>…and {run.warnings.length - 8} more</li>}
-              </ul>
-            </div>
-          )}
-        </div>
+        </>
       )}
     </div>
   );

@@ -13,7 +13,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { formatRelativeTime } from "@/lib/format-relative-time";
-import { ConversationStatsView, type ConversationStats, SL_GREEN, SL_GREY, SL_RED } from "@/app/social-listening/ConversationStatsView";
+import { ConversationStatsView, type ConversationStats, SL_GOLD, SL_GREEN, SL_GREY, SL_RED } from "@/app/social-listening/ConversationStatsView";
 
 export type ConversationSearchSummary = {
   evidence_id: string;
@@ -33,6 +33,25 @@ function collectionMeta(status: string, mentions: number): { label: string; colo
   if (status === "failed") return { label: "Failed", color: SL_RED };
   if (status === "completed" || mentions > 0) return { label: "Collected", color: SL_GREY };
   return { label: "Not collected", color: SL_GREY };
+}
+
+// Research observations describe PATTERNS across the collected evidence — not
+// single comments. Derived from the same aggregates the charts use (no new
+// analysis), so they read as findings a researcher would draw.
+function researchObservations(stats: ConversationStats | null, searchesCount: number): string[] {
+  if (!stats || stats.total === 0) return [];
+  const obs: string[] = [];
+  const net = stats.positive_pct - stats.negative_pct;
+  const dir = net >= 15 ? "broadly positive" : net <= -15 ? "broadly negative" : "mixed";
+  obs.push(`${stats.total.toLocaleString()} conversations analysed across ${searchesCount} search${searchesCount === 1 ? "" : "es"}.`);
+  const topTopic = stats.topTopics?.[0];
+  if (topTopic) obs.push(`Conversations most commonly focus on ${topTopic.topic} (${topTopic.count.toLocaleString()} conversation${topTopic.count === 1 ? "" : "s"}).`);
+  obs.push(`Overall sentiment is ${dir} — ${stats.positive_pct}% positive versus ${stats.negative_pct}% negative.`);
+  const topMarket = stats.topMarkets?.[0];
+  if (topMarket && stats.topMarkets.length > 1) obs.push(`${topMarket.market} generated the highest discussion volume.`);
+  const topPlatform = stats.topPlatforms?.[0];
+  if (topPlatform) obs.push(`Most conversations were found on ${topPlatform.platform}.`);
+  return obs;
 }
 
 export function ConversationDashboardBody({ projectId, searches }: { projectId: string; searches: ConversationSearchSummary[] }) {
@@ -56,9 +75,9 @@ export function ConversationDashboardBody({ projectId, searches }: { projectId: 
   }, [projectId]);
 
   const trend = reports?.sentimentTrend ?? [];
-  const summaries = reports?.recentSummaries ?? [];
   const today = new Date().toISOString().slice(0, 10);
-  const mentionsToday = trend.find(d => d.date === today)?.total ?? 0;
+  const conversationsToday = trend.find(d => d.date === today)?.total ?? 0;
+  const observations = researchObservations(stats, searches.length);
 
   if (searches.length === 0) {
     return (
@@ -72,17 +91,18 @@ export function ConversationDashboardBody({ projectId, searches }: { projectId: 
     <div>
       <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
         <p className="text-xs text-gray-400">
-          Aggregated across {searches.length} conversation search{searches.length === 1 ? "" : "es"} attached to this project.
-          {stats && stats.total > 0 ? ` ${mentionsToday.toLocaleString()} today.` : ""}
+          Evidence from {searches.length} conversation search{searches.length === 1 ? "" : "es"} in this project.
+          {stats && stats.total > 0 ? ` ${conversationsToday.toLocaleString()} new today.` : ""}
         </p>
         <Link href="/social-listening/mentions" className="text-xs font-semibold text-gray-500 hover:text-[#D7B87A] transition-colors">
-          View underlying mentions →
+          View underlying conversations →
         </Link>
       </div>
 
       <ConversationStatsView
         stats={stats}
         loading={loading}
+        totalLabel="Conversations Analysed"
         emptyState={
           <div className="bg-white border border-gray-100 rounded-xl p-8 text-center">
             <p className="text-sm text-gray-500">No mentions collected yet. Run collection in Execution and the analytics appear here.</p>
@@ -107,14 +127,15 @@ export function ConversationDashboardBody({ projectId, searches }: { projectId: 
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-        {summaries.length > 0 && (
+        {observations.length > 0 && (
           <div className="bg-white border border-gray-100 rounded-xl p-5 shadow-sm">
-            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-4">Latest AI Observations</h3>
-            <ul className="space-y-3">
-              {summaries.slice(0, 6).map((s, i) => (
-                <li key={i} className="text-sm text-gray-600">
-                  <span className="text-xs font-semibold text-gray-400">{s.topic ?? "General"}{s.sentiment ? ` · ${s.sentiment}` : ""}</span>
-                  <p className="mt-0.5 leading-relaxed">{s.ai_summary}</p>
+            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Research Observations</h3>
+            <p className="text-[11px] text-gray-400 mb-4">Patterns across the evidence collected so far.</p>
+            <ul className="space-y-2.5">
+              {observations.map((o, i) => (
+                <li key={i} className="flex items-start gap-2 text-sm text-gray-600 leading-relaxed">
+                  <span className="mt-1.5 w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: SL_GOLD }} aria-hidden />
+                  {o}
                 </li>
               ))}
             </ul>

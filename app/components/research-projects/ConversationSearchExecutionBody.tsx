@@ -43,6 +43,16 @@ function connectorLabel(cs: ConversationSearch): string {
   return names.length ? names.join(" · ") : "no sources";
 }
 
+// A compact "health" stat for the collection summary row.
+function StatTile({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="border px-3 py-2.5" style={{ borderRadius: "var(--radius-tile)", borderColor: "var(--border-subtle)", background: "var(--surface)" }}>
+      <p className="text-[10px] font-semibold uppercase tracking-[0.06em]" style={{ color: "var(--text-tertiary)" }}>{label}</p>
+      <div className="mt-1 text-sm font-bold truncate" style={{ color: "var(--text-primary)" }}>{children}</div>
+    </div>
+  );
+}
+
 function ChipRow({ label, values }: { label: string; values: string[] }) {
   if (values.length === 0) return null;
   return (
@@ -63,6 +73,7 @@ export function ConversationSearchExecutionBody({ searchEvidenceId }: { searchEv
 
   const [running, setRunning] = useState(false);
   const [runsVersion, setRunsVersion] = useState(0);
+  const [lastResult, setLastResult] = useState<{ conversations: number; status: string } | null>(null);
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
   const showToast = useCallback((msg: string, ok = true) => {
     setToast({ msg, ok });
@@ -126,6 +137,8 @@ export function ConversationSearchExecutionBody({ searchEvidenceId }: { searchEv
     ].filter(Boolean);
     const detail = parts.length ? parts.join(", ") : `${json.inserted ?? 0} items`;
     showToast(`${json.status === "partial" ? "Collected (partial): " : "Collected "}${detail}.`, json.status !== "failed");
+    const conversations = (byKind.comment ?? 0) + (byKind.post ?? 0);
+    if (json.status !== "failed") setLastResult({ conversations, status: json.status });
     setRunsVersion(v => v + 1);
     load();
   }
@@ -144,26 +157,36 @@ export function ConversationSearchExecutionBody({ searchEvidenceId }: { searchEv
             : undefined}
         />
 
+        {/* ── Collection complete → next step is analysis ───────────────────── */}
+        {lastResult && (
+          <div className="flex items-start gap-3 px-4 py-3.5" style={{ borderRadius: "var(--radius-panel)", background: "var(--accent-wash)", border: "1px solid #ECDCB8" }}>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-bold" style={{ color: "var(--accent-ink)" }}>Collection complete</p>
+              <p className="text-xs mt-0.5" style={{ color: "var(--text-secondary)" }}>
+                {lastResult.conversations.toLocaleString()} conversation{lastResult.conversations === 1 ? "" : "s"} have been collected and classified. Your evidence is now ready for analysis.
+              </p>
+            </div>
+            <Button variant="primary" size="sm" href={`/research-projects/${projectId}/analysis`}>View Analysis →</Button>
+          </div>
+        )}
+
         {/* ── Collection ────────────────────────────────────────────────────── */}
         <Card padding="md">
           <SectionHeading
-            title="Live Collection"
-            description={`Collect the latest content from ${connectorLabel(cs)} for this search's keywords. Runs on demand — run it again to capture a fresh snapshot.`}
+            title="Collection"
+            description={`Collect the latest conversations from ${connectorLabel(cs)} for this search's keywords. Runs on demand — run it again to capture a fresh snapshot.`}
             action={<Button variant="brand" onClick={handleRunCollection} disabled={collecting}>{runLabel}</Button>}
           />
-          <div className="flex flex-wrap items-center gap-x-5 gap-y-2 mt-4">
-            <StatusBadge label={status.label} tone={status.tone} dot size="md" />
-            <span className="inline-flex items-center text-[11px] font-semibold px-2 py-0.5 rounded-full" style={{ background: "var(--surface-sunken)", color: "var(--text-secondary)", border: "1px solid var(--border-subtle)" }}>
-              Live · {connectorLabel(cs)}
-            </span>
-            <span className="text-xs fx-tabular-nums" style={{ color: "var(--text-tertiary)" }}>
-              {cs.video_count > 0 && `${cs.video_count.toLocaleString()} video${cs.video_count === 1 ? "" : "s"} · `}
-              {cs.mention_count.toLocaleString()} mention{cs.mention_count === 1 ? "" : "s"}
-            </span>
-            <span className="text-xs" style={{ color: "var(--text-tertiary)" }}>Last collected {lastCollected}</span>
+          {/* Health summary — the at-a-glance state of this search's collection */}
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-2.5 mt-4">
+            <StatTile label="Collection Status"><StatusBadge label={status.label} tone={status.tone} dot size="sm" /></StatTile>
+            <StatTile label="Platform(s)">{connectorLabel(cs)}</StatTile>
+            <StatTile label="Videos collected"><span className="fx-tabular-nums">{cs.video_count.toLocaleString()}</span></StatTile>
+            <StatTile label="Mentions collected"><span className="fx-tabular-nums">{cs.mention_count.toLocaleString()}</span></StatTile>
+            <StatTile label="Last collected"><span style={{ fontWeight: 500 }}>{lastCollected}</span></StatTile>
           </div>
           {failed && (
-            <p className="text-xs mt-2" style={{ color: "#B4694C" }}>The last collection run failed. Check the search&apos;s keywords and connector settings, then retry.</p>
+            <p className="text-xs mt-3" style={{ color: "#B4694C" }}>The last collection run failed. Check the search&apos;s keywords and connector settings, then retry.</p>
           )}
           {(cs.markets.length > 0 || cs.platforms.length > 0 || cs.keywords.length > 0) && (
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4 pt-4 border-t" style={{ borderColor: "var(--border-subtle)" }}>

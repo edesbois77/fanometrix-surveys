@@ -37,18 +37,29 @@ function KpiCard({ label, value, accent }: { label: string; value: string | numb
   );
 }
 
-export function ConversationStatsView({ stats, loading, emptyState }: {
+// Overall direction of sentiment — a research reading, not just three numbers.
+function sentimentDirection(pos: number, neg: number): { label: string; color: string } {
+  const net = pos - neg;
+  if (net >= 15) return { label: "Broadly positive", color: SL_GREEN };
+  if (net <= -15) return { label: "Broadly negative", color: SL_RED };
+  return { label: "Mixed", color: SL_GREY };
+}
+
+export function ConversationStatsView({ stats, loading, emptyState, totalLabel = "Total Mentions" }: {
   stats: ConversationStats | null;
   loading: boolean;
   emptyState: React.ReactNode;
+  /** The primary KPI's label — research hosts pass e.g. "Conversations Analysed". */
+  totalLabel?: string;
 }) {
   const total = stats?.total ?? 0;
+  const direction = sentimentDirection(stats?.positive_pct ?? 0, stats?.negative_pct ?? 0);
 
   return (
     <>
       {/* KPI row */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
-        <KpiCard label="Total Mentions" value={loading ? "—" : total.toLocaleString()} accent={total > 0 ? SL_GREEN : SL_GREY} />
+        <KpiCard label={totalLabel} value={loading ? "—" : total.toLocaleString()} accent={total > 0 ? SL_GREEN : SL_GREY} />
         <KpiCard label="Positive" value={loading ? "—" : `${stats?.positive_pct ?? 0}%`} accent={SL_GREEN} />
         <KpiCard label="Neutral"  value={loading ? "—" : `${stats?.neutral_pct  ?? 0}%`} accent={SL_GREY}  />
         <KpiCard label="Negative" value={loading ? "—" : `${stats?.negative_pct ?? 0}%`} accent={SL_RED}   />
@@ -107,7 +118,13 @@ export function ConversationStatsView({ stats, loading, emptyState }: {
 
           {/* Sentiment split */}
           <div className="bg-white border border-gray-100 rounded-xl p-5 shadow-sm">
-            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-4">Sentiment Split</h3>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Overall Sentiment</h3>
+              <span className="inline-flex items-center gap-1.5 text-xs font-semibold" style={{ color: direction.color }}>
+                <span className="w-1.5 h-1.5 rounded-full" style={{ background: direction.color }} aria-hidden />
+                {direction.label}
+              </span>
+            </div>
             <div className="space-y-3">
               {[
                 { label: "Positive", pct: stats?.positive_pct ?? 0, color: SL_GREEN },

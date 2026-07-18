@@ -109,14 +109,14 @@ export function CreateConversationSearchBody({ backHref, backLabel }: { backHref
           description="Tell us what you want to understand and where to look — Fanometrix sets the rest up for you."
         />
 
-        {/* What happens next — confidence about what you're creating */}
+        {/* How it works — confidence about what you're creating */}
         <Card padding="md">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.06em] mb-1.5" style={{ color: "var(--text-tertiary)" }}>What happens next</p>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.06em] mb-1.5" style={{ color: "var(--text-tertiary)" }}>How it works</p>
           <ul className="text-xs space-y-1" style={{ color: "var(--text-secondary)" }}>
-            <li>· Fanometrix collects conversations from the sources you pick</li>
-            <li>· AI identifies the relevant content</li>
-            <li>· Sentiment, topics and entities are analysed</li>
-            <li>· Results appear in Execution, Dashboard and Analysis</li>
+            <li>· Fanometrix collects conversations from your selected sources.</li>
+            <li>· AI identifies the conversations relevant to your research.</li>
+            <li>· Sentiment, topics and key entities are analysed.</li>
+            <li>· Findings appear automatically in Execution, Dashboard and Analysis.</li>
           </ul>
         </Card>
 
@@ -131,17 +131,17 @@ export function CreateConversationSearchBody({ backHref, backLabel }: { backHref
                 placeholder="e.g. FedEx UCL Sponsorship" />
             </div>
             <div>
-              <label className={FIELD_LABEL} style={{ color: "var(--text-secondary)" }}>What do you want to understand?</label>
+              <label className={FIELD_LABEL} style={{ color: "var(--text-secondary)" }}>Research Question</label>
               <textarea value={question} onChange={e => setQuestion(e.target.value)} onFocus={focusGold} onBlur={blurGold} rows={2}
                 className="w-full px-3 py-2 text-sm outline-none transition-colors" style={inputStyle}
-                placeholder="Your research question — e.g. How do fans perceive FedEx's UEFA Champions League sponsorship?" />
+                placeholder="e.g. How do fans perceive FedEx's UEFA Champions League sponsorship?" />
             </div>
           </div>
         </Card>
 
-        {/* 2 — Search terms */}
+        {/* 2 — Search keywords */}
         <Card>
-          <SectionHeading title="Search terms" description="The words Fanometrix will search for across every selected source." />
+          <SectionHeading title="Search Keywords" description="The keywords Fanometrix will search for across every selected source." />
           <div className="mt-5">
             <div className="flex gap-2">
               <input value={termInput} onChange={e => setTermInput(e.target.value)}
@@ -169,18 +169,18 @@ export function CreateConversationSearchBody({ backHref, backLabel }: { backHref
           <SectionHeading title="Where should we search?" />
           <div className="mt-5 space-y-5">
             <div>
-              <label className={FIELD_LABEL} style={{ color: "var(--text-secondary)" }}>Markets</label>
-              <div className="flex flex-wrap gap-1.5">
-                {MARKETS.map(m => (
-                  <FilterChip key={m.code} label={`${m.code} · ${m.label}`} selected={markets.includes(m.code)} onClick={() => setMarkets(prev => toggle(prev, m.code))} />
-                ))}
-              </div>
-            </div>
-            <div>
               <label className={FIELD_LABEL} style={{ color: "var(--text-secondary)" }}>Sources</label>
               <div className="flex flex-wrap gap-1.5">
                 {SOURCE_OPTIONS.map(s => (
                   <FilterChip key={s.id} label={s.label} selected={sources.includes(s.id)} onClick={() => setSources(prev => toggle(prev, s.id))} />
+                ))}
+              </div>
+            </div>
+            <div>
+              <label className={FIELD_LABEL} style={{ color: "var(--text-secondary)" }}>Markets</label>
+              <div className="flex flex-wrap gap-1.5">
+                {MARKETS.map(m => (
+                  <FilterChip key={m.code} label={`${m.code} · ${m.label}`} selected={markets.includes(m.code)} onClick={() => setMarkets(prev => toggle(prev, m.code))} />
                 ))}
               </div>
             </div>
