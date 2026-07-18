@@ -657,7 +657,7 @@ export default function FullResearchReportPage() {
                   const meta = current.methodology.sources.find(m => m.evidence_id === s.evidence_id);
                   const metaLine = meta
                     ? (meta.description ? meta.description : [
-                        meta.sample_size !== null ? `${meta.sample_size} ${meta.evidence_type === "survey" ? "responses" : "mentions"}` : null,
+                        meta.sample_size !== null ? `${meta.sample_size} ${meta.evidence_type === "survey" ? "responses" : "conversations"}` : null,
                         meta.publishers.length ? meta.publishers.join(", ") : null,
                         meta.countries.length ? meta.countries.join(", ") : null,
                         meta.date_range ? `${meta.date_range.from} – ${meta.date_range.to}` : null,

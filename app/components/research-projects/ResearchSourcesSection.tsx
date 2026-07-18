@@ -437,11 +437,11 @@ function ConversationSearchCard({
       status={status}
       target={mentionTarget}
       current={displayCurrent}
-      unitLabel="mention"
+      unitLabel="conversation"
       collapsed={collapsed}
       onToggleCollapse={onToggleCollapse}
       openAction={
-        <SecondaryButton href={`/social-listening/searches/${cs.evidence_id}?returnTo=${projectId}`}>
+        <SecondaryButton href={`/research-projects/${projectId}/research/conversation/${cs.evidence_id}`}>
           Open
         </SecondaryButton>
       }
@@ -454,7 +454,7 @@ function ConversationSearchCard({
           onRun={() => onRunResearch(cs.evidence_row_id)}
         />
       ) : (
-        <SecondaryButton href={`/social-listening/searches/${cs.evidence_id}?returnTo=${projectId}`}>
+        <SecondaryButton href={`/research-projects/${projectId}/execution/conversation/${cs.evidence_id}`}>
           Manage Collection →
         </SecondaryButton>
       )}

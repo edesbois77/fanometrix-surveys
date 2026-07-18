@@ -1,19 +1,22 @@
 "use client";
 
 // Dashboard › Conversation Intelligence (project) — the operational conversation
-// dashboard for one Research Project. It reuses the existing conversation
-// aggregation and charts, scoped to the project:
-//   • KPIs + Top Topics / By Platform / By Market / Sentiment split — the shared
-//     ConversationStatsView, fed by /api/social/stats?research_project_id=…
-//   • Sentiment trend + Latest AI observations — /api/social/reports?research_project_id=…
+// dashboard for one Research Project, rendered in the Fanometrix workspace
+// design language (white cards, navy typography, gold evidence, muted
+// sentiment) so it reads as part of the project, not a separate BI tool:
+//   • KPIs + Top Topics / By Source / By Market / Sentiment — ConversationCharts,
+//     fed by /api/social/stats?research_project_id=…
+//   • Sentiment trend + factual Evidence Summary — /api/social/reports?research_project_id=…
 //   • Per-search collection status — from the project's attached search evidence.
 // Both endpoints aggregate across every search attached to the project (see
-// getProjectSocialSearchIds); no aggregation is re-implemented here.
+// getProjectSocialSearchIds); no aggregation is re-implemented here. Every link
+// stays inside the Research Project — no hand-off to /social-listening/*.
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { formatRelativeTime } from "@/lib/format-relative-time";
-import { ConversationStatsView, type ConversationStats, SL_GOLD, SL_GREEN, SL_GREY, SL_RED } from "@/app/social-listening/ConversationStatsView";
+import { GOLD, SENTIMENT, CHART_INK, Card } from "@/app/components/workspace-ui";
+import { ConversationCharts, type ConversationStats } from "@/app/components/research-projects/dashboard/ConversationCharts";
 
 export type ConversationSearchSummary = {
   evidence_id: string;
@@ -29,10 +32,10 @@ type Reports = {
 };
 
 function collectionMeta(status: string, mentions: number): { label: string; color: string } {
-  if (status === "collecting") return { label: "Collecting", color: SL_GREEN };
-  if (status === "failed") return { label: "Failed", color: SL_RED };
-  if (status === "completed" || mentions > 0) return { label: "Collected", color: SL_GREY };
-  return { label: "Not collected", color: SL_GREY };
+  if (status === "collecting") return { label: "Collecting", color: SENTIMENT.positive.fill };
+  if (status === "failed") return { label: "Failed", color: SENTIMENT.negative.ink };
+  if (status === "completed" || mentions > 0) return { label: "Collected", color: "var(--text-tertiary)" };
+  return { label: "Not collected", color: "var(--text-disabled)" };
 }
 
 // A FACTUAL evidence summary — descriptive only (what/how much/where/sentiment/
@@ -82,81 +85,81 @@ export function ConversationDashboardBody({ projectId, searches }: { projectId: 
 
   if (searches.length === 0) {
     return (
-      <div className="bg-white border border-gray-100 rounded-xl p-8 text-center">
-        <p className="text-sm text-gray-500">No conversation searches attached to this project. Add one in Research.</p>
-      </div>
+      <Card padding="lg" className="text-center">
+        <p className="text-sm" style={{ color: "var(--text-tertiary)" }}>No conversation searches attached to this project. Add one in Research.</p>
+      </Card>
     );
   }
 
   return (
     <div>
       <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-        <p className="text-xs text-gray-400">
+        <p className="text-xs" style={{ color: "var(--text-tertiary)" }}>
           Evidence from {searches.length} conversation search{searches.length === 1 ? "" : "es"} in this project.
           {stats && stats.total > 0 ? ` ${conversationsToday.toLocaleString()} new today.` : ""}
         </p>
-        <Link href={`/research-projects/${projectId}/execution/conversation`} className="text-xs font-semibold text-gray-500 hover:text-[#D7B87A] transition-colors">
+        <Link href={`/research-projects/${projectId}/dashboard/conversation/evidence`} className="text-xs font-semibold transition-colors hover:underline" style={{ color: "var(--accent-ink)" }}>
           Review the conversations →
         </Link>
       </div>
 
-      <ConversationStatsView
+      <ConversationCharts
         stats={stats}
         loading={loading}
         totalLabel="Conversations Analysed"
         emptyState={
-          <div className="bg-white border border-gray-100 rounded-xl p-8 text-center">
-            <p className="text-sm text-gray-500">No mentions collected yet. Run collection in Execution and the analytics appear here.</p>
-          </div>
+          <Card padding="lg" className="text-center">
+            <p className="text-sm" style={{ color: "var(--text-tertiary)" }}>No conversations collected yet. Run collection in Execution and the analytics appear here.</p>
+          </Card>
         }
       />
 
       {trend.length > 1 && (
-        <div className="bg-white border border-gray-100 rounded-xl p-5 shadow-sm mt-4">
-          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-4">Sentiment Trend</h3>
+        <Card padding="md" className="mt-4">
+          <h3 className="text-sm font-bold mb-4" style={{ color: "var(--text-primary)" }}>Sentiment Trend</h3>
           <ResponsiveContainer width="100%" height={220}>
             <AreaChart data={trend} margin={{ left: 0, right: 8, top: 4 }}>
-              <XAxis dataKey="date" tick={{ fontSize: 11 }} />
-              <YAxis tick={{ fontSize: 11 }} />
-              <Tooltip />
-              <Area type="monotone" dataKey="positive" stackId="1" stroke={SL_GREEN} fill={SL_GREEN} fillOpacity={0.5} />
-              <Area type="monotone" dataKey="neutral"  stackId="1" stroke={SL_GREY}  fill={SL_GREY}  fillOpacity={0.4} />
-              <Area type="monotone" dataKey="negative" stackId="1" stroke={SL_RED}   fill={SL_RED}   fillOpacity={0.5} />
+              <XAxis dataKey="date" tick={{ fontSize: 11, fill: CHART_INK.label }} tickLine={false} axisLine={{ stroke: CHART_INK.axis }} />
+              <YAxis tick={{ fontSize: 11, fill: CHART_INK.label }} tickLine={false} axisLine={false} allowDecimals={false} />
+              <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid var(--border-default)", boxShadow: "var(--shadow-md)", fontSize: 12, padding: "6px 10px" }} />
+              <Area type="monotone" dataKey="positive" stackId="1" stroke={SENTIMENT.positive.fill} fill={SENTIMENT.positive.fill} fillOpacity={0.55} />
+              <Area type="monotone" dataKey="neutral"  stackId="1" stroke={SENTIMENT.neutral.fill}  fill={SENTIMENT.neutral.fill}  fillOpacity={0.5} />
+              <Area type="monotone" dataKey="negative" stackId="1" stroke={SENTIMENT.negative.fill} fill={SENTIMENT.negative.fill} fillOpacity={0.55} />
             </AreaChart>
           </ResponsiveContainer>
-        </div>
+        </Card>
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
         {evidenceFacts.length > 0 && (
-          <div className="bg-white border border-gray-100 rounded-xl p-5 shadow-sm flex flex-col">
-            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Evidence Summary</h3>
-            <p className="text-[11px] text-gray-400 mb-4">A factual snapshot of what&apos;s been collected — the interpretation happens in Analysis.</p>
+          <Card padding="md" className="flex flex-col">
+            <h3 className="text-sm font-bold" style={{ color: "var(--text-primary)" }}>Evidence Summary</h3>
+            <p className="text-xs mt-1 mb-4" style={{ color: "var(--text-tertiary)" }}>A factual snapshot of what&apos;s been collected — the interpretation happens in Analysis.</p>
             <ul className="space-y-2.5">
               {evidenceFacts.map((o, i) => (
-                <li key={i} className="flex items-start gap-2 text-sm text-gray-600 leading-relaxed">
-                  <span className="mt-1.5 w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: SL_GOLD }} aria-hidden />
+                <li key={i} className="flex items-start gap-2 text-sm leading-relaxed" style={{ color: "var(--text-secondary)" }}>
+                  <span className="mt-1.5 w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: GOLD }} aria-hidden />
                   {o}
                 </li>
               ))}
             </ul>
-            <Link href={`/research-projects/${projectId}/analysis`} className="text-xs font-semibold mt-4 hover:underline" style={{ color: "#8A6D2F" }}>
+            <Link href={`/research-projects/${projectId}/analysis`} className="text-xs font-semibold mt-4 hover:underline" style={{ color: "var(--accent-ink)" }}>
               What does this mean? Generate findings in Analysis →
             </Link>
-          </div>
+          </Card>
         )}
 
-        <div className="bg-white border border-gray-100 rounded-xl p-5 shadow-sm">
-          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-4">Collection Status</h3>
+        <Card padding="md">
+          <h3 className="text-sm font-bold mb-4" style={{ color: "var(--text-primary)" }}>Collection Status</h3>
           <ul className="space-y-2.5">
             {searches.map(s => {
               const meta = collectionMeta(s.reddit_collection_status, s.mention_count);
               return (
                 <li key={s.evidence_id} className="flex items-center justify-between gap-3">
-                  <Link href={`/research-projects/${projectId}/execution/conversation/${s.evidence_id}/evidence`} className="min-w-0 truncate text-sm text-gray-700 hover:text-[#D7B87A] transition-colors">
+                  <Link href={`/research-projects/${projectId}/dashboard/conversation/evidence?search=${s.evidence_id}`} className="min-w-0 truncate text-sm transition-colors hover:underline" style={{ color: "var(--text-secondary)" }}>
                     {s.name}
                   </Link>
-                  <span className="flex items-center gap-2 flex-shrink-0 text-xs text-gray-400">
+                  <span className="flex items-center gap-2 flex-shrink-0 text-xs" style={{ color: "var(--text-tertiary)" }}>
                     <span className="fx-tabular-nums">{s.mention_count.toLocaleString()}</span>
                     <span className="inline-flex items-center gap-1">
                       <span className="w-1.5 h-1.5 rounded-full" style={{ background: meta.color }} aria-hidden />
@@ -168,7 +171,7 @@ export function ConversationDashboardBody({ projectId, searches }: { projectId: 
               );
             })}
           </ul>
-        </div>
+        </Card>
       </div>
     </div>
   );

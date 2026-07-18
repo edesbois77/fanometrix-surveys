@@ -61,7 +61,7 @@ const CONFIG: Record<ResearchMethod, MethodConfig> = {
   },
   conversation: {
     title: "Conversation Intelligence",
-    description: "Analyse public conversations and social mentions across markets and platforms. Manage every conversation search attached to this research project here.",
+    description: "Analyse public conversations across markets and platforms. Manage every conversation search attached to this research project here.",
     evidenceType: "social_search",
     sourceType: "conversation",
     createLabel: "+ New Search",
@@ -190,7 +190,7 @@ export function ResearchMethodBody({ method }: { method: ResearchMethod }) {
           subtitle={c.markets.length ? c.markets.join(" · ") : undefined}
           status={searchStatusTone(c.status)}
           metrics={[
-            { label: "Mentions", value: c.mention_count.toLocaleString() },
+            { label: "Conversations", value: c.mention_count.toLocaleString() },
             { label: "Markets", value: c.markets.length },
             { label: "Platforms", value: c.platforms.length },
             { label: "Positive", value: `${Math.round(c.positive_pct)}%` },

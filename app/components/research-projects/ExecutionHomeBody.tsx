@@ -170,7 +170,7 @@ export function ExecutionHomeBody() {
     { label: "Live campaigns", value: liveCampaigns, live: liveCampaigns > 0 },
     { label: "Responses", value: totalResponses },
     { label: "Searches running", value: csCollecting, live: csCollecting > 0 },
-    { label: "Mentions", value: csMentions },
+    { label: "Conversations", value: csMentions },
     { label: "Documents processing", value: docProcessing, live: docProcessing > 0 },
   ];
 
@@ -221,7 +221,7 @@ export function ExecutionHomeBody() {
           metrics={[
             { label: "Searches", value: conversationEvidence.length.toLocaleString() },
             { label: "Collecting", value: csCollecting.toLocaleString() },
-            { label: "Mentions", value: csMentions.toLocaleString() },
+            { label: "Conversations", value: csMentions.toLocaleString() },
           ]}
           progress={conversationProgress}
           chips={conversationChips}

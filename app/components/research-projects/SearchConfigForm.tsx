@@ -66,7 +66,7 @@ type SearchForm = {
   name: string; description: string; entity_type: string; research_goal: string;
   markets: string[]; platforms: string[]; frequency: string; status: string;
   languages: string[]; collect_window: string; collect_from: string; collect_to: string;
-  connector_config: ConnectorConfig;
+  connector_config: ConnectorConfig; relevance_threshold: number;
 };
 
 const BLANK: SearchForm = {
@@ -74,6 +74,7 @@ const BLANK: SearchForm = {
   markets: ["GB"], platforms: PLATFORMS.filter(p => p.defaultOn).map(p => p.id),
   frequency: "Manual", status: "Draft",
   languages: ["en"], collect_window: "90d", collect_from: "", collect_to: "", connector_config: {},
+  relevance_threshold: 50,
 };
 
 const inputStyle: React.CSSProperties = {
@@ -131,6 +132,7 @@ export function SearchConfigForm({ mode, searchId, backHref, backLabel }: {
         collect_window: s.collect_window ?? "90d",
         collect_from: s.collect_from ?? "", collect_to: s.collect_to ?? "",
         connector_config: (s.connector_config ?? {}) as ConnectorConfig,
+        relevance_threshold: s.relevance_threshold ?? 50,
       });
       setKeywords(s.social_keywords ?? []);
     } catch {
@@ -471,6 +473,22 @@ export function SearchConfigForm({ mode, searchId, backHref, backLabel }: {
                   </p>
                 </div>
               )}
+            </div>
+
+            {/* Relevance threshold — the evidence-quality gate. Every collected
+                conversation is AI-judged against the research question; those
+                scoring below this are hidden from the default Evidence view. */}
+            <div>
+              <FieldLabel>Relevance threshold</FieldLabel>
+              <div className="flex items-center gap-3 sm:max-w-md">
+                <input type="range" min={0} max={90} step={5} value={form.relevance_threshold}
+                  onChange={e => setForm(f => ({ ...f, relevance_threshold: Number(e.target.value) }))}
+                  className="flex-1 accent-[#8A6D2F]" style={{ accentColor: "var(--accent-ink)" }} />
+                <span className="fx-tabular-nums text-sm font-bold w-12 text-right" style={{ color: "var(--text-primary)" }}>{form.relevance_threshold}%</span>
+              </div>
+              <p className="text-[11px] mt-1.5" style={{ color: "var(--text-tertiary)" }}>
+                Each conversation is scored for how well it helps answer your research question. Evidence below {form.relevance_threshold}% is collected but hidden from the default Evidence view — researchers can toggle it back on. Higher = stricter. Nothing is deleted.
+              </p>
             </div>
 
             {/* Status */}

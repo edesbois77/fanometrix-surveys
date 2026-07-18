@@ -97,7 +97,7 @@ export function DashboardSection({
     const status = statusFor(cs.mention_count, mentionTarget, cs.run_status);
     tiles.push({
       key: cs.evidence_id, badge: "Conversation Search", title: cs.name, target: mentionTarget, current: cs.mention_count,
-      unitLabel: "mention", status,
+      unitLabel: "conversation", status,
       href: `/research-projects/${projectId}/execution/conversation/${cs.evidence_id}`,
       hrefLabel: "Open",
       breakdown: [
@@ -165,7 +165,7 @@ export function DashboardSection({
               {conversationSearches.length > 0 && (
                 <div>
                   <span className="text-lg font-bold text-gray-900" style={{ fontVariantNumeric: "tabular-nums" }}>{totalMentions.toLocaleString()}</span>
-                  <span className="text-sm text-gray-500 ml-1.5">Conversation Mention{totalMentions !== 1 ? "s" : ""}</span>
+                  <span className="text-sm text-gray-500 ml-1.5">Conversation{totalMentions !== 1 ? "s" : ""}</span>
                 </div>
               )}
             </div>

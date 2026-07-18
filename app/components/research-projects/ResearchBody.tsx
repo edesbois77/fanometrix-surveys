@@ -40,7 +40,7 @@ const METHOD_SLUG: Record<string, string> = { survey: "survey", social_search: "
 
 const METHODS: { key: MethodType | string; label: string; description: string; available: boolean }[] = [
   { key: "survey", label: "Survey Research", description: "Structured questionnaires deployed to your audiences to measure attitudes, motivations and behaviours.", available: true },
-  { key: "social_search", label: "Conversation Intelligence", description: "Analyse public conversations and social mentions across markets and platforms.", available: true },
+  { key: "social_search", label: "Conversation Intelligence", description: "Analyse public conversations across markets and platforms.", available: true },
   { key: "document", label: "Research Library", description: "Attach industry reports, strategy documents and case studies already in the Research Library.", available: true },
   { key: "google_trends", label: "Google Trends", description: "Search-interest signals over time and by region.", available: false },
   { key: "crm", label: "CRM Data", description: "First-party customer relationship data.", available: false },

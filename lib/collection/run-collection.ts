@@ -11,18 +11,20 @@
 // nothing YouTube- or Reddit-specific.
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { classifyContent } from "@/lib/ai-classify";
+import { getProjectResearchQuestionForSearch } from "@/lib/research-sources/project-searches";
 import { getConnector, connectorIdForPlatform } from "@/lib/connectors";
 import type { CollectContext, NormalisedItem } from "@/lib/connectors/types";
 
 const CLASSIFY_CONCURRENCY = 8;
+const DEFAULT_RELEVANCE_THRESHOLD = 50; // 0–100; below this, evidence is hidden by default
 
 type SearchRow = {
-  id: string; name: string;
+  id: string; name: string; description: string | null;
   markets: string[] | null; platforms: string[] | null; languages: string[] | null;
   collect_from: string | null; collect_to: string | null;
   connector_config: Record<string, Record<string, unknown>> | null;
   entity_type: string | null; research_goal: string | null; is_simulated: boolean | null;
-  collect_window: string | null;
+  collect_window: string | null; relevance_threshold: number | null;
   reddit_subreddits: string[] | null; // legacy — TODO remove once configs migrate to connector_config
   social_keywords: { keyword: string }[] | null;
 };
@@ -57,7 +59,7 @@ export async function runCollection(opts: {
 }): Promise<RunCollectionResult> {
   const { data: search, error: sErr } = await supabaseAdmin
     .from("social_searches")
-    .select("id, name, markets, platforms, languages, collect_from, collect_to, collect_window, connector_config, entity_type, research_goal, is_simulated, reddit_subreddits, social_keywords(keyword)")
+    .select("id, name, description, markets, platforms, languages, collect_from, collect_to, collect_window, connector_config, entity_type, research_goal, is_simulated, relevance_threshold, reddit_subreddits, social_keywords(keyword)")
     .eq("id", opts.searchId)
     .single<SearchRow>();
 
@@ -65,6 +67,13 @@ export async function runCollection(opts: {
   if (search.is_simulated) throw new Error("This search belongs to a simulated project and cannot collect live data.");
 
   const keywords = (search.social_keywords ?? []).map(k => k.keyword).filter(Boolean);
+
+  // Stage 2 anchor: the search's own Research Question (its description), else
+  // the project's. Relevance is judged against this — not against the keywords.
+  const researchQuestion = (search.description?.trim())
+    || (await getProjectResearchQuestionForSearch(search.id))
+    || null;
+  const threshold = search.relevance_threshold ?? DEFAULT_RELEVANCE_THRESHOLD;
 
   // Resolve which connectors to run: explicit list, else the search's platforms.
   const requestedIds = (opts.connectorIds && opts.connectorIds.length
@@ -160,9 +169,10 @@ export async function runCollection(opts: {
     return true;
   });
 
-  // ── Classify (enriched: sentiment/topic + entities/relevance/confidence).
-  // Store EVERYTHING — relevance decides what surfaces later, not what is kept.
-  const classifyCtx = { keywords, entityType: search.entity_type ?? undefined, researchGoal: search.research_goal ?? undefined };
+  // ── Stage 2: classify + judge relevance to the Research Question.
+  // (sentiment/topic + entities/relevance/rationale/confidence). Store
+  // EVERYTHING — relevance decides what SURFACES later, never what is kept.
+  const classifyCtx = { keywords, entityType: search.entity_type ?? undefined, researchGoal: search.research_goal ?? undefined, researchQuestion: researchQuestion ?? undefined };
   const rows: Record<string, unknown>[] = new Array(unique.length);
   for (let i = 0; i < unique.length; i += CLASSIFY_CONCURRENCY) {
     const slice = unique.slice(i, i + CLASSIFY_CONCURRENCY);
@@ -178,6 +188,8 @@ export async function runCollection(opts: {
         sentiment: c?.sentiment ?? null, topic: c?.topic ?? null, subtopic: c?.subtopic ?? null,
         ai_summary: c?.ai_summary ?? null, entities: c?.entities ?? null,
         relevance_score: c?.relevance ?? null, confidence: c?.confidence ?? null,
+        relevance_rationale: c?.relevance_rationale ?? null, relevance_confidence: c?.confidence_label ?? null,
+        research_aspect: c?.research_aspect ?? null,
       };
     }));
   }
@@ -196,7 +208,14 @@ export async function runCollection(opts: {
   const bySentiment: Record<string, number> = {};
   const byTopic: Record<string, number> = {};
   const entityCounts: Record<string, number> = {};
+  // Stage-2 outcome: judged-relevant vs. judged-low-relevance (unscored items —
+  // e.g. the fallback classifier — count as neither; they're never hidden).
+  let relevant = 0, lowRelevance = 0;
   for (const r of rows) {
+    const rs = r.relevance_score;
+    if (typeof rs === "number") {
+      if (Math.round(rs * 100) >= threshold) relevant++; else lowRelevance++;
+    }
     byKind[String(r.content_kind)] = (byKind[String(r.content_kind)] ?? 0) + 1;
     // AI-output rollups describe the conversation (comments/posts) — a video
     // title isn't a fan opinion, so videos are excluded from these mixes.
@@ -214,12 +233,12 @@ export async function runCollection(opts: {
   const status: RunCollectionResult["status"] =
     inserted === 0 ? "failed" : (fatalCount > 0 || warnings.length > 0) ? "partial" : "completed";
 
-  await finalise(status, inserted, { by_kind: byKind, by_sentiment: bySentiment, by_topic: byTopic, top_entities: topEntities, collected: unique.length });
+  await finalise(status, inserted, { by_kind: byKind, by_sentiment: bySentiment, by_topic: byTopic, top_entities: topEntities, collected: unique.length, relevant, low_relevance: lowRelevance, relevance_threshold: threshold });
 
   return {
     runId, status, inserted,
     connectorsRun: runnable.map(c => c.id),
-    stats: { inserted, by_kind: byKind, by_sentiment: bySentiment, connectors: connectorStats },
+    stats: { inserted, by_kind: byKind, by_sentiment: bySentiment, relevant, low_relevance: lowRelevance, relevance_threshold: threshold, connectors: connectorStats },
     warnings,
     error: inserted === 0 ? (warnings[0] ?? "No items collected") : undefined,
   };

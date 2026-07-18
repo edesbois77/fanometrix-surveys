@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth-server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { getProjectSocialSearchIds } from "@/lib/research-sources/project-searches";
 
 export async function GET(req: NextRequest) {
   try { await requireUser(req, ["admin"]); } catch (err) { return err as Response; }
 
   const searchId  = req.nextUrl.searchParams.get("search_id");
+  const projectId = req.nextUrl.searchParams.get("research_project_id");
   const sentiment = req.nextUrl.searchParams.get("sentiment");
   const topic     = req.nextUrl.searchParams.get("topic");
   const limit     = Math.min(parseInt(req.nextUrl.searchParams.get("limit") ?? "100"), 500);
@@ -16,7 +18,16 @@ export async function GET(req: NextRequest) {
     .order("published_at", { ascending: false })
     .limit(limit);
 
-  if (searchId)  q = q.eq("search_id",  searchId);
+  if (searchId) {
+    // A single search's evidence.
+    q = q.eq("search_id", searchId);
+  } else if (projectId) {
+    // Every conversation collected across the project's attached searches —
+    // the same project→search resolution the stats/reports endpoints use.
+    const ids = await getProjectSocialSearchIds(projectId);
+    if (ids.length === 0) return NextResponse.json({ data: [], count: 0 });
+    q = q.in("search_id", ids);
+  }
   if (sentiment) q = q.eq("sentiment",  sentiment);
   if (topic)     q = q.eq("topic",      topic);
 

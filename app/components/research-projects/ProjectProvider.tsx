@@ -23,6 +23,8 @@ export type ActivityRow = { id: string; event_type: string; description: string;
 
 export type ConversationSearchEvidence = {
   id: string; name: string; status: string; entity_type: string; research_goal: string;
+  research_question: string; languages: string[];
+  relevance_threshold: number;   // 0–100; conversations below this are hidden by default
   keywords: string[]; markets: string[]; platforms: string[];
   // Generic collection engine (latest snapshot from collection_runs).
   connectors: string[];

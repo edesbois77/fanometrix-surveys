@@ -197,7 +197,7 @@ export function DashboardOverviewTab({ projectId, project, campaigns, responses 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-5 mt-5 pt-5" style={{ borderTop: "1px solid rgba(255,255,255,0.1)" }}>
             <LiveStat value={collectingNow} label="Collecting now" live={collectingNow > 0} />
             <LiveStat value={responsesToday.toLocaleString()} label="Responses today" live={responsesToday > 0} />
-            <LiveStat value={mentionsToday.toLocaleString()} label="Mentions today" live={mentionsToday > 0} />
+            <LiveStat value={mentionsToday.toLocaleString()} label="Conversations today" live={mentionsToday > 0} />
             <LiveStat value={docsAnalysed} label="Documents analysed" />
           </div>
         </div>
@@ -226,7 +226,7 @@ export function DashboardOverviewTab({ projectId, project, campaigns, responses 
                 <StatusBadge label={activeSearches > 0 ? "Collecting" : totalMentions > 0 ? "Collected" : "Idle"} tone={activeSearches > 0 ? "success" : "neutral"} dot />
               </div>
               <p className="text-2xl font-bold mt-2 fx-tabular-nums" style={{ color: "var(--text-primary)" }}>{totalMentions.toLocaleString()}</p>
-              <p className="text-xs" style={{ color: "var(--text-tertiary)" }}>mentions · {conversationEvidence.length} search{conversationEvidence.length === 1 ? "" : "es"}{mentionsToday > 0 ? ` · ${mentionsToday} today` : ""}</p>
+              <p className="text-xs" style={{ color: "var(--text-tertiary)" }}>conversations · {conversationEvidence.length} search{conversationEvidence.length === 1 ? "" : "es"}{mentionsToday > 0 ? ` · ${mentionsToday} today` : ""}</p>
               {convStats && convStats.total > 0 && <div className="mt-3"><SentimentBar positive={convStats.positive_pct} neutral={convStats.neutral_pct} negative={convStats.negative_pct} /></div>}
             </Card>
           )}
@@ -251,7 +251,7 @@ export function DashboardOverviewTab({ projectId, project, campaigns, responses 
         {convStats && convStats.total > 0 && (
           <Card padding="md" className="mt-3">
             <div className="flex items-center justify-between gap-3 flex-wrap">
-              <p className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>Conversation is running {convStats.positive_pct}% positive across {convStats.total.toLocaleString()} mentions.</p>
+              <p className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>Conversation is running {convStats.positive_pct}% positive across {convStats.total.toLocaleString()} conversations.</p>
               <Button href={`${base}/conversation`} variant="ghost" size="sm">Explore →</Button>
             </div>
             {convStats.topTopics.length > 0 && (

@@ -5,6 +5,7 @@
 import { buildClassificationPrompt, FOOTBALL_TOPICS, type Sentiment, type ClassificationContext } from "@/lib/social-taxonomy";
 
 export type ClassificationEntity = { name: string; type: string };
+export type ConfidenceLabel = "High" | "Medium" | "Low";
 
 export type ClassificationResult = {
   sentiment:  Sentiment;
@@ -12,14 +13,23 @@ export type ClassificationResult = {
   subtopic:   string | null;
   ai_summary: string;
   entities:   ClassificationEntity[];
-  relevance:  number;   // 0.0–1.0 relevance to the research subject
-  confidence: number;   // 0.0–1.0 classifier confidence
+  relevance:  number | null;        // 0.0–1.0 question relevance; null = not judged (fallback)
+  relevance_rationale: string | null; // "Why this matters" — 1–2 sentences of research value
+  research_aspect: string | null;   // AI-generated facet of the research this contributes to
+  confidence: number;               // 0.0–1.0 numeric certainty
+  confidence_label: ConfidenceLabel; // derived High / Medium / Low, for display
 };
 
 const clamp01 = (v: unknown, dflt: number): number => {
   const n = Number(v);
   return Number.isFinite(n) ? Math.max(0, Math.min(1, n)) : dflt;
 };
+
+// The three-level confidence a researcher reads, derived from the model's
+// numeric certainty. One definition so every surface labels it identically.
+export function confidenceLabel(confidence: number): ConfidenceLabel {
+  return confidence >= 0.75 ? "High" : confidence >= 0.45 ? "Medium" : "Low";
+}
 
 function parseEntities(raw: unknown): ClassificationEntity[] {
   if (!Array.isArray(raw)) return [];
@@ -40,7 +50,7 @@ async function classifyWithOpenAI(content: string, context?: ClassificationConte
     body: JSON.stringify({
       model:       "gpt-4o-mini",
       temperature: 0.1,
-      max_tokens:  400,
+      max_tokens:  500,
       messages:    [{ role: "user", content: buildClassificationPrompt(content, context) }],
     }),
   });
@@ -50,6 +60,11 @@ async function classifyWithOpenAI(content: string, context?: ClassificationConte
   const raw    = json.choices?.[0]?.message?.content ?? "{}";
   const parsed = JSON.parse(raw.replace(/```json|```/g, "").trim());
 
+  const confidence = clamp01(parsed.confidence, 0.5);
+  const str = (v: unknown): string | null => (typeof v === "string" && v.trim() ? v.trim() : null);
+  // "Why this matters" — prefer the new field, fall back to the old name.
+  const rationale = str(parsed.why_this_matters) ?? str(parsed.relevance_rationale);
+  const aspect = str(parsed.research_aspect);
   return {
     sentiment:  (["Positive","Neutral","Negative","Unknown"].includes(parsed.sentiment) ? parsed.sentiment : "Unknown") as Sentiment,
     topic:      FOOTBALL_TOPICS.includes(parsed.topic) ? parsed.topic : "Transfers",
@@ -57,7 +72,10 @@ async function classifyWithOpenAI(content: string, context?: ClassificationConte
     ai_summary: parsed.ai_summary ?? "Unable to summarise.",
     entities:   parseEntities(parsed.entities),
     relevance:  clamp01(parsed.relevance, 0.5),
-    confidence: clamp01(parsed.confidence, 0.5),
+    relevance_rationale: rationale,
+    research_aspect: aspect && aspect.toLowerCase() !== "off-topic" ? aspect.slice(0, 60) : (aspect ? "Off-topic" : null),
+    confidence,
+    confidence_label: confidenceLabel(confidence),
   };
 }
 
@@ -80,8 +98,13 @@ function classifyRuleBased(content: string): ClassificationResult {
     subtopic:   null,
     ai_summary: `Fan ${sentiment === "Positive" ? "expresses positive views" : sentiment === "Negative" ? "expresses concerns" : "comments"} about ${topic.toLowerCase()}.`,
     entities:   [],
-    relevance:  0.5,    // heuristic fallback can't judge subject relevance — neutral prior
+    // A rule-based fallback CANNOT judge question relevance — leave it unscored
+    // (null) so the Evidence view never hides it on a guess. No rationale/aspect.
+    relevance:  null,
+    relevance_rationale: null,
+    research_aspect: null,
     confidence: 0.3,    // low: rule-based, not model-derived
+    confidence_label: "Low",
   };
 }
 

@@ -289,11 +289,11 @@ export function AnalysisOverview() {
                       ? { kind: "approved" }
                       : lifecycleState(e, cs.summary_status, href)
                         ?? (noMentions
-                          ? note("Awaiting mentions", "#3B5A8A", "No mentions collected yet, run collection in Execution before findings can be generated.", { label: "Generate Findings →", primary: true, disabled: true })
+                          ? note("Awaiting evidence", "#3B5A8A", "No conversations collected yet, run collection in Execution before findings can be generated.", { label: "Generate Findings →", primary: true, disabled: true })
                           : note("Ready", "#3B5A8A", "Ready to generate findings for this search.", { label: "Generate Findings →", href, primary: true }));
                     return (
                       <SourceCard key={e.id} name={cs.name} state={state} preview={p} reviewHref={href}
-                        metrics={<span>{cs.mention_count.toLocaleString()} mentions · {Math.round(cs.positive_pct)}% positive · {cs.markets.length} markets · {cs.platforms.length} platforms</span>}
+                        metrics={<span>{cs.mention_count.toLocaleString()} conversations · {Math.round(cs.positive_pct)}% positive · {cs.markets.length} markets · {cs.platforms.length} platforms</span>}
                         extra={cs.mention_count > 0 ? <div className="mt-3"><SentimentBar positive={cs.positive_pct} neutral={cs.neutral_pct} negative={cs.negative_pct} /></div> : undefined}
                       />
                     );

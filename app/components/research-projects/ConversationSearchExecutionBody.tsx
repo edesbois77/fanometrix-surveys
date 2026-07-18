@@ -3,7 +3,7 @@
 // A single conversation search's operational home, at
 // /research-projects/[id]/execution/conversation/[searchEvidenceId] — the
 // operational twin of the Campaigns page. This is where a search is run and
-// watched: trigger collection, monitor status/mentions/sentiment, then hand off
+// watched: trigger collection, monitor status/evidence/sentiment, then hand off
 // to Dashboard once it's collecting.
 //
 // Run Collection posts to the unified POST /api/social/searches/[id]/collect —
@@ -19,11 +19,11 @@ import Link from "next/link";
 import { useResearchProject, type EvidenceItem } from "@/app/components/research-projects/ProjectProvider";
 import { useWorkspaceRecord } from "@/app/components/research-projects/WorkspaceRecordContext";
 import { CollectionRunHistory } from "@/app/components/research-projects/CollectionRunHistory";
-import { collectionBreakdown, conversationCount } from "@/lib/connectors/content-kinds";
+import { conversationCount } from "@/lib/connectors/content-kinds";
 import { formatRelativeTime } from "@/lib/format-relative-time";
 import {
   PageContainer, WorkspaceHeader, PageLoadingState, ErrorState,
-  Card, Panel, Button, StatusBadge, SectionHeading, MetricTile, SentimentBar, type Tone,
+  Card, Panel, Button, Icon, SectionHeading, MetricTile, SentimentBar, type Tone,
 } from "@/app/components/workspace-ui";
 
 type ConversationSearch = NonNullable<EvidenceItem["conversationSearch"]>;
@@ -42,16 +42,6 @@ function connectorLabel(cs: ConversationSearch): string {
   const names = (cs.connectors.length ? cs.connectors : cs.platforms).map(c =>
     c.toLowerCase() === "youtube" ? "YouTube" : c.toLowerCase() === "reddit" ? "Reddit" : c);
   return names.length ? names.join(" · ") : "no sources";
-}
-
-// A compact "health" stat for the collection summary row.
-function StatTile({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="border px-3 py-2.5" style={{ borderRadius: "var(--radius-tile)", borderColor: "var(--border-subtle)", background: "var(--surface)" }}>
-      <p className="text-[10px] font-semibold uppercase tracking-[0.06em]" style={{ color: "var(--text-tertiary)" }}>{label}</p>
-      <div className="mt-1 text-sm font-bold truncate" style={{ color: "var(--text-primary)" }}>{children}</div>
-    </div>
-  );
 }
 
 function ChipRow({ label, values }: { label: string; values: string[] }) {
@@ -75,6 +65,7 @@ export function ConversationSearchExecutionBody({ searchEvidenceId }: { searchEv
   const [running, setRunning] = useState(false);
   const [runsVersion, setRunsVersion] = useState(0);
   const [lastResult, setLastResult] = useState<{ conversations: number; status: string } | null>(null);
+  const [evidenceBuilt, setEvidenceBuilt] = useState<{ conversations: number; runs: number; sources: string[]; markets: string[] } | null>(null);
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
   const showToast = useCallback((msg: string, ok = true) => {
     setToast({ msg, ok });
@@ -90,6 +81,16 @@ export function ConversationSearchExecutionBody({ searchEvidenceId }: { searchEv
     setRecordLabel(item?.conversationSearch.name ?? null);
     return () => setRecordLabel(null);
   }, [item?.conversationSearch.name, setRecordLabel]);
+
+  // Cumulative "Evidence Built" across every run — refetched after each run.
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`/api/social/searches/${searchEvidenceId}/evidence-summary`)
+      .then(r => (r.ok ? r.json() : null))
+      .then(j => { if (!cancelled && j?.evidence_built) setEvidenceBuilt(j.evidence_built); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [searchEvidenceId, runsVersion]);
 
   if (loading && !project) return <PageContainer><PageLoadingState /></PageContainer>;
   if (error || !project) return (
@@ -112,16 +113,25 @@ export function ConversationSearchExecutionBody({ searchEvidenceId }: { searchEv
   const status = collectionStatus(cs);
   const hasKinds = Object.keys(cs.by_kind ?? {}).length > 0;
   const conversationTotal = hasKinds ? conversationCount(cs.by_kind) : cs.mention_count;
+  // Evidence Built = cumulative across every run; falls back to latest-run data
+  // until the cumulative summary loads (or if it's unavailable).
+  const builtConversations = evidenceBuilt?.conversations ?? conversationTotal;
+  const runCount = evidenceBuilt?.runs ?? cs.run_count;
+  const builtSources = evidenceBuilt ? evidenceBuilt.sources.length : (cs.connectors.length || cs.platforms.length);
+  const builtMarkets = evidenceBuilt ? evidenceBuilt.markets.length : cs.markets.length;
   const collecting = running || cs.latest_run_status === "running";
   const hasData = cs.mention_count > 0 || cs.video_count > 0;
   const lastCollected = cs.last_collected_at ? formatRelativeTime(cs.last_collected_at) : "Never";
   const failed = cs.latest_run_status === "failed";
 
   const runLabel = collecting ? "Collecting…" : failed ? "Retry collection" : hasData ? "Re-run collection" : "Run Collection";
+  // Reviewing evidence lives in the Dashboard now — Execution is purely
+  // operational (configure, run, monitor collection). This is a hand-off link.
+  const dashboardEvidenceHref = `/research-projects/${projectId}/dashboard/conversation/evidence?search=${searchEvidenceId}`;
 
   const summaryParts = [
     cs.video_count > 0 ? `${cs.video_count.toLocaleString()} video${cs.video_count === 1 ? "" : "s"}` : null,
-    `${cs.mention_count.toLocaleString()} mention${cs.mention_count === 1 ? "" : "s"}`,
+    `${cs.mention_count.toLocaleString()} conversation${cs.mention_count === 1 ? "" : "s"}`,
     cs.markets.length ? `${cs.markets.length} market${cs.markets.length === 1 ? "" : "s"}` : null,
     `Last collected ${lastCollected}`,
   ].filter(Boolean) as string[];
@@ -139,7 +149,10 @@ export function ConversationSearchExecutionBody({ searchEvidenceId }: { searchEv
       byKind.post ? `${byKind.post} post${byKind.post === 1 ? "" : "s"}` : null,
     ].filter(Boolean);
     const detail = parts.length ? parts.join(", ") : `${json.inserted ?? 0} items`;
-    showToast(`${json.status === "partial" ? "Collected (partial): " : "Collected "}${detail}.`, json.status !== "failed");
+    // Stage 2 outcome — how many candidates the relevance classifier kept.
+    const relevant = json.stats?.relevant;
+    const relDetail = typeof relevant === "number" ? ` · ${relevant.toLocaleString()} relevant to the research question` : "";
+    showToast(`${json.status === "partial" ? "Collected (partial): " : "Collected "}${detail}${relDetail}.`, json.status !== "failed");
     const conversations = (byKind.comment ?? 0) + (byKind.post ?? 0);
     if (json.status !== "failed") setLastResult({ conversations, status: json.status });
     setRunsVersion(v => v + 1);
@@ -152,14 +165,11 @@ export function ConversationSearchExecutionBody({ searchEvidenceId }: { searchEv
         <WorkspaceHeader
           back={{ href: `/research-projects/${projectId}/execution/conversation`, label: "Back to Conversation Searches" }}
           title={cs.name}
-          description="Collect and review the conversations for this search."
+          description="One conversation search, one research question — evolve its scope and keep building evidence over time."
           status={{ label: status.label, tone: status.tone, dot: true }}
           meta={<span className="fx-tabular-nums">{summaryParts.join(" · ")}</span>}
-          primaryAction={hasData
-            ? <Button variant="primary" href={`/research-projects/${projectId}/execution/conversation/${searchEvidenceId}/evidence`}>Review Evidence →</Button>
-            : undefined}
           secondaryActions={(collecting || hasData)
-            ? <Button variant="secondary" href={`/research-projects/${projectId}/dashboard`}>View Dashboard →</Button>
+            ? <Button variant="secondary" href={`/research-projects/${projectId}/dashboard/conversation`}>View Dashboard →</Button>
             : undefined}
         />
 
@@ -169,51 +179,85 @@ export function ConversationSearchExecutionBody({ searchEvidenceId }: { searchEv
             <div className="flex-1 min-w-0">
               <p className="text-sm font-bold" style={{ color: "var(--accent-ink)" }}>Collection complete</p>
               <p className="text-xs mt-0.5" style={{ color: "var(--text-secondary)" }}>
-                {lastResult.conversations.toLocaleString()} conversation{lastResult.conversations === 1 ? "" : "s"} collected. Review the evidence, then generate your findings.
+                {lastResult.conversations.toLocaleString()} conversation{lastResult.conversations === 1 ? "" : "s"} collected. Review them in Dashboard, then generate your findings.
               </p>
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
-              <Button variant="secondary" size="sm" href={`/research-projects/${projectId}/execution/conversation/${searchEvidenceId}/evidence`}>Review Evidence</Button>
-              <Button variant="primary" size="sm" href={`/research-projects/${projectId}/analysis/conversation/${searchEvidenceId}`}>Generate Findings →</Button>
+              <Button variant="brand" size="sm" href={dashboardEvidenceHref}>Review in Dashboard →</Button>
+              <Button variant="secondary" size="sm" href={`/research-projects/${projectId}/analysis/conversation/${searchEvidenceId}`}>Generate Findings →</Button>
             </div>
           </div>
         )}
 
-        {/* ── Collection ────────────────────────────────────────────────────── */}
+        {/* ── The research question this search exists to answer ────────────── */}
+        {cs.research_question && (
+          <div className="flex items-start gap-2.5 px-4 py-3.5" style={{ borderRadius: "var(--radius-panel)", background: "var(--surface-sunken)", border: "1px solid var(--border-subtle)" }}>
+            <span aria-hidden className="mt-0.5 flex-shrink-0" style={{ color: "var(--accent-ink)" }}><Icon.search size={15} /></span>
+            <div className="min-w-0">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.07em]" style={{ color: "var(--text-tertiary)" }}>Research Question</p>
+              <p className="text-sm mt-1 leading-relaxed" style={{ color: "var(--text-primary)" }}>{cs.research_question}</p>
+            </div>
+          </div>
+        )}
+
+        {/* ── Research Scope — the settings this search collects against. Edit
+            Scope and Run Collection are the two primary operational actions. ── */}
         <Card padding="md">
           <SectionHeading
-            title="Collection"
-            description={`Collect the latest conversations from ${connectorLabel(cs)} for this search's keywords. Runs on demand — run it again to capture a fresh snapshot.`}
-            action={<Button variant="brand" onClick={handleRunCollection} disabled={collecting}>{runLabel}</Button>}
+            title="Research Scope"
+            description="What this search collects against. Refine the scope and run again — the evidence keeps growing."
+            action={
+              <div className="flex flex-wrap items-center gap-2">
+                <Button variant="secondary" href={`/research-projects/${projectId}/research/conversation/${searchEvidenceId}`}>Edit Scope</Button>
+                <Button variant="brand" onClick={handleRunCollection} disabled={collecting}>{runLabel}</Button>
+              </div>
+            }
           />
-          {/* Health summary — the at-a-glance state of this search's collection.
-              Counts render generically from content kinds, so a new source's
-              items (articles, posts, …) appear here with no code change. */}
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-2.5 mt-4">
-            <StatTile label="Collection Status"><StatusBadge label={status.label} tone={status.tone} dot size="sm" /></StatTile>
-            <StatTile label="Source(s)">{connectorLabel(cs)}</StatTile>
-            <StatTile label="Collected"><span className="text-xs font-semibold">{hasKinds ? collectionBreakdown(cs.by_kind) : `${cs.mention_count.toLocaleString()} items`}</span></StatTile>
-            <StatTile label="Conversations"><span className="fx-tabular-nums">{conversationTotal.toLocaleString()}</span></StatTile>
-            <StatTile label="Last collected"><span style={{ fontWeight: 500 }}>{lastCollected}</span></StatTile>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4 pt-4 border-t" style={{ borderColor: "var(--border-subtle)" }}>
+            <ChipRow label="Sources" values={cs.platforms} />
+            <ChipRow label="Markets" values={cs.markets} />
+            <ChipRow label="Languages" values={cs.languages} />
+            <ChipRow label="Keywords" values={cs.keywords} />
           </div>
           {failed && (
             <p className="text-xs mt-3" style={{ color: "#B4694C" }}>The last collection run failed. Check the search&apos;s keywords and connector settings, then retry.</p>
           )}
-          {(cs.markets.length > 0 || cs.platforms.length > 0 || cs.keywords.length > 0) && (
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4 pt-4 border-t" style={{ borderColor: "var(--border-subtle)" }}>
-              <ChipRow label="Keywords" values={cs.keywords} />
-              <ChipRow label="Markets" values={cs.markets} />
-              <ChipRow label="Sources" values={cs.platforms} />
-            </div>
-          )}
         </Card>
 
-        {/* ── Sentiment (once there are mentions) ───────────────────────────── */}
+        {/* ── Evidence Built (cumulative) vs. Last Collection (latest run) —
+            reinforces one search = one question, many runs = growing evidence. ── */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <Card padding="md">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.07em]" style={{ color: "var(--text-tertiary)" }}>Evidence Built</p>
+            <p className="text-[26px] font-bold mt-1.5 leading-none fx-tabular-nums" style={{ color: "var(--text-primary)" }}>
+              {builtConversations.toLocaleString()}
+              <span className="text-sm font-medium ml-1.5" style={{ color: "var(--text-tertiary)" }}>conversations</span>
+            </p>
+            <p className="text-xs mt-2" style={{ color: "var(--text-secondary)" }}>
+              {runCount.toLocaleString()} collection run{runCount === 1 ? "" : "s"}
+              {"  ·  "}{builtSources.toLocaleString()} source{builtSources === 1 ? "" : "s"}
+              {"  ·  "}{builtMarkets.toLocaleString()} market{builtMarkets === 1 ? "" : "s"}
+            </p>
+          </Card>
+          <Card padding="md">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.07em]" style={{ color: "var(--text-tertiary)" }}>Last Collection</p>
+            <p className="text-[26px] font-bold mt-1.5 leading-none fx-tabular-nums" style={{ color: "var(--text-primary)" }}>
+              {cs.mention_count.toLocaleString()}
+              <span className="text-sm font-medium ml-1.5" style={{ color: "var(--text-tertiary)" }}>new conversations</span>
+            </p>
+            <p className="text-xs mt-2" style={{ color: "var(--text-secondary)" }}>
+              {cs.connectors.length ? connectorLabel(cs) : "No runs yet"}{"  ·  "}
+              <span style={{ color: status.tone === "danger" ? "#B4694C" : "var(--text-secondary)" }}>{lastCollected}</span>
+            </p>
+          </Card>
+        </div>
+
+        {/* ── Sentiment (once there is evidence) ────────────────────────────── */}
         {hasData && (
           <div>
-            <SectionHeading title="Mentions & sentiment" description="The volume and tone collected so far. Explore the full breakdown in Dashboard." />
+            <SectionHeading title="Sentiment" description="The tone of the conversations collected so far. Explore the full breakdown in Dashboard." />
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3">
-              <MetricTile label="Mentions" value={cs.mention_count.toLocaleString()} icon="conversation" />
+              <MetricTile label="Conversations" value={cs.mention_count.toLocaleString()} icon="conversation" />
               <MetricTile label="Positive" value={`${Math.round(cs.positive_pct)}%`} />
               <MetricTile label="Neutral" value={`${Math.round(cs.neutral_pct)}%`} />
               <MetricTile label="Negative" value={`${Math.round(cs.negative_pct)}%`} />
@@ -227,12 +271,22 @@ export function ConversationSearchExecutionBody({ searchEvidenceId }: { searchEv
         {/* ── Collection history — timestamped snapshots ────────────────────── */}
         <CollectionRunHistory searchId={searchEvidenceId} version={runsVersion} />
 
-        <p className="text-xs px-1" style={{ color: "var(--text-tertiary)" }}>
-          Configured in{" "}
-          <Link href={`/research-projects/${projectId}/research/conversation/${searchEvidenceId}`} className="font-semibold hover:underline" style={{ color: "var(--accent-ink)" }}>Research</Link>
-          {" · "}monitored in{" "}
-          <Link href={`/research-projects/${projectId}/dashboard`} className="font-semibold hover:underline" style={{ color: "var(--accent-ink)" }}>Dashboard →</Link>
-        </p>
+        <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs px-1" style={{ color: "var(--text-tertiary)" }}>
+          <span>Configured in{" "}
+            <Link href={`/research-projects/${projectId}/research/conversation/${searchEvidenceId}`} className="font-semibold hover:underline" style={{ color: "var(--accent-ink)" }}>Research</Link>
+          </span>
+          <span aria-hidden>→</span>
+          <span className="font-semibold" style={{ color: "var(--text-secondary)" }}>Collected here</span>
+          <span aria-hidden>→</span>
+          <span>{hasData
+            ? <Link href={dashboardEvidenceHref} className="font-semibold hover:underline" style={{ color: "var(--accent-ink)" }}>Reviewed in Dashboard</Link>
+            : <span style={{ color: "var(--text-disabled)" }}>Reviewed in Dashboard</span>}
+          </span>
+          <span aria-hidden>→</span>
+          <span>Analysed in{" "}
+            <Link href={`/research-projects/${projectId}/analysis/conversation/${searchEvidenceId}`} className="font-semibold hover:underline" style={{ color: "var(--accent-ink)" }}>Analysis</Link>
+          </span>
+        </div>
       </PageContainer>
 
       {toast && (
