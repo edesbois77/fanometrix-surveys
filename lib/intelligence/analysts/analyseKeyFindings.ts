@@ -181,13 +181,17 @@ Return ONLY valid JSON: { "groups": [ { "question_index": 0, "option_labels": ["
 }
 
 async function findingsForSearch(searchId: string): Promise<KeyFinding[]> {
-  const { data: search } = await supabaseAdmin.from("social_searches").select("name, is_simulated").eq("id", searchId).single();
+  const { data: search } = await supabaseAdmin.from("social_searches").select("name, is_simulated, review_status").eq("id", searchId).single();
   if (!search) return [];
+  // Evidence Validation gate: only approved (or archived-having-been-approved)
+  // searches contribute findings; excluded conversations never count.
+  if (search.review_status !== "approved" && search.review_status !== "archived") return [];
 
   const { data: mentions } = await supabaseAdmin
     .from("social_mentions")
     .select("sentiment, topic, market")
     .eq("search_id", searchId)
+    .eq("excluded", false)
     .not("sentiment", "is", null)
     .neq("import_source", "synthetic");
 

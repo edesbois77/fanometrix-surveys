@@ -232,9 +232,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     socialSearchEvidenceIds.length
       ? supabaseAdmin
           .from("social_searches")
-          .select("id, name, status, entity_type, research_goal, description, languages, markets, platforms, relevance_threshold, reddit_last_collected_at, social_keywords(keyword, keyword_type)")
+          .select("id, name, status, review_status, approved_at, approved_watermark, entity_type, research_goal, description, languages, markets, platforms, relevance_threshold, reddit_last_collected_at, social_keywords(keyword, keyword_type)")
           .in("id", socialSearchEvidenceIds)
-      : Promise.resolve({ data: [] as { id: string; name: string; status: string; entity_type: string; research_goal: string; description: string | null; languages: string[]; markets: string[]; platforms: string[]; relevance_threshold: number | null; reddit_last_collected_at: string | null; social_keywords: { keyword: string; keyword_type: string }[] }[] }),
+      : Promise.resolve({ data: [] as { id: string; name: string; status: string; review_status: string; approved_at: string | null; approved_watermark: string | null; entity_type: string; research_goal: string; description: string | null; languages: string[]; markets: string[]; platforms: string[]; relevance_threshold: number | null; reddit_last_collected_at: string | null; social_keywords: { keyword: string; keyword_type: string }[] }[] }),
     getSocialMentionStatsBySearchIds(socialSearchEvidenceIds),
     socialSearchEvidenceIds.length
       ? supabaseAdmin
@@ -254,6 +254,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     const live = collectionStatusBySearchId.get(s.id);
     return [s.id, {
       id: s.id, name: s.name, status: s.status, entity_type: s.entity_type, research_goal: s.research_goal,
+      review_status: s.review_status ?? "draft", approved_at: s.approved_at ?? null, approved_watermark: s.approved_watermark ?? null,
       research_question: s.description ?? "", languages: s.languages ?? [],
       relevance_threshold: s.relevance_threshold ?? 50,
       keywords: (s.social_keywords ?? []).map(k => k.keyword),

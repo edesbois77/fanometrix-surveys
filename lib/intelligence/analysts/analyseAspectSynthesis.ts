@@ -18,7 +18,7 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 import { completeJSON } from "@/lib/intelligence/openai";
 import { IntelligenceError } from "@/lib/intelligence/types";
 import { clampReferences } from "@/lib/intelligence/validate-references";
-import { getProjectSocialSearchIds } from "@/lib/research-sources/project-searches";
+import { getApprovedProjectSocialSearchIds } from "@/lib/research-sources/project-searches";
 
 // A conversation the model is allowed to cite is either a survey response, a
 // conversation or a document passage — the type is all the UI needs to resolve
@@ -65,7 +65,9 @@ const MAX_EVIDENCE_PER_ASPECT = 40;  // token bound — cite from the most relev
 // as generic Evidence. Relevance uses each search's own threshold, matching what
 // the Evidence view shows (low-relevance evidence never enters synthesis).
 async function gatherConversationEvidence(projectId: string): Promise<Evidence[]> {
-  const searchIds = await getProjectSocialSearchIds(projectId);
+  // Evidence Validation gate: only APPROVED searches and INCLUDED (not excluded)
+  // conversations feed synthesis. (docs/evidence-validation-blueprint.md)
+  const searchIds = await getApprovedProjectSocialSearchIds(projectId);
   if (searchIds.length === 0) return [];
 
   const { data: searches } = await supabaseAdmin
@@ -76,6 +78,7 @@ async function gatherConversationEvidence(projectId: string): Promise<Evidence[]
     .from("social_mentions")
     .select("id, search_id, content, research_aspect, relevance_score, relevance_rationale, sentiment, market, platform")
     .in("search_id", searchIds)
+    .eq("excluded", false)
     .not("research_aspect", "is", null)
     .not("relevance_score", "is", null)
     .limit(5000);
@@ -191,7 +194,7 @@ async function synthesiseAspect(aspect: string, researchQuestion: string | null,
 // with a newer first_seen_at, so it never marks a synthesis stale. Mirrors the
 // same relevance filter gatherConversationEvidence uses.
 export async function countRelevantEvidenceSince(projectId: string, since: string): Promise<number> {
-  const searchIds = await getProjectSocialSearchIds(projectId);
+  const searchIds = await getApprovedProjectSocialSearchIds(projectId);
   if (searchIds.length === 0) return 0;
   const { data: searches } = await supabaseAdmin
     .from("social_searches").select("id, relevance_threshold").in("id", searchIds);
@@ -201,6 +204,7 @@ export async function countRelevantEvidenceSince(projectId: string, since: strin
     .from("social_mentions")
     .select("search_id, research_aspect, relevance_score, first_seen_at")
     .in("search_id", searchIds)
+    .eq("excluded", false)
     .not("research_aspect", "is", null)
     .not("relevance_score", "is", null)
     .gt("first_seen_at", since)

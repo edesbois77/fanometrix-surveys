@@ -37,6 +37,68 @@ function collectionStatus(cs: ConversationSearch): { label: string; tone: Tone }
   return { label: "Not collected", tone: "neutral" };
 }
 
+// The Evidence Validation review banner (docs/evidence-validation-blueprint.md).
+// Review lives HERE, on the Conversation Search page: approve the collected
+// evidence so it feeds Analysis, archive to freeze collection, or reactivate.
+// Renders nothing until there is evidence to review.
+function ReviewBanner({
+  cs, reviewing, onReview, analysisHref, dashboardEvidenceHref,
+}: {
+  cs: ConversationSearch; reviewing: boolean;
+  onReview: (action: "approve" | "archive" | "reactivate") => void;
+  analysisHref: string; dashboardEvidenceHref: string;
+}) {
+  const rs = cs.review_status;
+  if (rs === "draft" || rs === "collecting") return null;
+
+  if (rs === "pending_approval") {
+    return (
+      <div className="flex items-start gap-3 px-4 py-3.5" style={{ borderRadius: "var(--radius-panel)", background: "var(--accent-wash)", border: "1px solid #ECDCB8" }}>
+        <span aria-hidden className="mt-0.5 flex-shrink-0" style={{ color: "var(--accent-ink)" }}><Icon.alert size={16} /></span>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-bold" style={{ color: "var(--accent-ink)" }}>Evidence pending approval</p>
+          <p className="text-xs mt-0.5" style={{ color: "var(--text-secondary)" }}>
+            New conversations are collected but not yet feeding Analysis. Review them, then approve so they count as validated evidence.
+          </p>
+        </div>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <Button variant="secondary" size="sm" href={dashboardEvidenceHref}>Review evidence →</Button>
+          <Button variant="secondary" size="sm" onClick={() => onReview("archive")} disabled={reviewing}>Archive</Button>
+          <Button variant="brand" size="sm" onClick={() => onReview("approve")} disabled={reviewing}>{reviewing ? "Approving…" : "Approve evidence"}</Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (rs === "approved") {
+    return (
+      <div className="flex items-center gap-3 px-4 py-3" style={{ borderRadius: "var(--radius-panel)", background: "#EEF3EC", border: "1px solid #D3E0D0" }}>
+        <span aria-hidden className="flex-shrink-0" style={{ color: "#3F5D42" }}><Icon.check size={15} strokeWidth={2.5} /></span>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold" style={{ color: "#3F5D42" }}>Approved · feeding Analysis</p>
+          <p className="text-xs mt-0.5" style={{ color: "var(--text-secondary)" }}>This search&apos;s included, relevant evidence is validated and available to Analysis and Reports.</p>
+        </div>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <Button variant="secondary" size="sm" href={analysisHref}>Open in Analysis →</Button>
+          <Button variant="secondary" size="sm" onClick={() => onReview("archive")} disabled={reviewing}>Archive</Button>
+        </div>
+      </div>
+    );
+  }
+
+  // archived
+  return (
+    <div className="flex items-center gap-3 px-4 py-3" style={{ borderRadius: "var(--radius-panel)", background: "var(--surface-sunken)", border: "1px solid var(--border-subtle)" }}>
+      <span aria-hidden className="flex-shrink-0" style={{ color: "var(--text-tertiary)" }}><Icon.clock size={15} /></span>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-semibold" style={{ color: "var(--text-secondary)" }}>Archived · collection frozen</p>
+        <p className="text-xs mt-0.5" style={{ color: "var(--text-tertiary)" }}>Approval is preserved — the evidence still feeds Analysis. Reactivate to resume collecting.</p>
+      </div>
+      <Button variant="secondary" size="sm" onClick={() => onReview("reactivate")} disabled={reviewing}>Reactivate</Button>
+    </div>
+  );
+}
+
 // Human label for the sources this search collects from.
 function connectorLabel(cs: ConversationSearch): string {
   const names = (cs.connectors.length ? cs.connectors : cs.platforms).map(c =>
@@ -96,7 +158,7 @@ export function ConversationSearchExecutionBody({ searchEvidenceId }: { searchEv
   const [progressStep, setProgressStep] = useState(0);
   const [justFinished, setJustFinished] = useState<{ newCount: number } | null>(null);
   const [runsVersion, setRunsVersion] = useState(0);
-  const [lastResult, setLastResult] = useState<{ conversations: number; status: string } | null>(null);
+  const [reviewing, setReviewing] = useState(false);
   const [evidenceBuilt, setEvidenceBuilt] = useState<{ conversations: number; runs: number; sources: string[]; markets: string[] } | null>(null);
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
   const showToast = useCallback((msg: string, ok = true) => {
@@ -201,12 +263,23 @@ export function ConversationSearchExecutionBody({ searchEvidenceId }: { searchEv
       showToast(`Added ${detail}${relDetail}.`, json.status !== "failed");
     }
     if (json.status !== "failed") {
-      if (newCount > 0) setLastResult({ conversations: newCount, status: json.status });
       // Brief success state so the button doesn't just snap back to idle.
       setJustFinished({ newCount });
       setTimeout(() => setJustFinished(null), 3000);
     }
     setRunsVersion(v => v + 1);
+    load();
+  }
+
+  async function handleReview(action: "approve" | "archive" | "reactivate") {
+    setReviewing(true);
+    const res = await fetch(`/api/social/searches/${searchEvidenceId}/review`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action }),
+    });
+    const json = await res.json().catch(() => ({}));
+    setReviewing(false);
+    if (!res.ok) { showToast(json.error ?? "Review action failed.", false); return; }
+    showToast(action === "approve" ? "Evidence approved — now feeding Analysis." : action === "archive" ? "Search archived." : "Search reactivated.", true);
     load();
   }
 
@@ -224,21 +297,14 @@ export function ConversationSearchExecutionBody({ searchEvidenceId }: { searchEv
             : undefined}
         />
 
-        {/* ── Collection complete → review the evidence, then generate findings ── */}
-        {lastResult && (
-          <div className="flex items-start gap-3 px-4 py-3.5" style={{ borderRadius: "var(--radius-panel)", background: "var(--accent-wash)", border: "1px solid #ECDCB8" }}>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-bold" style={{ color: "var(--accent-ink)" }}>Collection complete</p>
-              <p className="text-xs mt-0.5" style={{ color: "var(--text-secondary)" }}>
-{lastResult.conversations.toLocaleString()} new conversation{lastResult.conversations === 1 ? "" : "s"} added to your evidence base. Review them in Dashboard, then generate your findings.
-              </p>
-            </div>
-            <div className="flex items-center gap-2 flex-shrink-0">
-              <Button variant="brand" size="sm" href={dashboardEvidenceHref}>Review in Dashboard →</Button>
-              <Button variant="secondary" size="sm" href={`/research-projects/${projectId}/analysis/conversation/${searchEvidenceId}`}>Generate Findings →</Button>
-            </div>
-          </div>
-        )}
+        {/* ── Evidence Validation — review, approve, archive on the search itself ── */}
+        <ReviewBanner
+          cs={cs}
+          reviewing={reviewing}
+          onReview={handleReview}
+          analysisHref={`/research-projects/${projectId}/analysis/conversation/${searchEvidenceId}`}
+          dashboardEvidenceHref={dashboardEvidenceHref}
+        />
 
         {/* ── The research question this search exists to answer ────────────── */}
         {cs.research_question && (

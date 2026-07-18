@@ -17,6 +17,27 @@ export async function getProjectSocialSearchIds(projectId: string): Promise<stri
 }
 
 /**
+ * The Evidence Validation gate (docs/evidence-validation-blueprint.md): the
+ * project's conversation searches whose evidence is APPROVED and therefore feeds
+ * Analysis and Reports. Approved OR Archived counts — Archive freezes collection
+ * but preserves the prior approval. Every project-scoped read that feeds
+ * interpretation (aspect synthesis, key findings, reports) uses THIS, not
+ * getProjectSocialSearchIds; Dashboard monitoring stays ungated and uses the
+ * unfiltered list. Individual conversations are additionally gated by
+ * `excluded = false` on the mention query.
+ */
+export async function getApprovedProjectSocialSearchIds(projectId: string): Promise<string[]> {
+  const ids = await getProjectSocialSearchIds(projectId);
+  if (ids.length === 0) return [];
+  const { data } = await supabaseAdmin
+    .from("social_searches")
+    .select("id")
+    .in("id", ids)
+    .in("review_status", ["approved", "archived"]);
+  return (data ?? []).map(r => r.id as string);
+}
+
+/**
  * The Research Question a conversation search's evidence is judged against —
  * the project's research_question, found via the evidence link. Used as the
  * fallback anchor for relevance classification when the search carries no

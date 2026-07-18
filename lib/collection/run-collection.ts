@@ -12,6 +12,7 @@
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { classifyContent } from "@/lib/ai-classify";
 import { getProjectResearchQuestionForSearch } from "@/lib/research-sources/project-searches";
+import { submitForApproval } from "@/lib/evidence-review";
 import { getConnector, connectorIdForPlatform } from "@/lib/connectors";
 import type { CollectContext, NormalisedItem } from "@/lib/connectors/types";
 import type { SearchStrategy } from "@/lib/search-strategy";
@@ -306,6 +307,13 @@ export async function runCollection(opts: {
     matched: unique.length, relevant, low_relevance: lowRelevance, relevance_threshold: threshold,
   };
   await finalise(status, newCount, ledger);
+
+  // Evidence Validation gate: a run that added genuinely new evidence needs
+  // (re-)approval before it feeds Analysis. Duplicate-/metadata-only runs leave
+  // an approved search approved. (docs/evidence-validation-blueprint.md §3)
+  if (newCount > 0) {
+    try { await submitForApproval(search.id, runId); } catch { /* gate is best-effort; never fail a collection over it */ }
+  }
 
   return {
     runId, status, inserted: newCount,
