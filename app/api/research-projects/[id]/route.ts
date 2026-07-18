@@ -232,9 +232,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     socialSearchEvidenceIds.length
       ? supabaseAdmin
           .from("social_searches")
-          .select("id, name, status, entity_type, markets, platforms, reddit_last_collected_at, social_keywords(keyword, keyword_type)")
+          .select("id, name, status, entity_type, research_goal, markets, platforms, reddit_last_collected_at, social_keywords(keyword, keyword_type)")
           .in("id", socialSearchEvidenceIds)
-      : Promise.resolve({ data: [] as { id: string; name: string; status: string; entity_type: string; markets: string[]; platforms: string[]; reddit_last_collected_at: string | null; social_keywords: { keyword: string; keyword_type: string }[] }[] }),
+      : Promise.resolve({ data: [] as { id: string; name: string; status: string; entity_type: string; research_goal: string; markets: string[]; platforms: string[]; reddit_last_collected_at: string | null; social_keywords: { keyword: string; keyword_type: string }[] }[] }),
     getSocialMentionStatsBySearchIds(socialSearchEvidenceIds),
     socialSearchEvidenceIds.length
       ? supabaseAdmin
@@ -253,7 +253,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     // legacy all-mentions stats for simulated / never-run searches.
     const live = collectionStatusBySearchId.get(s.id);
     return [s.id, {
-      id: s.id, name: s.name, status: s.status, entity_type: s.entity_type,
+      id: s.id, name: s.name, status: s.status, entity_type: s.entity_type, research_goal: s.research_goal,
       keywords: (s.social_keywords ?? []).map(k => k.keyword),
       markets: s.markets ?? [], platforms: s.platforms ?? [],
       connectors: live?.connectors ?? [],

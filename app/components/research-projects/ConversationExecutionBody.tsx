@@ -14,8 +14,8 @@
 // navigation.
 import { useRouter } from "next/navigation";
 import { useResearchProject, type EvidenceItem } from "@/app/components/research-projects/ProjectProvider";
-import { formatRelativeTime } from "@/lib/format-relative-time";
-import { conversationCount, totalItems } from "@/lib/connectors/content-kinds";
+import { conversationCount, totalItems, collectionBreakdown } from "@/lib/connectors/content-kinds";
+import { RESEARCH_GOAL_LABELS } from "@/lib/social-taxonomy";
 import {
   PageContainer, WorkspaceHeader, PageLoadingState, ErrorState, EmptyState,
   SourceCard, Button, Icon, type Tone,
@@ -38,10 +38,41 @@ function collectionStatus(cs: ConversationSearch): { label: string; tone: Tone }
 function ManageAffordance() {
   return (
     <span className="inline-flex items-center gap-1 text-xs font-semibold" style={{ color: "var(--accent-ink)" }}>
-      Manage Collection
+      Manage Search
       <Icon.chevronRight size={14} />
     </span>
   );
+}
+
+// Compact overall-sentiment split — never just "Positive", which is misleading.
+function SentimentSplit({ pos, neu, neg }: { pos: number; neu: number; neg: number }) {
+  return (
+    <span className="text-sm fx-tabular-nums">
+      <span style={{ color: "#3F5D42" }}>{Math.round(pos)}%</span>
+      <span style={{ color: "var(--text-disabled)" }}> · </span>
+      <span style={{ color: "#6B6459" }}>{Math.round(neu)}%</span>
+      <span style={{ color: "var(--text-disabled)" }}> · </span>
+      <span style={{ color: "#8A4B33" }}>{Math.round(neg)}%</span>
+    </span>
+  );
+}
+
+// One search's derived display fields, in one place. The Execution page renders
+// these as large SourceCards today; because the derivation lives here (not inline
+// in the card), the same view-model can later feed a compact list/table row when
+// projects hold many searches — without reworking the data or this component.
+function deriveSearchView(cs: ConversationSearch) {
+  const status = collectionStatus(cs);
+  const hasKinds = Object.keys(cs.by_kind ?? {}).length > 0;
+  const conv = hasKinds ? conversationCount(cs.by_kind) : cs.mention_count;
+  const collected = hasKinds ? totalItems(cs.by_kind) : cs.mention_count;
+  const breakdown = hasKinds ? collectionBreakdown(cs.by_kind) : (cs.mention_count > 0 ? `${cs.mention_count.toLocaleString()} items` : "—");
+  const hasData = collected > 0 || cs.latest_run_status === "running";
+  const goalLabel = RESEARCH_GOAL_LABELS[cs.research_goal] ?? cs.research_goal;
+  const sources = (cs.platforms.length ? cs.platforms : cs.connectors).join(", ");
+  // Research Goal · Markets · Sources — distinguishes searches at a glance.
+  const subtitle = [goalLabel, cs.markets.join(", "), sources].filter(Boolean).join("  ·  ");
+  return { status, conv, breakdown, hasData, subtitle };
 }
 
 export function ConversationExecutionBody() {
@@ -79,26 +110,22 @@ export function ConversationExecutionBody() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {searchEvidence.map(item => {
             const cs = item.conversationSearch;
-            const status = collectionStatus(cs);
-            const hasKinds = Object.keys(cs.by_kind ?? {}).length > 0;
-            const conv = hasKinds ? conversationCount(cs.by_kind) : cs.mention_count;
-            const collected = hasKinds ? totalItems(cs.by_kind) : cs.mention_count;
-            const hasData = collected > 0 || cs.latest_run_status === "running";
-            const lastCollected = cs.last_collected_at ? `Last collected ${formatRelativeTime(cs.last_collected_at)}` : "Not collected yet";
+            const v = deriveSearchView(cs);
             return (
               <SourceCard
                 key={item.id}
                 type="conversation"
                 name={cs.name}
-                subtitle={cs.markets.length ? cs.markets.join(" · ") : lastCollected}
-                status={{ label: status.label, tone: status.tone, dot: true }}
+                subtitle={v.subtitle}
+                status={{ label: v.status.label, tone: v.status.tone, dot: true }}
                 metrics={[
-                  { label: "Collected", value: collected.toLocaleString() },
-                  { label: "Conversations", value: conv.toLocaleString() },
-                  { label: "Markets", value: cs.markets.length },
-                  { label: "Positive", value: cs.mention_count > 0 ? `${Math.round(cs.positive_pct)}%` : "—" },
+                  { label: "Evidence Collected", value: <span className="text-sm">{v.breakdown}</span> },
+                  { label: "Conversations Analysed", value: v.conv.toLocaleString() },
+                  { label: "Overall Sentiment", value: cs.mention_count > 0
+                      ? <SentimentSplit pos={cs.positive_pct} neu={cs.neutral_pct} neg={cs.negative_pct} />
+                      : "—" },
                 ]}
-                actions={hasData
+                actions={v.hasData
                   ? <Button variant="secondary" size="sm" href={`/research-projects/${projectId}/dashboard`}>View Dashboard →</Button>
                   : undefined}
                 onOpen={() => router.push(`${base}/${item.evidence_id}`)}
@@ -109,12 +136,22 @@ export function ConversationExecutionBody() {
         </div>
       )}
 
-      <p className="text-xs px-1" style={{ color: "var(--text-tertiary)" }}>
-        Searches are configured in{" "}
-        <button onClick={() => router.push(`/research-projects/${projectId}/research/conversation`)} className="font-semibold hover:underline" style={{ color: "var(--accent-ink)" }}>Research →</button>
-        {" "}and their live volumes are monitored in{" "}
-        <button onClick={() => router.push(`/research-projects/${projectId}/dashboard`)} className="font-semibold hover:underline" style={{ color: "var(--accent-ink)" }}>Dashboard →</button>
-      </p>
+      {/* The source's journey across the workspace — where each stage happens. */}
+      <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs px-1" style={{ color: "var(--text-tertiary)" }}>
+        <span>Configured in{" "}
+          <button onClick={() => router.push(`/research-projects/${projectId}/research/conversation`)} className="font-semibold hover:underline" style={{ color: "var(--accent-ink)" }}>Research</button>
+        </span>
+        <span aria-hidden>→</span>
+        <span className="font-semibold" style={{ color: "var(--text-secondary)" }}>Collected in Execution</span>
+        <span aria-hidden>→</span>
+        <span>Monitored in{" "}
+          <button onClick={() => router.push(`/research-projects/${projectId}/dashboard`)} className="font-semibold hover:underline" style={{ color: "var(--accent-ink)" }}>Dashboard</button>
+        </span>
+        <span aria-hidden>→</span>
+        <span>Analysed in{" "}
+          <button onClick={() => router.push(`/research-projects/${projectId}/analysis`)} className="font-semibold hover:underline" style={{ color: "var(--accent-ink)" }}>Analysis</button>
+        </span>
+      </div>
     </PageContainer>
   );
 }

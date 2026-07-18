@@ -22,7 +22,7 @@ import type { LangCode } from "@/lib/survey-locale";
 export type ActivityRow = { id: string; event_type: string; description: string; actor: string | null; created_at: string };
 
 export type ConversationSearchEvidence = {
-  id: string; name: string; status: string; entity_type: string;
+  id: string; name: string; status: string; entity_type: string; research_goal: string;
   keywords: string[]; markets: string[]; platforms: string[];
   // Generic collection engine (latest snapshot from collection_runs).
   connectors: string[];
