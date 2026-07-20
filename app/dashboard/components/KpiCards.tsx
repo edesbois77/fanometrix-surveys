@@ -1,5 +1,6 @@
 "use client";
 
+import { Fragment } from "react";
 import type { SurveyResponse } from "@/lib/types";
 
 export type EventCounts = {
@@ -33,6 +34,26 @@ function pctPrecise(num: number, denom: number): string {
 
 function fmt(n: number): string {
   return n.toLocaleString();
+}
+
+// Drop-off from the previous stage — the inverse of the conversion rate. Shown
+// on the subtle connectors between pipeline stages (e.g. "−55%").
+function dropOf(num: number, denom: number): string {
+  if (!denom) return "—";
+  const drop = Math.max(0, 100 - (num / denom) * 100);
+  if (drop === 0) return "0%";
+  if (drop < 0.1) return "−<0.1%";
+  return `−${drop.toFixed(drop < 10 ? 1 : 0)}%`;
+}
+
+// Human-friendly "time since" for the Collection Status panel.
+function relTime(fromMs: number, nowMs: number): string {
+  const s = Math.max(0, Math.floor((nowMs - fromMs) / 1000));
+  if (s < 60)  return `${s}s ago`;
+  const m = Math.floor(s / 60);  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);  if (h < 24) return `${h}h ago`;
+  const d = Math.floor(h / 24);  if (d < 30) return `${d}d ago`;
+  return `${Math.floor(d / 30)}mo ago`;
 }
 
 // ── Delivery card ─────────────────────────────────────────────────────────────
@@ -96,43 +117,200 @@ function EngagementCard({
   );
 }
 
-// ── Funnel ────────────────────────────────────────────────────────────────────
+// ── Conversion pipeline ─────────────────────────────────────────────────────
+// A compact horizontal journey from Survey Render to Completed Response. Each
+// stage is a small card (name · count · share of the previous stage); between
+// stages a subtle connector carries the drop-off. Occupies ~⅓ of the height the
+// old vertical funnel needed while keeping all five stages.
 
-function FunnelStep({
-  label, count, dropPct, isLast,
-}: {
-  label: string; count: number; dropPct?: string; isLast?: boolean;
-}) {
+type PipelineStage = {
+  label: string;
+  count: number;
+  conv:  string | null;  // "45% of previous" — null for the first stage
+  drop:  string | null;  // "−55%" — shown on the connector before this stage
+};
+
+function ConversionPipeline({ stages }: { stages: PipelineStage[] }) {
   return (
-    <div className="flex flex-col items-center gap-0.5">
-      <div
-        className="w-full rounded-lg px-4 py-2.5 flex items-center justify-between"
-        style={{ background: "#F8F9FB", border: "1px solid #E5E7EB" }}
-      >
-        <span className="text-sm font-semibold" style={{ color: "#0B1929" }}>{label}</span>
-        <span className="text-sm font-bold tabular-nums" style={{ color: "#0B1929" }}>
-          {fmt(count)}
+    <div className="bg-white border border-gray-100 rounded-xl p-3 shadow-sm">
+      <div className="flex items-stretch overflow-x-auto pb-1">
+        {stages.map((s, i) => (
+          <Fragment key={s.label}>
+            {i > 0 && (
+              <div className="flex items-center flex-shrink-0 px-1" style={{ minWidth: 54 }}>
+                <div className="flex-1 h-px bg-gray-200" />
+                <span className="mx-1 text-[10px] font-semibold tabular-nums text-gray-500 whitespace-nowrap">
+                  {s.drop}
+                </span>
+                <div className="flex-1 h-px bg-gray-200" />
+              </div>
+            )}
+            <div
+              className="flex-1 min-w-[92px] rounded-lg px-3 py-2"
+              style={{ background: "#F8F9FB", border: "1px solid #E5E7EB" }}
+            >
+              <p
+                className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 leading-tight"
+                style={{ minHeight: 26 }}
+                title={s.label}
+              >
+                {s.label}
+              </p>
+              <p className="text-lg font-bold tabular-nums leading-none mt-1" style={{ color: "#0B1929" }}>
+                {fmt(s.count)}
+              </p>
+              <p className="text-[10px] text-gray-400 mt-1 truncate" title={s.conv ?? "starting point"}>
+                {s.conv ?? "starting point"}
+              </p>
+            </div>
+          </Fragment>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Research Confidence ───────────────────────────────────────────────────────
+// How much to trust the current dataset. Today it is driven by sample size and
+// the resulting 95% margin of error, expressed as an array of weighted factors
+// so future signals (publisher diversity, country coverage, completion rate,
+// data quality…) can be added without changing this component or its layout.
+
+type ConfBand = "No data" | "Directional" | "Emerging" | "Reliable" | "Robust";
+
+type ConfFactor = { key: string; label: string; score: number; detail: string };
+
+const CONF_COLOR: Record<ConfBand, string> = {
+  "No data":     "#9CA3AF",
+  "Directional": "#9CA3AF",
+  "Emerging":    "#B45309",
+  "Reliable":    "#B8935A",
+  "Robust":      "#15803D",
+};
+
+// 95% margin of error for a proportion, worst case p=0.5:  1.96·√(0.25/n).
+function marginOfError(n: number): number | null {
+  return n > 0 ? Math.round((0.98 / Math.sqrt(n)) * 1000) / 10 : null;
+}
+
+function computeConfidence(n: number): {
+  band: ConfBand; overall: number; moe: number | null; n: number; factors: ConfFactor[];
+} {
+  const moe = marginOfError(n);
+  // Sample-adequacy score ramps toward 100 at n≈385 (±5% MoE), on a log scale
+  // so early responses move the needle without overstating a small sample.
+  const sampleScore = n <= 0
+    ? 0
+    : Math.min(100, Math.round((Math.log10(n + 1) / Math.log10(386)) * 100));
+
+  const factors: ConfFactor[] = [
+    {
+      key: "sample",
+      label: "Sample size",
+      score: sampleScore,
+      detail: moe !== null ? `${fmt(n)} completed · ±${moe}%` : "No completed responses",
+    },
+  ];
+
+  const overall = Math.round(factors.reduce((a, f) => a + f.score, 0) / factors.length);
+  const band: ConfBand =
+    n <= 0   ? "No data"     :
+    n < 30   ? "Directional" :
+    n < 100  ? "Emerging"    :
+    n < 385  ? "Reliable"    : "Robust";
+
+  return { band, overall, moe, n, factors };
+}
+
+function ResearchConfidence({ n }: { n: number }) {
+  const { band, overall, moe } = computeConfidence(n);
+  const color = CONF_COLOR[band];
+
+  return (
+    <div className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm flex flex-col">
+      <div className="flex items-baseline justify-between gap-2">
+        <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400">Research Confidence</p>
+        {moe !== null && (
+          <span className="text-[10px] text-gray-400 tabular-nums">±{moe}% margin</span>
+        )}
+      </div>
+      <p className="text-2xl font-bold mt-1" style={{ color }}>{band}</p>
+      <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden mt-2">
+        <div className="h-full rounded-full transition-all" style={{ width: `${overall}%`, background: color }} />
+      </div>
+      <p className="text-xs text-gray-400 mt-2">
+        {n <= 0
+          ? "Awaiting completed responses"
+          : `Based on ${fmt(n)} completed response${n === 1 ? "" : "s"}${moe !== null ? ` · ±${moe}% at 95% confidence` : ""}`}
+      </p>
+    </div>
+  );
+}
+
+// ── Collection Status ─────────────────────────────────────────────────────────
+// Is the research actively collecting? Volume today / this week, recency of the
+// last response, and how many publishers and countries are currently live
+// (seen in the last 24h). Purely derived from the response records in view.
+
+const DAY_MS  = 86_400_000;
+const WEEK_MS = 7 * DAY_MS;
+
+type StatusBand = { label: string; color: string; dot: string };
+
+function CollectionStatus({ responses }: { responses: SurveyResponse[] }) {
+  const now = Date.now();
+
+  let lastTs = 0;
+  let today = 0;
+  let week = 0;
+  const livePubs = new Set<string>();
+  const liveCountries = new Set<string>();
+
+  for (const r of responses) {
+    const t = new Date(r.created_at).getTime();
+    if (Number.isNaN(t)) continue;
+    if (t > lastTs) lastTs = t;
+    const age = now - t;
+    if (age <= WEEK_MS) week++;
+    if (age <= DAY_MS) {
+      today++;
+      if (r.publisher) livePubs.add(r.publisher);
+      if (r.country)   liveCountries.add(r.country);
+    }
+  }
+
+  const age = lastTs ? now - lastTs : Infinity;
+  const status: StatusBand =
+    !lastTs         ? { label: "No responses",        color: "#9CA3AF", dot: "#D1D5DB" } :
+    age <= DAY_MS   ? { label: "Actively collecting", color: "#15803D", dot: "#22C55E" } :
+    age <= WEEK_MS  ? { label: "Slowing",             color: "#B45309", dot: "#F59E0B" } :
+                      { label: "Paused",              color: "#9CA3AF", dot: "#D1D5DB" };
+
+  const stat = (label: string, value: string | number) => (
+    <div>
+      <p className="text-lg font-bold tabular-nums leading-none" style={{ color: "#0B1929" }}>{value}</p>
+      <p className="text-[10px] text-gray-400 mt-0.5">{label}</p>
+    </div>
+  );
+
+  return (
+    <div className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm flex flex-col">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400">Collection Status</p>
+        <span className="flex items-center gap-1.5 text-[11px] font-semibold" style={{ color: status.color }}>
+          <span className="inline-block w-1.5 h-1.5 rounded-full" style={{ background: status.dot }} />
+          {status.label}
         </span>
       </div>
-      {!isLast && (
-        <div className="flex flex-col items-center gap-0" style={{ lineHeight: 1 }}>
-          <div style={{ width: 1, height: 8, background: "#CBD5E1" }} />
-          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <div style={{ width: 1, height: 8, background: "#CBD5E1" }} />
-            <span
-              className="text-xs font-semibold tabular-nums px-2 py-0.5 rounded"
-              style={{ background: "#EFF6FF", color: "#3B82F6", fontSize: 10.5 }}
-            >
-              {dropPct ?? "—"}
-            </span>
-            <div style={{ width: 1, height: 8, background: "#CBD5E1" }} />
-          </div>
-          <div style={{ width: 1, height: 8, background: "#CBD5E1" }} />
-          <svg width="10" height="6" viewBox="0 0 10 6" fill="none">
-            <path d="M5 6L0 0h10L5 6z" fill="#CBD5E1" />
-          </svg>
-        </div>
-      )}
+      <div className="grid grid-cols-2 gap-x-4 gap-y-3 mt-3">
+        {stat("responses today", fmt(today))}
+        {stat("this week", fmt(week))}
+        {stat("publishers live", fmt(livePubs.size))}
+        {stat("countries collecting", fmt(liveCountries.size))}
+      </div>
+      <p className="text-xs text-gray-400 mt-3">
+        {lastTs ? `Last response ${relTime(lastTs, now)}` : "No responses collected yet"}
+      </p>
     </div>
   );
 }
@@ -191,8 +369,18 @@ export function KpiCards({ responses, events, eventsLoading }: KpiCardsProps) {
   const legacyFullCount = responses.filter(r => r.q1 && r.q2 && r.q3).length;
   const legacyCompRate  = completed > 0 ? `${Math.round((legacyFullCount / completed) * 100)}%` : "—";
 
+  const pipelineStages: PipelineStage[] = [
+    { label: "Survey Renders",      count: renders,         conv: null,                                     drop: null                       },
+    { label: "Q1 Answered",         count: starts,          conv: `${pct(starts, renders)} of previous`,    drop: dropOf(starts, renders)    },
+    { label: "Question 2 Reached",  count: q2Reached,       conv: `${pct(q2Reached, starts)} of previous`,  drop: dropOf(q2Reached, starts)  },
+    { label: "Question 3 Reached",  count: q3Reached,       conv: `${pct(q3Reached, q2Reached)} of previous`, drop: dropOf(q3Reached, q2Reached) },
+    { label: "Completed Responses", count: funnelCompleted, conv: `${pct(funnelCompleted, q3Reached)} of previous`, drop: dropOf(funnelCompleted, q3Reached) },
+  ];
+
   return (
     <div className="space-y-5 mb-6">
+
+      <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Collection Health</h2>
 
       {/* ── DELIVERY METRICS ──────────────────────────────────────────── */}
       <div>
@@ -270,38 +458,30 @@ export function KpiCards({ responses, events, eventsLoading }: KpiCardsProps) {
         </div>
       </div>
 
-      {/* ── RESPONSE FUNNEL ───────────────────────────────────────────── */}
+      {/* ── CONVERSION PIPELINE ───────────────────────────────────────── */}
       <div>
-        <SectionLabel>Response Funnel</SectionLabel>
-        <div className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm">
-          {isLegacyData ? (
-            <div className="py-2">
-              <ZeroNotice message="Funnel data is not available for responses collected before event tracking was introduced." />
-              {completed > 0 && (
-                <div className="mt-3">
-                  <FunnelStep label="Completed Responses" count={completed} isLast />
-                </div>
-              )}
-            </div>
-          ) : !hasEvents && !eventsLoading ? (
-            <div className="py-2">
-              <ZeroNotice message="Funnel data will appear once event tracking records its first Survey Render." />
-              {completed > 0 && (
-                <div className="mt-3">
-                  <FunnelStep label="Completed Responses" count={completed} isLast />
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="max-w-sm mx-auto space-y-0">
-              <FunnelStep label="Survey Renders"       count={renders}         dropPct={pct(starts,         renders)}    />
-              <FunnelStep label="Q1 Answered"          count={starts}          dropPct={pct(q2Reached,      starts)}     />
-              <FunnelStep label="Question 2 Reached"   count={q2Reached}       dropPct={pct(q3Reached,      q2Reached)}  />
-              <FunnelStep label="Question 3 Reached"   count={q3Reached}       dropPct={pct(funnelCompleted, q3Reached)} />
-              <FunnelStep label="Completed Responses"  count={funnelCompleted} isLast />
-            </div>
-          )}
-        </div>
+        <SectionLabel>Conversion Pipeline</SectionLabel>
+        {isLegacyData || (!hasEvents && !eventsLoading) ? (
+          <div className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm">
+            <ZeroNotice message={isLegacyData
+              ? "Pipeline stages are not available for responses collected before event tracking was introduced."
+              : "Pipeline stages will appear once event tracking records its first Survey Render."} />
+            {completed > 0 && (
+              <p className="text-sm mt-2">
+                <span className="font-bold tabular-nums" style={{ color: "#0B1929" }}>{fmt(completed)}</span>
+                <span className="text-gray-400"> completed responses</span>
+              </p>
+            )}
+          </div>
+        ) : (
+          <ConversionPipeline stages={pipelineStages} />
+        )}
+      </div>
+
+      {/* ── RESEARCH CONFIDENCE + COLLECTION STATUS ────────────────────── */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <ResearchConfidence n={completed} />
+        <CollectionStatus responses={responses} />
       </div>
 
     </div>

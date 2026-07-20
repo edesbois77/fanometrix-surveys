@@ -438,37 +438,46 @@ export function ChartGrid({
   });
 
   return (
-    <div className="space-y-4">
-      <ResponsesOverTime responses={responses} />
+    <div className="space-y-6">
 
-      {/* Question results */}
-      {hasScope ? (
-        <HScrollRow title="Question Results" cols={3} minCardW={320}>
-          {qLabels.map(({ field, label, color, optionMap }) => (
-            <QChart
-              key={field}
-              label={label}
-              color={color}
-              responses={responses}
-              field={field}
-              activeValue={filters[field]}
-              onFilter={(v) => onFilter(field, v)}
-              optionMap={optionMap}
-            />
-          ))}
-        </HScrollRow>
-      ) : (
-        <div className="bg-white border border-gray-100 rounded-xl px-5 py-4 shadow-sm">
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Question Results</p>
-          <p className="text-sm text-gray-400">
-            Select a campaign, survey or campaign group above to see question-level results.
-            Q1/Q2/Q3 answers differ between surveys, mixing them across all campaigns produces meaningless data.
-          </p>
-        </div>
-      )}
-
-      {/* Distribution charts with metric selector */}
+      {/* ── What Fans Are Saying — the research itself ───────────────────── */}
       <div>
+        <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
+          What Fans Are Saying
+        </h2>
+        {hasScope ? (
+          <HScrollRow cols={3} minCardW={320}>
+            {qLabels.map(({ field, label, color, optionMap }) => (
+              <QChart
+                key={field}
+                label={label}
+                color={color}
+                responses={responses}
+                field={field}
+                activeValue={filters[field]}
+                onFilter={(v) => onFilter(field, v)}
+                optionMap={optionMap}
+              />
+            ))}
+          </HScrollRow>
+        ) : (
+          <div className="bg-white border border-gray-100 rounded-xl px-5 py-4 shadow-sm">
+            <p className="text-sm text-gray-400">
+              Select a campaign, survey or campaign group above to see question-level results.
+              Q1/Q2/Q3 answers differ between surveys, mixing them across all campaigns produces meaningless data.
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* ── Explore The Data — trend + distribution breakdowns ───────────── */}
+      <div>
+        <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
+          Explore The Data
+        </h2>
+
+        <ResponsesOverTime responses={responses} />
+
         <div className="flex items-center justify-between mb-3">
           <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
             Distribution Charts

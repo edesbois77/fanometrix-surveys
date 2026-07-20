@@ -490,8 +490,8 @@ export function SurveyDashboardBody({ projectId }: { projectId?: string }) {
             </div>
           ) : (
             <>
-              <PerformanceHighlights responses={filtered} />
               <InsightsEngine responses={filtered} onFilter={onChartFilter} />
+              <PerformanceHighlights responses={filtered} />
               <ChartGrid
                 responses={filtered}
                 filters={filters}

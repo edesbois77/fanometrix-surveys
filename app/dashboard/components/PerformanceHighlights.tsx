@@ -120,7 +120,7 @@ export function PerformanceHighlights({ responses }: { responses: SurveyResponse
   return (
     <div className="mb-5">
       <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
-        Performance Highlights
+        Where The Data Is Coming From
       </h2>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <HighlightCard

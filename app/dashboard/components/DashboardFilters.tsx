@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import type { SurveyResponse } from "@/lib/types";
 import { useSession } from "@/app/components/SessionProvider";
 
@@ -81,6 +82,9 @@ export function DashboardFilters({
   campaignHasDates, filteredCount, totalCount,
 }: Props) {
   const { user } = useSession();
+  // Filters are expanded on first load; experienced users collapse the panel to
+  // a summary bar so the reporting below can fill the screen.
+  const [collapsed, setCollapsed] = useState(false);
   // A publisher only ever sees their own campaigns' responses, so filtering
   // "by publisher" within that is meaningless — drop the dimension entirely
   // rather than show a dropdown with (at most) one real option.
@@ -115,8 +119,83 @@ export function DashboardFilters({
 
   const hasActiveFilters = chips.length > 0;
 
+  // Summary shown in the header when the panel is collapsed. Includes the scope
+  // selectors (resolved to friendly names) plus the same date/dimension chips.
+  const scopeSummary: { label: string; value: string }[] = [];
+  if (filters.survey_id)
+    scopeSummary.push({ label: "Survey", value: surveyOptions.find(s => s.id === filters.survey_id)?.name ?? filters.survey_id });
+  if (filters.campaign_id)
+    scopeSummary.push({ label: "Campaign", value: sortedCampaigns.find(c => c.campaign_id === filters.campaign_id)?.campaign_name ?? filters.campaign_id });
+  if (filters.group_id)
+    scopeSummary.push({ label: "Group", value: groupOptions.find(g => g.id === filters.group_id)?.name ?? filters.group_id });
+  const summaryChips = [...scopeSummary, ...chips.map(c => ({ label: c.label, value: c.value }))];
+  const activeCount = summaryChips.length;
+
   return (
     <div className="bg-white border border-gray-100 rounded-xl shadow-sm mb-4 overflow-hidden">
+
+      {/* Header bar — always visible; carries the collapse toggle, an active-filter
+          count, the response tally, and (when collapsed) a summary of what's applied. */}
+      <div className={`flex flex-wrap items-center gap-x-4 gap-y-2 justify-between px-4 py-3 ${collapsed ? "" : "border-b border-gray-50"}`}>
+        <button
+          onClick={() => setCollapsed(c => !c)}
+          className="flex items-center gap-2 group"
+          aria-expanded={!collapsed}
+        >
+          <svg
+            width="10" height="10" viewBox="0 0 10 10" fill="none"
+            className="transition-transform duration-300 text-gray-400"
+            style={{ transform: collapsed ? "rotate(-90deg)" : "rotate(0deg)" }}
+          >
+            <path d="M1 3L5 7L9 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          <span className="text-xs font-semibold uppercase tracking-wide text-gray-500 group-hover:text-gray-700 transition-colors">
+            Filters
+          </span>
+          {activeCount > 0 && (
+            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ background: "#D7B87A", color: "#0B1929" }}>
+              {activeCount}
+            </span>
+          )}
+        </button>
+        <div className="flex items-center gap-3">
+          <span className="text-xs text-gray-400 tabular-nums">
+            {filteredCount.toLocaleString()}
+            {filteredCount !== totalCount && ` of ${totalCount.toLocaleString()}`} responses
+          </span>
+          <button
+            onClick={() => setCollapsed(c => !c)}
+            className="text-xs font-medium text-gray-500 hover:text-[#0B1929] transition-colors"
+          >
+            {collapsed ? "Show filters" : "Collapse filters"}
+          </button>
+        </div>
+      </div>
+
+      {/* Collapsed summary — a compact read-only bar of the active filters. */}
+      {collapsed && (
+        <div className="px-4 pb-3 flex flex-wrap gap-2 items-center">
+          {summaryChips.length > 0 ? (
+            summaryChips.map(({ label, value }) => (
+              <span
+                key={`${label}-${value}`}
+                className="flex items-center gap-1 text-xs bg-gray-100 text-[#0B1929] border border-[#E0E1DD] px-2 py-1 rounded-full"
+              >
+                <span className="text-gray-500 font-medium">{label}:</span> {value}
+              </span>
+            ))
+          ) : (
+            <span className="text-xs text-gray-400 italic">No filters applied — showing all responses</span>
+          )}
+        </div>
+      )}
+
+      {/* Collapsible body — smooth height animation via the grid 0fr↔1fr trick. */}
+      <div
+        className="grid transition-all duration-300 ease-in-out"
+        style={{ gridTemplateRows: collapsed ? "0fr" : "1fr" }}
+      >
+        <div className="overflow-hidden min-h-0">
 
       {/* Date range tabs — wrap on mobile so response count doesn't squish the presets */}
       <div className="flex flex-wrap items-center gap-y-2 justify-between px-4 pt-4 pb-3 border-b border-gray-50">
@@ -143,10 +222,6 @@ export function DashboardFilters({
             );
           })}
         </div>
-        <span className="text-xs text-gray-400 ml-4 flex-shrink-0">
-          {filteredCount.toLocaleString()}
-          {filteredCount !== totalCount && ` of ${totalCount.toLocaleString()}`} responses
-        </span>
       </div>
 
       {/* Custom date inputs */}
@@ -283,6 +358,9 @@ export function DashboardFilters({
           </button>
         </div>
       )}
+
+        </div>
+      </div>
     </div>
   );
 }
