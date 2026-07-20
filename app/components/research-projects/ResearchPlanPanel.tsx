@@ -162,6 +162,11 @@ export function ResearchPlanPanel({ projectId, researchQuestion, canManage }: { 
 
   return (
     <Card padding="lg">
+      {/* Framing — this is advice to review, not automation that has run. */}
+      <p className="text-[13px] leading-relaxed mb-4" style={{ color: "var(--text-secondary)" }}>
+        Based on your research question, Fanometrix recommends the following methodology to maximise the quality and reliability of your findings. Review the approach below before configuring your research methods.
+      </p>
+
       {/* Header */}
       <div className="flex items-start justify-between gap-3 flex-wrap pb-3 border-b" style={{ borderColor: "var(--border-default)" }}>
         <div className="min-w-0">
