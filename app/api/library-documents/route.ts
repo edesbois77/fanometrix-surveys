@@ -13,6 +13,7 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 import { requireUser } from "@/lib/auth-server";
 import { ALLOWED_MIME_TYPES, MAX_FILE_SIZE_BYTES, isDocumentType } from "@/lib/library-documents/constants";
 import { buildStoragePath, createUploadTicket } from "@/lib/library-documents/storage";
+import { canAttachDocumentToProject, type GovernedDocument } from "@/lib/library-documents/governance";
 
 function titleFromFilename(filename: string): string {
   const dot = filename.lastIndexOf(".");
@@ -40,10 +41,13 @@ export async function GET(req: NextRequest) {
   const documentType = searchParams.get("document_type")?.trim();
   const status = searchParams.get("status")?.trim();
   const tags = searchParams.getAll("tag").map(t => t.trim()).filter(Boolean);
+  // When attaching from within a project, only offer documents whose governance
+  // permits attachment to THAT project (org-restricted docs stay hidden elsewhere).
+  const projectId = searchParams.get("project_id")?.trim();
 
   let query = supabaseAdmin
     .from("library_documents")
-    .select("id, title, document_type, status, error_message, original_filename, page_count, uploaded_by, uploaded_at, approved_at, tags")
+    .select("id, title, document_type, status, error_message, original_filename, page_count, uploaded_by, uploaded_at, approved_at, tags, owner, owner_org_id, confidentiality, visibility, learning_permission, ai_access")
     .is("deleted_at", null)
     .order("uploaded_at", { ascending: false });
 
@@ -53,9 +57,17 @@ export async function GET(req: NextRequest) {
   if (tags.length > 0) query = query.overlaps("tags", tags);
 
   const { data, error } = await query;
-
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ data: data ?? [] });
+
+  let rows = data ?? [];
+  if (projectId) {
+    const { data: project } = await supabaseAdmin
+      .from("research_projects")
+      .select("brand_org_id, agency_org_id, publisher_org_ids")
+      .eq("id", projectId).maybeSingle();
+    if (project) rows = rows.filter(d => canAttachDocumentToProject(d as GovernedDocument, project));
+  }
+  return NextResponse.json({ data: rows });
 }
 
 export async function POST(req: NextRequest) {

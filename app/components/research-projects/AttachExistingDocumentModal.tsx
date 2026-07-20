@@ -32,7 +32,7 @@ const STATUS_META: Record<LibraryDocumentRow["status"], { label: string; classNa
 const SELECT_CLS = "border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A] text-gray-600";
 
 export function AttachExistingDocumentModal({
-  excludeDocumentIds, onClose, onAttach, onUploadNew,
+  excludeDocumentIds, onClose, onAttach, onUploadNew, projectId,
 }: {
   excludeDocumentIds: string[];
   onClose: () => void;
@@ -40,6 +40,9 @@ export function AttachExistingDocumentModal({
   // When provided (in a Research Project), "upload a new document" happens
   // INSIDE the project rather than sending the user to the standalone Library.
   onUploadNew?: () => void;
+  // Scopes the candidate list to documents whose governance permits attachment to
+  // THIS project — org-restricted docs never surface outside their owning org.
+  projectId?: string;
 }) {
   const [docs, setDocs] = useState<LibraryDocumentRow[] | null>(null);
   const [search, setSearch] = useState("");
@@ -48,11 +51,11 @@ export function AttachExistingDocumentModal({
 
   useEffect(() => {
     (async () => {
-      const res = await fetch("/api/library-documents");
+      const res = await fetch(projectId ? `/api/library-documents?project_id=${encodeURIComponent(projectId)}` : "/api/library-documents");
       const json = await res.json();
       setDocs(json.data ?? []);
     })();
-  }, []);
+  }, [projectId]);
 
   const filtered = useMemo(() => {
     let list = (docs ?? [])

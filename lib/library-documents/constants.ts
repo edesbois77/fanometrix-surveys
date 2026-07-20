@@ -59,9 +59,10 @@ export function documentTypeLabel(value: string): string {
 // the access-control field: changing it is confirmed in the UI and audited,
 // since a library_document is a single record shared across every project.
 export const CONFIDENTIALITY_LEVELS = [
-  { value: "public",       label: "Public" },
-  { value: "internal",     label: "Internal" },
-  { value: "confidential", label: "Confidential" },
+  { value: "public",         label: "Public" },
+  { value: "internal",       label: "Internal" },
+  { value: "confidential",   label: "Confidential" },
+  { value: "nda_restricted", label: "NDA Restricted" },
 ] as const;
 
 export type Confidentiality = (typeof CONFIDENTIALITY_LEVELS)[number]["value"];

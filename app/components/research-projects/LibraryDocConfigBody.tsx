@@ -21,6 +21,10 @@ import { useWorkspaceRecord } from "@/app/components/research-projects/Workspace
 import { useSession } from "@/app/components/SessionProvider";
 import { DOCUMENT_TYPES, CONFIDENTIALITY_LEVELS, COMMON_DOCUMENT_TAGS, normaliseTag } from "@/lib/library-documents/constants";
 import {
+  OWNER_LABEL, OWNERS, VISIBILITY_LABEL, VISIBILITIES, LEARNING_LABEL, LEARNING_PERMISSIONS,
+  AI_ACCESS_LABEL, AI_ACCESSES, CONFIDENTIALITY_LABEL, type DocumentOwner, type DocumentConfidentiality,
+} from "@/lib/library-documents/governance";
+import {
   PageContainer, WorkspaceHeader, PageLoadingState, ErrorState,
   Card, SectionHeading, Button, Icon, BackLink,
 } from "@/app/components/workspace-ui";
@@ -32,6 +36,7 @@ type Doc = {
   uploaded_by: string | null; uploaded_at: string; approved_at: string | null;
   confidentiality: string; description: string | null; preview_url: string | null;
   error_message: string | null; project_usage_count: number;
+  owner: string; owner_org_id: string | null; visibility: string; learning_permission: string; ai_access: string;
 };
 
 // ── Small form primitives (shared UI v2 language) ────────────────────────────
@@ -62,7 +67,10 @@ function Detail({ label, children }: { label: string; children: React.ReactNode 
 
 const fmtDate = (s: string) => new Date(s).toLocaleDateString("en-GB");
 
-type EditForm = { title: string; author: string; document_type: string; confidentiality: string; description: string; tags: string[] };
+type EditForm = {
+  title: string; author: string; document_type: string; confidentiality: string; description: string; tags: string[];
+  owner: string; owner_org_id: string; visibility: string; learning_permission: string; ai_access: string;
+};
 
 export function LibraryDocConfigBody({ documentId, backHref, backLabel }: {
   documentId: string;
@@ -77,9 +85,11 @@ export function LibraryDocConfigBody({ documentId, backHref, backLabel }: {
   const [doc, setDoc] = useState<Doc | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const [orgs, setOrgs] = useState<{ id: string; name: string; type: string }[]>([]);
+  const orgName = (id: string | null) => (id ? orgs.find(o => o.id === id)?.name ?? "Unknown organisation" : null);
 
   const [editing, setEditing] = useState(false);
-  const [form, setForm] = useState<EditForm>({ title: "", author: "", document_type: "other", confidentiality: "internal", description: "", tags: [] });
+  const [form, setForm] = useState<EditForm>({ title: "", author: "", document_type: "other", confidentiality: "internal", description: "", tags: [], owner: "fanometrix", owner_org_id: "", visibility: "internal", learning_permission: "no_learning", ai_access: "internal" });
   const [tagInput, setTagInput] = useState("");
   const [saving, setSaving] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -99,6 +109,14 @@ export function LibraryDocConfigBody({ documentId, backHref, backLabel }: {
   }, [documentId]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Organisations — for the owner-organisation selector (governance).
+  useEffect(() => {
+    fetch("/api/organisations").then(r => (r.ok ? r.json() : null)).then(j => {
+      const list = Array.isArray(j) ? j : (j?.data ?? j?.organisations ?? []);
+      setOrgs((list ?? []).map((o: { id: string; name: string; type?: string }) => ({ id: o.id, name: o.name, type: o.type ?? "" })));
+    }).catch(() => {});
+  }, []);
 
   // Poll while the document is still processing so the loader advances live and
   // flips to Ready on its own. Stops as soon as it's Ready or Failed.
@@ -122,6 +140,11 @@ export function LibraryDocConfigBody({ documentId, backHref, backLabel }: {
       confidentiality: doc.confidentiality || "internal",
       description: doc.description ?? "",
       tags: doc.tags ?? [],
+      owner: doc.owner || "fanometrix",
+      owner_org_id: doc.owner_org_id ?? "",
+      visibility: doc.visibility || "internal",
+      learning_permission: doc.learning_permission || "no_learning",
+      ai_access: doc.ai_access || "internal",
     });
     setTagInput("");
     setEditing(true);
@@ -137,12 +160,20 @@ export function LibraryDocConfigBody({ documentId, backHref, backLabel }: {
     setForm(f => ({ ...f, tags: f.tags.filter(x => x !== t) }));
   }
 
+  const governanceChanged = (d: Doc, f: EditForm) =>
+    f.confidentiality !== d.confidentiality || f.owner !== d.owner ||
+    (f.owner_org_id || null) !== (d.owner_org_id ?? null) || f.visibility !== d.visibility ||
+    f.learning_permission !== d.learning_permission || f.ai_access !== d.ai_access;
+
   function onSaveClick() {
     if (!doc) return;
     if (!form.title.trim()) { showToast("Title cannot be empty.", false); return; }
-    // A confidentiality change alters the document's access posture for every
-    // project using it — confirm before saving.
-    if (form.confidentiality !== doc.confidentiality) { setConfirmOpen(true); return; }
+    if (form.owner !== "fanometrix" && form.owner !== "public" && !form.owner_org_id) {
+      showToast("Select the owning organisation for this owner type.", false); return;
+    }
+    // A governance change alters the document's access posture for every project
+    // using it — confirm before saving.
+    if (governanceChanged(doc, form)) { setConfirmOpen(true); return; }
     doSave();
   }
 
@@ -160,6 +191,11 @@ export function LibraryDocConfigBody({ documentId, backHref, backLabel }: {
           confidentiality: form.confidentiality,
           description: form.description.trim() || null,
           tags: form.tags,
+          owner: form.owner,
+          owner_org_id: (form.owner === "fanometrix" || form.owner === "public") ? null : (form.owner_org_id || null),
+          visibility: form.visibility,
+          learning_permission: form.learning_permission,
+          ai_access: form.ai_access,
           project_context: projectId,
         }),
       });
@@ -266,10 +302,28 @@ export function LibraryDocConfigBody({ documentId, backHref, backLabel }: {
               <Detail label="Author">{doc.author ? doc.author : <span className="italic" style={{ color: "var(--text-tertiary)" }}>{processing ? "Generating…" : "Author unknown"}</span>}</Detail>
               <Detail label="Type">{typeLabel}</Detail>
               <Detail label="Pages">{doc.page_count ?? "—"}</Detail>
-              <Detail label="Confidentiality"><span className="capitalize">{doc.confidentiality || "—"}</span></Detail>
               <Detail label="File">{doc.original_filename || "—"}</Detail>
               <Detail label="Uploaded by">{doc.uploaded_by || "—"}</Detail>
               <Detail label="Uploaded">{fmtDate(doc.uploaded_at)}</Detail>
+            </div>
+
+            {/* Governance — how this document is owned and permissioned. */}
+            <div className="mt-5 pt-5 border-t" style={{ borderColor: "var(--border-subtle)" }}>
+              <div className="flex items-center gap-2 mb-3">
+                <span aria-hidden style={{ color: "var(--text-tertiary)" }}><Icon.info size={13} /></span>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.06em]" style={{ color: "var(--text-tertiary)" }}>Governance</p>
+                {doc.confidentiality === "nda_restricted" && (
+                  <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ color: "#8A4B33", background: "#F9EFEA", border: "1px solid #E8D2C4" }}>NDA Restricted</span>
+                )}
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-x-6 gap-y-4">
+                <Detail label="Owner">{OWNER_LABEL[(doc.owner || "fanometrix") as DocumentOwner] ?? doc.owner}</Detail>
+                {doc.owner_org_id && <Detail label="Organisation">{orgName(doc.owner_org_id) ?? "—"}</Detail>}
+                <Detail label="Confidentiality">{CONFIDENTIALITY_LABEL[(doc.confidentiality || "internal") as DocumentConfidentiality] ?? doc.confidentiality}</Detail>
+                <Detail label="Visibility">{VISIBILITY_LABEL[doc.visibility as keyof typeof VISIBILITY_LABEL] ?? doc.visibility}</Detail>
+                <Detail label="Learning">{LEARNING_LABEL[doc.learning_permission as keyof typeof LEARNING_LABEL] ?? doc.learning_permission}</Detail>
+                <Detail label="AI access">{AI_ACCESS_LABEL[doc.ai_access as keyof typeof AI_ACCESS_LABEL] ?? doc.ai_access}</Detail>
+              </div>
             </div>
             {doc.tags.length > 0 ? (
               <div className="mt-5">
@@ -328,6 +382,51 @@ export function LibraryDocConfigBody({ documentId, backHref, backLabel }: {
               </Field>
             </div>
 
+            {/* Governance — ownership / visibility / learning / AI access. */}
+            <div className="rounded-lg p-4 space-y-4" style={{ background: "var(--surface-sunken)", border: "1px solid var(--border-subtle)" }}>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.06em]" style={{ color: "var(--text-tertiary)" }}>Governance</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Field label="Owner">
+                  <select value={form.owner} onChange={e => setForm(f => ({ ...f, owner: e.target.value }))}
+                    onFocus={focusGold} onBlur={blurGold} className="w-full px-3 py-2 text-sm outline-none transition-colors" style={inputStyle}>
+                    {OWNERS.map(o => <option key={o} value={o}>{OWNER_LABEL[o]}</option>)}
+                  </select>
+                </Field>
+                {form.owner !== "fanometrix" && form.owner !== "public" && (
+                  <Field label="Owning organisation">
+                    <select value={form.owner_org_id} onChange={e => setForm(f => ({ ...f, owner_org_id: e.target.value }))}
+                      onFocus={focusGold} onBlur={blurGold} className="w-full px-3 py-2 text-sm outline-none transition-colors" style={inputStyle}>
+                      <option value="">Select organisation…</option>
+                      {orgs.map(o => <option key={o.id} value={o.id}>{o.name}{o.type ? ` · ${o.type}` : ""}</option>)}
+                    </select>
+                  </Field>
+                )}
+                <Field label="Visibility">
+                  <select value={form.visibility} onChange={e => setForm(f => ({ ...f, visibility: e.target.value }))}
+                    onFocus={focusGold} onBlur={blurGold} className="w-full px-3 py-2 text-sm outline-none transition-colors" style={inputStyle}>
+                    {VISIBILITIES.map(v => <option key={v} value={v}>{VISIBILITY_LABEL[v]}</option>)}
+                  </select>
+                </Field>
+                <Field label="Learning permission">
+                  <select value={form.learning_permission} onChange={e => setForm(f => ({ ...f, learning_permission: e.target.value }))}
+                    onFocus={focusGold} onBlur={blurGold} className="w-full px-3 py-2 text-sm outline-none transition-colors" style={inputStyle}>
+                    {LEARNING_PERMISSIONS.map(l => <option key={l} value={l}>{LEARNING_LABEL[l]}</option>)}
+                  </select>
+                </Field>
+                <Field label="AI access">
+                  <select value={form.ai_access} onChange={e => setForm(f => ({ ...f, ai_access: e.target.value }))}
+                    onFocus={focusGold} onBlur={blurGold} className="w-full px-3 py-2 text-sm outline-none transition-colors" style={inputStyle}>
+                    {AI_ACCESSES.map(a => <option key={a} value={a}>{AI_ACCESS_LABEL[a]}</option>)}
+                  </select>
+                </Field>
+              </div>
+              {form.confidentiality === "nda_restricted" && (
+                <p className="text-xs leading-relaxed" style={{ color: "#8A4B33" }}>
+                  NDA Restricted: this document can only be attached to the owning organisation&apos;s projects, never appears elsewhere, and never contributes to platform intelligence or benchmarks.
+                </p>
+              )}
+            </div>
+
             <Field label="Description">
               <textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
                 onFocus={focusGold} onBlur={blurGold} rows={3}
@@ -383,17 +482,16 @@ export function LibraryDocConfigBody({ documentId, backHref, backLabel }: {
         <Link href={analysisHref} className="font-semibold hover:underline" style={{ color: "var(--accent-ink)" }}>Analysis →</Link>
       </p>
 
-      {/* Confidentiality change confirmation — the one edit that alters the
-          document's access posture across every project using it. */}
+      {/* Governance change confirmation — edits that alter the document's access
+          posture apply across every project using it. */}
       {confirmOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.45)" }} onClick={() => !saving && setConfirmOpen(false)}>
           <div className="w-full max-w-md p-5 shadow-2xl" style={{ background: "var(--surface)", borderRadius: "var(--radius-panel)" }} onClick={e => e.stopPropagation()}>
-            <h3 className="text-base font-bold" style={{ color: "var(--text-primary)" }}>Change confidentiality?</h3>
+            <h3 className="text-base font-bold" style={{ color: "var(--text-primary)" }}>Change access &amp; governance?</h3>
             <p className="text-sm mt-2 leading-relaxed" style={{ color: "var(--text-secondary)" }}>
-              You&apos;re changing this document from{" "}
-              <span className="font-semibold capitalize" style={{ color: "var(--text-primary)" }}>{doc.confidentiality}</span> to{" "}
-              <span className="font-semibold capitalize" style={{ color: "var(--text-primary)" }}>{form.confidentiality}</span>.
-              It&apos;s used in <span className="font-semibold" style={{ color: "var(--text-primary)" }}>{usageProjects}</span>, and this change applies to all of them.
+              You&apos;re changing this document&apos;s ownership or permissions. This alters where it can be used and who can access it —
+              it&apos;s a shared Library asset used in <span className="font-semibold" style={{ color: "var(--text-primary)" }}>{usageProjects}</span>, and the change applies to all of them.
+              {form.confidentiality === "nda_restricted" && " Marking it NDA Restricted will detach it from any project outside its owning organisation on future re-checks."}
             </p>
             <div className="flex items-center justify-end gap-2 mt-5">
               <Button variant="ghost" onClick={() => setConfirmOpen(false)} disabled={saving}>Cancel</Button>

@@ -193,6 +193,7 @@ export function ResearchBody() {
       {attachExistingDocumentOpen && (
         <AttachExistingDocumentModal
           excludeDocumentIds={documentEvidence.map(e => e.evidence_id)}
+          projectId={projectId}
           onClose={() => setAttachExistingDocumentOpen(false)}
           onAttach={documentId => attach("document", documentId, () => setAttachExistingDocumentOpen(false), "Document attached.", "Failed to attach document.")}
         />

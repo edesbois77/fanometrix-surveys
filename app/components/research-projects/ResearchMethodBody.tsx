@@ -280,6 +280,7 @@ export function ResearchMethodBody({ method }: { method: ResearchMethod }) {
       {attachOpen && method === "library" && (
         <AttachExistingDocumentModal
           excludeDocumentIds={evidence.map(e => e.evidence_id)}
+          projectId={projectId}
           onClose={() => setAttachOpen(false)}
           onAttach={documentId => attach(documentId, "Document attached.", "Failed to attach document.")}
           onUploadNew={() => { setAttachOpen(false); setUploadOpen(true); }}

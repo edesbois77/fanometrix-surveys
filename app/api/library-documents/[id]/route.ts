@@ -13,6 +13,7 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 import { requireUser } from "@/lib/auth-server";
 import { createDownloadUrl } from "@/lib/library-documents/storage";
 import { isDocumentType, isConfidentiality, normaliseTag, MAX_DOCUMENT_TAGS } from "@/lib/library-documents/constants";
+import { isOwner, isVisibility, isLearningPermission, isAIAccess } from "@/lib/library-documents/governance";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try { await requireUser(req); } catch (err) { return err as Response; }
@@ -80,7 +81,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   const { data: current, error: loadErr } = await supabaseAdmin
     .from("library_documents")
-    .select("title, author, document_type, confidentiality, description, tags")
+    .select("title, author, document_type, confidentiality, description, tags, owner, owner_org_id, visibility, learning_permission, ai_access")
     .eq("id", id)
     .is("deleted_at", null)
     .single();
@@ -123,6 +124,45 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if (body.confidentiality !== current.confidentiality) {
       update.confidentiality = body.confidentiality;
       audits.push({ field: "confidentiality", old_value: current.confidentiality, new_value: body.confidentiality });
+    }
+  }
+
+  // ── Governance (docs/governance-model.md) — ownership / visibility / learning
+  //    / AI access. Each is an independent access-control field, validated and
+  //    audited exactly like confidentiality above. ──────────────────────────────
+  if (body.owner !== undefined) {
+    if (!isOwner(body.owner)) return NextResponse.json({ error: "Invalid owner." }, { status: 400 });
+    if (body.owner !== current.owner) {
+      update.owner = body.owner;
+      audits.push({ field: "owner", old_value: current.owner, new_value: body.owner });
+    }
+  }
+  if (body.owner_org_id !== undefined) {
+    const orgId = typeof body.owner_org_id === "string" && body.owner_org_id.trim() ? body.owner_org_id.trim() : null;
+    if (orgId !== (current.owner_org_id ?? null)) {
+      update.owner_org_id = orgId;
+      audits.push({ field: "owner_org_id", old_value: current.owner_org_id ?? null, new_value: orgId });
+    }
+  }
+  if (body.visibility !== undefined) {
+    if (!isVisibility(body.visibility)) return NextResponse.json({ error: "Invalid visibility." }, { status: 400 });
+    if (body.visibility !== current.visibility) {
+      update.visibility = body.visibility;
+      audits.push({ field: "visibility", old_value: current.visibility, new_value: body.visibility });
+    }
+  }
+  if (body.learning_permission !== undefined) {
+    if (!isLearningPermission(body.learning_permission)) return NextResponse.json({ error: "Invalid learning permission." }, { status: 400 });
+    if (body.learning_permission !== current.learning_permission) {
+      update.learning_permission = body.learning_permission;
+      audits.push({ field: "learning_permission", old_value: current.learning_permission, new_value: body.learning_permission });
+    }
+  }
+  if (body.ai_access !== undefined) {
+    if (!isAIAccess(body.ai_access)) return NextResponse.json({ error: "Invalid AI access." }, { status: 400 });
+    if (body.ai_access !== current.ai_access) {
+      update.ai_access = body.ai_access;
+      audits.push({ field: "ai_access", old_value: current.ai_access, new_value: body.ai_access });
     }
   }
 

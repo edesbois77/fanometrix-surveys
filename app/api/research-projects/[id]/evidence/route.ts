@@ -11,6 +11,7 @@ import { requireUser } from "@/lib/auth-server";
 import { canAccess } from "@/lib/access";
 import { logActivity } from "@/lib/research-project-activity";
 import { getSourceTable } from "@/lib/research-sources/registry";
+import { canAttachDocumentToProject, type GovernedDocument } from "@/lib/library-documents/governance";
 
 const EVIDENCE_TYPES = ["survey", "social_search", "document"] as const;
 
@@ -26,7 +27,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const { id } = await params;
 
-  const { data: project } = await supabaseAdmin.from("research_projects").select("research_mode").eq("id", id).single();
+  const { data: project } = await supabaseAdmin
+    .from("research_projects")
+    .select("research_mode, brand_org_id, agency_org_id, publisher_org_ids")
+    .eq("id", id).single();
   if (!project) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   if (project.research_mode === "simulated") {
@@ -66,6 +70,24 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           { status: 409 }
         );
       }
+    }
+  }
+
+  // Governance gate — an NDA-restricted / organisation-scoped document may only
+  // be attached to a project belonging to its owning organisation (Chapter 8 /
+  // docs/governance-model.md). This is the single non-bypassable point that keeps
+  // one client's confidential document out of another client's project.
+  if (evidence_type === "document") {
+    const { data: doc } = await supabaseAdmin
+      .from("library_documents")
+      .select("owner, owner_org_id, confidentiality, visibility, learning_permission, ai_access")
+      .eq("id", evidence_id).is("deleted_at", null).maybeSingle();
+    if (!doc) return NextResponse.json({ error: "Document not found." }, { status: 404 });
+    if (!canAttachDocumentToProject(doc as GovernedDocument, project)) {
+      return NextResponse.json(
+        { error: "This document is restricted to its owning organisation and can't be attached to this project." },
+        { status: 403 }
+      );
     }
   }
 
@@ -162,7 +184,10 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
 
   const { id } = await params;
 
-  const { data: project } = await supabaseAdmin.from("research_projects").select("research_mode").eq("id", id).single();
+  const { data: project } = await supabaseAdmin
+    .from("research_projects")
+    .select("research_mode, brand_org_id, agency_org_id, publisher_org_ids")
+    .eq("id", id).single();
   if (!project) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   if (project.research_mode === "simulated") {
