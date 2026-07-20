@@ -31,6 +31,7 @@ import { PageContainer, WorkspaceHeader, PageLoadingState, ErrorState, Icon } fr
 import { PrimaryButton, StatusBadge } from "@/app/components/research-projects/ActionPrimitives";
 import { useResearchProject } from "@/app/components/research-projects/ProjectProvider";
 import { AddEvidenceModal } from "@/app/components/research-projects/workspace-shared";
+import { ResearchPlanPanel } from "@/app/components/research-projects/ResearchPlanPanel";
 
 type MethodType = "survey" | "social_search" | "document";
 
@@ -117,6 +118,10 @@ export function ResearchBody() {
             : undefined}
         />
 
+        {/* The methodology briefing that drives the methods below. */}
+        <ResearchPlanPanel projectId={projectId} researchQuestion={project.research_question} canManage={canManage} />
+
+        <p className="text-[11px] font-semibold uppercase tracking-[0.09em] px-1 mt-2" style={{ color: "var(--text-tertiary)" }}>Research Methods</p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {METHODS.map(m => {
             const count = countFor(m.key);
