@@ -37,42 +37,19 @@ function SuitabilityBadge({ m }: { m: RecommendedMethod }) {
   return <span className="inline-flex items-center text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ color: t.ink, background: t.bg, border: `1px solid ${t.border}` }}>{m.suitability}</span>;
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  if (!children) return null;
+// A method — a concise executive recommendation. The deep, contextual guidance
+// (questionnaire design, search strategy, evidence assessment) lives INSIDE each
+// method's own advisor, not here (docs/research-plan-blueprint.md §0).
+function MethodRow({ m }: { m: RecommendedMethod }) {
   return (
-    <div>
-      <p className="text-[10px] font-semibold uppercase tracking-[0.06em]" style={{ color: "var(--text-tertiary)" }}>{label}</p>
-      <p className="text-[13px] leading-relaxed mt-0.5" style={{ color: "var(--text-secondary)" }}>{children}</p>
-    </div>
-  );
-}
-
-// A method — collapsed to a one-line recommendation; expands to the full brief.
-function MethodRow({ m, open, onToggle }: { m: RecommendedMethod; open: boolean; onToggle: () => void }) {
-  return (
-    <div className="rounded-lg" style={{ background: "var(--surface)", border: "1px solid var(--border-subtle)", opacity: m.recommended ? 1 : 0.72 }}>
-      <button type="button" onClick={onToggle} className="w-full flex items-start gap-3 text-left p-3" style={{ cursor: "pointer" }}>
-        <span aria-hidden className="inline-flex flex-shrink-0 mt-0.5" style={{ color: "var(--text-tertiary)", transform: open ? "rotate(90deg)" : "none", transition: "transform 0.15s" }}><Icon.chevronRight size={14} strokeWidth={2.5} /></span>
-        <span className="flex-1 min-w-0">
-          <span className="flex items-center gap-2 flex-wrap">
-            <span className="text-sm font-bold" style={{ color: "var(--text-primary)" }}>{METHOD_LABEL[m.method]}</span>
-            <SuitabilityBadge m={m} />
-            {!m.available && <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full" style={{ color: "var(--text-tertiary)", background: "var(--surface-sunken)", border: "1px dashed var(--border-subtle)" }} title={m.availability_note ?? ""}>Not available yet</span>}
-            <span className="text-[10px] font-semibold ml-auto" style={{ color: m.recommended ? "#3F5D42" : "var(--text-tertiary)" }}>{m.recommended ? "Recommended" : "Not recommended"}</span>
-          </span>
-          <span className="text-[13px] leading-relaxed block mt-1" style={{ color: "var(--text-secondary)" }}>{m.role || m.why_recommended}</span>
-        </span>
-      </button>
-      {open && (
-        <div className="px-3 pb-3.5 grid sm:grid-cols-2 gap-x-4 gap-y-2.5" style={{ paddingLeft: 32 }}>
-          <Field label="Why">{m.why_recommended}</Field>
-          <Field label="Expected contribution">{m.expected_contribution}</Field>
-          <Field label="Evidence required">{m.evidence_requirements}</Field>
-          <Field label="Limitations">{m.limitations}</Field>
-          <Field label="What you get from it">{m.expected_outputs}</Field>
-          {!m.available && m.availability_note && <Field label="Availability">{m.availability_note}</Field>}
-        </div>
-      )}
+    <div className="rounded-lg p-3" style={{ background: "var(--surface)", border: "1px solid var(--border-subtle)", opacity: m.recommended ? 1 : 0.72 }}>
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="text-sm font-bold" style={{ color: "var(--text-primary)" }}>{METHOD_LABEL[m.method]}</span>
+        <SuitabilityBadge m={m} />
+        {!m.available && <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full" style={{ color: "var(--text-tertiary)", background: "var(--surface-sunken)", border: "1px dashed var(--border-subtle)" }} title={m.availability_note ?? ""}>Not available yet</span>}
+        <span className="text-[10px] font-semibold ml-auto" style={{ color: m.recommended ? "#3F5D42" : "var(--text-tertiary)" }}>{m.recommended ? "Recommended" : "Not recommended"}</span>
+      </div>
+      <p className="text-[13px] leading-relaxed mt-1" style={{ color: "var(--text-secondary)" }}>{m.role || m.why_recommended}</p>
     </div>
   );
 }
@@ -124,8 +101,6 @@ export function ResearchPlanPanel({ projectId, researchQuestion, canManage }: { 
   const [loaded, setLoaded] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const [openMethods, setOpenMethods] = useState<Set<string>>(new Set());
-  const toggleMethod = (k: string) => setOpenMethods(p => { const n = new Set(p); if (n.has(k)) n.delete(k); else n.add(k); return n; });
 
   const loadNotes = useCallback(async () => {
     const res = await fetch(`/api/research-projects/${projectId}/notes`).then(r => (r.ok ? r.json() : null)).catch(() => null);
@@ -149,17 +124,9 @@ export function ResearchPlanPanel({ projectId, researchQuestion, canManage }: { 
     if (!res.ok) { setErr(json.error ?? "Couldn't generate the research plan."); return; }
     await load();
   }
-  async function approve() {
-    setBusy(true);
-    const res = await fetch(`/api/research-projects/${projectId}/research-plan`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "approve" }) });
-    setBusy(false);
-    if (res.ok) load();
-  }
-
   if (!loaded) return null;
 
   const plan = row ? (row.edited_content ?? row.content) : null;
-  const approved = row?.status === "approved";
   const planNotes = notes.filter(n => n.scope === "project" && n.scope_ref === PLAN_NOTE_REF);
 
   // No plan yet — the invitation to design the research.
@@ -190,21 +157,10 @@ export function ResearchPlanPanel({ projectId, researchQuestion, canManage }: { 
         Based on your research question, Fanometrix recommends the following methodology to maximise the quality and reliability of your findings. Review the approach below before configuring your research methods.
       </p>
 
-      {/* Header: status + actions */}
+      {/* Header — a living strategy, not an approval gate. */}
       <div className="flex items-center justify-between gap-3 flex-wrap mt-4">
         <p className="text-[11px] font-semibold uppercase tracking-[0.09em]" style={{ color: "var(--text-tertiary)" }}>Recommended methodology</p>
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full"
-            style={approved ? { color: "#3F5D42", background: "#EEF3EC", border: "1px solid #D3E0D0" } : { color: "var(--accent-ink)", background: "var(--accent-wash)", border: "1px solid #ECDCB8" }}>
-            {approved ? <><Icon.check size={12} strokeWidth={2.5} /> Approved</> : "Draft — awaiting your approval"}
-          </span>
-          {canManage && (
-            <>
-              <Button variant="secondary" onClick={generate} disabled={busy}>{busy ? "Working…" : "Regenerate"}</Button>
-              {!approved && <Button variant="primary" onClick={approve} disabled={busy}>Approve plan</Button>}
-            </>
-          )}
-        </div>
+        {canManage && <Button variant="secondary" onClick={generate} disabled={busy}>{busy ? "Working…" : "Regenerate"}</Button>}
       </div>
 
       {/* THE RECOMMENDATION — lead, not a wall of fields. */}
@@ -222,12 +178,10 @@ export function ResearchPlanPanel({ projectId, researchQuestion, canManage }: { 
       )}
       {plan.hypothesis && <p className="text-[13px] leading-relaxed mt-2" style={{ color: "var(--text-tertiary)" }}><span className="font-semibold">Working hypothesis:</span> {plan.hypothesis}</p>}
 
-      {/* METHODS — progressive disclosure: one line each, expand for the brief. */}
-      <Section eyebrow="The methods, and what each will do">
+      {/* METHODS — a concise recommendation; the depth lives inside each method. */}
+      <Section eyebrow="The recommended methods">
         <div className="space-y-2">
-          {plan.methodology.recommended_methods.map(m => (
-            <MethodRow key={m.method} m={m} open={openMethods.has(m.method)} onToggle={() => toggleMethod(m.method)} />
-          ))}
+          {plan.methodology.recommended_methods.map(m => <MethodRow key={m.method} m={m} />)}
         </div>
       </Section>
 
@@ -270,10 +224,11 @@ export function ResearchPlanPanel({ projectId, researchQuestion, canManage }: { 
         <NotesPanel projectId={projectId} scope="project" scopeRef={PLAN_NOTE_REF} notes={planNotes} onChanged={loadNotes} />
       </Section>
 
-      {/* THE BRIDGE — the plan flows into configuring the methods. */}
-      <Section eyebrow={approved ? "Set up your research" : "Next"}>
+      {/* THE BRIDGE — the strategy flows into each method, where the real
+          methodological decisions (and approvals) are made. */}
+      <Section eyebrow="Set up your research">
         <p className="text-[13px] leading-relaxed mb-2.5" style={{ color: "var(--text-secondary)" }}>
-          {approved ? "Plan approved. Configure the recommended methods to begin:" : "When you’re happy with the approach, approve it and configure the recommended methods below."}
+          This strategy sets the direction; the detailed decisions — and their approvals — happen inside each method. Configure the recommended methods to begin:
         </p>
         {bridgeMethods.length > 0 && (
           <div className="flex flex-wrap gap-2">

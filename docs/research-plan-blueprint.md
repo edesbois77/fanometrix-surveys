@@ -1,16 +1,52 @@
 # Fanometrix — Research Planning Blueprint (the Research Plan as project briefing)
 
-> **Status:** **Agreed / canonical** (architecture). Implementation pending the four
-> §11 decisions (recommended defaults stand unless changed). Defines the complete
-> research journey — **Research Question → Research Plan → Research Methods →
-> Execution → Analysis** — and establishes the **Research Plan as the project's
-> briefing document that drives every research method**, not a Conversation
-> Intelligence feature. Conversation Intelligence is simply one method the plan
+> **Status:** **Canonical.** Phase 1 shipped, then refined into the **distributed
+> advisor model** (see §0, which supersedes the gate/config framing where noted).
+> Defines the research journey — **Research Question → Research Plan (living
+> executive strategy) → Research Methods (each with its own deep advisor + approval)
+> → Execution → Analysis**. The Plan sets strategic direction and the connecting
+> themes; the consultancy depth is distributed into each method. Conversation Intelligence is simply one method the plan
 > configures automatically, alongside surveys, research-library documents and (in
 > future) news. The plan is a **methodology-first research advisor** built as an
 > orchestration layer over machinery that already exists (Search Strategy, the
 > connector registry, `research_summaries`, the create-search API) — not a new
 > engine.
+
+---
+
+## 0. Committed model — distributed advisors (supersedes the gate/config framing below)
+
+After building and using Phase 1, we committed to a refinement that reshapes the
+model. Where sections below describe the Plan as a detailed, approve-gated document
+that *configures* every method, the committed model is:
+
+- **Strategy is central and thin; tactics are distributed and deep.** The Research
+  Plan is a **lightweight executive strategy** — the recommended methodology in
+  brief, the **evidence themes** that connect the project, the project-level gaps,
+  the expected outcome, and the researcher's own **Assumptions & Context**. The real
+  consultancy depth lives **inside each method**, where the decisions are actually
+  made and where the AI can assess the *actual* state rather than guess.
+- **The Plan is NOT an approval gate.** It is a **living executive briefing** that
+  evolves with the project — regenerated freely, never "approved" as a frozen
+  artefact. **Approvals happen within each method** (the survey design, the
+  conversation search strategy, the research-library evidence), because that is
+  where real methodological decisions are made.
+- **Distributed method advisers** (deep, contextual, grounded):
+  - **Conversation Intelligence** — already has this (the Search Strategy layer).
+  - **Surveys — next.** A survey adviser: questionnaire strategy, markets, sample
+    sizes, partner structure, measurement considerations.
+  - **Research Library — after.** A library adviser: which document *types* would
+    strengthen the project, assessing the evidence *actually present* rather than
+    assuming "partly suited".
+- **Themes are the connective tissue.** The Plan defines them; each method's adviser
+  configures how to gather evidence for them; Analysis reads them back.
+- **Keep "Your Assumptions & Context."** Not because it is technically necessary,
+  but because it changes the psychology: the researcher's expertise leads, the AI
+  augments. This is the point of the whole system.
+
+Everything below still holds *except*: the Plan is thin (not a full per-method
+brief), and it is a living briefing, not an approval gate (§ "two human gates"
+becomes per-method approvals).
 
 ---
 
@@ -328,20 +364,22 @@ entire post-collection confidence engine.
 
 ---
 
-## 9. Phasing (each shippable, additive)
+## 9. Phasing (committed model — each shippable, additive)
 
-1. **The advisor briefing** — research question → plan (objective, methodology with
-   suitability + evidence requirements, themes, sources-by-availability, gaps),
-   review/edit/approve. Non-conversation methods recommended as guidance. *Delivers
-   the "AI research director designs the study" experience immediately.*
-2. **Conversation configuration + search preview** — approve → auto-create Draft
-   searches (one per theme, pre-loaded strategy) → preview → execute. *Keyword
-   search disappears.*
-3. **Whole-project method configuration + closing the loop** — plan themes become the
-   aspect spine; survey/document briefs wire into their create flows; **Analysis reads
-   the plan's `required_evidence` to report methodology execution completeness
-   (planned vs collected) alongside research confidence**; add a news connector so
-   news moves from gap → configurable.
+1. ✅ **The advisor briefing** — research question → Research Plan. *Shipped.*
+2. **Slim the Plan into a living executive strategy** — remove the approval gate;
+   reduce to the recommendation, themes, project gaps, expected outcome, and "Your
+   Assumptions & Context"; the per-method depth moves out. *(This pass.)*
+3. **Survey adviser** — deep consultancy guidance inside Survey setup: questionnaire
+   strategy, markets, sample sizes, partner structure, measurement; approval lives
+   here, on the survey design.
+4. **Research Library adviser** — which document types would strengthen the project,
+   assessing the evidence *actually present*; approval lives here, on the evidence.
+5. **Conversation** — already has its deep advisor (Search Strategy); the Plan hands
+   it the themes. (Later: seed searches from themes + the search preview.)
+6. **Close the loop** — plan themes become the aspect spine; **Analysis reports
+   methodology execution completeness (planned vs collected) alongside research
+   confidence**; a news connector when available.
 
 ---
 
@@ -373,8 +411,10 @@ entire post-collection confidence engine.
    what Analysis reads against, enabling Analysis to report **both** research
    confidence **and** methodology execution completeness (planned vs collected), so
    Analysis speaks to the findings *and* the quality of the research process.
-9. **Two human gates** — approve the plan, then review each configured method
-   (notably the conversation search preview) before anything runs.
+9. **Approvals are per-method, not on the Plan** (committed model, §0) — the Plan is
+   a living executive briefing, never a frozen approved artefact; the real approvals
+   happen inside each method (survey design, conversation search strategy, library
+   evidence), where the methodological decisions are made.
 10. **Additive & reuse-first** — the existing collect/analyse pipeline is untouched;
     the plan orchestrates existing engines and introduces none.
 11. **Honest about availability** — a method with no connector is a recommendation and
