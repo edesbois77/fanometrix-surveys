@@ -40,6 +40,7 @@ type Doc = {
   confidentiality: string; description: string | null; preview_url: string | null;
   error_message: string | null; project_usage_count: number;
   owner: string; owner_org_id: string | null; visibility: string; learning_permission: string; ai_access: string;
+  scope_project_id: string | null;
 };
 
 // ── Small form primitives (shared UI v2 language) ────────────────────────────
@@ -377,7 +378,12 @@ export function LibraryDocConfigBody({ documentId, backHref, backLabel }: {
                 <Detail label="Owner">{OWNER_LABEL[(doc.owner || "fanometrix") as DocumentOwner] ?? doc.owner}</Detail>
                 {doc.owner_org_id && <Detail label="Organisation">{orgName(doc.owner_org_id) ?? "—"}</Detail>}
                 <Detail label="Confidentiality">{CONFIDENTIALITY_LABEL[(doc.confidentiality || "internal") as DocumentConfidentiality] ?? doc.confidentiality}</Detail>
-                <Detail label="Visibility">{VISIBILITY_LABEL[doc.visibility as keyof typeof VISIBILITY_LABEL] ?? doc.visibility}</Detail>
+                <Detail label="Visibility">
+                  {VISIBILITY_LABEL[doc.visibility as keyof typeof VISIBILITY_LABEL] ?? doc.visibility}
+                  {doc.visibility === "project" && doc.scope_project_id && (
+                    <span className="text-[11px]" style={{ color: "var(--text-tertiary)" }}>{doc.scope_project_id === projectId ? " · bound to this project" : " · bound to another project"}</span>
+                  )}
+                </Detail>
                 <Detail label="Learning">{LEARNING_LABEL[doc.learning_permission as keyof typeof LEARNING_LABEL] ?? doc.learning_permission}</Detail>
                 <Detail label="AI access">{AI_ACCESS_LABEL[doc.ai_access as keyof typeof AI_ACCESS_LABEL] ?? doc.ai_access}</Detail>
               </div>
@@ -478,9 +484,14 @@ export function LibraryDocConfigBody({ documentId, backHref, backLabel }: {
                   onChange={v => setForm(f => ({ ...f, ai_access: v }))} options={AI_ACCESSES} labels={AI_ACCESS_LABEL} descs={AI_ACCESS_DESC} />
               </div>
 
+              {form.visibility === "project" && (
+                <p className="text-xs leading-relaxed" style={{ color: "var(--text-secondary)" }}>
+                  Project Only (least privilege): this document will be bound to <span className="font-semibold">this project</span> and can&apos;t be attached to any other. Promote Visibility to Organisation to reuse it across the owning organisation&apos;s projects.
+                </p>
+              )}
               {form.confidentiality === "nda_restricted" && (
                 <p className="text-xs leading-relaxed" style={{ color: "#8A4B33" }}>
-                  NDA Restricted: this document can only be attached to the owning organisation&apos;s projects, never appears elsewhere, and never contributes to platform intelligence or benchmarks.
+                  NDA Restricted: never appears in another organisation&apos;s library and never contributes to platform intelligence or benchmarks.
                 </p>
               )}
             </div>

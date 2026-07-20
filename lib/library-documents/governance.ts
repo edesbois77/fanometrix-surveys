@@ -30,11 +30,15 @@ export type GovernedDocument = {
   visibility: DocumentVisibility;
   learning_permission: LearningPermission;
   ai_access: AIAccess;
+  // Set when visibility is "project" — the single project this document is bound
+  // to. It can only be attached there (least privilege). Null falls back to org.
+  scope_project_id?: string | null;
 };
 
-/** The org attachments of a project — the three ways a project belongs to an
- *  organisation (supabase-migration-057). */
+/** The identity + org attachments of a project — its id plus the three ways it
+ *  belongs to an organisation (supabase-migration-057). */
 export type ProjectOrgContext = {
+  id: string;
   brand_org_id: string | null;
   agency_org_id: string | null;
   publisher_org_ids: string[] | null;
@@ -44,15 +48,15 @@ export type ProjectOrgContext = {
 // rank ≤ R. project(0) ⊂ organisation(1) ⊂ internal(2) ⊂ platform(3).
 const SCOPE_RANK: Record<string, number> = { project: 0, organisation: 1, internal: 2, platform: 3 };
 
-/** True when a document is confined to a single owning organisation — i.e. it may
- *  only ever be used inside that organisation's projects, and must never appear in
- *  or inform any other organisation's work. Driven by confidentiality + visibility
- *  and only meaningful once an owning organisation is set. */
+/** True when a document is confined to a single owning organisation — usable only
+ *  inside that organisation's projects, never in or informing another org's work.
+ *  ("Project Only" with a bound project is handled separately, as an even tighter,
+ *  single-engagement scope.) Only meaningful once an owning organisation is set. */
 export function isOrgRestricted(doc: GovernedDocument): boolean {
   return !!doc.owner_org_id && (
     doc.confidentiality === "nda_restricted" ||
     doc.visibility === "organisation" ||
-    doc.visibility === "project"
+    (doc.visibility === "project" && !doc.scope_project_id)   // Project Only w/o a bound project → org scope
   );
 }
 
@@ -65,10 +69,15 @@ export function projectBelongsToOrg(project: ProjectOrgContext, orgId: string): 
 }
 
 /** ENFORCEMENT POINT 1 — attach. Whether a document may be attached to (and thus
- *  used within) a project. Org-restricted documents may only attach to projects
- *  belonging to their owning organisation; everything else attaches freely. This
- *  is what stops an NDA-restricted document reaching another client's project. */
+ *  used within) a project.
+ *  - "Project Only" bound to an engagement → only that project (least privilege).
+ *  - Otherwise org-restricted → only projects belonging to the owning organisation.
+ *  - Otherwise → attaches freely.
+ *  This stops a confidential/NDA document reaching a project it doesn't belong to. */
 export function canAttachDocumentToProject(doc: GovernedDocument, project: ProjectOrgContext): boolean {
+  if (doc.visibility === "project" && doc.scope_project_id) {
+    return project.id === doc.scope_project_id;
+  }
   if (!isOrgRestricted(doc)) return true;
   return projectBelongsToOrg(project, doc.owner_org_id!);
 }
@@ -189,8 +198,8 @@ export const GOVERNANCE_PRESETS: GovernancePreset[] = [
   },
   {
     key: "client_confidential", label: "Client Confidential", requiresOrg: true,
-    description: "Owned by a client or agency — confidential to their projects, never contributes to platform learning.",
-    values: { owner: "organisation", confidentiality: "confidential", visibility: "organisation", learning_permission: "no_learning", ai_access: "organisation" },
+    description: "Owned by a client or agency — confidential to this engagement, never contributes to platform learning. Promote visibility to Organisation to reuse it across the org's projects.",
+    values: { owner: "organisation", confidentiality: "confidential", visibility: "project", learning_permission: "no_learning", ai_access: "organisation" },
   },
   {
     key: "nda_restricted", label: "NDA Restricted", requiresOrg: true,
@@ -215,4 +224,5 @@ export const isAIAccess = isIn(AI_ACCESSES);
 export const GOVERNANCE_DEFAULTS: GovernedDocument = {
   owner: "fanometrix", owner_org_id: null, confidentiality: "internal",
   visibility: "internal", learning_permission: "no_learning", ai_access: "internal",
+  scope_project_id: null,
 };

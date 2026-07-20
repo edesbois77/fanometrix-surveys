@@ -80,12 +80,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (evidence_type === "document") {
     const { data: doc } = await supabaseAdmin
       .from("library_documents")
-      .select("owner, owner_org_id, confidentiality, visibility, learning_permission, ai_access")
+      .select("owner, owner_org_id, confidentiality, visibility, learning_permission, ai_access, scope_project_id")
       .eq("id", evidence_id).is("deleted_at", null).maybeSingle();
     if (!doc) return NextResponse.json({ error: "Document not found." }, { status: 404 });
-    if (!canAttachDocumentToProject(doc as GovernedDocument, project)) {
+    if (!canAttachDocumentToProject(doc as GovernedDocument, { ...project, id })) {
       return NextResponse.json(
-        { error: "This document is restricted to its owning organisation and can't be attached to this project." },
+        { error: "This document's governance restricts it to a specific project or organisation, and can't be attached here." },
         { status: 403 }
       );
     }

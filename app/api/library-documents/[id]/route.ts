@@ -82,7 +82,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   const { data: current, error: loadErr } = await supabaseAdmin
     .from("library_documents")
-    .select("title, author, document_type, confidentiality, description, tags, owner, owner_org_id, visibility, learning_permission, ai_access")
+    .select("title, author, document_type, confidentiality, description, tags, owner, owner_org_id, visibility, learning_permission, ai_access, scope_project_id")
     .eq("id", id)
     .is("deleted_at", null)
     .single();
@@ -199,8 +199,24 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   // re-evaluated against the NEW governance, and any that no longer comply are
   // detached. A dry_run computes the impact so the UI can list exactly which
   // projects will be affected BEFORE the change is applied.
+  // Bind / unbind the Project-Only engagement scope. When visibility resolves to
+  // "project", the document is bound to the project it's being governed from
+  // (project_context); otherwise the binding is cleared.
+  const projectContextForScope = typeof body.project_context === "string" ? body.project_context : null;
+  const resultingVisibility = (update.visibility ?? current.visibility) as string;
+  if (resultingVisibility === "project") {
+    const desiredScope = projectContextForScope ?? (current.scope_project_id ?? null);
+    if (desiredScope !== (current.scope_project_id ?? null)) {
+      update.scope_project_id = desiredScope;
+      audits.push({ field: "scope_project_id", old_value: current.scope_project_id ?? null, new_value: desiredScope });
+    }
+  } else if ((current.scope_project_id ?? null) !== null) {
+    update.scope_project_id = null;
+    audits.push({ field: "scope_project_id", old_value: current.scope_project_id ?? null, new_value: null });
+  }
+
   const dryRun = body.dry_run === true;
-  const accessChanged = ["owner", "owner_org_id", "confidentiality", "visibility"].some(f => f in update);
+  const accessChanged = ["owner", "owner_org_id", "confidentiality", "visibility", "scope_project_id"].some(f => f in update);
   let affected: { project_id: string; project_name: string }[] = [];
   if (accessChanged) {
     const newGov: GovernedDocument = {
@@ -210,6 +226,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       visibility: (update.visibility ?? current.visibility) as GovernedDocument["visibility"],
       learning_permission: (update.learning_permission ?? current.learning_permission) as GovernedDocument["learning_permission"],
       ai_access: (update.ai_access ?? current.ai_access) as GovernedDocument["ai_access"],
+      scope_project_id: (("scope_project_id" in update ? update.scope_project_id : current.scope_project_id) as string | null) ?? null,
     };
     const { data: atts } = await supabaseAdmin
       .from("research_project_evidence")

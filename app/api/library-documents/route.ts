@@ -47,7 +47,7 @@ export async function GET(req: NextRequest) {
 
   let query = supabaseAdmin
     .from("library_documents")
-    .select("id, title, document_type, status, error_message, original_filename, page_count, uploaded_by, uploaded_at, approved_at, tags, owner, owner_org_id, confidentiality, visibility, learning_permission, ai_access")
+    .select("id, title, document_type, status, error_message, original_filename, page_count, uploaded_by, uploaded_at, approved_at, tags, owner, owner_org_id, confidentiality, visibility, learning_permission, ai_access, scope_project_id")
     .is("deleted_at", null)
     .order("uploaded_at", { ascending: false });
 
@@ -63,7 +63,7 @@ export async function GET(req: NextRequest) {
   if (projectId) {
     const { data: project } = await supabaseAdmin
       .from("research_projects")
-      .select("brand_org_id, agency_org_id, publisher_org_ids")
+      .select("id, brand_org_id, agency_org_id, publisher_org_ids")
       .eq("id", projectId).maybeSingle();
     if (project) rows = rows.filter(d => canAttachDocumentToProject(d as GovernedDocument, project));
   }
