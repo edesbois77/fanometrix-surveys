@@ -78,8 +78,12 @@ function batchPages(pages: PageForVisualAnalysis[]): PageForVisualAnalysis[][] {
   return batches;
 }
 
-export async function analyseDocumentPages(pages: PageForVisualAnalysis[]): Promise<PageVisualResult[]> {
+export async function analyseDocumentPages(
+  pages: PageForVisualAnalysis[],
+  onProgress?: (pagesDone: number) => void | Promise<void>,
+): Promise<PageVisualResult[]> {
   const results: PageVisualResult[] = [];
+  let done = 0;
   for (const batch of batchPages(pages)) {
     const raw = await completeJSON<RawVisualBatchResult>({
       prompt: buildVisualAnalysisPrompt(batch),
@@ -89,6 +93,8 @@ export async function analyseDocumentPages(pages: PageForVisualAnalysis[]): Prom
       images: batch.map(p => ({ dataUrl: p.dataUrl, detail: "high" })),
     });
     results.push(...reconcileBatchResults(batch, raw));
+    done += batch.length;
+    if (onProgress) await onProgress(done);   // live "read page X of N" progress
   }
   return results;
 }

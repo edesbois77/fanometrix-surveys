@@ -24,7 +24,13 @@ export async function runVisualAnalysis(libraryDocumentId: string, pdfBuffer: Bu
     return { pdfPageNumber: p.pdfPageNumber, path, width: p.width, height: p.height, dataUrl: `data:image/png;base64,${p.data.toString("base64")}` };
   }));
 
-  const visualResults = await analyseDocumentPages(uploaded.map(p => ({ pdfPageNumber: p.pdfPageNumber, dataUrl: p.dataUrl })));
+  // Start the page counter at 0 so the loader flips to "Reading pages" once the
+  // images are ready, then advance it as each batch is read.
+  await supabaseAdmin.from("library_documents").update({ pages_done: 0 }).eq("id", libraryDocumentId);
+  const visualResults = await analyseDocumentPages(
+    uploaded.map(p => ({ pdfPageNumber: p.pdfPageNumber, dataUrl: p.dataUrl })),
+    async (done) => { await supabaseAdmin.from("library_documents").update({ pages_done: done }).eq("id", libraryDocumentId); },
+  );
   const visualByPage = new Map(visualResults.map(r => [r.pdfPageNumber, r]));
 
   // Replace any previous page set outright — same "a retry must never

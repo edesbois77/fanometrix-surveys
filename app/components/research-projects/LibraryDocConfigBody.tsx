@@ -24,11 +24,11 @@ import {
   PageContainer, WorkspaceHeader, PageLoadingState, ErrorState,
   Card, SectionHeading, Button, Icon, BackLink,
 } from "@/app/components/workspace-ui";
-import { documentStatusMeta, isProcessing } from "@/app/components/research-projects/document-status";
+import { documentStatusMeta, isProcessing, DocumentProcessing } from "@/app/components/research-projects/document-status";
 
 type Doc = {
   id: string; title: string; author: string | null; document_type: string; status: string;
-  original_filename: string; page_count: number | null; tags: string[];
+  original_filename: string; page_count: number | null; pages_done: number | null; tags: string[];
   uploaded_by: string | null; uploaded_at: string; approved_at: string | null;
   confidentiality: string; description: string | null; preview_url: string | null;
   error_message: string | null; project_usage_count: number;
@@ -99,6 +99,14 @@ export function LibraryDocConfigBody({ documentId, backHref, backLabel }: {
   }, [documentId]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Poll while the document is still processing so the loader advances live and
+  // flips to Ready on its own. Stops as soon as it's Ready or Failed.
+  useEffect(() => {
+    if (!doc || !isProcessing(doc.status)) return;
+    const t = setInterval(() => { load(); }, 2500);
+    return () => clearInterval(t);
+  }, [doc, load]);
 
   useEffect(() => {
     setRecordLabel(doc?.title ?? null);
@@ -223,10 +231,13 @@ export function LibraryDocConfigBody({ documentId, backHref, backLabel }: {
           </div>
         </div>
       ) : isProcessing(doc.status) ? (
-        <p className="text-xs px-1" style={{ color: "var(--text-tertiary)" }}>
-          This document is being prepared automatically. Track processing in{" "}
-          <Link href={`/research-projects/${projectId}/execution`} className="font-semibold hover:underline" style={{ color: "var(--accent-ink)" }}>Execution →</Link>
-        </p>
+        <Card>
+          <p className="text-sm font-semibold mb-3" style={{ color: "var(--text-primary)" }}>Preparing this document…</p>
+          <DocumentProcessing status={doc.status} pageCount={doc.page_count} pagesDone={doc.pages_done} />
+          <p className="text-xs mt-3.5" style={{ color: "var(--text-tertiary)" }}>
+            Reading the document and extracting its findings automatically — this usually takes under a minute. The summary appears here when it&apos;s ready.
+          </p>
+        </Card>
       ) : null}
 
       {/* Details — read-only for most; admins + publishers can edit metadata. */}

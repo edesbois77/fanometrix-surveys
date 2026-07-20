@@ -23,7 +23,7 @@ import { runAnalysis } from "@/lib/library-documents/run-analysis";
 export async function runExtraction(libraryDocumentId: string): Promise<void> {
   const { data: claimed } = await supabaseAdmin
     .from("library_documents")
-    .update({ status: "extracting", error_message: null })
+    .update({ status: "extracting", error_message: null, pages_done: null })
     .eq("id", libraryDocumentId)
     .eq("status", "uploaded")
     .select("id, mime_type, storage_path, author_manually_edited")

@@ -13,7 +13,7 @@
 // the current state as a badge; the operational processing pipeline
 // (DocumentPipeline) belongs in Execution, where evidence is collected and
 // prepared. Analysis consumes the result.
-import { Icon, type Tone } from "@/app/components/workspace-ui";
+import { Icon, ProgressBar, ProgressSteps, type Tone, type StepState } from "@/app/components/workspace-ui";
 
 export function documentStatusMeta(s: string): { label: string; tone: Tone } {
   const m: Record<string, { label: string; tone: Tone }> = {
@@ -80,5 +80,60 @@ export function DocumentPipeline({ status }: { status: string }) {
         );
       })}
     </ol>
+  );
+}
+
+// ── Live processing loader (tied to real progress) ───────────────────────────
+// The user-facing stages, in order. "Reading pages" carries a real page counter
+// (library_documents.pages_done, written per page by the visual-analysis step),
+// so the bar advances as each page is actually read — not on a timer.
+const PROCESSING_STAGES = [
+  { key: "extract",   label: "Extracting text" },
+  { key: "read",      label: "Reading pages" },
+  { key: "interpret", label: "Interpreting findings" },
+  { key: "ready",     label: "Ready" },
+] as const;
+
+/** Map the raw pipeline state to a stage index, a plain-language label, an
+ *  optional "Page X of N" detail, and an overall 0–100 fraction. Pure. */
+export function documentStage(status: string, pageCount: number | null, pagesDone: number | null):
+  { index: number; fraction: number; label: string; detail: string | null } {
+  if (status === "approved") return { index: 3, fraction: 100, label: "Ready", detail: null };
+  if (status === "failed")   return { index: 0, fraction: 0,   label: "Processing failed", detail: null };
+  if (status === "analysing" || status === "pending_review")
+    return { index: 2, fraction: 92, label: "Interpreting the findings", detail: null };
+  if (status === "extracting") {
+    if (pageCount && pageCount > 0 && pagesDone != null) {
+      const read = Math.min(pagesDone, pageCount);
+      const fraction = 25 + Math.round((read / pageCount) * 60);           // 25 → 85%
+      const current = Math.min(pagesDone + 1, pageCount);                  // the page in flight
+      return { index: 1, fraction, label: "Reading pages", detail: `Page ${current} of ${pageCount}` };
+    }
+    return { index: 0, fraction: 14, label: "Extracting text", detail: null };
+  }
+  return { index: 0, fraction: 5, label: "Queued", detail: null };         // uploaded
+}
+
+/** The document processing loader — a stage stepper plus a progress bar that
+ *  fills to real page-by-page progress. */
+export function DocumentProcessing({ status, pageCount, pagesDone }: { status: string; pageCount: number | null; pagesDone: number | null }) {
+  const st = documentStage(status, pageCount, pagesDone);
+  const failed = status === "failed";
+  return (
+    <div>
+      <ProgressBar
+        value={st.fraction}
+        tone={failed ? "accent" : "navy"}
+        showValue={!failed}
+        indeterminate={!failed && st.detail === null && st.fraction < 20}
+        label={<span className="font-semibold">{st.detail ? `${st.label} — ${st.detail}` : `${st.label}${failed ? "" : "…"}`}</span>}
+      />
+      <div className="mt-3.5">
+        <ProgressSteps steps={PROCESSING_STAGES.map((s, i) => ({
+          label: s.label,
+          state: (i < st.index ? "done" : i === st.index && !failed ? "active" : "pending") as StepState,
+        }))} />
+      </div>
+    </div>
   );
 }
