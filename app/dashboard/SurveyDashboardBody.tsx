@@ -120,28 +120,25 @@ function ProjectScopeReader({ onProjectId, onSurveyId }: { onProjectId: (id: str
 
 // ─── Body ────────────────────────────────────────────────────────────────────
 
-// How long between automatic dashboard refreshes. The "Refreshes in Ns"
-// countdown and the reload timer are both derived from this single value.
-const AUTO_REFRESH_SECONDS = 60;
-const AUTO_REFRESH_MS = AUTO_REFRESH_SECONDS * 1000;
+// Data is user-controlled: the dashboard loads once when opened and then stays
+// static until the user clicks Refresh, changes a filter / date range / survey /
+// campaign, or navigates away and back. There is no automatic polling — this
+// keeps results stable while analysing (and during presentations) and removes
+// the recurring server/database load a background refresh interval would incur.
 
-// The "Refreshes in Ns" countdown ticks once a second. Isolated into its own
-// component so that per-second re-render is confined to this tiny label — if it
-// lived in the body it would re-render the whole dashboard every second, which
-// made Recharts re-run its bar/label entrance animation (the flashing numbers).
-function RefreshCountdown({ lastUpdated, loading }: { lastUpdated: Date | null; loading: boolean }) {
-  const [secondsAgo, setSecondsAgo] = useState(0);
-  useEffect(() => {
-    const tick = setInterval(() => {
-      setSecondsAgo(lastUpdated ? Math.floor((Date.now() - lastUpdated.getTime()) / 1000) : 0);
-    }, 1000);
-    return () => clearInterval(tick);
-  }, [lastUpdated]);
+// A static "Last refreshed" stamp so users know how current the data is. No
+// timer — it only changes when a load actually happens, so it never re-renders
+// the dashboard on its own.
+function LastRefreshed({ lastUpdated, loading }: { lastUpdated: Date | null; loading: boolean }) {
+  if (loading) {
+    return <span className="text-xs text-gray-400 hidden sm:block">Updating…</span>;
+  }
   if (!lastUpdated) return null;
+  const t = lastUpdated.toLocaleTimeString([], {
+    hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false,
+  });
   return (
-    <span className="text-xs text-gray-400 hidden sm:block">
-      {loading ? "Updating…" : `Refreshes in ${Math.max(0, AUTO_REFRESH_SECONDS - secondsAgo)}s`}
-    </span>
+    <span className="text-xs text-gray-400 hidden sm:block">Last refreshed: {t}</span>
   );
 }
 
@@ -163,6 +160,13 @@ export function SurveyDashboardBody({ projectId }: { projectId?: string }) {
   const [eventCounts,   setEventCounts]   = useState<EventCounts | null>(null);
   const [eventsLoading, setEventsLoading] = useState(false);
   const [lastUpdated,   setLastUpdated]   = useState<Date | null>(null);
+  // True once the first load has succeeded. The dashboard stays mounted with its
+  // last-good data through subsequent refreshes/errors, so a failed refresh never
+  // blanks the screen the user is analysing.
+  const [hasLoaded,     setHasLoaded]     = useState(false);
+  // Bumped by an explicit Refresh so the scoped fetches (events, labels) re-run
+  // together with the main load — without depending on array identity.
+  const [refreshNonce,  setRefreshNonce]  = useState(0);
 
   // Filter state — persisted in localStorage for the GLOBAL host only. The
   // project host starts clean so it never inherits (or overwrites) a global
@@ -209,6 +213,11 @@ export function SurveyDashboardBody({ projectId }: { projectId?: string }) {
       } else {
         setScopeProject(null);
       }
+      // Success only: stamp the "Last refreshed" time and mark the dashboard
+      // ready. On failure we fall through to catch and leave the existing data
+      // (and previous timestamp) untouched.
+      setLastUpdated(new Date());
+      setHasLoaded(true);
     } catch {
       setError("Failed to load dashboard data.");
     } finally {
@@ -228,21 +237,32 @@ export function SurveyDashboardBody({ projectId }: { projectId?: string }) {
     }
   }, [scopeSurveyId]);
 
-  useEffect(() => {
-    if (!loading) setLastUpdated(new Date());
-  }, [loading]);
+  // Explicit, user-triggered refresh: reloads the main data AND re-runs the
+  // scoped fetches (events, labels) together, via the nonce. There is no timer
+  // and no polling — data only changes when the user asks for it (or changes a
+  // filter / date / survey / campaign, or remounts by navigating back).
+  const refresh = useCallback(() => {
+    load(scopeProjectId ?? null);
+    setRefreshNonce(n => n + 1);
+  }, [load, scopeProjectId]);
 
-  // Auto-refresh AUTO_REFRESH_MS after the last successful update — anchored to
-  // lastUpdated (not a fixed cadence), so the reload fires exactly when the
-  // "Refreshes in Ns" countdown below reaches zero and the two never drift apart.
-  useEffect(() => {
-    if (scopeProjectId === undefined || !lastUpdated) return;
-    const elapsed = Date.now() - lastUpdated.getTime();
-    const timer = setTimeout(() => load(scopeProjectId), Math.max(0, AUTO_REFRESH_MS - elapsed));
-    return () => clearTimeout(timer);
-  }, [lastUpdated, scopeProjectId, load]);
+  // Stable content keys for campaigns / groups. The effects below derive their
+  // fetch params from these arrays but must NOT re-run merely because a reload
+  // handed back a new array *reference* with identical content — that was the
+  // spurious-refire issue flagged in the compute audit. Keying on the content
+  // (and the explicit refreshNonce) makes the scoped fetches fire only when the
+  // selection, the underlying data, or an explicit Refresh actually changes.
+  const campaignsKey = useMemo(
+    () => campaigns.map(c => `${c.id}:${c.campaign_id}:${c.effective_survey_id ?? ""}:${c.created_at}`).join("|"),
+    [campaigns],
+  );
+  const groupOptionsKey = useMemo(
+    () => groupOptions.map(g => `${g.id}:${g.campaign_ids.join(",")}`).join("|"),
+    [groupOptions],
+  );
 
-  // Fetch event counts — re-runs when filters or date bounds change
+  // Fetch event counts — re-runs when filters, date bounds, campaign content,
+  // or an explicit Refresh change (never on bare array-reference churn).
   useEffect(() => {
     const p = new URLSearchParams();
     if (filters.campaign_id) {
@@ -278,7 +298,7 @@ export function SurveyDashboardBody({ projectId }: { projectId?: string }) {
       .catch(() => setEventCounts(null))
       .finally(() => setEventsLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters.campaign_id, filters.survey_id, filters.publisher, filters.placement, filters.country, filters.device, filters.browser, datePreset, dateFrom, dateTo, campaigns]);
+  }, [filters.campaign_id, filters.survey_id, filters.publisher, filters.placement, filters.country, filters.device, filters.browser, datePreset, dateFrom, dateTo, campaignsKey, refreshNonce]);
 
   const activeCampaign = useMemo(
     () => campaigns.find(c => c.campaign_id === filters.campaign_id) ?? null,
@@ -351,7 +371,8 @@ export function SurveyDashboardBody({ projectId }: { projectId?: string }) {
     } else {
       setSurveyLabels(null);
     }
-  }, [filters.campaign_id, filters.survey_id, filters.group_id, groupOptions, campaigns]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters.campaign_id, filters.survey_id, filters.group_id, campaignsKey, groupOptionsKey, refreshNonce]);
 
   const dateBounds = useMemo(
     () => getDateBounds(datePreset, dateFrom, dateTo, activeCampaign),
@@ -397,10 +418,13 @@ export function SurveyDashboardBody({ projectId }: { projectId?: string }) {
 
   const controls = (
     <div className="flex items-center gap-2">
-      <RefreshCountdown lastUpdated={lastUpdated} loading={loading} />
-      <button onClick={() => load(scopeProjectId ?? null)}
-        className="border border-gray-200 text-gray-600 hover:bg-gray-50 text-sm font-medium px-3 py-1.5 rounded-lg transition-colors">
-        {loading ? "…" : "Refresh"}
+      <LastRefreshed lastUpdated={lastUpdated} loading={loading} />
+      <button onClick={refresh} disabled={loading} aria-busy={loading}
+        className="flex items-center gap-1.5 border border-gray-200 text-gray-600 hover:bg-gray-50 text-sm font-medium px-3 py-1.5 rounded-lg transition-colors disabled:opacity-60 disabled:cursor-not-allowed">
+        {loading && (
+          <span className="inline-block w-3 h-3 rounded-full border-2 border-gray-300 border-t-gray-500 animate-spin" aria-hidden />
+        )}
+        {loading ? "Refreshing…" : "Refresh"}
       </button>
       <button onClick={exportCSV} disabled={filtered.length === 0}
         className="text-sm font-semibold px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
@@ -447,10 +471,26 @@ export function SurveyDashboardBody({ projectId }: { projectId?: string }) {
         {controls}
       </div>
 
-      {loading && <p className="text-gray-400 text-sm">Loading responses…</p>}
-      {error   && <p className="text-red-500 text-sm">{error}</p>}
+      {/* Initial load only. Once the first load succeeds the dashboard stays
+          mounted, so a later refresh (or a failed one) never blanks the view. */}
+      {loading && !hasLoaded && <p className="text-gray-400 text-sm">Loading responses…</p>}
 
-      {!loading && !error && (
+      {/* Non-destructive error state: a failed refresh shows a banner but keeps
+          the last-good data on screen. Clears on the next successful load. */}
+      {error && (
+        <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-red-200 bg-red-50 px-3 py-2">
+          <span className="text-sm text-red-600">{error}</span>
+          <button
+            onClick={refresh}
+            disabled={loading}
+            className="text-xs font-semibold text-red-700 underline hover:text-red-800 disabled:opacity-50 disabled:no-underline"
+          >
+            {loading ? "Retrying…" : "Retry"}
+          </button>
+        </div>
+      )}
+
+      {hasLoaded && (
         <>
           <DashboardFilters
             allResponses={scopedResponses}
