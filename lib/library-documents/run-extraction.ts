@@ -13,9 +13,10 @@
 // analysing is itself a second atomic claim, not this function just
 // writing 'analysing' and stopping.
 import { supabaseAdmin } from "@/lib/supabase-admin";
-import { ALLOWED_MIME_TYPES } from "@/lib/library-documents/constants";
+import { ALLOWED_MIME_TYPES, IMAGE_EXTS } from "@/lib/library-documents/constants";
 import { downloadFile } from "@/lib/library-documents/storage";
 import { extractPdf, extractDocx } from "@/lib/library-documents/extract-text";
+import { extractImageContent } from "@/lib/library-documents/extract-image";
 import { chunkPdfPages, chunkDocxSections, type ChunkRow } from "@/lib/library-documents/chunk-text";
 import { runVisualAnalysis } from "@/lib/library-documents/run-visual-analysis";
 import { runAnalysis } from "@/lib/library-documents/run-analysis";
@@ -52,6 +53,13 @@ export async function runExtraction(libraryDocumentId: string): Promise<void> {
     } else if (ext === "docx") {
       const extraction = await extractDocx(buffer);
       chunkRows = chunkDocxSections(extraction.sections);
+    } else if (IMAGE_EXTS.has(ext)) {
+      // Image document: no text layer — the vision model reads the whole image
+      // and its transcribed content becomes the document's single content chunk.
+      pageCount = 1;
+      const content = await extractImageContent(buffer, claimed.mime_type);
+      if (!content) throw new Error("No readable content was found in this image.");
+      chunkRows = [{ page_start: 1, page_end: 1, section_label: null, chunk_text: content }];
     } else {
       throw new Error(`Unsupported mime type: ${claimed.mime_type}`);
     }

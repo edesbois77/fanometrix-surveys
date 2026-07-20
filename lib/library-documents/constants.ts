@@ -11,7 +11,14 @@ export const LIBRARY_DOCUMENTS_BUCKET = "library-documents";
 export const ALLOWED_MIME_TYPES: Record<string, string> = {
   "application/pdf": "pdf",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
+  // Images (screenshots, infographics, scanned pages) — no text layer, so they
+  // are read end-to-end by the vision model rather than text-extracted.
+  "image/png": "png",
+  "image/jpeg": "jpg",
 };
+
+// Extensions that are image documents (read by vision, not text extraction).
+export const IMAGE_EXTS = new Set(["png", "jpg"]);
 
 // 25MB — comfortably above a typical industry report, well below what
 // would strain a single serverless function's extraction/analysis step.
