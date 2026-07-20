@@ -15,6 +15,13 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 import { requireUser } from "@/lib/auth-server";
 import { objectExists } from "@/lib/library-documents/storage";
 
+// Extraction (PDF render + vision + AI analysis) runs in after() below and can
+// take well over a minute — the function must stay alive for it. Without this the
+// default ~10s timeout kills the invocation before extraction finishes, leaving
+// the document stuck at 'uploaded'. Vercel keeps after() alive up to maxDuration.
+export const maxDuration = 300;
+export const runtime = "nodejs";
+
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     await requireUser(req, ["admin"]);
