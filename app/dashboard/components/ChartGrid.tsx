@@ -42,20 +42,46 @@ function rgba(hex: string, alpha: number): string {
 // Line: Gold  |  Area fill: 15% Gold  |  Dots: Navy with Gold border
 
 function ResponsesOverTime({ responses }: { responses: SurveyResponse[] }) {
-  const data = useMemo(() => {
+  // Short date ranges are bucketed by HOUR so a single day of collection doesn't
+  // collapse to one or two daily points; wider ranges stay daily. The threshold
+  // is driven by the actual span of the data in view (≤ 48h → hourly).
+  const { data, granularity } = useMemo(() => {
+    let min = Infinity, max = -Infinity;
+    for (const r of responses) {
+      const t = new Date(r.created_at).getTime();
+      if (Number.isNaN(t)) continue;
+      if (t < min) min = t;
+      if (t > max) max = t;
+    }
+    const spanHours = Number.isFinite(min) && Number.isFinite(max) ? (max - min) / 3_600_000 : 0;
+    const byHour = spanHours <= 48;
+
     const m: Record<string, number> = {};
     for (const r of responses) {
-      const d = r.created_at.slice(0, 10);
-      m[d] = (m[d] ?? 0) + 1;
+      // ISO created_at ("YYYY-MM-DDTHH:mm:ss…"): slice to the hour or to the day.
+      const key = byHour ? r.created_at.slice(0, 13) : r.created_at.slice(0, 10);
+      m[key] = (m[key] ?? 0) + 1;
     }
-    return Object.entries(m).sort().map(([date, count]) => ({ date, count }));
+    const rows = Object.entries(m).sort().map(([bucket, count]) => ({ bucket, count }));
+    return { data: rows, granularity: byHour ? ("hour" as const) : ("day" as const) };
   }, [responses]);
 
   if (data.length < 2) return null;
 
+  // Axis ticks stay compact; the tooltip carries the full date + time. Daily
+  // labels are unchanged from before ("YYYY-MM-DD"); hourly show "HH:00".
+  const fmtTick  = (v: string) => granularity === "hour" ? `${v.slice(11, 13)}:00` : v;
+  const fmtLabel = (v: unknown) => {
+    const s = String(v ?? "");
+    return granularity === "hour" ? `${s.slice(0, 10)} · ${s.slice(11, 13)}:00` : s;
+  };
+
   return (
     <div className="bg-white border border-gray-100 rounded-xl shadow-sm p-5 mb-4">
-      <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-4">Responses Over Time</h3>
+      <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-4">
+        Responses Over Time
+        <span className="ml-2 normal-case tracking-normal font-normal text-gray-300">· {granularity === "hour" ? "hourly" : "daily"}</span>
+      </h3>
       <ResponsiveContainer width="100%" height={140}>
         <AreaChart data={data} margin={{ left: -10, right: 8, top: 4, bottom: 0 }}>
           <defs>
@@ -65,9 +91,9 @@ function ResponsesOverTime({ responses }: { responses: SurveyResponse[] }) {
             </linearGradient>
           </defs>
           <CartesianGrid strokeDasharray="3 3" stroke="#e8eaf0" />
-          <XAxis dataKey="date" tick={{ fontSize: 9 }} interval="preserveStartEnd" />
+          <XAxis dataKey="bucket" tick={{ fontSize: 9 }} interval="preserveStartEnd" tickFormatter={fmtTick} />
           <YAxis tick={{ fontSize: 9 }} allowDecimals={false} />
-          <RTooltip contentStyle={{ fontSize: 11 }} />
+          <RTooltip contentStyle={{ fontSize: 11 }} labelFormatter={fmtLabel} />
           <Area
             type="monotone"
             dataKey="count"
