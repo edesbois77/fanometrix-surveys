@@ -24,11 +24,19 @@ export async function GET(req: NextRequest) {
   // endpoint is platform-wide, exactly as before.
   const projectId = req.nextUrl.searchParams.get("research_project_id");
 
-  // Resolve the scope to a set of search ids (null = platform-wide).
+  // Resolve the scope to a set of search ids.
   let ids: string[] | null = null;
   if (searchId) ids = [searchId];
   else if (projectId) {
     ids = await getProjectSocialSearchIds(projectId);
+    if (ids.length === 0) return NextResponse.json(EMPTY_STATS);
+  } else {
+    // Platform-wide: restrict to REAL searches so simulated (Product Walkthrough)
+    // searches never inflate the platform-wide conversation stats. Their sentiment
+    // and volume must stay out of any "real" aggregate.
+    const { data: real } = await supabaseAdmin
+      .from("social_searches").select("id").eq("is_simulated", false);
+    ids = (real ?? []).map(s => s.id as string);
     if (ids.length === 0) return NextResponse.json(EMPTY_STATS);
   }
 

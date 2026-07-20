@@ -33,6 +33,10 @@ export async function GET(req: NextRequest) {
     const ids = await getProjectSocialSearchIds(projectId);
     if (ids.length === 0) return NextResponse.json({ data: [], count: 0 });
     q = q.in("search_id", ids);
+  } else {
+    // Platform-wide list (no search / project scope): real conversations only —
+    // simulated (Product Walkthrough) mentions must never appear in it.
+    q = q.eq("is_simulated", false);
   }
   if (sentiment) q = q.eq("sentiment",  sentiment);
   if (topic)     q = q.eq("topic",      topic);

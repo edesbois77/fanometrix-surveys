@@ -23,6 +23,14 @@ export async function GET(req: NextRequest) {
   // Apply URL filter first (stacks with role filter below)
   if (campaignId) query = query.eq("campaign_id", campaignId);
 
+  // Simulated-data isolation: outside a specific Research Project scope, never
+  // surface simulated / demo responses. Simulated data lives only on simulated
+  // projects, whose OWN Workspace dashboards pass research_project_id and thus
+  // legitimately see it below. Unscoped aggregates (the legacy global /dashboard
+  // and /analysis) must show real responses only, so synthetic rows never inflate
+  // a "real" total.
+  if (!researchProjectId) query = query.eq("is_demo", false);
+
   // Scope to one Research Project's own Workspace dashboard — resolve to the
   // text campaign_ids belonging to that project (responses.campaign_id is
   // the human-readable text id, not campaigns.id), same resolution pattern

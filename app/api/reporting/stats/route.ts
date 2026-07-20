@@ -15,9 +15,11 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  // Real responses only — exclude simulated / demo rows so the external reporting
+  // metadata never over-reports the true response total or a synthetic "latest".
   const [countRes, latestRes] = await Promise.all([
-    supabase.from("responses").select("*", { count: "exact", head: true }),
-    supabase.from("responses").select("created_at").order("created_at", { ascending: false }).limit(1),
+    supabase.from("responses").select("*", { count: "exact", head: true }).eq("is_demo", false),
+    supabase.from("responses").select("created_at").eq("is_demo", false).order("created_at", { ascending: false }).limit(1),
   ]);
 
   const base = process.env.NEXT_PUBLIC_APP_URL ?? "https://app.fanometrix.com";

@@ -8,6 +8,9 @@ export async function GET(req: NextRequest) {
   const { data, error } = await supabaseAdmin
     .from("social_searches")
     .select("*, social_keywords(id, keyword, keyword_type)")
+    // Real searches only — simulated (Product Walkthrough) searches live in the
+    // /product-walkthrough area and must never appear in the platform-wide list.
+    .eq("is_simulated", false)
     .order("created_at", { ascending: false });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
