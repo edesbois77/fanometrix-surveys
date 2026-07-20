@@ -92,6 +92,8 @@ export function LibraryDocConfigBody({ documentId, backHref, backLabel }: {
   const [form, setForm] = useState<EditForm>({ title: "", author: "", document_type: "other", confidentiality: "internal", description: "", tags: [], owner: "fanometrix", owner_org_id: "", visibility: "internal", learning_permission: "no_learning", ai_access: "internal" });
   const [tagInput, setTagInput] = useState("");
   const [saving, setSaving] = useState(false);
+  const [checkingImpact, setCheckingImpact] = useState(false);
+  const [affected, setAffected] = useState<{ project_id: string; project_name: string }[]>([]);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
   function showToast(msg: string, ok = true) { setToast({ msg, ok }); setTimeout(() => setToast(null), 4000); }
@@ -165,15 +167,43 @@ export function LibraryDocConfigBody({ documentId, backHref, backLabel }: {
     (f.owner_org_id || null) !== (d.owner_org_id ?? null) || f.visibility !== d.visibility ||
     f.learning_permission !== d.learning_permission || f.ai_access !== d.ai_access;
 
-  function onSaveClick() {
+  const patchBody = (dryRun: boolean) => ({
+    title: form.title.trim(),
+    author: form.author.trim() || null,
+    document_type: form.document_type,
+    confidentiality: form.confidentiality,
+    description: form.description.trim() || null,
+    tags: form.tags,
+    owner: form.owner,
+    owner_org_id: (form.owner === "fanometrix" || form.owner === "public") ? null : (form.owner_org_id || null),
+    visibility: form.visibility,
+    learning_permission: form.learning_permission,
+    ai_access: form.ai_access,
+    project_context: projectId,
+    dry_run: dryRun,
+  });
+
+  async function onSaveClick() {
     if (!doc) return;
     if (!form.title.trim()) { showToast("Title cannot be empty.", false); return; }
     if (form.owner !== "fanometrix" && form.owner !== "public" && !form.owner_org_id) {
       showToast("Select the owning organisation for this owner type.", false); return;
     }
-    // A governance change alters the document's access posture for every project
-    // using it — confirm before saving.
-    if (governanceChanged(doc, form)) { setConfirmOpen(true); return; }
+    // A governance change alters access posture. Preview which existing
+    // attachments it would revoke, then confirm before applying.
+    if (governanceChanged(doc, form)) {
+      setCheckingImpact(true);
+      try {
+        const res = await fetch(`/api/library-documents/${documentId}`, {
+          method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patchBody(true)),
+        });
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok) { showToast(json.error ?? "Couldn't check governance impact.", false); return; }
+        setAffected(json.affected ?? []);
+        setConfirmOpen(true);
+      } finally { setCheckingImpact(false); }
+      return;
+    }
     doSave();
   }
 
@@ -182,29 +212,15 @@ export function LibraryDocConfigBody({ documentId, backHref, backLabel }: {
     setSaving(true);
     try {
       const res = await fetch(`/api/library-documents/${documentId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: form.title.trim(),
-          author: form.author.trim() || null,
-          document_type: form.document_type,
-          confidentiality: form.confidentiality,
-          description: form.description.trim() || null,
-          tags: form.tags,
-          owner: form.owner,
-          owner_org_id: (form.owner === "fanometrix" || form.owner === "public") ? null : (form.owner_org_id || null),
-          visibility: form.visibility,
-          learning_permission: form.learning_permission,
-          ai_access: form.ai_access,
-          project_context: projectId,
-        }),
+        method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patchBody(false)),
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) { showToast(json.error ?? "Couldn't save changes.", false); setSaving(false); return; }
       await load();
       setEditing(false);
       setConfirmOpen(false);
-      showToast("Document details saved");
+      const n = (json.revoked?.length ?? 0) as number;
+      showToast(n > 0 ? `Saved — detached from ${n} project${n === 1 ? "" : "s"} that no longer comply.` : "Document details saved");
     } finally {
       setSaving(false);
     }
@@ -466,8 +482,8 @@ export function LibraryDocConfigBody({ documentId, backHref, backLabel }: {
             </div>
 
             <div className="flex items-center justify-end gap-2 pt-1">
-              <Button variant="ghost" onClick={() => setEditing(false)} disabled={saving}>Cancel</Button>
-              <Button variant="primary" onClick={onSaveClick} disabled={saving}>{saving ? "Saving…" : "Save changes"}</Button>
+              <Button variant="ghost" onClick={() => setEditing(false)} disabled={saving || checkingImpact}>Cancel</Button>
+              <Button variant="primary" onClick={onSaveClick} disabled={saving || checkingImpact}>{checkingImpact ? "Checking…" : saving ? "Saving…" : "Save changes"}</Button>
             </div>
           </div>
         )}
@@ -489,10 +505,28 @@ export function LibraryDocConfigBody({ documentId, backHref, backLabel }: {
           <div className="w-full max-w-md p-5 shadow-2xl" style={{ background: "var(--surface)", borderRadius: "var(--radius-panel)" }} onClick={e => e.stopPropagation()}>
             <h3 className="text-base font-bold" style={{ color: "var(--text-primary)" }}>Change access &amp; governance?</h3>
             <p className="text-sm mt-2 leading-relaxed" style={{ color: "var(--text-secondary)" }}>
-              You&apos;re changing this document&apos;s ownership or permissions. This alters where it can be used and who can access it —
-              it&apos;s a shared Library asset used in <span className="font-semibold" style={{ color: "var(--text-primary)" }}>{usageProjects}</span>, and the change applies to all of them.
-              {form.confidentiality === "nda_restricted" && " Marking it NDA Restricted will detach it from any project outside its owning organisation on future re-checks."}
+              You&apos;re changing this document&apos;s ownership or permissions. It&apos;s a shared Library asset used in{" "}
+              <span className="font-semibold" style={{ color: "var(--text-primary)" }}>{usageProjects}</span>, and the change applies everywhere it&apos;s used.
             </p>
+            {affected.length > 0 ? (
+              <div className="mt-3 rounded-lg p-3" style={{ background: "#F9EFEA", border: "1px solid #E8D2C4" }}>
+                <p className="text-sm font-semibold" style={{ color: "#8A4B33" }}>
+                  {affected.length} attachment{affected.length === 1 ? "" : "s"} will be revoked
+                </p>
+                <p className="text-xs mt-1 leading-relaxed" style={{ color: "#8A4B33" }}>
+                  These projects no longer comply with the new governance and will be automatically detached (audited, and recorded in their activity history):
+                </p>
+                <ul className="mt-2 space-y-1">
+                  {affected.map(a => (
+                    <li key={a.project_id} className="text-sm font-medium flex items-start gap-1.5" style={{ color: "#8A4B33" }}>
+                      <span aria-hidden className="mt-0.5">•</span>{a.project_name}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : (
+              <p className="text-xs mt-2" style={{ color: "var(--text-tertiary)" }}>No existing attachments are affected by this change.</p>
+            )}
             <div className="flex items-center justify-end gap-2 mt-5">
               <Button variant="ghost" onClick={() => setConfirmOpen(false)} disabled={saving}>Cancel</Button>
               <Button variant="primary" onClick={doSave} disabled={saving}>{saving ? "Saving…" : "Confirm & save"}</Button>

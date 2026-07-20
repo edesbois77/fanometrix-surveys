@@ -13,7 +13,8 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 import { requireUser } from "@/lib/auth-server";
 import { createDownloadUrl } from "@/lib/library-documents/storage";
 import { isDocumentType, isConfidentiality, normaliseTag, MAX_DOCUMENT_TAGS } from "@/lib/library-documents/constants";
-import { isOwner, isVisibility, isLearningPermission, isAIAccess } from "@/lib/library-documents/governance";
+import { isOwner, isVisibility, isLearningPermission, isAIAccess, canAttachDocumentToProject, type GovernedDocument } from "@/lib/library-documents/governance";
+import { logActivity } from "@/lib/research-project-activity";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try { await requireUser(req); } catch (err) { return err as Response; }
@@ -193,6 +194,43 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     }
   }
 
+  // Retroactive enforcement (docs/governance-model.md §5). When an access-affecting
+  // field changes, governance is the source of truth: every existing attachment is
+  // re-evaluated against the NEW governance, and any that no longer comply are
+  // detached. A dry_run computes the impact so the UI can list exactly which
+  // projects will be affected BEFORE the change is applied.
+  const dryRun = body.dry_run === true;
+  const accessChanged = ["owner", "owner_org_id", "confidentiality", "visibility"].some(f => f in update);
+  let affected: { project_id: string; project_name: string }[] = [];
+  if (accessChanged) {
+    const newGov: GovernedDocument = {
+      owner: (update.owner ?? current.owner) as GovernedDocument["owner"],
+      owner_org_id: (("owner_org_id" in update ? update.owner_org_id : current.owner_org_id) as string | null) ?? null,
+      confidentiality: (update.confidentiality ?? current.confidentiality) as GovernedDocument["confidentiality"],
+      visibility: (update.visibility ?? current.visibility) as GovernedDocument["visibility"],
+      learning_permission: (update.learning_permission ?? current.learning_permission) as GovernedDocument["learning_permission"],
+      ai_access: (update.ai_access ?? current.ai_access) as GovernedDocument["ai_access"],
+    };
+    const { data: atts } = await supabaseAdmin
+      .from("research_project_evidence")
+      .select("research_project_id")
+      .eq("evidence_type", "document").eq("evidence_id", id);
+    const projIds = [...new Set((atts ?? []).map(a => a.research_project_id))];
+    if (projIds.length) {
+      const { data: projs } = await supabaseAdmin
+        .from("research_projects")
+        .select("id, project_name, brand_org_id, agency_org_id, publisher_org_ids")
+        .in("id", projIds);
+      affected = (projs ?? [])
+        .filter(p => !canAttachDocumentToProject(newGov, p))
+        .map(p => ({ project_id: p.id, project_name: p.project_name }));
+    }
+  }
+
+  if (dryRun) {
+    return NextResponse.json({ dry_run: true, affected, changes: audits.map(a => a.field) });
+  }
+
   if (Object.keys(update).length === 0) {
     return NextResponse.json({ data: null, unchanged: true });
   }
@@ -205,6 +243,24 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     .select("*")
     .single();
   if (updErr || !updated) return NextResponse.json({ error: updErr?.message ?? "Couldn't save changes." }, { status: 500 });
+
+  // Apply the retroactive revocations: detach the now-non-compliant attachments,
+  // audit each, and record it in the affected projects' activity history.
+  if (affected.length) {
+    const ids = affected.map(a => a.project_id);
+    await supabaseAdmin.from("research_project_evidence")
+      .delete().eq("evidence_type", "document").eq("evidence_id", id).in("research_project_id", ids);
+    await supabaseAdmin.from("library_document_audit").insert(affected.map(a => ({
+      library_document_id: id, field: "attachment_revoked",
+      old_value: `${a.project_name} (${a.project_id})`, new_value: null,
+      changed_by: session.workEmail, project_context: a.project_id,
+    })));
+    await Promise.all(affected.map(a => logActivity(
+      a.project_id, "project_updated",
+      `Document "${current.title}" was automatically detached — a governance change means it's no longer permitted in this project.`,
+      session.workEmail,
+    )));
+  }
 
   // Append-only audit. Best-effort — never fail a saved edit if the log
   // write hiccups, but attempt it synchronously so the common path records.
@@ -225,5 +281,5 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   let previewUrl: string | null = null;
   try { previewUrl = await createDownloadUrl(updated.storage_path); } catch { previewUrl = null; }
 
-  return NextResponse.json({ data: { ...updated, preview_url: previewUrl } });
+  return NextResponse.json({ data: { ...updated, preview_url: previewUrl }, revoked: affected });
 }
