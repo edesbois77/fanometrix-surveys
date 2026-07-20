@@ -22,6 +22,15 @@ function pct(num: number, denom: number): string {
   return v < 0.1 ? "<0.1%" : `${v.toFixed(v < 10 ? 1 : 0)}%`;
 }
 
+// Same as pct() but with one extra decimal of precision, for low-magnitude
+// rates (Q1 Answer Rate, Response Rate) where "0.1%"/"<0.1%" loses signal.
+function pctPrecise(num: number, denom: number): string {
+  if (!denom) return "—";
+  if (!num)   return "0%";
+  const v = (num / denom) * 100;
+  return v < 0.01 ? "<0.01%" : `${v.toFixed(v < 10 ? 2 : 1)}%`;
+}
+
 function fmt(n: number): string {
   return n.toLocaleString();
 }
@@ -174,9 +183,9 @@ export function KpiCards({ responses, events, eventsLoading }: KpiCardsProps) {
 
   const showEventValue = hasEvents && !isLegacyData;
 
-  const startRate      = pct(starts,      renders);
+  const startRate      = pctPrecise(starts,      renders);
   const completionRate = pct(evCompleted, starts);
-  const responseRate   = pct(evCompleted, renders);
+  const responseRate   = pctPrecise(evCompleted, renders);
   const funnelCompleted = showEventValue ? evCompleted : completed;
 
   const legacyFullCount = responses.filter(r => r.q1 && r.q2 && r.q3).length;
