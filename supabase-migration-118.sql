@@ -14,6 +14,14 @@
 --     item can answer first-seen / last-seen / seen-in-run-1,2,4 without any
 --     duplication, and any run's full observed set is reconstructable.
 -- Supersedes migration 112's within-run uniqueness (snapshot-per-run) model.
+--
+-- ── Wrapped in a single transaction with a built-in validation guard ────────
+-- Everything below runs atomically between BEGIN and COMMIT. The guard block at
+-- the end (step 8) asserts the migration's invariants; if any fails it RAISEs,
+-- which rolls back the ENTIRE transaction automatically — no partial state, no
+-- manual rollback needed. The guards are empty-database-safe (all counts 0 pass),
+-- so this file is still safe to run on a fresh environment.
+BEGIN;
 
 -- 1) Provenance columns on the base ------------------------------------------
 ALTER TABLE social_mentions
@@ -129,6 +137,47 @@ SELECT
 FROM social_mentions m
 JOIN kinds k ON k.search_id = m.search_id
 GROUP BY m.search_id, k.by_kind;
+
+-- 8) VALIDATION GUARD — asserts the migration's invariants inside the same
+--    transaction. Any failure RAISEs an exception, which rolls the ENTIRE
+--    migration back automatically. Prints the counts via RAISE NOTICE either way.
+DO $$
+DECLARE
+  remaining_dupes bigint;
+  missing_prov    bigint;
+  kept            bigint;
+  observations    bigint;
+BEGIN
+  -- (a) The append-only base must hold exactly ONE row per identity group.
+  SELECT count(*) FROM (
+    SELECT 1 FROM social_mentions
+    WHERE external_id IS NOT NULL
+    GROUP BY search_id, connector, external_id
+    HAVING count(*) > 1
+  ) d INTO remaining_dupes;
+
+  -- (b) Every surviving row must carry its first/last-seen provenance.
+  SELECT count(*) FROM social_mentions
+    WHERE first_seen_at IS NULL OR last_seen_at IS NULL
+    INTO missing_prov;
+
+  SELECT count(*) FROM social_mentions       INTO kept;
+  SELECT count(*) FROM evidence_observations INTO observations;
+
+  RAISE NOTICE 'Migration 118 guard — kept rows: %, observations: %, remaining duplicate groups: %, rows missing provenance: %',
+    kept, observations, remaining_dupes, missing_prov;
+
+  IF remaining_dupes <> 0 THEN
+    RAISE EXCEPTION 'ABORT 118: % duplicate identity group(s) remain after collapse — rolling back', remaining_dupes;
+  END IF;
+  IF missing_prov <> 0 THEN
+    RAISE EXCEPTION 'ABORT 118: % surviving row(s) have no first/last-seen provenance — rolling back', missing_prov;
+  END IF;
+
+  RAISE NOTICE 'Migration 118 guard passed — safe to COMMIT.';
+END $$;
+
+COMMIT;
 
 -- Rollback additions from step 7:
 --   DROP VIEW IF EXISTS vw_conversation_search_stats;
