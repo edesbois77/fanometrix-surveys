@@ -516,7 +516,7 @@ export function AnalysisWorkspace() {
             {/* Project-level Researcher Notes */}
             <section id="notes" className="scroll-mt-24">
               <p className="text-[11px] font-semibold uppercase tracking-[0.09em] px-1 mb-2" style={{ color: "var(--text-tertiary)" }}>Researcher Notes</p>
-              <NotesPanel projectId={projectId} scope="project" scopeRef="" notes={notes.filter(n => n.scope === "project")} onChanged={loadNotes} />
+              <NotesPanel projectId={projectId} scope="project" scopeRef="" notes={notes.filter(n => n.scope === "project" && n.scope_ref === "")} onChanged={loadNotes} />
             </section>
 
             <p className="text-xs px-1 leading-relaxed" style={{ color: "var(--text-tertiary)" }}>
