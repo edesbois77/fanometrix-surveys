@@ -171,78 +171,75 @@ function ConversionPipeline({ stages }: { stages: PipelineStage[] }) {
 }
 
 // ── Research Confidence ───────────────────────────────────────────────────────
-// How much to trust the current dataset. Today it is driven by sample size and
-// the resulting 95% margin of error, expressed as an array of weighted factors
-// so future signals (publisher diversity, country coverage, completion rate,
-// data quality…) can be added without changing this component or its layout.
-
-type ConfBand = "No data" | "Directional" | "Emerging" | "Reliable" | "Robust";
-
-type ConfFactor = { key: string; label: string; score: number; detail: string };
-
-const CONF_COLOR: Record<ConfBand, string> = {
-  "No data":     "#9CA3AF",
-  "Directional": "#9CA3AF",
-  "Emerging":    "#B45309",
-  "Reliable":    "#B8935A",
-  "Robust":      "#15803D",
-};
+// How far the current sample can be trusted, stated in plain statistics: the
+// number of completed responses and the resulting 95% margin of error. The label
+// is tied to DEFINED margin-of-error thresholds (not a vague adjective):
+//   ≤ ±5%   → High Confidence  (n ≳ 385 — the industry ±5% survey standard)
+//   ≤ ±10%  → Reliable         (n ≳ 96)
+//   ≤ ±15%  → Directional      (n ≳ 43)
+//   > ±15%  → Early            (fewer — anecdotal only)
 
 // 95% margin of error for a proportion, worst case p=0.5:  1.96·√(0.25/n).
 function marginOfError(n: number): number | null {
   return n > 0 ? Math.round((0.98 / Math.sqrt(n)) * 1000) / 10 : null;
 }
 
-function computeConfidence(n: number): {
-  band: ConfBand; overall: number; moe: number | null; n: number; factors: ConfFactor[];
-} {
-  const moe = marginOfError(n);
-  // Sample-adequacy score ramps toward 100 at n≈385 (±5% MoE), on a log scale
-  // so early responses move the needle without overstating a small sample.
-  const sampleScore = n <= 0
-    ? 0
-    : Math.min(100, Math.round((Math.log10(n + 1) / Math.log10(386)) * 100));
+type ConfBand = { label: string; color: string; meaning: (moe: number) => string };
 
-  const factors: ConfFactor[] = [
-    {
-      key: "sample",
-      label: "Sample size",
-      score: sampleScore,
-      detail: moe !== null ? `${fmt(n)} completed · ±${moe}%` : "No completed responses",
-    },
-  ];
+const CONF_BANDS: Record<"none" | "early" | "directional" | "reliable" | "high", ConfBand> = {
+  none: {
+    label: "No data", color: "#9CA3AF",
+    meaning: () => "Awaiting completed responses.",
+  },
+  early: {
+    label: "Early", color: "#9CA3AF",
+    meaning: (m) => `Too few responses to generalise — treat these as anecdotal signals, not representative figures (±${m}%).`,
+  },
+  directional: {
+    label: "Directional", color: "#B45309",
+    meaning: (m) => `Shows the direction of opinion, but each figure could vary by ±${m}% — read the trend, not the exact number.`,
+  },
+  reliable: {
+    label: "Reliable", color: "#B8935A",
+    meaning: (m) => `Solid enough to act on — each figure is accurate to within ±${m}% at a 95% confidence level.`,
+  },
+  high: {
+    label: "High Confidence", color: "#15803D",
+    meaning: (m) => `Representative sample — figures are accurate to within ±${m}% (meets the ±5% survey standard) at 95% confidence.`,
+  },
+};
 
-  const overall = Math.round(factors.reduce((a, f) => a + f.score, 0) / factors.length);
-  const band: ConfBand =
-    n <= 0   ? "No data"     :
-    n < 30   ? "Directional" :
-    n < 100  ? "Emerging"    :
-    n < 385  ? "Reliable"    : "Robust";
-
-  return { band, overall, moe, n, factors };
+// Band chosen directly from the margin of error, so the label always matches the
+// statistic shown beneath it.
+function bandFor(moe: number | null): ConfBand {
+  if (moe === null) return CONF_BANDS.none;
+  if (moe <= 5)  return CONF_BANDS.high;
+  if (moe <= 10) return CONF_BANDS.reliable;
+  if (moe <= 15) return CONF_BANDS.directional;
+  return CONF_BANDS.early;
 }
 
 function ResearchConfidence({ n }: { n: number }) {
-  const { band, overall, moe } = computeConfidence(n);
-  const color = CONF_COLOR[band];
+  const moe  = marginOfError(n);
+  const band = bandFor(moe);
 
   return (
     <div className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm flex flex-col">
-      <div className="flex items-baseline justify-between gap-2">
+      <div className="flex items-center justify-between gap-2">
         <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400">Research Confidence</p>
-        {moe !== null && (
-          <span className="text-[10px] text-gray-400 tabular-nums">±{moe}% margin</span>
-        )}
+        <span className="text-[10px] text-gray-400">95% confidence level</span>
       </div>
-      <p className="text-2xl font-bold mt-1" style={{ color }}>{band}</p>
-      <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden mt-2">
-        <div className="h-full rounded-full transition-all" style={{ width: `${overall}%`, background: color }} />
-      </div>
-      <p className="text-xs text-gray-400 mt-2">
-        {n <= 0
-          ? "Awaiting completed responses"
-          : `Based on ${fmt(n)} completed response${n === 1 ? "" : "s"}${moe !== null ? ` · ±${moe}% at 95% confidence` : ""}`}
-      </p>
+      <p className="text-2xl font-bold mt-1" style={{ color: band.color }}>{band.label}</p>
+      {moe !== null ? (
+        <>
+          <p className="text-sm font-semibold mt-1.5" style={{ color: "#0B1929" }}>
+            {fmt(n)} completed {n === 1 ? "response" : "responses"} · ±{moe}% margin of error
+          </p>
+          <p className="text-xs text-gray-500 mt-1.5 leading-relaxed">{band.meaning(moe)}</p>
+        </>
+      ) : (
+        <p className="text-xs text-gray-400 mt-1.5">{band.meaning(0)}</p>
+      )}
     </div>
   );
 }
