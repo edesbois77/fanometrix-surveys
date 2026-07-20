@@ -19,11 +19,14 @@ import Link from "next/link";
 import { useResearchProject } from "@/app/components/research-projects/ProjectProvider";
 import { useWorkspaceRecord } from "@/app/components/research-projects/WorkspaceRecordContext";
 import { useSession } from "@/app/components/SessionProvider";
-import { DOCUMENT_TYPES, CONFIDENTIALITY_LEVELS, COMMON_DOCUMENT_TAGS, normaliseTag } from "@/lib/library-documents/constants";
+import { DOCUMENT_TYPES, COMMON_DOCUMENT_TAGS, normaliseTag } from "@/lib/library-documents/constants";
 import {
-  OWNER_LABEL, OWNERS, VISIBILITY_LABEL, VISIBILITIES, LEARNING_LABEL, LEARNING_PERMISSIONS,
-  AI_ACCESS_LABEL, AI_ACCESSES, CONFIDENTIALITY_LABEL, type DocumentOwner, type DocumentConfidentiality,
+  OWNER_LABEL, OWNERS, OWNER_DESC, CONFIDENTIALITY_LABEL, CONFIDENTIALITIES, CONFIDENTIALITY_DESC,
+  VISIBILITY_LABEL, VISIBILITIES, VISIBILITY_DESC, LEARNING_LABEL, LEARNING_PERMISSIONS, LEARNING_DESC,
+  AI_ACCESS_LABEL, AI_ACCESSES, AI_ACCESS_DESC, GOVERNANCE_FIELD_HELP, GOVERNANCE_PRESETS,
+  type DocumentOwner, type DocumentConfidentiality,
 } from "@/lib/library-documents/governance";
+import { InfoTooltip } from "@/app/components/InfoTooltip";
 import {
   PageContainer, WorkspaceHeader, PageLoadingState, ErrorState,
   Card, SectionHeading, Button, Icon, BackLink,
@@ -66,6 +69,35 @@ function Detail({ label, children }: { label: string; children: React.ReactNode 
 }
 
 const fmtDate = (s: string) => new Date(s).toLocaleDateString("en-GB");
+
+// A governed-field selector: label + ⓘ (all option meanings) + one-line field
+// help + the dropdown + the meaning of the currently-selected option.
+function GovSelect({ label, help, value, onChange, options, labels, descs }: {
+  label: string; help: string; value: string; onChange: (v: string) => void;
+  options: readonly string[]; labels: Record<string, string>; descs: Record<string, string>;
+}) {
+  return (
+    <div>
+      <div className="flex items-center gap-1.5">
+        <label className="text-xs font-semibold" style={{ color: "var(--text-secondary)" }}>{label}</label>
+        <InfoTooltip text={
+          <>
+            <p className="font-medium text-gray-800">{help}</p>
+            <div className="space-y-1">
+              {options.map(o => <p key={o}><span className="font-semibold text-gray-800">{labels[o]}</span> — {descs[o]}</p>)}
+            </div>
+          </>
+        } />
+      </div>
+      <p className="text-[11px] leading-snug mt-0.5 mb-1.5" style={{ color: "var(--text-tertiary)" }}>{help}</p>
+      <select value={value} onChange={e => onChange(e.target.value)} onFocus={focusGold} onBlur={blurGold}
+        className="w-full px-3 py-2 text-sm outline-none transition-colors" style={inputStyle}>
+        {options.map(o => <option key={o} value={o}>{labels[o]}</option>)}
+      </select>
+      {descs[value] && <p className="text-[11px] leading-snug mt-1.5 italic" style={{ color: "var(--text-tertiary)" }}>{descs[value]}</p>}
+    </div>
+  );
+}
 
 type EditForm = {
   title: string; author: string; document_type: string; confidentiality: string; description: string; tags: string[];
@@ -160,6 +192,15 @@ export function LibraryDocConfigBody({ documentId, backHref, backLabel }: {
   }
   function removeTag(t: string) {
     setForm(f => ({ ...f, tags: f.tags.filter(x => x !== t) }));
+  }
+
+  function applyPreset(key: string) {
+    const p = GOVERNANCE_PRESETS.find(x => x.key === key);
+    if (!p) return;
+    setForm(f => ({
+      ...f, ...p.values,
+      owner_org_id: (p.values.owner === "fanometrix" || p.values.owner === "public") ? "" : f.owner_org_id,
+    }));
   }
 
   const governanceChanged = (d: Doc, f: EditForm) =>
@@ -381,61 +422,62 @@ export function LibraryDocConfigBody({ documentId, backHref, backLabel }: {
                 placeholder="Author or byline (leave blank if unknown)" />
             </Field>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Field label="Document type">
-                <select value={form.document_type} onChange={e => setForm(f => ({ ...f, document_type: e.target.value }))}
-                  onFocus={focusGold} onBlur={blurGold}
-                  className="w-full px-3 py-2 text-sm outline-none transition-colors" style={inputStyle}>
-                  {DOCUMENT_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-                </select>
-              </Field>
-              <Field label="Confidentiality">
-                <select value={form.confidentiality} onChange={e => setForm(f => ({ ...f, confidentiality: e.target.value }))}
-                  onFocus={focusGold} onBlur={blurGold}
-                  className="w-full px-3 py-2 text-sm outline-none transition-colors" style={inputStyle}>
-                  {CONFIDENTIALITY_LEVELS.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
-                </select>
-              </Field>
-            </div>
+            <Field label="Document type">
+              <select value={form.document_type} onChange={e => setForm(f => ({ ...f, document_type: e.target.value }))}
+                onFocus={focusGold} onBlur={blurGold}
+                className="w-full px-3 py-2 text-sm outline-none transition-colors" style={inputStyle}>
+                {DOCUMENT_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+              </select>
+            </Field>
 
-            {/* Governance — ownership / visibility / learning / AI access. */}
+            {/* Governance — ownership / confidentiality / visibility / learning / AI. */}
             <div className="rounded-lg p-4 space-y-4" style={{ background: "var(--surface-sunken)", border: "1px solid var(--border-subtle)" }}>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.06em]" style={{ color: "var(--text-tertiary)" }}>Governance</p>
+              <div className="flex items-center gap-1.5">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.06em]" style={{ color: "var(--text-tertiary)" }}>Governance</p>
+                <InfoTooltip text={
+                  <>
+                    <p className="font-medium text-gray-800">How this document is owned and permissioned.</p>
+                    <p>Ownership, confidentiality, visibility, learning and AI access are independent controls, enforced everywhere the document is used. Pick a recommended preset for a sensible starting point, then fine-tune.</p>
+                  </>
+                } />
+              </div>
+
+              {/* Recommended presets — configure all fields at once. */}
+              <Field label="Recommended preset">
+                <select defaultValue="" onChange={e => { applyPreset(e.target.value); e.currentTarget.value = ""; }}
+                  onFocus={focusGold} onBlur={blurGold} className="w-full px-3 py-2 text-sm outline-none transition-colors" style={inputStyle}>
+                  <option value="">Choose a preset…</option>
+                  {GOVERNANCE_PRESETS.map(p => <option key={p.key} value={p.key}>{p.label}</option>)}
+                </select>
+                <p className="text-[11px] leading-snug mt-1.5" style={{ color: "var(--text-tertiary)" }}>
+                  Sets ownership and all permissions to a sensible starting point. You can still adjust any field afterwards.
+                </p>
+              </Field>
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <Field label="Owner">
-                  <select value={form.owner} onChange={e => setForm(f => ({ ...f, owner: e.target.value }))}
-                    onFocus={focusGold} onBlur={blurGold} className="w-full px-3 py-2 text-sm outline-none transition-colors" style={inputStyle}>
-                    {OWNERS.map(o => <option key={o} value={o}>{OWNER_LABEL[o]}</option>)}
-                  </select>
-                </Field>
+                <GovSelect label="Owner" help={GOVERNANCE_FIELD_HELP.owner} value={form.owner}
+                  onChange={v => setForm(f => ({ ...f, owner: v }))} options={OWNERS} labels={OWNER_LABEL} descs={OWNER_DESC} />
                 {form.owner !== "fanometrix" && form.owner !== "public" && (
-                  <Field label="Owning organisation">
+                  <div>
+                    <label className="text-xs font-semibold block" style={{ color: "var(--text-secondary)" }}>Owning organisation</label>
+                    <p className="text-[11px] leading-snug mt-0.5 mb-1.5" style={{ color: "var(--text-tertiary)" }}>{GOVERNANCE_FIELD_HELP.owner_org_id}</p>
                     <select value={form.owner_org_id} onChange={e => setForm(f => ({ ...f, owner_org_id: e.target.value }))}
                       onFocus={focusGold} onBlur={blurGold} className="w-full px-3 py-2 text-sm outline-none transition-colors" style={inputStyle}>
                       <option value="">Select organisation…</option>
                       {orgs.map(o => <option key={o.id} value={o.id}>{o.name}{o.type ? ` · ${o.type}` : ""}</option>)}
                     </select>
-                  </Field>
+                  </div>
                 )}
-                <Field label="Visibility">
-                  <select value={form.visibility} onChange={e => setForm(f => ({ ...f, visibility: e.target.value }))}
-                    onFocus={focusGold} onBlur={blurGold} className="w-full px-3 py-2 text-sm outline-none transition-colors" style={inputStyle}>
-                    {VISIBILITIES.map(v => <option key={v} value={v}>{VISIBILITY_LABEL[v]}</option>)}
-                  </select>
-                </Field>
-                <Field label="Learning permission">
-                  <select value={form.learning_permission} onChange={e => setForm(f => ({ ...f, learning_permission: e.target.value }))}
-                    onFocus={focusGold} onBlur={blurGold} className="w-full px-3 py-2 text-sm outline-none transition-colors" style={inputStyle}>
-                    {LEARNING_PERMISSIONS.map(l => <option key={l} value={l}>{LEARNING_LABEL[l]}</option>)}
-                  </select>
-                </Field>
-                <Field label="AI access">
-                  <select value={form.ai_access} onChange={e => setForm(f => ({ ...f, ai_access: e.target.value }))}
-                    onFocus={focusGold} onBlur={blurGold} className="w-full px-3 py-2 text-sm outline-none transition-colors" style={inputStyle}>
-                    {AI_ACCESSES.map(a => <option key={a} value={a}>{AI_ACCESS_LABEL[a]}</option>)}
-                  </select>
-                </Field>
+                <GovSelect label="Confidentiality" help={GOVERNANCE_FIELD_HELP.confidentiality} value={form.confidentiality}
+                  onChange={v => setForm(f => ({ ...f, confidentiality: v }))} options={CONFIDENTIALITIES} labels={CONFIDENTIALITY_LABEL} descs={CONFIDENTIALITY_DESC} />
+                <GovSelect label="Visibility" help={GOVERNANCE_FIELD_HELP.visibility} value={form.visibility}
+                  onChange={v => setForm(f => ({ ...f, visibility: v }))} options={VISIBILITIES} labels={VISIBILITY_LABEL} descs={VISIBILITY_DESC} />
+                <GovSelect label="Learning Permission" help={GOVERNANCE_FIELD_HELP.learning_permission} value={form.learning_permission}
+                  onChange={v => setForm(f => ({ ...f, learning_permission: v }))} options={LEARNING_PERMISSIONS} labels={LEARNING_LABEL} descs={LEARNING_DESC} />
+                <GovSelect label="AI Access" help={GOVERNANCE_FIELD_HELP.ai_access} value={form.ai_access}
+                  onChange={v => setForm(f => ({ ...f, ai_access: v }))} options={AI_ACCESSES} labels={AI_ACCESS_LABEL} descs={AI_ACCESS_DESC} />
               </div>
+
               {form.confidentiality === "nda_restricted" && (
                 <p className="text-xs leading-relaxed" style={{ color: "#8A4B33" }}>
                   NDA Restricted: this document can only be attached to the owning organisation&apos;s projects, never appears elsewhere, and never contributes to platform intelligence or benchmarks.

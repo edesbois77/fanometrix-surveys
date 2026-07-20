@@ -116,14 +116,93 @@ export const VISIBILITY_LABEL: Record<DocumentVisibility, string> = {
 export const LEARNING_LABEL: Record<LearningPermission, string> = {
   no_learning: "No Learning", anonymous: "Anonymous Learning", aggregated: "Aggregated Learning", platform: "Platform Learning",
 };
+// The field label already says "AI Access" — the options mirror Visibility.
 export const AI_ACCESS_LABEL: Record<AIAccess, string> = {
-  project: "Project AI", organisation: "Organisation AI", internal: "Internal AI", platform: "Platform AI",
+  project: "Project", organisation: "Organisation", internal: "Internal", platform: "Platform",
 };
 
 export const OWNERS = Object.keys(OWNER_LABEL) as DocumentOwner[];
+export const CONFIDENTIALITIES: DocumentConfidentiality[] = ["public", "internal", "confidential", "nda_restricted"];
 export const VISIBILITIES = Object.keys(VISIBILITY_LABEL) as DocumentVisibility[];
 export const LEARNING_PERMISSIONS = Object.keys(LEARNING_LABEL) as LearningPermission[];
 export const AI_ACCESSES = Object.keys(AI_ACCESS_LABEL) as AIAccess[];
+
+// ── Plain-language help: one line per FIELD, one line per OPTION ──────────────
+export const GOVERNANCE_FIELD_HELP = {
+  owner: "Who legally owns the original document.",
+  confidentiality: "How sensitive the document is, and how strictly it's handled.",
+  visibility: "Who can view and attach this document.",
+  learning_permission: "Can insights from this document contribute to future Fanometrix intelligence?",
+  ai_access: "Which AI assistants are permitted to analyse this document.",
+  owner_org_id: "The organisation that owns this document.",
+} as const;
+
+export const OWNER_DESC: Record<DocumentOwner, string> = {
+  fanometrix: "Created or commissioned by Fanometrix.",
+  organisation: "Owned by a client or agency.",
+  publisher: "Owned by a publisher partner.",
+  licensed_partner: "Owned by a third-party research provider (e.g. GWI, Nielsen, Mintel).",
+  public: "Publicly available research.",
+};
+export const CONFIDENTIALITY_DESC: Record<DocumentConfidentiality, string> = {
+  public: "Publicly available — no handling restrictions.",
+  internal: "Fanometrix-internal only.",
+  confidential: "Sensitive — restricted handling.",
+  nda_restricted: "Under NDA — locked to the owning organisation and never learned from.",
+};
+export const VISIBILITY_DESC: Record<DocumentVisibility, string> = {
+  project: "Visible only within this research project.",
+  organisation: "Visible to projects belonging to the owning organisation.",
+  internal: "Visible only to Fanometrix users.",
+  platform: "Available throughout Fanometrix where permissions allow.",
+};
+export const LEARNING_DESC: Record<LearningPermission, string> = {
+  no_learning: "Never contributes to future Fanometrix intelligence.",
+  anonymous: "Only anonymous patterns may contribute.",
+  aggregated: "May contribute to benchmarks and aggregated intelligence.",
+  platform: "May contribute fully to Platform Intelligence.",
+};
+export const AI_ACCESS_DESC: Record<AIAccess, string> = {
+  project: "Only this project's AI may analyse it.",
+  organisation: "AI within the owning organisation's projects.",
+  internal: "Fanometrix internal AI assistants.",
+  platform: "Any Fanometrix AI, platform-wide.",
+};
+
+// ── Recommended presets — enterprise users think "this is an NDA document",
+//    not in five independent dimensions. A preset configures all of them at once
+//    (owner-org is still chosen separately for organisation-owned presets). ─────
+export type GovernancePreset = {
+  key: string; label: string; description: string; requiresOrg?: boolean;
+  values: Pick<GovernedDocument, "owner" | "confidentiality" | "visibility" | "learning_permission" | "ai_access">;
+};
+export const GOVERNANCE_PRESETS: GovernancePreset[] = [
+  {
+    key: "public_research", label: "Public Research",
+    description: "Publicly available research — usable and shareable across the platform.",
+    values: { owner: "public", confidentiality: "public", visibility: "platform", learning_permission: "platform", ai_access: "platform" },
+  },
+  {
+    key: "fanometrix_research", label: "Fanometrix Research",
+    description: "Created or commissioned by Fanometrix — internal, and feeds platform intelligence.",
+    values: { owner: "fanometrix", confidentiality: "internal", visibility: "internal", learning_permission: "platform", ai_access: "internal" },
+  },
+  {
+    key: "client_confidential", label: "Client Confidential", requiresOrg: true,
+    description: "Owned by a client or agency — confidential to their projects, never contributes to platform learning.",
+    values: { owner: "organisation", confidentiality: "confidential", visibility: "organisation", learning_permission: "no_learning", ai_access: "organisation" },
+  },
+  {
+    key: "nda_restricted", label: "NDA Restricted", requiresOrg: true,
+    description: "Under NDA — locked to the owning organisation's projects, never learned from, never leaves.",
+    values: { owner: "organisation", confidentiality: "nda_restricted", visibility: "project", learning_permission: "no_learning", ai_access: "project" },
+  },
+  {
+    key: "licensed_research", label: "Licensed Research",
+    description: "Third-party licensed data (e.g. GWI, Nielsen, Mintel) — usable across Fanometrix projects, but never contributes to platform learning.",
+    values: { owner: "licensed_partner", confidentiality: "confidential", visibility: "internal", learning_permission: "no_learning", ai_access: "internal" },
+  },
+];
 
 const isIn = <T extends string>(vals: T[]) => (v: unknown): v is T => typeof v === "string" && (vals as string[]).includes(v);
 export const isOwner = isIn(OWNERS);
