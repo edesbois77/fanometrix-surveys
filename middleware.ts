@@ -81,6 +81,11 @@ const ADMIN_ONLY_PREFIXES = [
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
   const hostname = req.headers.get("host") ?? "";
+  // API requests must never be answered with an HTML redirect (to /login,
+  // /access-denied, …) — a fetch() follows the redirect and the client's
+  // res.json() then chokes on the HTML page ("Unexpected token '<'"). API
+  // paths get a JSON 401/403 instead, so an expired session surfaces cleanly.
+  const isApi = pathname.startsWith("/api/");
 
   // ── Hostname-based routing ──────────────────────────────────────────────────
 
@@ -164,6 +169,7 @@ export async function middleware(req: NextRequest) {
   // Everything else requires a valid session
   const session = await getSession(req);
   if (!session) {
+    if (isApi) return NextResponse.json({ error: "Unauthorised — your session may have expired. Please sign in again." }, { status: 401 });
     const loginUrl = new URL("/login", req.url);
     loginUrl.searchParams.set("next", pathname);
     return NextResponse.redirect(loginUrl);
@@ -171,6 +177,7 @@ export async function middleware(req: NextRequest) {
 
   // Force password change — gate all protected routes until the user sets a new password
   if (session.forcePasswordChange && pathname !== "/change-password") {
+    if (isApi) return NextResponse.json({ error: "Password change required before continuing." }, { status: 403 });
     return NextResponse.redirect(new URL("/change-password", req.url));
   }
 
@@ -187,6 +194,7 @@ export async function middleware(req: NextRequest) {
   // Admin-only routes
   const isAdminOnly = ADMIN_ONLY_PREFIXES.some((p) => pathname.startsWith(p));
   if (isAdminOnly && session.role !== "admin") {
+    if (isApi) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     return NextResponse.redirect(new URL("/access-denied", req.url));
   }
 
@@ -194,6 +202,7 @@ export async function middleware(req: NextRequest) {
   // stay blocked here, same as they always were when these were admin-only.
   const isAdminAndPublisherOnly = ADMIN_AND_PUBLISHER_PREFIXES.some((p) => pathname.startsWith(p));
   if (isAdminAndPublisherOnly && session.role !== "admin" && session.role !== "publisher") {
+    if (isApi) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     return NextResponse.redirect(new URL("/access-denied", req.url));
   }
 

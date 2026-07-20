@@ -62,6 +62,8 @@ export function UploadDocumentModal({ onClose, onUploaded }: {
           document_type: documentType,
         }),
       });
+      if (createRes.status === 401) throw new Error("Your session has expired — please refresh the page and sign in again.");
+      if (!(createRes.headers.get("content-type") ?? "").includes("application/json")) throw new Error(`Couldn't start the upload (unexpected response, HTTP ${createRes.status}). Please refresh and try again.`);
       const createJson = await createRes.json();
       if (!createRes.ok) throw new Error(createJson.error ?? "Failed to start the upload.");
 
@@ -73,6 +75,8 @@ export function UploadDocumentModal({ onClose, onUploaded }: {
       if (uploadError) throw new Error(uploadError.message);
 
       const confirmRes = await fetch(`/api/library-documents/${id}/confirm-upload`, { method: "POST" });
+      if (confirmRes.status === 401) throw new Error("Your session has expired — please refresh the page and sign in again.");
+      if (!(confirmRes.headers.get("content-type") ?? "").includes("application/json")) throw new Error(`Upload didn't confirm (unexpected response, HTTP ${confirmRes.status}). Please refresh and try again.`);
       const confirmJson = await confirmRes.json();
       if (!confirmRes.ok) throw new Error(confirmJson.error ?? "Upload didn't complete.");
 
