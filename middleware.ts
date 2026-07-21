@@ -223,7 +223,20 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
+  // Public survey-delivery + event paths are excluded here so they skip the
+  // middleware invocation entirely (they only ever returned NextResponse.next()
+  // above — they hit no auth gate and need no hostname redirect). Every embed
+  // impression fired /embed, /api/embed/*, /api/events and /api/submit through
+  // this middleware for nothing; excluding them removes one Edge Middleware
+  // invocation per request on the highest-volume paths in the product.
+  //
+  // Anchoring matters: exclude `embed` only as a complete segment (embed$|embed/)
+  // so the ADMIN-ONLY /embed-test route (and any future /embed-* admin route)
+  // still passes through the auth gate. `api/embed/` covers the public embed
+  // config routes; `api/events` / `api/submit` are the exact public write paths.
+  // Nothing else — admin, dashboard, project and authenticated API routes are
+  // untouched and still gated. Verified against /embed-test, /api/users, etc.
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.png$|.*\\.jpg$|.*\\.jpeg$|.*\\.svg$|.*\\.ico$|.*\\.gif$|.*\\.webp$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|embed$|embed/|api/embed/|api/events$|api/events/|api/submit$|api/submit/|.*\\.png$|.*\\.jpg$|.*\\.jpeg$|.*\\.svg$|.*\\.ico$|.*\\.gif$|.*\\.webp$).*)",
   ],
 };
