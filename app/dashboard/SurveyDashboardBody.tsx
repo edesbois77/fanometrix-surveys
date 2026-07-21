@@ -61,23 +61,35 @@ function loadLS<T>(key: string, fallback: T): T {
 
 function fmt(d: Date): string { return d.toISOString().slice(0, 10); }
 function sub(d: Date, days: number): Date { return new Date(d.getTime() - days * 86_400_000); }
+function subHours(d: Date, hours: number): Date { return new Date(d.getTime() - hours * 3_600_000); }
 
+// Expand a YYYY-MM-DD day (UTC) to the start / end instant of that day.
+function dayStart(day: string): string { return `${day}T00:00:00.000Z`; }
+function dayEnd(day: string):   string { return `${day}T23:59:59.999Z`; }
+
+// Bounds are full ISO instants so both calendar presets (Today, Last 7 Days,
+// Custom, …) and rolling-window presets (Last Hour, Last 24 Hours) share one
+// representation. Consumers compare instants, not day strings.
 function getDateBounds(
   preset: DatePreset,
   from: string,
   to: string,
   campaign?: CampaignInfo | null,
 ): { from: string; to: string } | null {
-  const today = new Date();
+  const now = new Date();
   switch (preset) {
-    case "today":    return { from: fmt(today),      to: fmt(today)         };
-    case "yesterday":return { from: fmt(sub(today, 1)), to: fmt(sub(today, 1)) };
-    case "7d":       return { from: fmt(sub(today, 6)), to: fmt(today)      };
-    case "30d":      return { from: fmt(sub(today, 29)), to: fmt(today)     };
+    case "1h":       return { from: subHours(now, 1).toISOString(),  to: now.toISOString() };
+    case "6h":       return { from: subHours(now, 6).toISOString(),  to: now.toISOString() };
+    case "12h":      return { from: subHours(now, 12).toISOString(), to: now.toISOString() };
+    case "24h":      return { from: subHours(now, 24).toISOString(), to: now.toISOString() };
+    case "today":    return { from: dayStart(fmt(now)),          to: dayEnd(fmt(now))         };
+    case "yesterday":return { from: dayStart(fmt(sub(now, 1))),  to: dayEnd(fmt(sub(now, 1))) };
+    case "7d":       return { from: dayStart(fmt(sub(now, 6))),  to: dayEnd(fmt(now))         };
+    case "30d":      return { from: dayStart(fmt(sub(now, 29))), to: dayEnd(fmt(now))         };
     case "campaign": return campaign?.start_date && campaign?.end_date
-                       ? { from: campaign.start_date, to: campaign.end_date }
+                       ? { from: dayStart(campaign.start_date), to: dayEnd(campaign.end_date) }
                        : null;
-    case "custom":   return from && to ? { from, to } : null;
+    case "custom":   return from && to ? { from: dayStart(from), to: dayEnd(to) } : null;
     default:         return null;
   }
 }
@@ -87,6 +99,11 @@ function applyFilters(
   f: DashFilters,
   dateBounds: { from: string; to: string } | null,
 ): SurveyResponse[] {
+  // Compare instants (epoch ms) so rolling-hour windows work and format
+  // differences between bounds (…Z) and stored timestamps (…+00:00) don't skew
+  // the boundary. Parsed once here, not per row.
+  const fromMs = dateBounds ? new Date(dateBounds.from).getTime() : 0;
+  const toMs   = dateBounds ? new Date(dateBounds.to).getTime()   : 0;
   return data.filter(r => {
     if (f.campaign_id  && r.campaign_id  !== f.campaign_id ) return false;
     if (f.publisher    && r.publisher    !== f.publisher   ) return false;
@@ -101,8 +118,8 @@ function applyFilters(
     if (f.q2           && r.q2           !== f.q2          ) return false;
     if (f.q3           && r.q3           !== f.q3          ) return false;
     if (dateBounds) {
-      const d = r.created_at.slice(0, 10);
-      if (d < dateBounds.from || d > dateBounds.to) return false;
+      const t = new Date(r.created_at).getTime();
+      if (t < fromMs || t > toMs) return false;
     }
     return true;
   });

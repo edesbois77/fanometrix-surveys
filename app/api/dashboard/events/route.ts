@@ -58,8 +58,10 @@ export async function GET(req: NextRequest) {
     if (country)     q = q.eq("country",     country);
     if (device)      q = q.eq("device",      device);
     if (browser)     q = q.eq("browser",     browser);
+    // date_from / date_to are full ISO instants (see getDateBounds); calendar
+    // presets already carry end-of-day, rolling presets carry the exact instant.
     if (date_from)   q = q.gte("created_at", date_from);
-    if (date_to)     q = q.lte("created_at", `${date_to}T23:59:59`);
+    if (date_to)     q = q.lte("created_at", date_to);
 
     if (scopedCampaignIds) q = q.in("campaign_id", scopedCampaignIds);
 
