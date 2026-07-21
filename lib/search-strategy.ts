@@ -51,6 +51,23 @@ export function strategyContextTerms(s: SearchStrategy, max = 5): string[] {
   return Array.from(new Set(terms.filter(Boolean))).slice(0, max);
 }
 
+/** Flatten a strategy into the plain keyword list the connectors collect on
+ *  (social_keywords). Keywords are an implementation detail now — derived from
+ *  the strategy rather than typed by the researcher: the primary subject and its
+ *  aliases, the context anchors, plus named campaigns. Deduped, capped. */
+export function strategyKeywords(s: SearchStrategy, max = 24): string[] {
+  const terms = [
+    ...(s.primary_entity ? [s.primary_entity.term, ...s.primary_entity.aliases] : []),
+    ...s.context_entities.flatMap(e => [e.term, ...e.aliases]),
+    ...s.synonyms,
+    ...s.campaigns,
+  ].map(t => t.trim()).filter(Boolean);
+  // Case-insensitive dedup, keeping first-seen casing.
+  const seen = new Map<string, string>();
+  for (const t of terms) if (!seen.has(t.toLowerCase())) seen.set(t.toLowerCase(), t);
+  return Array.from(seen.values()).slice(0, max);
+}
+
 /** A short, research-brief-style description of what this search sets out to
  *  find — NO boolean syntax, no query strings. `platform` names the source when
  *  given ("On YouTube, …"); otherwise it's a general statement. */

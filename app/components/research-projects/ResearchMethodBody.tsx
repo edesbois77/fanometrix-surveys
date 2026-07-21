@@ -64,10 +64,10 @@ const CONFIG: Record<ResearchMethod, MethodConfig> = {
     description: "Analyse public conversations across markets and platforms. Manage every conversation search attached to this research project here.",
     evidenceType: "social_search",
     sourceType: "conversation",
-    createLabel: "+ New Search",
-    // Create INSIDE the project (Research context) — saves the same global
-    // record and auto-associates it, rather than sending the user to the
-    // standalone Social Listening area.
+    createLabel: "+ Commission conversation research",
+    // Create INSIDE the project (Research context) — opens the Conversation
+    // Advisor briefing, which saves the same global record and auto-associates
+    // it, rather than sending the user to the standalone Social Listening area.
     createHref: pid => `/research-projects/${pid}/research/conversation/new`,
     attachLabel: "+ Attach Existing Search",
     openLabel: "Edit Search →",
