@@ -16,6 +16,20 @@ const NO_CACHE = {
   "Expires":       "0",
 } as const;
 
+// Live, non-preview config is deterministic for a given (campaign_id, lang) and
+// changes rarely, so it is safe to cache briefly at the CDN. This is the single
+// biggest per-impression cost after static assets: previously every impression
+// ran this function (no-store). With s-maxage the origin runs at most ~once per
+// minute per (campaign_id, lang); stale-while-revalidate serves a warm copy
+// while one request refreshes in the background, so fans never wait on origin.
+//   • published edits / status changes appear within ≤60s (reasonable);
+//   • drafts / non-live / not-found stay no-store below, so nothing unpublished
+//     is ever cached and a campaign going live is picked up on the next request;
+//   • preview is always no-store so authors see edits immediately.
+const LIVE_CACHE = {
+  "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300",
+} as const;
+
 export async function GET(req: NextRequest) {
   const campaignId = req.nextUrl.searchParams.get("campaign_id");
   const urlLang    = req.nextUrl.searchParams.get("lang");
@@ -128,5 +142,5 @@ export async function GET(req: NextRequest) {
     questions,
     thank_you_title: resolveText((survey.thank_you_title as LocalisedText | null) ?? {}, lang) || "Thank you!",
     thank_you_body:  resolveText((survey.thank_you_body as LocalisedText | null) ?? {}, lang) || "Your anonymous feedback helps improve the football experience for fans everywhere.",
-  }, { headers: NO_CACHE });
+  }, { headers: preview ? NO_CACHE : LIVE_CACHE });
 }

@@ -13,6 +13,15 @@ const NO_CACHE = {
   "Expires":       "0",
 } as const;
 
+// Live, non-preview survey content is deterministic for a given (id, lang) and
+// changes rarely — safe to cache briefly at the CDN so the origin function runs
+// at most ~once per minute per (id, lang) instead of once per impression.
+// Published edits appear within ≤60s; preview and all error responses stay
+// no-store (below), so drafts/invalid surveys are never cached.
+const LIVE_CACHE = {
+  "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300",
+} as const;
+
 export async function GET(req: NextRequest) {
   const id      = req.nextUrl.searchParams.get("id");
   const lang    = (req.nextUrl.searchParams.get("lang") ?? "en") as LangCode;
@@ -20,7 +29,7 @@ export async function GET(req: NextRequest) {
   const preview = req.nextUrl.searchParams.get("preview") === "1";
 
   if (!id) {
-    return NextResponse.json({ error: "id is required" }, { status: 400 });
+    return NextResponse.json({ error: "id is required" }, { status: 400, headers: NO_CACHE });
   }
 
   const { data, error } = await supabase
@@ -31,7 +40,7 @@ export async function GET(req: NextRequest) {
     .single();
 
   if (error || !data) {
-    return NextResponse.json({ error: "Survey not found" }, { status: 404 });
+    return NextResponse.json({ error: "Survey not found" }, { status: 404, headers: NO_CACHE });
   }
 
   // Validate before serving — skip only for admin deployment previews
@@ -40,7 +49,7 @@ export async function GET(req: NextRequest) {
     if (validationErrors.length > 0) {
       return NextResponse.json(
         { error: "Survey failed MPU validation", reason: validationErrors[0] },
-        { status: 404 }
+        { status: 404, headers: NO_CACHE }
       );
     }
   }
@@ -54,5 +63,5 @@ export async function GET(req: NextRequest) {
     questions,
     thank_you_title: resolveText((data.thank_you_title as LocalisedText | null) ?? {}, lang) || "Thank you!",
     thank_you_body:  resolveText((data.thank_you_body as LocalisedText | null) ?? {}, lang) || "Your anonymous feedback helps improve the football experience for fans everywhere.",
-  }, { headers: NO_CACHE });
+  }, { headers: preview ? NO_CACHE : LIVE_CACHE });
 }
