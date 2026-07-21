@@ -119,16 +119,45 @@ Read top-to-bottom as one assessment, in five beats.
 - Each gap is the **seed of an Information Need**: this is the raw material the
   Research Design formalises. The bridge is emotional and architectural.
 
-**6 · Commission — the shared-understanding gate + hand-off**
-- Before any planning, a **simple, explicit confirmation that the user agrees
-  with Fanometrix's understanding of the problem** — e.g. "This reflects my
-  business challenge." The Research Design begins **only** once that shared
-  understanding is established. This is the commissioning gate: cheap to give,
-  but it makes the design that follows a shared commitment rather than a
-  hand-off the user never endorsed.
-- On confirmation, a single primary action: **Plan the research** → carries the
-  proposed research question + gaps into the Research Design.
-- A quiet secondary path loops back ("Something's off — refine the challenge").
+**5b · Fanometrix's Recommendation — the professional judgment**
+- The closing beat, framed as **"Fanometrix's Recommendation"** — the platform's
+  professional judgment on the record, based on the evidence available so far.
+- It is about the CLIENT'S DECISION, not the platform's activity: **"Are we ready
+  to make a business recommendation?"** — with research as one possible
+  consequence, never the subject. This is what keeps the page centred on the
+  business problem rather than the product.
+- It is a **synthesis** of Understanding + Existing Intelligence + Confidence +
+  Frontier — it introduces NO new claims; its rationale cites those beats
+  ("confident on X and Y from prior work; the gap is Z"). Method-neutral: even
+  "Full Research" never names a method (methods are chosen in the Research Design).
+- **Four outcomes** (internal states → these client-facing labels), a readiness
+  spectrum — three point forward, one points back:
+
+  | Outcome | Meaning | Hand-off (the adaptive CTA below) |
+  |---|---|---|
+  | **Ready to Decide** | Existing evidence already supports a confident business recommendation | *Proceed to recommendations* (Conclusions), NOT research |
+  | **Focused Research** | Mostly there; specific gaps remain | **Design the Research**, scoped to the gaps |
+  | **Full Research** | Significant unknowns first | **Design the Research**, full programme |
+  | **Refine Understanding** | The problem itself isn't sharp enough to judge | *Refine the understanding* — loops back to Reflect |
+
+- **Guardrail — be conservative about "Ready to Decide."** It is the boldest claim
+  on the page (telling a client they may not need research); reach it only when
+  existing intelligence genuinely and sufficiently answers the question with
+  strong evidence across the key facets. Default toward Focused Research when
+  unsure. Over-declaring readiness would break trust faster than a bad finding.
+
+**6 · Commission — the shared-understanding gate + the adaptive hand-off**
+- **Near Reflect (not here):** a lightweight confirmation that the user agrees
+  with the understanding ("This reflects my business challenge"). It endorses the
+  *problem framing*; it gates the closing action below.
+- **The closing action IS the recommendation.** No fixed "Plan the research"
+  button — the CTA is whatever the recommendation warrants: *Proceed to
+  recommendations* / **Design the Research** (scoped or full) / *Refine the
+  understanding*. The button is the advice. Only "Focused/Full Research" carry the
+  proposed research question + gaps forward into the Research Design.
+- The Research Design begins only once the understanding is confirmed AND the
+  recommendation is acted upon — a shared commitment, never a hand-off the user
+  never endorsed.
 
 ## 3. Interaction & trust rules
 
@@ -150,6 +179,11 @@ Read top-to-bottom as one assessment, in five beats.
   **Knowledge Gaps** — which flow into the **Research Design**, where they are
   formalised into Information Needs + Method Assignment and *approved*.
   Commissioning proposes; the Design owns.
+- **Fanometrix's Recommendation routes to the right next stage**, not always
+  research: *Ready to Decide* → the decision surface (Conclusions/Reports);
+  *Focused/Full Research* → the Research Design (carrying question + gaps);
+  *Refine Understanding* → back to Reflect. The recommendation is centred on the
+  client's decision; research is one possible consequence, never the default.
 - **Existing Intelligence & Confidence-in-Understanding are *measured*** reads
   across prior evidence — grounded, never authored.
 - **Two distinct confidences**, both measured, must never be conflated:
@@ -169,9 +203,13 @@ Read top-to-bottom as one assessment, in five beats.
    consultancy tone immediately.
 2. **Recall** — Existing Intelligence with the tiered House / Organisation split
    and the pluggable provider seam; ship with the providers that are real today.
-3. **Confidence-in-Understanding + Frontier + Commission** — the knowledge
-   position, the shared-understanding gate, and the hand-off into the Research
-   Design.
+3. **Confidence-in-Understanding + Frontier + Fanometrix's Recommendation +
+   Commission** — the knowledge position, then the readiness recommendation (four
+   outcomes: Ready to Decide / Focused Research / Full Research / Refine
+   Understanding) as a grounded synthesis of the prior beats, and the adaptive
+   hand-off (to Conclusions, the Research Design, or back to Reflect). One
+   commissioning-synthesis engine produces Confidence + Frontier + Recommendation
+   together from the Understanding and the gathered Existing Intelligence.
 
 ## 6. Open decisions
 
