@@ -18,6 +18,13 @@ artefact — "Our Understanding"** — a Situation Assessment that assembles its
 and gets sharper as Fanometrix works. Every element on the page helps the user
 answer a business question; nothing configures software.
 
+Overview is no longer just the first page of a project — it is the **first
+impression of Fanometrix**. The bar is: a user who uploads a brief and leaves
+thinking *"that understood my business better than I expected"* has already
+extended the rest of the platform a great deal of credibility. "Our
+Understanding" must therefore read like a genuine **consultancy deliverable** —
+a considered document — not a web form with sections.
+
 The narrative arc:
 
 > **Intake → Reflect → Recall → Frontier → Commission**
@@ -73,8 +80,11 @@ Read top-to-bottom as one assessment, in five beats.
 - **Tiered so it is never zero:**
   - **House Intelligence** — category benchmarks, football intelligence: always
     present, gives day-one credibility.
-  - **Your Intelligence** — this client's past projects, library, reports: grows
-    over engagements.
+  - **Organisation Intelligence** — this client's past projects, library,
+    reports: grows over engagements.
+- **Visual treatment:** Recall (and §4 Confidence) should use a more visual,
+  at-a-glance treatment — a knowledge map / tiered cards / confidence meters —
+  not paragraphs alone. This is a deliverable, and it should look like one.
   - First engagement copy: *"This is your first project with us, so we're drawing
     on our category and football intelligence. As you run research, this becomes
     richer."* Emptiness is framed as "first engagement", never "we know nothing".
@@ -100,7 +110,7 @@ Read top-to-bottom as one assessment, in five beats.
   distinct from the Research Design's later confidence-per-need (measured from
   collected research evidence). Same discipline, different subject and stage.
 
-**5 · Frontier — "What we don't yet know"** *(Knowledge Gaps)*
+**5 · Frontier — "What we need to learn next"** *(Knowledge Gaps — user-facing label softened; the domain concept remains Knowledge Gaps)*
 - The itemised frontier, paired with §4 as one **knowledge position** (summary →
   detail). A gap is precisely a question existing intelligence could not answer.
 - Each gap is a **method-neutral open question** ("We don't yet know how many fans
@@ -109,10 +119,15 @@ Read top-to-bottom as one assessment, in five beats.
 - Each gap is the **seed of an Information Need**: this is the raw material the
   Research Design formalises. The bridge is emotional and architectural.
 
-**6 · Commission — the hand-off**
-- One confident closing statement of understanding, and a single primary action:
-  **Plan the research** → carries the proposed research question + gaps into the
-  Research Design.
+**6 · Commission — the shared-understanding gate + hand-off**
+- Before any planning, a **simple, explicit confirmation that the user agrees
+  with Fanometrix's understanding of the problem** — e.g. "This reflects my
+  business challenge." The Research Design begins **only** once that shared
+  understanding is established. This is the commissioning gate: cheap to give,
+  but it makes the design that follows a shared commitment rather than a
+  hand-off the user never endorsed.
+- On confirmation, a single primary action: **Plan the research** → carries the
+  proposed research question + gaps into the Research Design.
 - A quiet secondary path loops back ("Something's off — refine the challenge").
 
 ## 3. Interaction & trust rules
@@ -152,10 +167,11 @@ Read top-to-bottom as one assessment, in five beats.
 1. **Identity header + Intake + Reflect** — upload/describe → reflected
    Understanding with editable, provenance-tagged fields. Delivers the felt
    consultancy tone immediately.
-2. **Recall** — Existing Intelligence with the tiered House/Your split and the
-   pluggable provider seam; ship with the providers that are real today.
+2. **Recall** — Existing Intelligence with the tiered House / Organisation split
+   and the pluggable provider seam; ship with the providers that are real today.
 3. **Confidence-in-Understanding + Frontier + Commission** — the knowledge
-   position and the hand-off into the Research Design.
+   position, the shared-understanding gate, and the hand-off into the Research
+   Design.
 
 ## 6. Open decisions
 

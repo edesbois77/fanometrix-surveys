@@ -24,6 +24,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useSession } from "@/app/components/SessionProvider";
 import { ResearchProjectEditDrawer, type ResearchProjectBriefFields } from "@/app/components/research-projects/ResearchProjectEditDrawer";
+import { OverviewUnderstanding } from "@/app/components/research-projects/OverviewUnderstanding";
 import { studyTypeLabel } from "@/lib/naming";
 import { researchSubjectLabel } from "@/lib/research-subjects";
 import { formatRelativeTime } from "@/lib/format-relative-time";
@@ -397,37 +398,13 @@ export function WorkspaceBodyContent() {
         {/* Permanent — no dismiss, no collapse. See Platform Contract §02/§03. */}
         {project.research_mode === "simulated" && <SimulatedBanner />}
 
-        {/* ── Research question — the opening statement of the project, set as
-            the most prominent type on the page and deliberately NOT boxed: it
-            reads like the first line of a report, on the page itself, with air
-            around it. Everything below exists to answer it. The objective sits
-            beneath as supporting context. */}
-        <section id="hero" className="scroll-mt-6 pt-2 pb-2 md:pt-4">
-          <span className="block w-10 h-0.5 rounded-full mb-5" style={{ background: "var(--accent-gold)" }} aria-hidden />
-          <div className="flex items-start justify-between gap-3">
-            <Eyebrow tone="accent">Research question</Eyebrow>
-            {canManage && <Button variant="ghost" size="sm" onClick={openEditBrief} className="-mt-1.5 -mr-1.5">Edit brief</Button>}
-          </div>
-          {project.research_question ? (
-            <h2 className="mt-4 text-[28px] md:text-[38px] font-bold tracking-[-0.025em] leading-[1.18] max-w-4xl" style={{ color: "var(--text-primary)" }}>
-              {project.research_question}
-            </h2>
-          ) : (
-            <p className="mt-4 text-xl md:text-2xl font-medium tracking-[-0.01em]" style={{ color: "var(--text-tertiary)" }}>
-              No research question set{canManage ? ". Edit the brief to add one." : "."}
-            </p>
-          )}
-
-          {project.objective && (
-            <div className="mt-6 max-w-3xl flex gap-3">
-              <span className="w-0.5 rounded-full flex-shrink-0" style={{ background: "var(--border-strong)" }} aria-hidden />
-              <div>
-                <Eyebrow>Objective</Eyebrow>
-                <p className="mt-1.5 text-[15px] md:text-base leading-relaxed" style={{ color: "var(--text-secondary)" }}>{project.objective}</p>
-              </div>
-            </div>
-          )}
-        </section>
+        {/* ── Our Understanding — the commissioning stage (docs/overview-page.md).
+            The Overview leads with Fanometrix's reflected understanding of the
+            business problem (Intake → Reflect). It supersedes the old research-
+            question hero: the proposed research question now lives inside the
+            Understanding deliverable. Existing-intelligence, confidence and the
+            knowledge frontier land in later slices. */}
+        <OverviewUnderstanding />
 
         {/* ── Intelligence Status — the first place to read the state of the
             project. Tinted per state so it never reads as "just another white

@@ -18,6 +18,7 @@ import type { Campaign } from "@/app/components/campaigns/types";
 import type { CampaignGroupSummary } from "@/app/components/research-projects/CampaignGroupsSection";
 import type { SimulationInfo } from "@/app/components/simulation/SimulationInformationPanel";
 import type { LangCode } from "@/lib/survey-locale";
+import type { ProjectUnderstanding } from "@/lib/understanding";
 
 export type ActivityRow = { id: string; event_type: string; description: string; actor: string | null; created_at: string };
 
@@ -114,6 +115,8 @@ export type ResearchProject = {
   creative_design: string | null;
   confidentiality: string | null;
   version: string | null;
+  // "Our Understanding" — the Overview commissioning artefact (docs/overview-page.md).
+  understanding: ProjectUnderstanding | null;
   created_at: string;
   updated_at: string;
   deployment_count: number;
