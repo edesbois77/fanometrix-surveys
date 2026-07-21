@@ -14,9 +14,10 @@
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { registerHandler } from "@/lib/jobs/registry";
 import { PermanentJobError, type JobContext, type JobOutcome, type JobRow } from "@/lib/jobs/types";
-import { runExtraction } from "@/lib/library-documents/run-extraction";
 import { UnprocessableDocumentError } from "@/lib/library-documents/errors";
 import { DOCUMENT_PROCESS_JOB } from "@/lib/jobs/handlers/document-process.constants";
+// NOTE: runExtraction is imported lazily inside run() — see the comment there.
+// Registering a handler must never eagerly load its heavy dependencies.
 
 function documentId(payload: Record<string, unknown>): string {
   const id = payload.document_id;
@@ -47,6 +48,13 @@ async function run(ctx: JobContext): Promise<void> {
     .eq("id", id)
     .neq("status", "approved");
 
+  // Lazy-import the pipeline so merely REGISTERING this handler (done at worker
+  // startup, and inside the cron route's request) never loads the heavy PDF/
+  // vision stack (pdfjs et al., which does worker setup at module load). That
+  // stack is pulled in only when a document job actually runs — and any failure
+  // to load or execute it is caught below as a normal job error, never an
+  // unhandled crash of the whole worker/route.
+  const { runExtraction } = await import("@/lib/library-documents/run-extraction");
   try {
     await runExtraction(id, { heartbeat: ctx.heartbeat });
   } catch (err) {

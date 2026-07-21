@@ -19,7 +19,10 @@ const nextConfig: NextConfig = {
   // resolution (and the explicit PDFParse.setWorker() override in
   // extract-text.ts) works correctly. Applies in both `next dev` and
   // `next build` — this option isn't dev-only.
-  serverExternalPackages: ["pdf-parse", "pdfjs-dist"],
+  // @napi-rs/canvas is a native (.node) module — pdf-parse's canvas backend and
+  // the source of our DOMMatrix/Path2D/ImageData polyfills (lib/library-documents/
+  // pdf-polyfills.ts). It must load via native Node resolution, never be bundled.
+  serverExternalPackages: ["pdf-parse", "pdfjs-dist", "@napi-rs/canvas"],
 };
 
 export default nextConfig;

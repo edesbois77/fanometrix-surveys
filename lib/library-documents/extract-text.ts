@@ -32,6 +32,10 @@
 // `next build`, not just `next dev`, after this fix (dev-mode compilation
 // alone did not surface the Turbopack-specific failure above). No copy of
 // any pdfjs-dist file is placed under .next.
+// MUST be first: installs DOMMatrix/Path2D/ImageData onto globalThis before
+// pdf-parse (pdfjs-dist) is evaluated, which references them at load time and
+// would otherwise throw "DOMMatrix is not defined" in the Node/Vercel runtime.
+import "@/lib/library-documents/pdf-polyfills";
 import { PDFParse } from "pdf-parse";
 import mammoth from "mammoth";
 import path from "path";
