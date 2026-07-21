@@ -51,13 +51,16 @@ not a new tool opening a blank plan.
 
 ## 3. The narrative arc
 
-> **Approach → Learning Agenda → How We'll Answer → What It Contributes → Success → Honest Foundation (Scope · Assumptions · Risks) → Commitment**
+> **Approach → Success → Learning Agenda → How We'll Answer → What It Contributes → Honest Foundation (Scope · Assumptions · Risks) → Commitment**
 >
-> "Here's the programme we propose and why → here's exactly what we must learn →
-> here's how each question gets answered, and what we already know → here's what
-> you'll get and how rigorous it'll be → here's what 'done' looks like → here's
-> what we're deliberately *not* doing, what we're assuming, and what could go
-> wrong → shall we proceed?"
+> "Here's the programme we propose and why → here's what it will achieve → here's
+> exactly what we must learn → here's how each question gets answered, and what we
+> already know → here's what you'll get and how rigorous it'll be → here's what
+> we're deliberately *not* doing, what we're assuming, and what could go wrong →
+> shall we proceed?"
+
+Success is stated **before** the methodology, so the user reads every method choice
+through the lens of "does this get us there?"
 
 This mirrors the Overview's recommendation-first discipline: **lead with the
 proposed approach (judgment), not the list of needs (working).**
@@ -71,21 +74,37 @@ decide — two unknowns. This programme resolves them."). Context, not configura
 
 ### 1 · The Proposed Approach *(leads the page — the proposal's executive summary)*
 A short consultative statement, in prose: *"To answer [business question], we
-propose a [focused/full] research programme built around [N] information needs,
-answered primarily through [methods]. We already have strong evidence on [X], so
-the programme concentrates on [the genuine gaps]."* This is the recommendation the
-rest of the page justifies. It is where the researcher decides "yes, this is the
-right shape" before reading any detail.
+propose a [focused/comprehensive] research programme built around [N] information
+needs, answered primarily through [methods]. We already have strong evidence on
+[X], so the programme concentrates on [the genuine gaps]."* This is the
+recommendation the rest of the page justifies. It is where the researcher decides
+"yes, this is the right shape" before reading any detail.
 
-### 2 · The Learning Agenda — What we need to learn, and why it matters
+Carries a **lightweight scale indicator** — **Focused** or **Comprehensive** —
+derived from the programme's breadth (needs × methods × phases). It sets
+expectations at a glance and is **never cost, timeline or effort** (that is project
+management, out of scope). Continuity with the Overview: *Focused Research →
+Focused*, *Full Research → Comprehensive* — the same tier named consistently.
+
+### 2 · What Success Looks Like *(programme-level — stated before the methodology)*
+The goal the programme serves, up front: **we can make the business recommendation
+with confidence** — i.e. the engagement reaches *Ready to Decide* on the business
+question. This closes the loop with the Overview: the programme succeeds when it
+resolves exactly the readiness gap the Overview diagnosed. Stating this here means
+every method choice below is read against "does this get us there?" (Per-need
+success criteria — "what evidence would satisfy *this* need" — live inline in the
+Learning Agenda, where they are methodology detail, not a separate late section.)
+
+### 3 · The Learning Agenda — What we need to learn, and why it matters
 The **Information Needs**, grouped by **Research Aspect** (the durable organising
 theme; aspects are primary UX, needs nested — as in the Conversation Advisor).
-Seeded from the Overview's Frontier. Each need shows the sub-question **and why it
-matters** — its explicit link to the business question. This is where the
-Overview's gaps become formalised, stable-identity Information Needs (domain model
-seam 3). Method-agnostic: a need is a question about the world, never a method.
+Seeded from the Overview's Frontier. Each need shows the sub-question, **why it
+matters** (its explicit link to the business question), and **what evidence would
+satisfy it** (its per-need success criterion). This is where the Overview's gaps
+become formalised, stable-identity Information Needs (domain model seam 3).
+Method-agnostic: a need is a question about the world, never a method.
 
-### 3 · How We'll Answer Each — Method Assignment + coverage
+### 4 · How We'll Answer Each — Method Assignment + coverage
 The heart. For each Information Need, three things together:
 - **What we already know** — existing coverage from Existing Intelligence (with
   provenance), so the client sees we won't pay to re-learn it.
@@ -97,7 +116,7 @@ The heart. For each Information Need, three things together:
   programme — but the researcher sees "how we'll answer this," never "configure a
   survey."
 
-### 4 · The Programme's Logic — sequencing & dependencies
+### 5 · The Programme's Logic — sequencing & dependencies
 A research programme has an *order*, not a flat checklist. Where **Conditional**
 method-fits exist (a method becomes useful only after another establishes the
 vocabulary/structure — e.g. conversation surfaces drivers → survey quantifies →
@@ -105,7 +124,7 @@ conversation re-listens), the design shows the **phasing**. This is what makes i
 read as a designed programme rather than a list of methods, and it's a strong
 premium signal.
 
-### 5 · What Each Method Contributes *(expected contribution — NOT promised confidence)*
+### 6 · What Each Method Contributes *(expected contribution — NOT promised confidence)*
 What each method will *establish*, and to what **rigor / scope** (e.g. "a survey
 will quantify willingness-to-pay across the target audience; conversation evidence
 will surface the *why* qualitatively"). **This is a design expectation, never a
@@ -114,13 +133,6 @@ from real evidence. Expected contribution is the **yardstick the design sets**;
 Analysis later fills it with measured confidence (domain model §5, authored vs
 measured). This is the correct, honest reframe of "what confidence will each
 method contribute."
-
-### 6 · What Success Looks Like
-Explicit success criteria — per need (*what evidence would satisfy it*) and for the
-programme (*we can make the business recommendation with confidence*). This closes
-the loop with the Overview: the programme succeeds when it moves the engagement
-from "not ready" to **Ready to Decide** on the business question. Defining "done"
-up front is a senior-consultancy hallmark most research tools omit.
 
 ### 7 · Deliberate Scope — what we're *not* doing, and why *(restraint)*
 The mirror of Fanometrix's Recommendation. The design states its **boundaries**:
@@ -226,19 +238,25 @@ moment is *"I agree this is the right research programme."*
    the concrete triggers for the design's versioned evolution.
 6. **Guard the Planning↔Implementation boundary (§1, §7).** The single biggest risk
    to the "not a tool" feeling. No instrument configuration in Planning.
-7. **Tie success to the Overview's readiness (§4.6).** Success = reaching "Ready to
+7. **Tie success to the Overview's readiness (§4.2).** Success = reaching "Ready to
    Decide." This closes the consultancy narrative into one loop.
+8. **State Success before the methodology (§4.2), not after.** The user reads every
+   method choice against the goal. Programme-level success leads; per-need criteria
+   stay inline with each need (§4.3).
+9. **A lightweight scale indicator (§4.1) — Focused / Comprehensive.** Sets
+   expectations at a glance; never cost/timeline. Maps from the Overview's
+   Focused/Full recommendation.
 
 ## 9. Open decisions (for review)
 
 1. **Where does the first draft of the design come from** — auto-derived from the
    Overview's Frontier + Recommendation (my recommendation: yes, for continuity),
    or generated fresh by a planning engine that reads the whole Overered context?
-2. **Success criteria granularity** — per need, programme-level, or both
-   (recommend both: per-need "what satisfies it" + programme-level "reach Ready to
-   Decide").
-3. **How much scope/effort to show** — none, a Focused/Full badge, or a light
-   effort indication? (Recommend a light scope indication, no PM.)
+2. **Success criteria granularity** — RESOLVED: both. Programme-level success leads
+   (§4.2); per-need "what would satisfy it" stays inline with each need (§4.3).
+3. **How much scope/effort to show** — RESOLVED: a lightweight Focused /
+   Comprehensive scale indicator on the Proposed Approach (§4.1). No cost, timeline
+   or effort — never project management.
 4. **Phasing representation** — only when Conditional dependencies exist, or always
    as explicit phases? (Recommend: surface phases only when the programme genuinely
    has dependencies; don't manufacture ceremony.)
@@ -246,12 +264,15 @@ moment is *"I agree this is the right research programme."*
    assignments (recommend yes), vs read-and-approve only (thinner, less
    consultative).
 
-## 10. Build slices (later — not now)
+## 10. Build slices
 
-1. **Proposed Approach + Learning Agenda** — the planning engine deriving needs
-   (by aspect) from the Overview context, and the lead proposal statement.
-2. **Method Assignment + coverage** — needs → methods with method-fit + rationale,
-   and existing-intelligence coverage per need.
-3. **Expected contribution + success + scope + Approve** — the contribution
-   expectations, success criteria, deliberate boundaries, and the approval →
+1. **Proposed Approach + Success + Learning Agenda** — the planning engine deriving
+   the Information Needs (by aspect) from the Overview context, the lead proposal
+   statement with the Focused/Comprehensive scale, and the programme-level success
+   statement. Delivers the consultancy tone first (as the Overview's slice 1 did).
+2. **Method Assignment + coverage + programme logic** — needs → methods with
+   method-fit + rationale, existing-intelligence coverage per need, and phasing
+   where Conditional dependencies exist.
+3. **Expected contribution + Honest Foundation + Approve** — the contribution
+   expectations, deliberate scope, assumptions & risks, and the approval →
    versioning → execution hand-off.
