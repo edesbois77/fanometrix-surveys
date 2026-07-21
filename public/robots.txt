@@ -1,0 +1,22 @@
+# Fanometrix — crawler controls
+#
+# This affects only well-behaved crawlers/scrapers. Real fan browsers loading
+# the survey iframe ignore robots.txt entirely, so NONE of this touches live
+# publisher iframe traffic (LiveScore, Planet Sport, FotMob, etc.). It exists to
+# stop generic search/social crawlers from loading the embed (which would fire
+# survey renders) and from hitting the machine event/submit/config endpoints.
+
+User-agent: *
+# Machine endpoints — never meant for crawlers.
+Disallow: /api/
+# The survey embed iframe and the admin embed-test harness.
+Disallow: /embed
+Disallow: /embed-test
+# Authenticated app surfaces.
+Disallow: /home
+Disallow: /dashboard
+Disallow: /insights
+Disallow: /analysis
+
+# Marketing pages (/, /for-publishers, /publisher-guide, /privacy, …) remain
+# crawlable — they are intentionally not listed above.

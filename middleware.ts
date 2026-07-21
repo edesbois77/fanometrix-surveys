@@ -236,7 +236,12 @@ export const config = {
   // config routes; `api/events` / `api/submit` are the exact public write paths.
   // Nothing else — admin, dashboard, project and authenticated API routes are
   // untouched and still gated. Verified against /embed-test, /api/users, etc.
+  // robots.txt is excluded too: it is served as a static file from /public, but
+  // it is not covered by the in-handler static passthrough (which only lets
+  // /_next, /public and image/js extensions through), so without this exclusion
+  // the auth gate below would 307 /robots.txt to /login and crawlers could never
+  // read it. Added alongside the Stage 5 crawler controls.
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|embed$|embed/|api/embed/|api/events$|api/events/|api/submit$|api/submit/|.*\\.png$|.*\\.jpg$|.*\\.jpeg$|.*\\.svg$|.*\\.ico$|.*\\.gif$|.*\\.webp$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|robots.txt|embed$|embed/|api/embed/|api/events$|api/events/|api/submit$|api/submit/|.*\\.png$|.*\\.jpg$|.*\\.jpeg$|.*\\.svg$|.*\\.ico$|.*\\.gif$|.*\\.webp$).*)",
   ],
 };
