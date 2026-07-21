@@ -15,7 +15,8 @@ export type ClassificationResult = {
   entities:   ClassificationEntity[];
   relevance:  number | null;        // 0.0–1.0 question relevance; null = not judged (fallback)
   relevance_rationale: string | null; // "Why this matters" — 1–2 sentences of research value
-  research_aspect: string | null;   // AI-generated facet of the research this contributes to
+  research_aspect: string | null;   // facet of the research (a defined aspect when needs are supplied)
+  information_need: string | null;  // the specific Information Need this conversation best answers
   confidence: number;               // 0.0–1.0 numeric certainty
   confidence_label: ConfidenceLabel; // derived High / Medium / Low, for display
 };
@@ -65,6 +66,8 @@ async function classifyWithOpenAI(content: string, context?: ClassificationConte
   // "Why this matters" — prefer the new field, fall back to the old name.
   const rationale = str(parsed.why_this_matters) ?? str(parsed.relevance_rationale);
   const aspect = str(parsed.research_aspect);
+  const isOffTopic = !!aspect && aspect.toLowerCase() === "off-topic";
+  const need = str(parsed.information_need);
   return {
     sentiment:  (["Positive","Neutral","Negative","Unknown"].includes(parsed.sentiment) ? parsed.sentiment : "Unknown") as Sentiment,
     topic:      FOOTBALL_TOPICS.includes(parsed.topic) ? parsed.topic : "Transfers",
@@ -73,7 +76,9 @@ async function classifyWithOpenAI(content: string, context?: ClassificationConte
     entities:   parseEntities(parsed.entities),
     relevance:  clamp01(parsed.relevance, 0.5),
     relevance_rationale: rationale,
-    research_aspect: aspect && aspect.toLowerCase() !== "off-topic" ? aspect.slice(0, 60) : (aspect ? "Off-topic" : null),
+    research_aspect: aspect && !isOffTopic ? aspect.slice(0, 60) : (aspect ? "Off-topic" : null),
+    // No need is recorded for off-topic evidence.
+    information_need: isOffTopic ? null : (need ? need.slice(0, 300) : null),
     confidence,
     confidence_label: confidenceLabel(confidence),
   };
@@ -103,6 +108,7 @@ function classifyRuleBased(content: string): ClassificationResult {
     relevance:  null,
     relevance_rationale: null,
     research_aspect: null,
+    information_need: null,
     confidence: 0.3,    // low: rule-based, not model-derived
     confidence_label: "Low",
   };

@@ -28,9 +28,24 @@ type SearchRow = {
   entity_type: string | null; research_goal: string | null; is_simulated: boolean | null;
   collect_window: string | null; relevance_threshold: number | null;
   search_strategy: SearchStrategy | null;
+  information_needs: { themes?: { aspect?: string; needs?: { need?: string }[] }[] } | null;
   reddit_subreddits: string[] | null; // legacy — TODO remove once configs migrate to connector_config
   social_keywords: { keyword: string }[] | null;
 };
+
+// Flatten the Conversation Advisor's Information Needs into the compact
+// {aspect, need} list the classifier judges relevance against.
+function needsForClassify(info: SearchRow["information_needs"]): { aspect: string; need: string }[] {
+  const out: { aspect: string; need: string }[] = [];
+  for (const t of info?.themes ?? []) {
+    const aspect = (t.aspect ?? "").trim();
+    for (const n of t.needs ?? []) {
+      const need = (n.need ?? "").trim();
+      if (aspect && need) out.push({ aspect, need });
+    }
+  }
+  return out;
+}
 
 // Resolve the actual date window for a run. Relative presets are computed
 // against "now" so "Last 90 days" always means the 90 days before THIS run;
@@ -62,7 +77,7 @@ export async function runCollection(opts: {
 }): Promise<RunCollectionResult> {
   const { data: search, error: sErr } = await supabaseAdmin
     .from("social_searches")
-    .select("id, name, description, markets, platforms, languages, collect_from, collect_to, collect_window, connector_config, entity_type, research_goal, is_simulated, relevance_threshold, search_strategy, reddit_subreddits, social_keywords(keyword)")
+    .select("id, name, description, markets, platforms, languages, collect_from, collect_to, collect_window, connector_config, entity_type, research_goal, is_simulated, relevance_threshold, search_strategy, information_needs, reddit_subreddits, social_keywords(keyword)")
     .eq("id", opts.searchId)
     .single<SearchRow>();
 
@@ -205,7 +220,11 @@ export async function runCollection(opts: {
   // ── Stage 2: classify ONLY new items, then append them to the base.
   // (sentiment/topic + entities/relevance/rationale/confidence). Store
   // EVERYTHING — relevance decides what SURFACES later, never what is kept.
-  const classifyCtx = { keywords, entityType: search.entity_type ?? undefined, researchGoal: search.research_goal ?? undefined, researchQuestion: researchQuestion ?? undefined, primarySubject: search.search_strategy?.primary_entity?.term ?? undefined };
+  // Relevance is judged against the Information Needs when the Conversation
+  // Advisor defined them (research-led); older searches fall back to the research
+  // question + primary subject. This is the shift from listening to research.
+  const informationNeeds = needsForClassify(search.information_needs);
+  const classifyCtx = { keywords, entityType: search.entity_type ?? undefined, researchGoal: search.research_goal ?? undefined, researchQuestion: researchQuestion ?? undefined, primarySubject: search.search_strategy?.primary_entity?.term ?? undefined, informationNeeds: informationNeeds.length ? informationNeeds : undefined };
   const rows: Record<string, unknown>[] = new Array(newItems.length);
   for (let i = 0; i < newItems.length; i += CLASSIFY_CONCURRENCY) {
     const slice = newItems.slice(i, i + CLASSIFY_CONCURRENCY);
@@ -224,6 +243,7 @@ export async function runCollection(opts: {
         relevance_score: c?.relevance ?? null, confidence: c?.confidence ?? null,
         relevance_rationale: c?.relevance_rationale ?? null, relevance_confidence: c?.confidence_label ?? null,
         research_aspect: c?.research_aspect ?? null,
+        information_need: c?.information_need ?? null,
       };
     }));
   }
