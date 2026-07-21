@@ -249,9 +249,11 @@ moment is *"I agree this is the right research programme."*
 
 ## 9. Open decisions (for review)
 
-1. **Where does the first draft of the design come from** — auto-derived from the
-   Overview's Frontier + Recommendation (my recommendation: yes, for continuity),
-   or generated fresh by a planning engine that reads the whole Overered context?
+1. **Where does the first draft of the design come from** — RESOLVED: the initial
+   Research Design is **automatically derived from the approved Overview**. The
+   hand-off is a continuation of one engagement — *Understanding → Existing
+   Intelligence → Recommendation → Research Design* — not a new workflow. The
+   researcher then refines it.
 2. **Success criteria granularity** — RESOLVED: both. Programme-level success leads
    (§4.2); per-need "what would satisfy it" stays inline with each need (§4.3).
 3. **How much scope/effort to show** — RESOLVED: a lightweight Focused /
@@ -263,6 +265,18 @@ moment is *"I agree this is the right research programme."*
 5. **Editing depth at v1** — reprioritise/reassign/remove needs + challenge method
    assignments (recommend yes), vs read-and-approve only (thinner, less
    consultative).
+
+## 9b. v1 build decisions (confirmed)
+
+- **Storage:** v1 stores the Research Design as a **`research_design` jsonb column
+  on `research_projects`**, mirroring the `understanding` pattern — optimising for
+  speed and product iteration while the experience is refined. Once validated
+  through real projects, graduate to the fully versioned `research_designs` model
+  (domain model §6/§7). Until then, "approval" and "version" are lightweight fields
+  on the jsonb, not a separate table.
+- **First-draft origin:** auto-derived from the approved Overview (see §9.1).
+- **Editing depth:** full — reprioritise/reassign/remove needs + challenge method
+  assignments (the consultative choice). *(§9.5 — recommended; confirm at build.)*
 
 ## 10. Build slices
 
