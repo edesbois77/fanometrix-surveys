@@ -88,6 +88,11 @@ export interface ThemedSurveyProps {
   thankYouTitle:  string;
   thankYouBody:   string;
   isPreview:      boolean;
+  // "Fan Invitation" layout — show an invitation screen before Question 1.
+  // The countdown timer stays paused on this screen and only starts once the
+  // fan presses "Share Your Voice". Undefined/false = the classic Countdown
+  // Clock behaviour (opens straight on Question 1).
+  intro?:         boolean;
   // Submit payload — passed from parent EmbedSurvey
   campaignId:     string;
   surveyId:       string | null;
@@ -419,6 +424,147 @@ function ThemedPrivacyOverlay({ theme, onClose }: { theme: EmbedTheme; onClose: 
   );
 }
 
+// ── Invitation screen ─────────────────────────────────────────────────────────
+// "Fan Invitation" layout — Question Zero. Not an advert before the survey but
+// the survey at rest: the brand belief stated plainly, then a full-width panel
+// wearing the exact selected-answer gold, so it reads as a pre-selected first
+// answer rather than a CTA button. Pressing it starts the countdown and dissolves
+// into Question 1 with as little visual discontinuity as possible.
+//
+// Shares the same gold frame as Questions 1–3 — belief-led, no pill, headline
+// large enough to own the frame.
+
+const INVITE_PANEL_H = 56;
+const INVITE_LOGO_H  = 33;   // logo band height — logo sits centred within it
+// Fanometrix wordmark, served from /public. Gold master suits the navy
+// Fanometrix Premium palette; white/black variants (Fanometrix_Logo_White.png /
+// _Black.png) exist for lighter/saturated palettes when per-theme logos land.
+const INVITE_LOGO_SRC = "/Fanometrix_Logo.png";
+
+// Local hex→rgba so this file stays self-contained (no creative-lab imports).
+function withAlpha(hex: string, a: number): string {
+  const h = hex.replace("#", "");
+  if (h.length !== 6) return hex;
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  if (isNaN(r) || isNaN(g) || isNaN(b)) return hex;
+  return `rgba(${r},${g},${b},${a})`;
+}
+
+function InvitationScreen({ theme, total, leaving, onStart }: {
+  theme: EmbedTheme; total: number; leaving: boolean; onStart: () => void;
+}) {
+  const [panelHover, setPanelHover] = useState(false);
+  // ~7s per question, rounded to the nearest 5s — a friendly estimate, not the
+  // hard 10s-per-question timer. For the 3-question built-in this reads
+  // "Around 20 Seconds".
+  const estSeconds = Math.max(10, Math.round((total * 7) / 5) * 5);
+
+  return (
+    <div style={{
+      // Match the question answer-tile navy (theme.quad), not the lighter
+      // canvas, so Question Zero and Questions 1–3 read as the same surface.
+      position:"absolute", inset:0, background:theme.quad, zIndex:20,
+      boxSizing:"border-box", borderRadius:12, overflow:"hidden",
+      // As the survey comes to life, the invitation dissolves upward, revealing
+      // the (already-mounted, now-ticking) Question 1 directly beneath it.
+      opacity: leaving ? 0 : 1,
+      transform: leaving ? "translateY(-6px)" : "translateY(0)",
+      transition:"opacity 0.32s ease, transform 0.34s ease",
+      animation: leaving ? "none" : "fanInvFade 0.26s ease",
+    }}>
+      <style>{`
+        @keyframes fanInvFade{from{opacity:0}to{opacity:1}}
+        /* Idle attention cues — a sheen that sweeps the CTA and an arrow that
+           nudges toward it. Both live only on the invitation, so they stop the
+           instant the fan taps in. */
+        @keyframes fanInvShine{0%{transform:translateX(-170%)}22%{transform:translateX(240%)}100%{transform:translateX(240%)}}
+        @keyframes fanInvNudge{0%,100%{transform:translateX(0);opacity:.8}50%{transform:translateX(5px);opacity:1}}
+        @media (prefers-reduced-motion: reduce){
+          .fan-inv-arrow{animation:none!important}
+          .fan-inv-shine{display:none!important}
+        }
+      `}</style>
+
+      {/* Fanometrix logo — small, centred in the band between the top border and
+          the headline (equidistant) */}
+      <div style={{
+        position:"absolute", top:0, left:0, right:0, height:INVITE_LOGO_H,
+        display:"flex", alignItems:"center", justifyContent:"center",
+      }}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={INVITE_LOGO_SRC} alt="Fanometrix" style={{ height:7, width:"auto", opacity:0.95 }} />
+      </div>
+
+      {/* Content — belief centred in the space between the logo and the panel */}
+      <div style={{
+        position:"absolute", top:20, left:0, right:0, bottom:INVITE_PANEL_H,
+        display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center",
+        textAlign:"center", padding:"0 12px", boxSizing:"border-box",
+      }}>
+        {/* Headline — the belief, large enough to own the frame. Line breaks are
+            deliberate: "Football fans deserve" / "a voice." */}
+        <p style={{
+          color:theme.text, fontSize:26, fontWeight:700, fontFamily:FONT_Q,
+          letterSpacing:"-0.03em", lineHeight:1.12, margin:0, maxWidth:288,
+          whiteSpace:"pre-line",
+        }}>
+          {"Football fans deserve\na voice."}
+        </p>
+
+        {/* Supporting — split to match: line 1, then "by sharing yours." */}
+        <p style={{
+          color:withAlpha(theme.text, 0.66), fontSize:11.5, fontWeight:400, fontFamily:FONT_A,
+          lineHeight:1.45, margin:"14px 0 0", whiteSpace:"pre-line",
+        }}>
+          {"Help shape better football experiences\nby sharing yours."}
+        </p>
+
+        {/* Commitment — quick, and "Complete in banner" reinforces that the fan
+            never leaves the page */}
+        <p style={{
+          color:theme.accent, fontSize:10, fontWeight:600, fontFamily:FONT_A,
+          letterSpacing:"0.02em", margin:"12px 0 0",
+        }}>
+          Around {estSeconds} Seconds • Complete in banner
+        </p>
+      </div>
+
+      {/* Interaction panel — a full-width, pre-selected first answer (selected
+          quadrant gold), not a button. A gold sheen sweeps across it and the
+          arrow nudges, so the unit stands out on a busy page; desktop hover
+          brightens it slightly. */}
+      <button
+        onClick={onStart}
+        onMouseEnter={() => setPanelHover(true)}
+        onMouseLeave={() => setPanelHover(false)}
+        aria-label={`Start ${total} question${total === 1 ? "" : "s"} — begin the survey`}
+        style={{
+          position:"absolute", left:0, right:0, bottom:0, height:INVITE_PANEL_H,
+          border:"none", cursor:"pointer", width:"100%", overflow:"hidden",
+          background:theme.selectedBg, color:theme.selectedText,
+          display:"flex", alignItems:"center", justifyContent:"center", gap:8,
+          fontSize:15, fontWeight:700, fontFamily:FONT_Q, letterSpacing:"-0.01em",
+          filter: panelHover ? "brightness(1.07)" : "brightness(1)",
+          transform: panelHover ? "translateY(-1px)" : "translateY(0)",
+          transition:"filter 0.2s ease, transform 0.2s ease",
+        }}>
+        <span>Start {total} Question{total === 1 ? "" : "s"}</span>
+        <span className="fan-inv-arrow" aria-hidden style={{
+          display:"inline-block", animation:"fanInvNudge 1.3s ease-in-out infinite",
+        }}>→</span>
+        {/* Sheen sweep — translucent highlight, passes over the panel periodically */}
+        <span className="fan-inv-shine" aria-hidden style={{
+          position:"absolute", top:0, bottom:0, left:0, width:"55%", pointerEvents:"none",
+          background:"linear-gradient(100deg, transparent 22%, rgba(255,246,222,0.55) 50%, transparent 78%)",
+          transform:"translateX(-170%)", animation:"fanInvShine 3.6s ease-in-out infinite",
+        }} />
+      </button>
+    </div>
+  );
+}
+
 // ── Main export ───────────────────────────────────────────────────────────────
 
 export function ThemedSurvey(props: ThemedSurveyProps) {
@@ -439,6 +585,21 @@ export function ThemedSurvey(props: ThemedSurveyProps) {
   const [expired,   setExpired]   = useState(false);
 
   const [showPrivacy, setShowPrivacy] = useState(false);
+
+  // "Fan Invitation" layout — the invitation (Question Zero) is shown before Q1
+  // and the countdown is held until the fan presses "Have Your Say" (see the
+  // timer gate + handleStartSurvey below). `introDismissed` gates the timer;
+  // `introLeaving` keeps the invitation mounted for its dissolve-out so the
+  // transition into Q1 is a cross-fade, not a hard cut. A non-invitation
+  // creative starts already dismissed — identical to today's Countdown Clock.
+  const [introDismissed, setIntroDismissed] = useState<boolean>(!props.intro);
+  const [introLeaving,   setIntroLeaving]   = useState(false);
+
+  function handleStartSurvey() {
+    setIntroDismissed(true);   // ungate the countdown — the survey comes to life
+    setIntroLeaving(true);     // ...while the invitation dissolves upward
+    setTimeout(() => setIntroLeaving(false), 360);
+  }
 
   const containerRef    = useRef<HTMLDivElement>(null);
   const intervalRef     = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -514,10 +675,12 @@ export function ThemedSurvey(props: ThemedSurveyProps) {
 
   useEffect(() => {
     if (intervalRef.current) clearInterval(intervalRef.current);
-    if (!isRunning || phase !== "question" || expired) return;
+    // Hold the countdown entirely while the invitation is up — it only begins
+    // once the fan presses "Have Your Say" (handleStartSurvey → introDismissed).
+    if (!isRunning || phase !== "question" || expired || !introDismissed) return;
     intervalRef.current = setInterval(() => setTimeLeft(t => t <= 1 ? 0 : t - 1), 1000);
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
-  }, [isRunning, phase, expired]);
+  }, [isRunning, phase, expired, introDismissed]);
 
   useEffect(() => {
     if (timeLeft !== 0 || expired || phase !== "question") return;
@@ -618,12 +781,20 @@ export function ThemedSurvey(props: ThemedSurveyProps) {
       width:300, height:250, background:theme.canvas,
       position:"relative", overflow:"hidden",
       fontFamily:FONT_A, boxSizing:"border-box",
+      // The gold Countdown Clock frame is present throughout — Question Zero
+      // shares the exact same frame as Questions 1–3.
       border:`1px solid ${theme.outerBorder}`, borderRadius:12,
       boxShadow:theme.outerShadow,
     }}>
       {/* Themed privacy overlay — rendered above everything else */}
       {showPrivacy && (
         <ThemedPrivacyOverlay theme={theme} onClose={() => setShowPrivacy(false)} />
+      )}
+
+      {/* Fan Invitation / Question Zero — sits over the (paused) survey, then
+          dissolves upward while Q1 comes to life beneath it */}
+      {(!introDismissed || introLeaving) && (
+        <InvitationScreen theme={theme} total={total} leaving={introLeaving} onStart={handleStartSurvey} />
       )}
 
       {phase === "thankyou" && <ThankYou title={props.thankYouTitle} body={props.thankYouBody} theme={theme} />}

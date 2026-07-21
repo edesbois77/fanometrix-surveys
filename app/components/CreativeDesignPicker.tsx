@@ -10,7 +10,7 @@ type DesignRow = {
   theme: DesignCategory;
   sub_theme: string | null;
   publisher_name: string | null;
-  layout: "timer" | "classic";
+  layout: "timer" | "classic" | "invitation";
   builder_state: BuilderState;
 };
 

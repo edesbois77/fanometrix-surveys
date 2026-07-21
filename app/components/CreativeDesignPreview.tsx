@@ -11,7 +11,7 @@ const PREVIEW_QUESTIONS = [
   { id: "p3", text: "What drives your club loyalty?", options: [{ id:1, text:"Local\nPride" },              { id:2, text:"Family\nTradition" },    { id:3, text:"Winning\nCulture" },         { id:4, text:"Player\nHeritage" }]     },
 ];
 
-type DesignRow = { slug: string; name: string; layout: "timer" | "classic"; builder_state: BuilderState };
+type DesignRow = { slug: string; name: string; layout: "timer" | "classic" | "invitation"; builder_state: BuilderState };
 
 /**
  * Live preview of a Creative Design, using the same production components
@@ -35,7 +35,8 @@ export function CreativeDesignPreview({ designId }: { designId: string | null | 
   if (!design) return null;
 
   const { name, layout } = design;
-  const customTheme = layout === "timer" ? buildEmbedThemeFromState(design.builder_state) : undefined;
+  const isTimerLike = layout === "timer" || layout === "invitation";
+  const customTheme = isTimerLike ? buildEmbedThemeFromState(design.builder_state) : undefined;
 
   return (
     <div className="space-y-2 pt-1">
@@ -43,7 +44,7 @@ export function CreativeDesignPreview({ designId }: { designId: string | null | 
         Preview, {name}
       </p>
       <div className="flex justify-center py-2">
-        {layout === "timer" ? (
+        {isTimerLike ? (
           <ThemedSurvey
             key={designId}
             themeId={design.slug}
@@ -52,6 +53,7 @@ export function CreativeDesignPreview({ designId }: { designId: string | null | 
             thankYouTitle="Thank You"
             thankYouBody="Your anonymous feedback helps improve the football experience for fans everywhere."
             isPreview={true}
+            intro={layout === "invitation"}
             campaignId="preview" surveyId={null} publisher={null} placement={null}
             placementId={null} creativeId={null}
             club={null} competition={null} country={null} segment={null}

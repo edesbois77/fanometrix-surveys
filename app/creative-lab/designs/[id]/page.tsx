@@ -49,7 +49,7 @@ type Design = {
   theme: DesignCategory;
   sub_theme: string | null;
   publisher_org_id: string | null;
-  layout: "timer" | "classic";
+  layout: "timer" | "classic" | "invitation";
   status: "active" | "archived";
   is_system: boolean;
   created_at: string;
@@ -142,7 +142,7 @@ export default function CreativeStudioPage() {
   const [subTheme, setSubTheme] = useState("");
   const [publisherId, setPublisherId] = useState<string | null>(null);
   const [publishers, setPublishers] = useState<{ id: string; name: string }[]>([]);
-  const [layout, setLayout] = useState<"timer" | "classic">("timer");
+  const [layout, setLayout] = useState<"timer" | "classic" | "invitation">("timer");
   const [branding, setBranding] = useState<BrandingConfig>({});
   const [allSubThemes, setAllSubThemes] = useState<string[]>([]);
 
@@ -218,6 +218,9 @@ export default function CreativeStudioPage() {
       theme,
       sub_theme: theme === "publisher" ? null : (subTheme.trim() || null),
       publisher_org_id: theme === "publisher" ? publisherId : null,
+      // Preserve the creative format across saves/forks/duplicates — omitting
+      // it lets a Fan Invitation fork fall back to the DB default ("timer").
+      layout,
       builder_state: { ...state, name },
       branding,
     };
@@ -373,6 +376,7 @@ export default function CreativeStudioPage() {
                   thankYouTitle="Thank You"
                   thankYouBody="Your anonymous feedback helps improve the football experience for fans everywhere."
                   isPreview={true}
+                  intro={layout === "invitation"}
                   campaignId="preview" surveyId={null} publisher={null} placement={null}
                   placementId={null} creativeId={null}
                   club={null} competition={null} country={null} segment={null}
@@ -465,7 +469,7 @@ export default function CreativeStudioPage() {
               })}
             </Section>
 
-            {layout === "timer" && (
+            {(layout === "timer" || layout === "invitation") && (
               <>
                 <Section title="Colours">
                   <ColorField label="Background"    hint="Main MPU background"          value={state.background}   onChange={v => set("background", v)} />

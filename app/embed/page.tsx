@@ -113,6 +113,10 @@ function EmbedSurvey() {
   const [groupReady,         setGroupReady]         = useState(!groupSlug);
   const [creativeDesign,     setCreativeDesign]     = useState<string | null>(null);
   const [customTheme,        setCustomTheme]        = useState<EmbedTheme | null>(null);
+  // The design's creative layout ("timer" | "classic" | "invitation"), resolved
+  // server-side. Only "invitation" changes behaviour here (shows the intro
+  // screen before Q1); the rest is inferred from customTheme presence below.
+  const [resolvedLayout,     setResolvedLayout]     = useState<string | null>(null);
   const [branding,           setBranding]           = useState<string[]>([]);
   const [resolvedGroupId,      setResolvedGroupId]      = useState<string | null>(null);
   const [resolvedSurveyLang,   setResolvedSurveyLang]   = useState<string>(urlLang ?? "en");
@@ -149,6 +153,7 @@ function EmbedSurvey() {
           setResolvedMarket(data.market ?? marketParam);
           setCreativeDesign(data.creative_design ?? null);
           setCustomTheme(data.custom_theme ?? null);
+          setResolvedLayout(data.layout ?? null);
           setBranding(data.branding ?? []);
         }
         setGroupReady(!!data?.campaign_id);
@@ -174,6 +179,7 @@ function EmbedSurvey() {
           setResolvedSurveyLang(data.survey_language ?? urlLang ?? "en");
           setCreativeDesign(data.creative_design ?? null);
           setCustomTheme(data.custom_theme ?? null);
+          setResolvedLayout(data.layout ?? null);
           setBranding(data.branding ?? []);
         }
       })
@@ -217,6 +223,7 @@ function EmbedSurvey() {
         thankYouTitle={thankYouTitle}
         thankYouBody={thankYouBody}
         isPreview={isPreview}
+        intro={resolvedLayout === "invitation"}
         campaignId={resolvedCampaignId}
         surveyId={surveyId}
         publisher={publisher}

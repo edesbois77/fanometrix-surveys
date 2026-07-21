@@ -101,6 +101,7 @@ export async function GET(req: NextRequest) {
   // creative_designs; resolve its layout + render palette from there.
   let customTheme: EmbedTheme | null = null;
   let branding: string[] = [];
+  let creativeLayout: string | null = null;
   if (effectiveCreativeDesign) {
     const { data: design } = await supabaseAdmin
       .from("creative_designs")
@@ -108,7 +109,10 @@ export async function GET(req: NextRequest) {
       .eq("slug", effectiveCreativeDesign)
       .is("deleted_at", null)
       .single();
-    if (design?.layout === "timer" && design.builder_state) {
+    creativeLayout = design?.layout ?? null;
+    // "invitation" is the timer creative with an intro screen — same palette
+    // build; the client decides whether to show the intro from `layout`.
+    if ((design?.layout === "timer" || design?.layout === "invitation") && design.builder_state) {
       customTheme = buildEmbedThemeFromState(design.builder_state as BuilderState);
     }
     branding = resolveBrandingLogos(design?.branding as BrandingConfig | null);
@@ -119,6 +123,7 @@ export async function GET(req: NextRequest) {
     survey_language: lang,
     creative_design:  effectiveCreativeDesign,
     custom_theme:    customTheme,
+    layout:          creativeLayout,
     branding,
     questions,
     thank_you_title: resolveText((survey.thank_you_title as LocalisedText | null) ?? {}, lang) || "Thank you!",

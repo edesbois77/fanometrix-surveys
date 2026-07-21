@@ -21,7 +21,7 @@ type Design = {
   sub_theme: string | null;
   publisher_org_id: string | null;
   publisher_name: string | null;
-  layout: "timer" | "classic";
+  layout: "timer" | "classic" | "invitation";
   status: "active" | "archived";
   is_system: boolean;
   usage_count: number;
@@ -52,6 +52,15 @@ function StopwatchIcon({ color, size }: { color: string; size: number }) {
       <line x1="32" y1="36" x2="32" y2="23" stroke={color} strokeWidth="2.5" strokeLinecap="round" />
       <line x1="32" y1="36" x2="41" y2="36" stroke={color} strokeWidth="2.5" strokeLinecap="round" />
       <circle cx="32" cy="36" r="2.5" fill={color} />
+    </svg>
+  );
+}
+
+function EnvelopeIcon({ color, size }: { color: string; size: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 64 64" fill="none" aria-hidden>
+      <rect x="8" y="14" width="48" height="36" rx="4" stroke={color} strokeWidth="3" fill="none" />
+      <path d="M10 18 L32 36 L54 18" stroke={color} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" fill="none" />
     </svg>
   );
 }
@@ -121,11 +130,17 @@ function DesignSwatch({ d }: { d: Design }) {
       }}>
         {[0, 1, 2, 3].map(i => <div key={i} style={{ background: "#fff", borderRadius: 6 }} />)}
       </div>
-      {/* Format badge — dark scrim behind it so it reads over any gradient */}
+      {/* Format badge — dark scrim behind it so it reads over any gradient.
+          The invitation layout is the same timer creative fronted by an intro
+          screen, so it shares this poster art but reads its own format label. */}
       <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
         <div style={{ ...badgeStyle, background: "rgba(0,0,0,0.3)" }}>
-          <StopwatchIcon color="#fff" size={34} />
-          <span style={{ ...labelStyle, color: "#fff" }}>Countdown Timer</span>
+          {d.layout === "invitation"
+            ? <EnvelopeIcon color="#fff" size={34} />
+            : <StopwatchIcon color="#fff" size={34} />}
+          <span style={{ ...labelStyle, color: "#fff" }}>
+            {d.layout === "invitation" ? "Fan Invitation" : "Countdown Timer"}
+          </span>
         </div>
       </div>
     </div>
@@ -207,6 +222,9 @@ export default function CreativeDesignsGalleryPage() {
         theme: d.theme,
         sub_theme: d.theme === "publisher" ? null : d.sub_theme,
         publisher_org_id: d.theme === "publisher" ? d.publisher_org_id : null,
+        // Carry the creative format over — else a Fan Invitation copy would
+        // silently drop to the DB default ("timer") and lose its intro screen.
+        layout: d.layout,
         builder_state: d.builder_state,
       }),
     });
