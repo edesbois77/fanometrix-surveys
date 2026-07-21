@@ -157,9 +157,10 @@ export function buildEmbedThemeFromState(s: BuilderState): EmbedTheme {
     selectedBg = gradientCss;
     hoverBg = hexToRgba(accent, 0.07);
     hoverGlow = `inset 0 0 28px ${hexToRgba(accent, 0.1)}`;
-    // Question header reads bottom→top: reverse the stops so the lighter tone
-    // sits at the base, nearest the questions below it.
-    headerBg = buildGradientCss([...colors].reverse(), s.gradientDirection);
+    // Question header reads top→bottom: lighter tone at the top, darker at the
+    // base. (Quadrants mirror separately — top row dark→light, bottom row
+    // light→dark — so light converges toward the centre timer.)
+    headerBg = gradientCss;
   } else {
     accent = s.selectedColor;
     gradient = s.selectedColor;
