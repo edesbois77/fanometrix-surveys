@@ -462,11 +462,20 @@ function InvitationScreen({ theme, total, leaving, onStart }: {
   const estSeconds = Math.max(10, Math.round((total * 7) / 5) * 5);
 
   return (
-    <div style={{
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={onStart}
+      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onStart(); } }}
+      onMouseEnter={() => setPanelHover(true)}
+      onMouseLeave={() => setPanelHover(false)}
+      aria-label={`Start ${total} question${total === 1 ? "" : "s"} — begin the survey`}
+      style={{
+      // The whole of Question Zero is the tap target — not just the gold panel.
       // Match the question answer-tile navy (theme.quad), not the lighter
       // canvas, so Question Zero and Questions 1–3 read as the same surface.
       position:"absolute", inset:0, background:theme.quad, zIndex:20,
-      boxSizing:"border-box", borderRadius:12, overflow:"hidden",
+      boxSizing:"border-box", borderRadius:12, overflow:"hidden", cursor:"pointer",
       // As the survey comes to life, the invitation dissolves upward, revealing
       // the (already-mounted, now-ticking) Question 1 directly beneath it.
       opacity: leaving ? 0 : 1,
@@ -531,18 +540,13 @@ function InvitationScreen({ theme, total, leaving, onStart }: {
         </p>
       </div>
 
-      {/* Interaction panel — a full-width, pre-selected first answer (selected
-          quadrant gold), not a button. A gold sheen sweeps across it and the
-          arrow nudges, so the unit stands out on a busy page; desktop hover
-          brightens it slightly. */}
-      <button
-        onClick={onStart}
-        onMouseEnter={() => setPanelHover(true)}
-        onMouseLeave={() => setPanelHover(false)}
-        aria-label={`Start ${total} question${total === 1 ? "" : "s"} — begin the survey`}
-        style={{
+      {/* Interaction panel — the pre-selected first answer (selected quadrant
+          gold). Visual only: the whole frame above is the click target, so this
+          is a plain div. Gold sheen sweeps across it and the arrow nudges, so
+          the unit stands out on a busy page; hovering the frame brightens it. */}
+      <div aria-hidden style={{
           position:"absolute", left:0, right:0, bottom:0, height:INVITE_PANEL_H,
-          border:"none", cursor:"pointer", width:"100%", overflow:"hidden",
+          width:"100%", overflow:"hidden",
           background:theme.selectedBg, color:theme.selectedText,
           display:"flex", alignItems:"center", justifyContent:"center", gap:8,
           fontSize:15, fontWeight:700, fontFamily:FONT_Q, letterSpacing:"-0.01em",
@@ -560,7 +564,7 @@ function InvitationScreen({ theme, total, leaving, onStart }: {
           background:"linear-gradient(100deg, transparent 22%, rgba(255,246,222,0.55) 50%, transparent 78%)",
           transform:"translateX(-170%)", animation:"fanInvShine 3.6s ease-in-out infinite",
         }} />
-      </button>
+      </div>
     </div>
   );
 }
