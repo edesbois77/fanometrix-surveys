@@ -41,7 +41,38 @@ function rgba(hex: string, alpha: number): string {
 // ─── Responses Over Time ─────────────────────────────────────────────────────
 // Line: Gold  |  Area fill: 15% Gold  |  Dots: Navy with Gold border
 
-function ResponsesOverTime({ responses }: { responses: SurveyResponse[] }) {
+// The line chart's own metric selector — independent of the Distribution Charts
+// toggle below it. Responses / Completed / Completion Rate / Q1 Answered come
+// straight from the response rows; Renders comes from survey_events (renderSeries
+// prop) since renders aren't recorded on responses.
+export type TimeMetric = "responses" | "completed" | "completion_rate" | "q1_answered" | "renders";
+
+const TIME_METRICS: { key: TimeMetric; label: string }[] = [
+  { key: "responses",       label: "Responses"       },
+  { key: "completed",       label: "Completed"       },
+  { key: "completion_rate", label: "Completion Rate" },
+  { key: "q1_answered",     label: "Q1 Answered"     },
+  { key: "renders",         label: "Renders"         },
+];
+
+// Hour + day render-event buckets keyed exactly like the response buckets below
+// (created_at sliced to 13 / 10 chars). Supplied by /api/dashboard/events/series.
+export type RenderSeries = { hour: Record<string, number>; day: Record<string, number> } | null;
+
+function ResponsesOverTime({
+  responses,
+  metric,
+  setMetric,
+  renderSeries,
+}: {
+  responses: SurveyResponse[];
+  metric: TimeMetric;
+  setMetric: (m: TimeMetric) => void;
+  renderSeries: RenderSeries;
+}) {
+  const isRate    = metric === "completion_rate";
+  const isRenders = metric === "renders";
+
   // Short date ranges are bucketed by HOUR so a single day of collection doesn't
   // collapse to one or two daily points; wider ranges stay daily. The threshold
   // is driven by the actual span of the data in view (≤ 48h → hourly).
@@ -55,21 +86,43 @@ function ResponsesOverTime({ responses }: { responses: SurveyResponse[] }) {
     }
     const spanHours = Number.isFinite(min) && Number.isFinite(max) ? (max - min) / 3_600_000 : 0;
     const byHour = spanHours <= 48;
+    const gran: "hour" | "day" = byHour ? "hour" : "day";
 
-    const m: Record<string, number> = {};
+    // Per-bucket tallies from the response rows: total, fully-completed
+    // (Q1+Q2+Q3), and Q1-answered. ISO created_at ("YYYY-MM-DDTHH:mm:ss…")
+    // sliced to the hour (13) or day (10).
+    const total: Record<string, number> = {};
+    const done:  Record<string, number> = {};
+    const q1:    Record<string, number> = {};
     for (const r of responses) {
-      // ISO created_at ("YYYY-MM-DDTHH:mm:ss…"): slice to the hour or to the day.
       const key = byHour ? r.created_at.slice(0, 13) : r.created_at.slice(0, 10);
-      m[key] = (m[key] ?? 0) + 1;
+      total[key] = (total[key] ?? 0) + 1;
+      if (r.q1 && r.q2 && r.q3) done[key] = (done[key] ?? 0) + 1;
+      if (r.q1)                 q1[key]   = (q1[key]   ?? 0) + 1;
     }
-    const rows = Object.entries(m).sort().map(([bucket, count]) => ({ bucket, count }));
-    return { data: rows, granularity: byHour ? ("hour" as const) : ("day" as const) };
-  }, [responses]);
 
-  if (data.length < 2) return null;
+    // Renders live in a separate, pre-bucketed source; its own buckets drive the
+    // x-axis for that metric. Everything else is driven by the response buckets.
+    const renderMap = renderSeries?.[gran] ?? {};
+    const keys = isRenders ? Object.keys(renderMap) : Object.keys(total);
+
+    const rows = keys.sort().map(bucket => {
+      const t = total[bucket] ?? 0;
+      const d = done[bucket]  ?? 0;
+      const value = isRenders ? (renderMap[bucket] ?? 0)
+        : isRate               ? (t > 0 ? Math.round((d / t) * 100) : 0)
+        : metric === "completed"    ? d
+        : metric === "q1_answered"  ? (q1[bucket] ?? 0)
+        : t;
+      return { bucket, value };
+    });
+    return { data: rows, granularity: gran };
+  }, [responses, metric, renderSeries, isRate, isRenders]);
+
+  const metricLabel = TIME_METRICS.find(m => m.key === metric)?.label ?? "Responses";
 
   // Axis ticks stay compact; the tooltip carries the full date + time. Daily
-  // labels are unchanged from before ("YYYY-MM-DD"); hourly show "HH:00".
+  // labels are unchanged ("YYYY-MM-DD"); hourly show "HH:00".
   const fmtTick  = (v: string) => granularity === "hour" ? `${v.slice(11, 13)}:00` : v;
   const fmtLabel = (v: unknown) => {
     const s = String(v ?? "");
@@ -78,10 +131,34 @@ function ResponsesOverTime({ responses }: { responses: SurveyResponse[] }) {
 
   return (
     <div className="bg-white border border-gray-100 rounded-xl shadow-sm p-5 mb-4">
-      <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-4">
-        Responses Over Time
-        <span className="ml-2 normal-case tracking-normal font-normal text-gray-300">· {granularity === "hour" ? "hourly" : "daily"}</span>
-      </h3>
+      <div className="flex items-start justify-between gap-3 mb-4 flex-wrap">
+        <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+          {metricLabel} Over Time
+          <span className="ml-2 normal-case tracking-normal font-normal text-gray-300">· {granularity === "hour" ? "hourly" : "daily"}</span>
+        </h3>
+        <div className="flex items-center gap-1 flex-wrap">
+          {TIME_METRICS.map(m => (
+            <button
+              key={m.key}
+              onClick={() => setMetric(m.key)}
+              className="text-xs px-2.5 py-1 rounded-lg font-medium transition-colors"
+              style={{
+                background: metric === m.key ? "#0B1929" : "#F3F4F6",
+                color:      metric === m.key ? "#D7B87A" : "#6B7280",
+              }}
+            >
+              {m.label}
+            </button>
+          ))}
+        </div>
+      </div>
+      {data.length < 2 ? (
+        <div className="h-[140px] flex items-center justify-center">
+          <p className="text-sm text-gray-400">
+            {isRenders ? "No render data for this selection yet." : "Not enough data to plot a trend yet."}
+          </p>
+        </div>
+      ) : (
       <ResponsiveContainer width="100%" height={140}>
         <AreaChart data={data} margin={{ left: -10, right: 8, top: 4, bottom: 0 }}>
           <defs>
@@ -92,11 +169,20 @@ function ResponsesOverTime({ responses }: { responses: SurveyResponse[] }) {
           </defs>
           <CartesianGrid strokeDasharray="3 3" stroke="#e8eaf0" />
           <XAxis dataKey="bucket" tick={{ fontSize: 9 }} interval="preserveStartEnd" tickFormatter={fmtTick} />
-          <YAxis tick={{ fontSize: 9 }} allowDecimals={false} />
-          <RTooltip contentStyle={{ fontSize: 11 }} labelFormatter={fmtLabel} />
+          <YAxis
+            tick={{ fontSize: 9 }}
+            allowDecimals={false}
+            domain={isRate ? [0, 100] : undefined}
+            tickFormatter={isRate ? (v => `${v}%`) : undefined}
+          />
+          <RTooltip
+            contentStyle={{ fontSize: 11 }}
+            labelFormatter={fmtLabel}
+            formatter={(v) => [isRate ? `${v}%` : v, metricLabel]}
+          />
           <Area
             type="monotone"
-            dataKey="count"
+            dataKey="value"
             stroke={GOLD}
             strokeWidth={2}
             fill="url(#goldAreaFill)"
@@ -108,6 +194,7 @@ function ResponsesOverTime({ responses }: { responses: SurveyResponse[] }) {
           />
         </AreaChart>
       </ResponsiveContainer>
+      )}
     </div>
   );
 }
@@ -442,13 +529,16 @@ export function ChartGrid({
   filters,
   onFilter,
   surveyLabels,
+  renderSeries = null,
 }: {
   responses: SurveyResponse[];
   filters: DashFilters;
   onFilter: (field: keyof DashFilters, value: string) => void;
   surveyLabels?: SurveyLabels | null;
+  renderSeries?: RenderSeries;
 }) {
   const [metric, setMetric] = useState<ChartMetric>("responses");
+  const [timeMetric, setTimeMetric] = useState<TimeMetric>("responses");
 
   if (!responses.length) return null;
 
@@ -502,7 +592,12 @@ export function ChartGrid({
           Explore The Data
         </h2>
 
-        <ResponsesOverTime responses={responses} />
+        <ResponsesOverTime
+          responses={responses}
+          metric={timeMetric}
+          setMetric={setTimeMetric}
+          renderSeries={renderSeries}
+        />
 
         <div className="flex items-center justify-between mb-3">
           <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">

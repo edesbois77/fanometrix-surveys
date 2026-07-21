@@ -24,7 +24,7 @@ import { useSearchParams } from "next/navigation";
 import Papa from "papaparse";
 import type { SurveyResponse } from "@/lib/types";
 import { KpiCards, type EventCounts } from "./components/KpiCards";
-import { ChartGrid, type SurveyLabels } from "./components/ChartGrid";
+import { ChartGrid, type SurveyLabels, type RenderSeries } from "./components/ChartGrid";
 import { InsightsEngine } from "@/app/components/InsightsEngine";
 import { PerformanceHighlights } from "./components/PerformanceHighlights";
 import {
@@ -177,6 +177,10 @@ export function SurveyDashboardBody({ projectId }: { projectId?: string }) {
   const [groupOptions,  setGroupOptions]  = useState<GroupOption[]>([]);
   const [eventCounts,   setEventCounts]   = useState<EventCounts | null>(null);
   const [eventsLoading, setEventsLoading] = useState(false);
+  // Render events bucketed over time — feeds the "Renders" metric of the
+  // Responses Over Time chart. Fetched with the same scope/filters/date bounds
+  // as the funnel event counts.
+  const [renderSeries,  setRenderSeries]  = useState<RenderSeries>(null);
   const [lastUpdated,   setLastUpdated]   = useState<Date | null>(null);
   // True once the first load has succeeded. The dashboard stays mounted with its
   // last-good data through subsequent refreshes/errors, so a failed refresh never
@@ -310,11 +314,17 @@ export function SurveyDashboardBody({ projectId }: { projectId?: string }) {
       p.set("date_to",   bounds.to);
     }
     setEventsLoading(true);
-    fetch(`/api/dashboard/events?${p.toString()}`)
+    const qs = p.toString();
+    fetch(`/api/dashboard/events?${qs}`)
       .then(r => r.ok ? r.json() : null)
       .then(data => setEventCounts(data ?? null))
       .catch(() => setEventCounts(null))
       .finally(() => setEventsLoading(false));
+    // Render time-series for the Responses Over Time chart's Renders metric.
+    fetch(`/api/dashboard/events/series?${qs}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => setRenderSeries(data ?? null))
+      .catch(() => setRenderSeries(null));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters.campaign_id, filters.survey_id, filters.publisher, filters.placement, filters.country, filters.device, filters.browser, datePreset, dateFrom, dateTo, campaignsKey, refreshNonce]);
 
@@ -555,6 +565,7 @@ export function SurveyDashboardBody({ projectId }: { projectId?: string }) {
                 filters={filters}
                 onFilter={onChartFilter}
                 surveyLabels={surveyLabels}
+                renderSeries={renderSeries}
               />
             </>
           )}
