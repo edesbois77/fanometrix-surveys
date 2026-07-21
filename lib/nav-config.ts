@@ -274,6 +274,16 @@ export const NAV_ITEMS: NavItemConfig[] = [
     navGroup: "developer",
   },
   {
+    href: "/background-jobs",
+    label: "Background Jobs",
+    icon: "◧",
+    description: "Operational view of the durable job engine — queued, running, failed and needs-review jobs across every feature, with retry.",
+    cta: "View Jobs",
+    section: "developer-tool",
+    roles: ["admin"],
+    navGroup: "developer",
+  },
+  {
     href: "/social-listening/validation",
     label: "Validation",
     icon: "◈",

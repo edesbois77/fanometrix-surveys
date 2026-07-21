@@ -46,8 +46,10 @@ export async function performDocumentAnalysis(libraryDocumentId: string, title: 
   return saveNewAnalysis({ libraryDocumentId, content, model: "gpt-4o", generatedBy });
 }
 
-export async function runAnalysis(libraryDocumentId: string): Promise<void> {
-  const { data: claimed } = await supabaseAdmin
+export async function runAnalysis(libraryDocumentId: string, hooks: { heartbeat?: () => Promise<void> } = {}): Promise<void> {
+  const beat = hooks.heartbeat ?? (async () => {});
+
+  const { data: claimed, error: claimError } = await supabaseAdmin
     .from("library_documents")
     .update({ status: "analysing", error_message: null })
     .eq("id", libraryDocumentId)
@@ -55,25 +57,26 @@ export async function runAnalysis(libraryDocumentId: string): Promise<void> {
     .select("id, title")
     .maybeSingle();
 
-  // Not currently 'extracting' — either already claimed by another
-  // trigger, or genuinely not ready yet. Nothing to do.
+  // A DB error on the claim is transient — surface it so the job framework
+  // retries rather than silently dropping the document.
+  if (claimError) throw new Error(`Could not claim document for analysis: ${claimError.message}`);
+  // Not currently 'extracting' — either already claimed by another trigger, or
+  // genuinely not ready yet. Nothing to do.
   if (!claimed) return;
 
-  try {
-    // Auto-approve: the product has no human review gate in the Research
-    // Project workflow. Analysis runs, then its output is approved and
-    // promoted automatically, so the document lands on 'approved' ("Ready").
-    // promoteApprovedMetadata is guarded — it never overwrites a title,
-    // author or description a human has already edited. The internal
-    // pending_review/approved states still exist behind the scenes.
-    const saved = await performDocumentAnalysis(libraryDocumentId, claimed.title, "system");
-    const approved = await approveAnalysis(saved.id, "system");
-    await promoteApprovedMetadata(libraryDocumentId, approved.edited_content ?? approved.content, "system");
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Analysis failed.";
-    await supabaseAdmin
-      .from("library_documents")
-      .update({ status: "failed", error_message: message })
-      .eq("id", libraryDocumentId);
-  }
+  await beat();
+  // Auto-approve: the product has no human review gate in the Research Project
+  // workflow. Analysis runs, then its output is approved and promoted
+  // automatically, so the document lands on 'approved' ("Ready").
+  // promoteApprovedMetadata is guarded — it never overwrites a title, author or
+  // description a human has already edited. The internal pending_review/approved
+  // states still exist behind the scenes.
+  //
+  // No catch here: any failure propagates so the job framework decides retry vs.
+  // terminal (see run-extraction.ts's error-contract note). Analysis errors are
+  // transient (AI timeout / rate limit), so they are retried, not failed outright.
+  const saved = await performDocumentAnalysis(libraryDocumentId, claimed.title, "system");
+  await beat();
+  const approved = await approveAnalysis(saved.id, "system");
+  await promoteApprovedMetadata(libraryDocumentId, approved.edited_content ?? approved.content, "system");
 }

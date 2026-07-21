@@ -68,14 +68,31 @@ export async function completeJSON<T>(opts: {
   // request, auth, quota) is NOT retried — it would only fail again.
   const RETRYABLE = new Set([429, 500, 502, 503, 504]);
   const MAX_ATTEMPTS = 4;
+  // Per-request wall-clock ceiling. Without it a hung/stalled connection has no
+  // upper bound and, driven from the document pipeline, would burn the whole
+  // 300s serverless invocation (and the job's lease) on a single call. A timeout
+  // aborts the fetch and is treated exactly like a transient 5xx: retried here,
+  // then surfaced to the job framework as a transient error (→ retry with backoff).
+  const TIMEOUT_MS = Number(process.env.OPENAI_TIMEOUT_MS) > 0 ? Number(process.env.OPENAI_TIMEOUT_MS) : 60_000;
   let res: Response | null = null;
   let lastErr = "";
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-    res = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-      body,
-    });
+    try {
+      res = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+        body,
+        signal: AbortSignal.timeout(TIMEOUT_MS),
+      });
+    } catch (err) {
+      // Network error or timeout abort — transient. Retry with backoff up to the
+      // attempt cap, then give up with a 504 the caller can treat as retryable.
+      lastErr = err instanceof Error ? err.name === "TimeoutError" ? `request timed out after ${TIMEOUT_MS}ms` : err.message : String(err);
+      res = null;
+      if (attempt === MAX_ATTEMPTS) break;
+      await new Promise(r => setTimeout(r, 800 * 2 ** (attempt - 1) + Math.floor(Math.random() * 200)));
+      continue;
+    }
     if (res.ok || !RETRYABLE.has(res.status) || attempt === MAX_ATTEMPTS) break;
     lastErr = (await res.text()).slice(0, 200);
     // Prefer the server's Retry-After (seconds) when present — a 429 from

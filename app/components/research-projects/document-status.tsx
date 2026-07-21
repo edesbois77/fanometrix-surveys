@@ -23,6 +23,9 @@ export function documentStatusMeta(s: string): { label: string; tone: Tone } {
     pending_review: { label: "Processing", tone: "info"    },
     approved:       { label: "Ready",      tone: "success" },
     failed:         { label: "Failed",     tone: "danger"  },
+    // Exhausted automatic retries — an ops bucket for an admin to inspect/retry
+    // (see the jobs framework). Terminal, not a processing state.
+    requires_review: { label: "Needs review", tone: "warning" },
   };
   return m[s] ?? { label: s || "—", tone: "neutral" };
 }
@@ -100,6 +103,7 @@ export function documentStage(status: string, pageCount: number | null, pagesDon
   { index: number; fraction: number; label: string; detail: string | null } {
   if (status === "approved") return { index: 3, fraction: 100, label: "Ready", detail: null };
   if (status === "failed")   return { index: 0, fraction: 0,   label: "Processing failed", detail: null };
+  if (status === "requires_review") return { index: 2, fraction: 100, label: "Needs review", detail: null };
   if (status === "analysing" || status === "pending_review")
     return { index: 2, fraction: 92, label: "Interpreting the findings", detail: null };
   if (status === "extracting") {

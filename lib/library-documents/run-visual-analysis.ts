@@ -15,9 +15,11 @@ import { analyseDocumentPages } from "@/lib/intelligence/analysts/analyseDocumen
  * document — visual chunks continue the same chunk_index sequence rather
  * than starting a separate numbering space, since chunk_index only needs
  * to be unique per document, not meaningful as a page-order sequence. */
-export async function runVisualAnalysis(libraryDocumentId: string, pdfBuffer: Buffer, nextChunkIndex: number): Promise<void> {
+export async function runVisualAnalysis(libraryDocumentId: string, pdfBuffer: Buffer, nextChunkIndex: number, hooks: { heartbeat?: () => Promise<void> } = {}): Promise<void> {
+  const beat = hooks.heartbeat ?? (async () => {});
   const pages = await renderPdfPages(pdfBuffer);
   if (pages.length === 0) return;
+  await beat();
 
   const uploaded = await Promise.all(pages.map(async p => {
     const path = await uploadPageImage(libraryDocumentId, p.pdfPageNumber, p.data);
@@ -29,7 +31,13 @@ export async function runVisualAnalysis(libraryDocumentId: string, pdfBuffer: Bu
   await supabaseAdmin.from("library_documents").update({ pages_done: 0 }).eq("id", libraryDocumentId);
   const visualResults = await analyseDocumentPages(
     uploaded.map(p => ({ pdfPageNumber: p.pdfPageNumber, dataUrl: p.dataUrl })),
-    async (done) => { await supabaseAdmin.from("library_documents").update({ pages_done: done }).eq("id", libraryDocumentId); },
+    // Per batch: advance the visible page counter AND renew the job lease, so a
+    // long document (many sequential vision calls) is never mistaken for a dead
+    // worker and reclaimed mid-run.
+    async (done) => {
+      await supabaseAdmin.from("library_documents").update({ pages_done: done }).eq("id", libraryDocumentId);
+      await beat();
+    },
   );
   const visualByPage = new Map(visualResults.map(r => [r.pdfPageNumber, r]));
 

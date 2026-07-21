@@ -54,7 +54,25 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     previewUrl = null;
   }
 
-  return NextResponse.json({ data: { ...data, preview_url: previewUrl, project_usage_count: projectUsageCount } });
+  // Execution metadata from the durable job (attempts, next retry, last error) —
+  // the two-layer model: library_documents is the source of truth for domain
+  // state, the jobs row explains HOW processing is going. Best-effort only.
+  let processingJob: Record<string, unknown> | null = null;
+  try {
+    const { data: jobRow } = await supabaseAdmin
+      .from("jobs")
+      .select("status, attempts, max_attempts, run_at, last_error, last_error_at, started_at, completed_at, updated_at")
+      .eq("job_type", "document.process")
+      .eq("payload->>document_id", id)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    processingJob = jobRow ?? null;
+  } catch {
+    processingJob = null;
+  }
+
+  return NextResponse.json({ data: { ...data, preview_url: previewUrl, project_usage_count: projectUsageCount, processing_job: processingJob } });
 }
 
 // Edit a document's human-owned metadata: display title, document type,

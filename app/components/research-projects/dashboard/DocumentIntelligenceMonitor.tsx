@@ -29,6 +29,7 @@ export function DocumentIntelligenceMonitor({ projectId, project }: { projectId:
   const analysed = documents.filter(e => isAnalysed(e.document.summary_status)).length;
   const approved = documents.filter(e => isApproved(e.document.summary_status)).length;
   const failed = documents.filter(e => e.document.library_status === "failed").length;
+  const needsReview = documents.filter(e => e.document.library_status === "requires_review").length;
 
   return (
     <>
@@ -39,6 +40,7 @@ export function DocumentIntelligenceMonitor({ projectId, project }: { projectId:
         <MetricTile label="Analysed" value={analysed} />
         <MetricTile label="Approved" value={approved} />
         <MetricTile label="Failed" value={failed} />
+        {needsReview > 0 && <MetricTile label="Needs review" value={needsReview} />}
       </div>
 
       <div>
@@ -68,9 +70,13 @@ export function DocumentIntelligenceMonitor({ projectId, project }: { projectId:
                   </div>
                 </div>
 
-                {d.library_status === "failed" ? (
+                {d.library_status === "failed" || d.library_status === "requires_review" ? (
                   <div className="mt-3 flex items-center justify-between gap-3 flex-wrap">
-                    <p className="text-xs" style={{ color: "#B4694C" }}>Processing failed in the Research Library.</p>
+                    <p className="text-xs" style={{ color: d.library_status === "requires_review" ? "#8A6A2F" : "#B4694C" }}>
+                      {d.library_status === "requires_review"
+                        ? "Processing didn't complete after several automatic attempts — retry from the document page."
+                        : "Processing failed in the Research Library."}
+                    </p>
                     <Button href={`/research-library/${e.evidence_id}`} variant="secondary" size="sm">Review in Library</Button>
                   </div>
                 ) : isProcessing(d.library_status) ? (

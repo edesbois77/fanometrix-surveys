@@ -41,6 +41,13 @@ type Doc = {
   error_message: string | null; project_usage_count: number;
   owner: string; owner_org_id: string | null; visibility: string; learning_permission: string; ai_access: string;
   scope_project_id: string | null;
+  // Execution metadata from the durable processing job (jobs framework). Present
+  // only once a job exists; used to show attempts / next retry / last error.
+  processing_job: {
+    status: string; attempts: number; max_attempts: number;
+    run_at: string | null; last_error: string | null; last_error_at: string | null;
+    started_at: string | null; completed_at: string | null; updated_at: string;
+  } | null;
 };
 
 // ── Small form primitives (shared UI v2 language) ────────────────────────────
@@ -125,6 +132,7 @@ export function LibraryDocConfigBody({ documentId, backHref, backLabel }: {
   const [form, setForm] = useState<EditForm>({ title: "", author: "", document_type: "other", confidentiality: "internal", description: "", tags: [], owner: "fanometrix", owner_org_id: "", visibility: "internal", learning_permission: "no_learning", ai_access: "internal" });
   const [tagInput, setTagInput] = useState("");
   const [saving, setSaving] = useState(false);
+  const [reprocessing, setReprocessing] = useState(false);
   const [checkingImpact, setCheckingImpact] = useState(false);
   const [affected, setAffected] = useState<{ project_id: string; project_name: string }[]>([]);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -268,6 +276,22 @@ export function LibraryDocConfigBody({ documentId, backHref, backLabel }: {
     }
   }
 
+  // Retry a document that failed or exhausted automatic retries. Re-enqueues the
+  // same durable job; the poller then advances the loader as it reprocesses.
+  async function onReprocess() {
+    if (!doc) return;
+    setReprocessing(true);
+    try {
+      const res = await fetch(`/api/library-documents/${documentId}/reprocess`, { method: "POST" });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) { showToast(json.error ?? "Couldn't restart processing.", false); return; }
+      await load();
+      showToast("Reprocessing started.");
+    } finally {
+      setReprocessing(false);
+    }
+  }
+
   if (loading) return <PageContainer><PageLoadingState lines={2} /></PageContainer>;
   if (notFound || !doc) return (
     <PageContainer>
@@ -283,6 +307,7 @@ export function LibraryDocConfigBody({ documentId, backHref, backLabel }: {
   // genuinely has none. Manual fields (type, pages, uploaded, file) are shown
   // immediately regardless.
   const processing = isProcessing(doc.status);
+  const needsReview = doc.status === "requires_review";
   const usage = doc.project_usage_count ?? 0;
   const usageProjects = `${usage} Research ${usage === 1 ? "Project" : "Projects"}`;
   // The document's Intelligence lives in Analysis (per-evidence report). Find
@@ -312,16 +337,36 @@ export function LibraryDocConfigBody({ documentId, backHref, backLabel }: {
       />
 
       {/* Research shows only the current state as a header badge. The
-          operational processing pipeline lives in Execution; a failure is
-          the one thing worth calling out here. */}
-      {doc.status === "failed" ? (
-        <div className="rounded-xl border p-4" style={{ background: "#F9EFEA", borderColor: "#E8D2C4" }}>
-          <div className="flex items-start gap-3">
-            <span className="inline-flex items-center justify-center w-8 h-8 rounded-lg flex-shrink-0" style={{ background: "var(--surface)", color: "#B4694C", border: "1px solid #E8D2C4" }} aria-hidden><Icon.info size={16} /></span>
-            <div className="min-w-0">
-              <p className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>Processing failed</p>
-              <p className="text-sm mt-1 leading-relaxed" style={{ color: "var(--text-secondary)" }}>{doc.error_message || "The document couldn't be read or analysed."}</p>
+          operational processing pipeline lives in Execution; a failure or a
+          document that exhausted automatic retries is worth calling out here,
+          with a one-click Retry (re-enqueues the durable processing job). */}
+      {doc.status === "failed" || doc.status === "requires_review" ? (
+        <div className="rounded-xl border p-4" style={needsReview
+          ? { background: "#FBF3E1", borderColor: "#ECDCB8" }
+          : { background: "#F9EFEA", borderColor: "#E8D2C4" }}>
+          <div className="flex items-start justify-between gap-3 flex-wrap">
+            <div className="flex items-start gap-3 min-w-0">
+              <span className="inline-flex items-center justify-center w-8 h-8 rounded-lg flex-shrink-0" style={{ background: "var(--surface)", color: needsReview ? "#8A6A2F" : "#B4694C", border: `1px solid ${needsReview ? "#ECDCB8" : "#E8D2C4"}` }} aria-hidden><Icon.info size={16} /></span>
+              <div className="min-w-0">
+                <p className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>{needsReview ? "Needs review" : "Processing failed"}</p>
+                <p className="text-sm mt-1 leading-relaxed" style={{ color: "var(--text-secondary)" }}>
+                  {needsReview
+                    ? (doc.error_message || "Processing didn't complete after several automatic attempts.")
+                    : (doc.error_message || "The document couldn't be read or analysed.")}
+                </p>
+                {doc.processing_job && (
+                  <p className="text-xs mt-1.5" style={{ color: "var(--text-tertiary)" }}>
+                    Attempt {doc.processing_job.attempts} of {doc.processing_job.max_attempts}
+                    {doc.processing_job.last_error_at ? ` · last tried ${new Date(doc.processing_job.last_error_at).toLocaleString("en-GB")}` : ""}
+                  </p>
+                )}
+              </div>
             </div>
+            {canManage && (
+              <Button variant="secondary" size="sm" onClick={onReprocess} disabled={reprocessing}>
+                {reprocessing ? "Retrying…" : "Retry processing"}
+              </Button>
+            )}
           </div>
         </div>
       ) : isProcessing(doc.status) ? (

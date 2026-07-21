@@ -2,23 +2,26 @@
 // (see lib/library-documents/storage.ts) completes — this app never sees
 // the file's bytes, so it has no other way to know the upload actually
 // landed. Confirms the object exists at the row's own storage_path, then
-// kicks off extraction (lib/library-documents/run-extraction.ts) after the
-// response is sent — same after()-then-poll-status shape
-// createSimulated()/runSimulationGeneration already use in
-// app/api/research-projects/route.ts. Extraction currently hands the
-// document off in 'analysing' status with nothing yet consuming it — the
-// next pipeline stage (global document analysis) picks that trigger point
-// up once it ships, rather than this route growing a second responsibility.
+// ENQUEUES a durable processing job (lib/jobs) rather than firing extraction
+// fire-and-forget.
+//
+// This is the fix for documents stranded forever at 'uploaded': the enqueued
+// document.process job is the source of truth for "this needs processing", and
+// the pg_cron worker (app/api/cron/jobs/tick) drains it even if the best-effort
+// after() kick below never runs or dies mid-way. Both paths go through the same
+// idempotent, leased claim, so they can never double-process.
 import { NextRequest, NextResponse } from "next/server";
 import { after } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { requireUser } from "@/lib/auth-server";
 import { objectExists } from "@/lib/library-documents/storage";
+import { enqueueJob } from "@/lib/jobs/enqueue";
+import { DOCUMENT_PROCESS_JOB, documentProcessDedupeKey } from "@/lib/jobs/handlers/document-process.constants";
 
-// Extraction (PDF render + vision + AI analysis) runs in after() below and can
-// take well over a minute — the function must stay alive for it. Without this the
-// default ~10s timeout kills the invocation before extraction finishes, leaving
-// the document stuck at 'uploaded'. Vercel keeps after() alive up to maxDuration.
+// The after() kick below drives processing (PDF render + vision + AI analysis),
+// which can take well over a minute — the function must stay alive for it. If it
+// dies anyway, pg_cron picks up the already-enqueued job; the document is never
+// lost. Vercel keeps after() alive up to maxDuration.
 export const maxDuration = 300;
 export const runtime = "nodejs";
 
@@ -48,15 +51,26 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: "Upload did not complete — the file wasn't found in storage. Try uploading again." }, { status: 409 });
     }
 
-    // Kick off extraction AFTER the response. Import it lazily here (not at the
-    // top of the module) so the confirm route never carries — or crashes on —
-    // the extraction pipeline's heavy PDF-rendering dependencies at load time.
+    // Durable enqueue first — this is what makes the work recoverable. Idempotent
+    // via the dedupe key, so a retried confirm can't create a second job.
+    await enqueueJob({
+      type: DOCUMENT_PROCESS_JOB,
+      payload: { document_id: id },
+      dedupeKey: documentProcessDedupeKey(id),
+    });
+
+    // Best-effort low-latency kick AFTER the response, so processing usually
+    // starts immediately instead of waiting for the next cron tick. Import the
+    // worker lazily (not at module top) so this route never carries — or crashes
+    // on — the pipeline's heavy PDF-rendering dependencies at load time. If this
+    // never runs (instance killed), pg_cron drains the enqueued job regardless.
     after(async () => {
       try {
-        const { runExtraction } = await import("@/lib/library-documents/run-extraction");
-        await runExtraction(id);
+        await import("@/lib/jobs/handlers");
+        const { drainJobs } = await import("@/lib/jobs/worker");
+        await drainJobs({ workerId: `upload-${id}`, types: [DOCUMENT_PROCESS_JOB], budgetMs: 290_000 });
       } catch (err) {
-        console.error("[confirm-upload] runExtraction failed", err);
+        console.error("[confirm-upload] drain failed", err);
       }
     });
 
