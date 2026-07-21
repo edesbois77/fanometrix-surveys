@@ -71,6 +71,7 @@ function getDateBounds(
   const today = new Date();
   switch (preset) {
     case "today":    return { from: fmt(today),      to: fmt(today)         };
+    case "yesterday":return { from: fmt(sub(today, 1)), to: fmt(sub(today, 1)) };
     case "7d":       return { from: fmt(sub(today, 6)), to: fmt(today)      };
     case "30d":      return { from: fmt(sub(today, 29)), to: fmt(today)     };
     case "campaign": return campaign?.start_date && campaign?.end_date

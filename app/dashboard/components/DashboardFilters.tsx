@@ -18,7 +18,7 @@ export type DashFilters = {
 type SurveyOption = { id: string; name: string };
 type GroupOption  = { id: string; group_id: string; name: string; campaign_ids: string[] };
 
-export type DatePreset = "all" | "today" | "7d" | "30d" | "campaign" | "custom";
+export type DatePreset = "all" | "today" | "yesterday" | "7d" | "30d" | "campaign" | "custom";
 
 export const EMPTY_DASH_FILTERS: DashFilters = {
   group_id: "", survey_id: "", campaign_id: "",
@@ -30,6 +30,7 @@ export const EMPTY_DASH_FILTERS: DashFilters = {
 const DATE_PRESETS: { key: DatePreset; label: string }[] = [
   { key: "all",      label: "All Time"      },
   { key: "today",    label: "Today"         },
+  { key: "yesterday", label: "Yesterday"    },
   { key: "7d",       label: "Last 7 Days"   },
   { key: "30d",      label: "Last 30 Days"  },
   { key: "campaign", label: "This Campaign" },
