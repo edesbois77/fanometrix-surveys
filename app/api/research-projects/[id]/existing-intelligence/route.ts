@@ -8,7 +8,8 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 import { requireUser } from "@/lib/auth-server";
 import { gatherExistingIntelligence } from "@/lib/intelligence/existing/registry";
 import { registerExistingIntelligenceProviders } from "@/lib/intelligence/existing/providers";
-import type { ProjectUnderstanding } from "@/lib/understanding";
+import { analyseKnowledgePosition } from "@/lib/intelligence/analysts/analyseKnowledgePosition";
+import { hasUnderstanding, type ProjectUnderstanding } from "@/lib/understanding";
 
 type Row = {
   research_question: string | null;
@@ -36,14 +37,23 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const markets = (u?.markets?.values?.length ? u.markets.values : project.country_codes) ?? [];
 
   // No question yet → nothing to recall against.
-  if (!researchQuestion) return NextResponse.json({ intelligence: { categories: [], providersConsulted: 0, providersContributed: 0 } });
+  if (!researchQuestion) return NextResponse.json({ intelligence: { categories: [], providersConsulted: 0, providersContributed: 0 }, knowledgePosition: null });
 
   registerExistingIntelligenceProviders();
   try {
     const intelligence = await gatherExistingIntelligence({
       projectId: id, orgId, researchQuestion, understanding: u, markets,
     });
-    return NextResponse.json({ intelligence });
+
+    // The closing synthesis — Confidence + Frontier + Fanometrix's Recommendation,
+    // grounded in the understanding + what we could actually evidence.
+    let knowledgePosition = null;
+    if (u && hasUnderstanding(u)) {
+      try { knowledgePosition = await analyseKnowledgePosition({ understanding: u, intelligence }); }
+      catch { knowledgePosition = null; }
+    }
+
+    return NextResponse.json({ intelligence, knowledgePosition });
   } catch {
     return NextResponse.json({ error: "Couldn't gather existing intelligence." }, { status: 500 });
   }

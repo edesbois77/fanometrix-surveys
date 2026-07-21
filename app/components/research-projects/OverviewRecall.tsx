@@ -6,36 +6,15 @@
 // finding shows its provenance (Sources: …) and its evidence strength. Nothing is
 // fabricated: a tier with no genuine provider is shown honestly as awaiting/empty.
 //
-// Slice 2 of the Overview redesign. Renders only once "Our Understanding" exists.
-import { useEffect, useState } from "react";
-import { useResearchProject } from "@/app/components/research-projects/ProjectProvider";
+// Slice 2 of the Overview redesign. Presentational — the parent
+// (OverviewIntelligence) fetches once and passes the gathered intelligence in.
 import { Card, SectionHeading, StatusBadge, Icon, Eyebrow } from "@/app/components/workspace-ui";
-import { hasUnderstanding } from "@/lib/understanding";
 import type { ExistingIntelligence, IntelligenceFinding, EvidenceStrength } from "@/lib/intelligence/existing/types";
 
 const STRENGTH_LABEL: Record<EvidenceStrength, string> = { strong: "Strong evidence", moderate: "Moderate evidence", limited: "Limited evidence" };
 const STRENGTH_TONE: Record<EvidenceStrength, "success" | "info" | "neutral"> = { strong: "success", moderate: "info", limited: "neutral" };
 
-export function OverviewRecall() {
-  const { projectId, project } = useResearchProject();
-  const present = hasUnderstanding(project?.understanding ?? null);
-
-  const [state, setState] = useState<{ loading: boolean; data?: ExistingIntelligence; error?: string }>({ loading: true });
-
-  useEffect(() => {
-    if (!present) return;
-    let cancelled = false;
-    setState({ loading: true });
-    fetch(`/api/research-projects/${projectId}/existing-intelligence`)
-      .then(r => r.json())
-      .then(j => { if (!cancelled) setState({ loading: false, data: j.intelligence, error: j.error }); })
-      .catch(() => { if (!cancelled) setState({ loading: false, error: "Couldn't gather existing intelligence." }); });
-    return () => { cancelled = true; };
-  }, [projectId, present]);
-
-  if (!present) return null;
-
-  const data = state.data;
+export function OverviewRecall({ data, loading }: { data?: ExistingIntelligence; loading: boolean }) {
   const house = data?.categories.find(c => c.category === "house");
   const projectTier = data?.categories.find(c => c.category === "project");
 
@@ -48,7 +27,7 @@ export function OverviewRecall() {
         Before proposing any research, here is what Fanometrix can already evidence about this problem — every point traceable to a real source.
       </p>
 
-      {state.loading ? (
+      {loading ? (
         <Card className="mt-6">
           <div className="flex items-center gap-3 py-4">
             <span className="inline-flex items-center justify-center w-7 h-7 rounded-md" style={{ background: "#F2E6C8", color: "#8A6D2F" }}><Icon.search size={15} /></span>

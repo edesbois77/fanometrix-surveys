@@ -25,7 +25,7 @@ import { useEffect, useRef, useState } from "react";
 import { useSession } from "@/app/components/SessionProvider";
 import { ResearchProjectEditDrawer, type ResearchProjectBriefFields } from "@/app/components/research-projects/ResearchProjectEditDrawer";
 import { OverviewUnderstanding } from "@/app/components/research-projects/OverviewUnderstanding";
-import { OverviewRecall } from "@/app/components/research-projects/OverviewRecall";
+import { OverviewIntelligence } from "@/app/components/research-projects/OverviewIntelligence";
 import { studyTypeLabel } from "@/lib/naming";
 import { researchSubjectLabel } from "@/lib/research-subjects";
 import { formatRelativeTime } from "@/lib/format-relative-time";
@@ -407,10 +407,11 @@ export function WorkspaceBodyContent() {
             knowledge frontier land in later slices. */}
         <OverviewUnderstanding />
 
-        {/* ── What we already know — Existing Intelligence (Recall). Renders only
-            once "Our Understanding" exists; surfaces grounded, attributed prior
-            intelligence tiered into House and Project. (docs/existing-intelligence.md) */}
-        <OverviewRecall />
+        {/* ── Recall + closing synthesis. Once "Our Understanding" exists: what we
+            already know (grounded, attributed), then Confidence, the Frontier, and
+            Fanometrix's Recommendation with its adaptive hand-off.
+            (docs/overview-page.md §B.3–§B.6, docs/existing-intelligence.md) */}
+        <OverviewIntelligence />
 
         {/* ── Intelligence Status — the first place to read the state of the
             project. Tinted per state so it never reads as "just another white
