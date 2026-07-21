@@ -9,6 +9,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { drainJobs } from "@/lib/jobs/worker";
 import { TICK_BUDGET_MS } from "@/lib/jobs/config";
+import { isCronAuthorized } from "@/lib/jobs/cron-auth";
 
 // The drain runs synchronously within the request (not after()) — pg_net fired
 // it as a fire-and-forget POST, so the invocation must stay alive for the whole
@@ -17,15 +18,10 @@ export const maxDuration = 300;
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-function authorized(req: NextRequest): boolean {
-  const secret = process.env.CRON_SECRET;
-  if (!secret) return false; // fail closed — an unset secret must never mean "open"
-  const header = req.headers.get("authorization") ?? "";
-  return header === `Bearer ${secret}`;
-}
-
 export async function POST(req: NextRequest) {
-  if (!authorized(req)) {
+  // This route is excluded from the session-auth middleware (see middleware.ts's
+  // PUBLIC_API_PREFIXES) precisely so it can enforce its OWN bearer check here.
+  if (!isCronAuthorized(req.headers.get("authorization"), process.env.CRON_SECRET)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

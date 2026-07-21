@@ -25,8 +25,15 @@ const PUBLIC_PATHS = new Set([
   "/access-denied",
 ]);
 
-// API paths that must remain public (auth endpoints, embed submissions, external Looker/reporting)
-const PUBLIC_API_PREFIXES = ["/api/auth", "/api/submit", "/api/reporting", "/api/embed", "/api/access-requests", "/api/publisher", "/api/dashboard", "/api/events"];
+// API paths excluded from the normal user-SESSION auth below. "Public" here
+// means "not gated by a browser session" — NOT "unauthenticated". Machine-to-
+// machine routes on this list (e.g. /api/cron) enforce their own credential
+// check inside the handler:
+//   • /api/cron — the pg_cron worker; validates a CRON_SECRET bearer token
+//     (see app/api/cron/jobs/tick/route.ts + lib/jobs/cron-auth.ts). It has no
+//     user session, so the session gate would 401 it before it could run; it
+//     must bypass that gate but is never callable without the secret.
+const PUBLIC_API_PREFIXES = ["/api/auth", "/api/submit", "/api/reporting", "/api/embed", "/api/access-requests", "/api/publisher", "/api/dashboard", "/api/events", "/api/cron"];
 
 // Routes restricted to brand/agency (not accessible at this stage — redirect to /insights)
 const BRAND_AGENCY_RESTRICTED = [

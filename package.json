@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "test": "node --import tsx --experimental-test-module-mocks --test \"lib/**/*.test.ts\" \"app/**/*.test.ts\"",
     "sync:privacy": "tsx scripts/sync-privacy-translations.ts"
   },
   "dependencies": {
