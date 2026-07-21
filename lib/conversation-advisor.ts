@@ -11,6 +11,13 @@
 // contains one or more needs.
 
 import type { SearchStrategy } from "@/lib/search-strategy";
+import type { InformationNeeds } from "@/lib/information-needs";
+
+// Information Needs are now a platform-level concept (lib/information-needs.ts).
+// Re-exported here so existing Conversation Advisor importers keep one import
+// surface; new consumers (Survey, Library) should import from information-needs.
+export type { MethodFit, InformationNeed, ResearchTheme, InformationNeeds, FlatNeed } from "@/lib/information-needs";
+export { METHOD_FIT_LABEL, METHOD_FIT_TONE, allNeeds, flattenNeeds } from "@/lib/information-needs";
 
 // ── Recommendation state (internal) ──────────────────────────────────────────
 export type RecommendationState =
@@ -25,37 +32,6 @@ export type ComplementMethod = "survey" | "document" | "news" | "interview";
 export const METHOD_LABEL: Record<ComplementMethod, string> = {
   survey: "Survey", document: "Research Library", news: "News", interview: "Interviews",
 };
-
-// ── Method fit (per information need) ─────────────────────────────────────────
-export type MethodFit = "primary" | "supporting" | "conditional" | "not_suitable";
-
-export const METHOD_FIT_LABEL: Record<MethodFit, string> = {
-  primary:      "Primary method",
-  supporting:   "Supporting",
-  conditional:  "Conditional",
-  not_suitable: "Not suitable",
-};
-
-// Badge tone for a method-fit verdict — values are workspace StatusBadge `Tone`s.
-export const METHOD_FIT_TONE: Record<MethodFit, "success" | "neutral" | "warning" | "info"> = {
-  primary: "success", supporting: "info", conditional: "warning", not_suitable: "neutral",
-};
-
-// ── Structure ─────────────────────────────────────────────────────────────────
-export type InformationNeed = {
-  need: string;          // an answerable sub-question about the world
-  method_fit: MethodFit;
-  rationale: string;     // why conversations can (or can't) answer it
-};
-
-// A Research Theme is a Research Aspect surfaced at the front of the briefing.
-export type ResearchTheme = {
-  aspect: string;        // short Title Case — the durable organising unit
-  description: string;
-  needs: InformationNeed[];
-};
-
-export type InformationNeeds = { themes: ResearchTheme[] };
 
 export type PlatformRecommendation = {
   platform: string;      // must match a lib/social-taxonomy PLATFORMS id
@@ -130,9 +106,4 @@ export function emptyRecommendation(): ConversationRecommendation {
     complementary_method: null, platforms: [], limitations: [], challenges: [],
     generated_at: null, model: null, edited: false,
   };
-}
-
-// Flatten every information need across all themes (e.g. for counts / judging).
-export function allNeeds(needs: InformationNeeds): InformationNeed[] {
-  return needs.themes.flatMap(t => t.needs);
 }
