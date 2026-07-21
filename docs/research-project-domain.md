@@ -91,6 +91,16 @@ per-need Method Assignment.
 separate: **methodology gaps** (authored — what the design cannot cover) and
 **evidence gaps** (measured — a need the collected evidence has not yet answered).
 
+**Assumption** — a load-bearing premise the design rests on (audience definition,
+generalisability of prior evidence, scope of the question). Authored, versioned
+with the design. Each is a *condition of validity*: invalidating an assumption is
+the concrete trigger to fork a new design version (§7). This is the mechanism
+behind "if assumptions change, the design evolves." (Introduced with the Planning
+stage — `docs/planning-page.md`.)
+
+**Risk** — a threat to the programme achieving its success criteria, carried with
+a mitigation the design already applies. Authored, versioned with the design.
+
 **Specialist Method / Advisor** — Conversation Intelligence, Survey Research, the
 Research Library, and future products. Each **consumes** the approved design and
 produces evidence tagged to Information Needs. None re-plans (see §8).

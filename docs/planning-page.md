@@ -51,12 +51,13 @@ not a new tool opening a blank plan.
 
 ## 3. The narrative arc
 
-> **Approach → Learning Agenda → How We'll Answer → What It Contributes → Success → Scope → Commitment**
+> **Approach → Learning Agenda → How We'll Answer → What It Contributes → Success → Honest Foundation (Scope · Assumptions · Risks) → Commitment**
 >
 > "Here's the programme we propose and why → here's exactly what we must learn →
 > here's how each question gets answered, and what we already know → here's what
 > you'll get and how rigorous it'll be → here's what 'done' looks like → here's
-> what we're deliberately *not* doing → shall we proceed?"
+> what we're deliberately *not* doing, what we're assuming, and what could go
+> wrong → shall we proceed?"
 
 This mirrors the Overview's recommendation-first discipline: **lead with the
 proposed approach (judgment), not the list of needs (working).**
@@ -129,6 +130,29 @@ out of scope. A proposal that says *"we could survey this, but it won't material
 improve the recommendation, so we're not proposing it"* protects the client's
 budget and builds more trust than one that proposes everything.
 
+### 7b · Assumptions & Risks — the honest foundation *(and the evolution triggers)*
+Every consultancy proposal rests on premises and carries threats; making them
+explicit strengthens both transparency and the design's future evolution. Two
+distinct disclosures, kept separate because they fail differently:
+- **Assumptions** — the load-bearing premises the design rests on (the audience
+  definition; that existing intelligence generalises to these markets; that the
+  objectives are one study, not two). Several are inherited from the Understanding's
+  flagged tensions/assumptions (continuity). **If an assumption is wrong, the design
+  changes.** Each assumption is therefore a *condition of validity* and the concrete
+  **trigger for re-versioning**: when one is invalidated — by new evidence in
+  execution or a client update — the design forks a new version (domain model §7).
+  (Future: the platform detects a violated assumption from collected evidence and
+  prompts a revisit; v1 surfaces them and wires them as the versioning triggers.)
+- **Risks** — threats to the programme achieving its success criteria (audience hard
+  to reach; thin evidence in a market; an objective that may need splitting). Each
+  carries a light impact and a **mitigation** — how the design already handles it. A
+  named risk with a mitigation reads as a designed programme; a risk alone reads as a
+  disclaimer.
+
+Both sit here, in the honest-foundation cluster with Deliberate Scope, so the client
+approves with eyes open. Both are **authored** content on the Research Design and are
+**versioned with it**.
+
 ### 8 · Approve the Research Design — the commitment
 The single closing action: **Approve the Research Design.** Light human-confirmed
 gate (the researcher can add/remove/reprioritise needs, challenge method
@@ -154,7 +178,10 @@ moment is *"I agree this is the right research programme."*
 
 - Planning **writes the Research Design** (authored content: research question,
   Information Needs, Method Assignment, expected contribution, success criteria,
-  scope boundaries).
+  scope boundaries, **assumptions and risks**).
+- **Assumptions are the design's evolution triggers.** Each is a condition of
+  validity; invalidating one forks a new version (§7 lifecycle). This is the
+  concrete mechanism behind "if assumptions change, the design evolves."
 - **Confidence is measured later** (Analysis). Planning sets *expected
   contribution* — the target the measured confidence is scored against. Planning
   must never present a confidence number.
@@ -194,6 +221,9 @@ moment is *"I agree this is the right research programme."*
    is as much a trust signal in Planning as "Ready to Decide" was in the Overview.
 5. **Add the programme's logic/phasing (§4.4).** A sequenced programme with
    dependencies reads as designed; a flat method list reads as configured.
+5b. **Surface Assumptions & Risks explicitly (§4.7b).** Every proposal rests on
+   premises and carries threats; naming them builds trust — and assumptions become
+   the concrete triggers for the design's versioned evolution.
 6. **Guard the Planning↔Implementation boundary (§1, §7).** The single biggest risk
    to the "not a tool" feeling. No instrument configuration in Planning.
 7. **Tie success to the Overview's readiness (§4.6).** Success = reaching "Ready to
