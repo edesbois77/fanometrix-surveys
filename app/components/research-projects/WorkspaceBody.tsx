@@ -25,6 +25,7 @@ import { useEffect, useRef, useState } from "react";
 import { useSession } from "@/app/components/SessionProvider";
 import { ResearchProjectEditDrawer, type ResearchProjectBriefFields } from "@/app/components/research-projects/ResearchProjectEditDrawer";
 import { OverviewUnderstanding } from "@/app/components/research-projects/OverviewUnderstanding";
+import { OverviewRecall } from "@/app/components/research-projects/OverviewRecall";
 import { studyTypeLabel } from "@/lib/naming";
 import { researchSubjectLabel } from "@/lib/research-subjects";
 import { formatRelativeTime } from "@/lib/format-relative-time";
@@ -405,6 +406,11 @@ export function WorkspaceBodyContent() {
             Understanding deliverable. Existing-intelligence, confidence and the
             knowledge frontier land in later slices. */}
         <OverviewUnderstanding />
+
+        {/* ── What we already know — Existing Intelligence (Recall). Renders only
+            once "Our Understanding" exists; surfaces grounded, attributed prior
+            intelligence tiered into House and Project. (docs/existing-intelligence.md) */}
+        <OverviewRecall />
 
         {/* ── Intelligence Status — the first place to read the state of the
             project. Tinted per state so it never reads as "just another white
