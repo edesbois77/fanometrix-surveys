@@ -17,13 +17,17 @@ than ten placeholders.
   sponsorship best practice, benchmarks, methodology, platform/research
   principles). Always *eligible*, but only surfaced when a provider genuinely
   returns evidence.
-- **Organisation Intelligence** — sources the current organisation has access to
-  (previous Research Projects, Research Library documents, previous approved
-  findings/reports, conversation/survey findings). Scoped to the org.
+- **Project Intelligence** — the organisation's own evidence, drawn from its
+  research work: previous Research Projects, Research Library documents, previous
+  approved findings/reports, conversation/survey findings. Org-scoped. Labelled
+  "Project Intelligence" (not "Organisation Intelligence") so the category does
+  not overload "Organisation Intelligence", which is reserved as a specific
+  provider/product that may register under this category later. Internal enum
+  value: `project`.
 
 ## 3. Honest v1 inventory
 
-- **Organisation providers with real data today:** Research Library (+ approved
+- **Project providers with real data today:** Research Library (+ approved
   document analyses), Previous Research Projects, Approved Findings / Reports
   (`research_summaries`). Conversation/Survey findings exist per-project and reach
   Recall via those approved analyses.
@@ -40,13 +44,14 @@ than ten placeholders.
 ```
 IntelligenceProvider
   id, name
-  category: "house" | "organisation"
+  category: "house" | "project"
   isAvailable(): boolean | Promise<boolean>   // not wired/configured → never called, never shown
   retrieve(ctx): Promise<IntelligenceFinding[]>  // MUST return [] when nothing is genuinely evidenced
 
 IntelligenceFinding
   statement                 // the claim, in plain language
-  detail?, confidence       // "high" | "moderate" | "low"
+  detail?
+  strength                  // evidence strength: "strong" | "moderate" | "limited" — how well-supported
   sources: IntelligenceSource[]   // >= 1 ALWAYS — a finding with no source is inadmissible
   aspect?                   // which aspect of the problem it bears on
 
@@ -81,11 +86,13 @@ shape the Overview renders; no provider-specific knowledge leaks upward.
 
 Every important claim renders with its attribution beneath it:
 
-> **Fans consistently value tangible benefits over brand visibility.**
+> **Fans consistently value tangible benefits over brand visibility.**  · Strong
 > Sources: Football Intelligence · Sponsorship Benchmark Library · Research Project #24
 
 Each source links to the real object. Provenance is a required field on the data
-model — an unattributed claim cannot reach the screen.
+model — an unattributed claim cannot reach the screen. Each finding also shows its
+**evidence strength** (strong / moderate / limited) so the researcher can see how
+well-supported it is, distinct from how relevant it is.
 
 ## 8. Deferred (not v1)
 

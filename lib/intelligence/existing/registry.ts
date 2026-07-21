@@ -12,7 +12,7 @@ import type {
   IntelligenceCategory, ExistingIntelligence, IntelligenceCategoryResult, ProviderContribution,
 } from "@/lib/intelligence/existing/types";
 
-const CATEGORY_ORDER: IntelligenceCategory[] = ["house", "organisation"];
+const CATEGORY_ORDER: IntelligenceCategory[] = ["house", "project"];
 const RETRIEVE_CONCURRENCY = 5;
 
 const REGISTRY = new Map<string, IntelligenceProvider>();

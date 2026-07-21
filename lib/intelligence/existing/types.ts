@@ -8,8 +8,17 @@
 // Pure types — client- and server-safe.
 import type { ProjectUnderstanding } from "@/lib/understanding";
 
-export type IntelligenceCategory = "house" | "organisation";
-export type IntelligenceConfidence = "high" | "moderate" | "low";
+// "house" = Fanometrix's own knowledge; "project" = the organisation's own
+// evidence drawn from its research projects, library and prior findings. Labelled
+// "Project Intelligence" in the Overview so it doesn't overload "Organisation
+// Intelligence" (which is reserved as a specific provider/product name).
+export type IntelligenceCategory = "house" | "project";
+
+// How well-supported a finding is by its sources — NOT "confidence" (the domain
+// model reserves that for Analysis, measured from real research evidence). Strength
+// is a property of the evidence behind the finding: how many, how authoritative
+// and how recent the sources are, and how much data stands behind them.
+export type EvidenceStrength = "strong" | "moderate" | "limited";
 
 // The traceability unit. Every finding cites >= 1 of these; each should point at
 // a real object (a link/ref where possible) so a claim is always explainable.
@@ -25,7 +34,7 @@ export type IntelligenceSource = {
 export type IntelligenceFinding = {
   statement: string;
   detail?: string | null;
-  confidence: IntelligenceConfidence;
+  strength: EvidenceStrength;                 // how well-supported — every provider sets this
   sources: IntelligenceSource[];
   aspect?: string | null;                    // which aspect of the problem it bears on
 };
