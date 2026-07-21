@@ -661,9 +661,11 @@ export function ThemedSurvey(props: ThemedSurveyProps) {
 
   useEffect(() => {
     const fn = () => {
+      // Pause/resume the countdown with tab visibility. (SURVEY_EXIT emission was
+      // removed here: it is consumed by no dashboard/report and could fire on
+      // every tab-away — write-only fan-out. Abandonment = starts − completed.)
       if (document.hidden) {
         setIsRunning(false);
-        if (hasStarted.current && !hasCompleted.current) sendEvent("SURVEY_EXIT");
       } else if (isVisibleRef.current) {
         setIsRunning(true);
       }

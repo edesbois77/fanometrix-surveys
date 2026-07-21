@@ -437,21 +437,10 @@ export function ClassicSurvey(props: ClassicSurveyProps) {
     }
   }, [questions.length, sendEvent]);
 
-  // SURVEY_EXIT: fire when page becomes hidden if started but not completed
-  useEffect(() => {
-    const handleExit = () => {
-      if (hasStarted.current && !hasCompleted.current) {
-        sendEvent("SURVEY_EXIT");
-      }
-    };
-    const handleVisibility = () => { if (document.hidden) handleExit(); };
-    document.addEventListener("visibilitychange", handleVisibility);
-    window.addEventListener("beforeunload", handleExit);
-    return () => {
-      document.removeEventListener("visibilitychange", handleVisibility);
-      window.removeEventListener("beforeunload", handleExit);
-    };
-  }, [sendEvent]);
+  // SURVEY_EXIT emission removed: it was consumed by no dashboard/report/export
+  // (verified) and could fire on every tab-away (write-only request fan-out).
+  // Abandonment is still derivable from the funnel as starts − completed.
+  // ClassicSurvey has no countdown to pause, so this listener had no other job.
 
   const q = questions[step];
   const isLast = step === questions.length - 1;

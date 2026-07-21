@@ -7,6 +7,12 @@ const VALID_TYPES = new Set([
   "QUESTION_2_REACHED",
   "QUESTION_3_REACHED",
   "SURVEY_COMPLETED",
+  // SURVEY_EXIT is DEPRECATED: no longer emitted by the embed (no dashboard,
+  // series or report ever consumed it). Still accepted here so embed bundles
+  // cached on partner ad servers before this release don't start 400ing —
+  // rejecting them would not save any request and only adds error noise.
+  // Rows land in survey_events but are read by nothing; prune from this set in
+  // a later cleanup once caches have rolled over.
   "SURVEY_EXIT",
 ]);
 
