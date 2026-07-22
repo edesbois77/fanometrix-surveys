@@ -6,10 +6,14 @@
 // what each Evidence Role must supply, whether that evidence plausibly EXISTS, the
 // methods that could obtain it, and only then the concrete searches.
 //
-// SOURCE-AGNOSTIC: requirements own method recommendations (conversation, survey,
-// document, news, trends), not searches. Only the conversation method carries
-// concrete proposals today; the others are still reasoned about, so the design is
-// a programme view rather than a listening plan.
+// TWO CONCEPTS, kept separate: an Evidence Requirement states WHAT we need to
+// learn; its Evidence Strategy states HOW we propose to obtain it.
+//
+// SOURCE-AGNOSTIC: a requirement's strategy owns RECOMMENDED RESEARCH METHODS
+// (conversation, survey, Research Library, industry reports, academic research,
+// news, trends), not searches, and usually recommends more than one. Only the
+// conversation method carries concrete proposals today; the others are still
+// reasoned about, so the design is a programme view rather than a listening plan.
 //
 // The most important instruction is HONESTY ABOUT AVAILABILITY, learned the
 // expensive way: 821 collected FedEx conversations yielded zero genuine direct
@@ -25,7 +29,7 @@ import type { MethodFit } from "@/lib/information-needs";
 import {
   type ResearchDesign, type EvidenceRequirement, type MethodRecommendation,
   type ProposedSearch, type Comparator, type EvidenceAvailability, type ResearchMethod,
-  RESEARCH_METHODS, RESEARCH_METHOD_LABEL,
+  RESEARCH_METHODS, RESEARCH_METHOD_LABEL, RESEARCH_METHOD_DESCRIPTION,
 } from "@/lib/research-design";
 import type { EngagementContext } from "@/lib/engagement-context";
 import type { Brief } from "@/lib/brief";
@@ -73,7 +77,11 @@ THE THREE EVIDENCE ROLES. Every requirement is exactly one of these, and each is
 - COMPARATIVE: ${EVIDENCE_ROLE_DESCRIPTION.comparative}
 - STRATEGIC: ${EVIDENCE_ROLE_DESCRIPTION.strategic}
 
-THE METHODS you may recommend: ${RESEARCH_METHODS.map(m => `${m} (${RESEARCH_METHOD_LABEL[m]})`).join(", ")}. Recommend the methods that genuinely serve each requirement, with a fit verdict of primary, supporting, conditional or not_suitable. ONLY the "conversation" method carries concrete searches; for every other method give the recommendation and rationale but no searches.
+THE RESEARCH METHODS you may RECOMMEND. You are recommending HOW evidence should be gathered, and a requirement usually needs MORE THAN ONE. You are not selecting a single method.
+${RESEARCH_METHODS.map(m => `- ${m} (${RESEARCH_METHOD_LABEL[m]}): ${RESEARCH_METHOD_DESCRIPTION[m]}`).join("\n")}
+Give each recommended method a fit verdict of primary, supporting, conditional or not_suitable. ONLY the "conversation" method carries concrete searches; every other method gets a recommendation and rationale but no searches.
+
+DO NOT DEFAULT BY ROLE. In particular, a STRATEGIC requirement must not automatically become trend analysis. Strategic evidence is often best served by the Research Library, industry and analyst reports, academic research on the underlying behaviour, news coverage, or unprompted conversation, depending entirely on what the requirement asks. Choose from the full list above on the merits of each requirement, and say why in the rationale.
 
 HOW TO THINK, in order:
 1. What must we LEARN to answer the research question and serve the decision? Express these as evidence requirements, not topics.
@@ -98,22 +106,27 @@ Rules:
 - not_worth_attempting: name what you have deliberately decided NOT to chase and why. This is a mark of a good design, not a failure.
 - VOICE: plain, confident consultant prose. No hedging, no filler, no mention of AI or prompts. PUNCTUATION: use commas; NEVER use em-dashes or any long dash; always a comma instead.
 
+SEPARATE THE TWO CONCEPTS. The requirement states WHAT we need to learn and carries no collection detail. Its evidence_strategy states HOW we propose to obtain it.
+
 Return ONLY valid JSON:
 {
   "research_objective": "the objective this design serves, in one sentence",
   "commercial_context": "what is commercially at stake, from the commission"|null,
-  "evidence_strategy": "2-4 sentences: the strategy and where its weight sits",
+  "strategy_summary": "2-4 sentences: the overall strategy and where its weight sits",
   "requirements": [
     { "role": "direct|comparative|strategic",
-      "requirement": "...", "why_it_matters": "...",
+      "requirement": "what we need to learn", "why_it_matters": "how it serves the decision",
       "aspect": "Short Title Case", "information_needs": ["..."],
       "expected_availability": "high|moderate|low|none",
       "availability_note": "honest reasoning on whether this evidence exists",
-      "comparators": [ { "name": "...", "why": "..." } ],
-      "methods": [ { "method": "conversation|survey|document|news|trends",
+      "evidence_strategy": {
+        "rationale": "why this is the right way to obtain this evidence",
+        "comparators": [ { "name": "...", "why": "..." } ],
+        "recommended_methods": [ { "method": "${RESEARCH_METHODS.join("|")}",
                      "fit": "primary|supporting|conditional|not_suitable",
                      "rationale": "...",
-                     "conversation_searches": [ { "name": "...", "intent": "...", "primary_entity": "..."|null, "keywords": ["..."], "platforms": ["..."], "markets": ["..."], "languages": ["..."], "expected_availability": "high|moderate|low|none" } ] } ] }
+                     "conversation_searches": [ { "name": "...", "intent": "...", "primary_entity": "..."|null, "keywords": ["..."], "platforms": ["..."], "markets": ["..."], "languages": ["..."], "expected_availability": "high|moderate|low|none" } ] } ]
+      } }
   ],
   "not_worth_attempting": ["..."]
 }`;
@@ -177,15 +190,30 @@ function parseRequirement(raw: unknown): EvidenceRequirement | null {
   if (!requirement) return null;
   const role = asEvidenceRole(r?.role);
   const expected = availability(r?.expected_availability);
-  const methods = (Array.isArray(r?.methods) ? r.methods : [])
-    .map(parseMethod).filter((m): m is MethodRecommendation => !!m).slice(0, 5);
+  // Tolerate the strategy arriving nested (correct) or flattened onto the
+  // requirement (a model slip), so a good design is never lost to shape drift.
+  const strat = (r?.evidence_strategy ?? r) as Record<string, unknown>;
+
+  const recommended_methods = (Array.isArray(strat?.recommended_methods) ? strat.recommended_methods : [])
+    .map(parseMethod).filter((m): m is MethodRecommendation => !!m).slice(0, 6);
 
   // A requirement whose evidence does not exist must not carry searches: the
   // design refuses to commission work it does not believe in.
-  if (expected === "none") for (const m of methods) if (m.conversation_searches) m.conversation_searches = [];
+  if (expected === "none") for (const m of recommended_methods) if (m.conversation_searches) m.conversation_searches = [];
+
+  // Direct and comparative relevance tests judge against a NAMED subject: direct
+  // requires the client, comparative requires the comparator. A search with no
+  // anchor has nothing to judge against and collects exactly the topic-overlap
+  // noise this methodology exists to prevent, so it is dropped deterministically.
+  // Strategic searches legitimately have no anchor.
+  if (role !== "strategic") {
+    for (const m of recommended_methods) {
+      if (m.conversation_searches) m.conversation_searches = m.conversation_searches.filter(s => !!s.primary_entity);
+    }
+  }
   // Comparators belong to comparative requirements only.
   const comparators = role === "comparative"
-    ? (Array.isArray(r?.comparators) ? r.comparators : []).map(parseComparator).filter((c): c is Comparator => !!c).slice(0, 6)
+    ? (Array.isArray(strat?.comparators) ? strat.comparators : []).map(parseComparator).filter((c): c is Comparator => !!c).slice(0, 6)
     : [];
 
   return {
@@ -195,7 +223,7 @@ function parseRequirement(raw: unknown): EvidenceRequirement | null {
     information_needs: strList(r?.information_needs, 4),
     expected_availability: expected,
     availability_note: clean(r?.availability_note),
-    comparators, methods,
+    evidence_strategy: { recommended_methods, comparators, rationale: clean(strat?.rationale) },
   };
 }
 
@@ -217,7 +245,7 @@ export async function analyseResearchDesign(input: ResearchDesignInput): Promise
     research_question: input.researchQuestion?.trim() || null,
     research_objective: nullable(raw.research_objective) ?? (input.researchObjective?.trim() || null),
     commercial_context: nullable(raw.commercial_context) ?? (input.context?.commercial_objective ?? null),
-    evidence_strategy: clean(raw.evidence_strategy),
+    strategy_summary: clean(raw.strategy_summary),
     requirements,
     not_worth_attempting: strList(raw.not_worth_attempting, 5),
     status: "draft",
