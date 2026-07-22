@@ -336,14 +336,6 @@ export default function ResearchProjectsPage() {
   }, [projects, search, statusFilter, usageFilter, dateFilter, countryFilter, publisherFilter, brandFilter, sortBy, orgName]);
 
   // ── Drawer helpers ─────────────────────────────────────────────────────────
-  function openCreate() {
-    setEditingProject({
-      topic: "", research_question: "", research_subject: null,
-      brand_org_id: null, agency_org_id: null, study_type: "fan_understanding",
-      objective: "", tags: [],
-    });
-  }
-
   function openEdit(p: ResearchProject) {
     setEditingProject({
       id: p.id, project_id: p.project_id,
@@ -390,11 +382,11 @@ export default function ResearchProjectsPage() {
               </p>
             </div>
             {canManage && (
-              <button onClick={openCreate}
+              <Link href="/research-projects/new"
                 className="text-sm font-semibold px-4 py-2 rounded-lg"
                 style={{ background: "#D7B87A", color: "#0B1929" }}>
-                + Create Research Project
-              </button>
+                New Engagement
+              </Link>
             )}
           </div>
           <details className="group bg-gray-50 w-full">
@@ -516,7 +508,7 @@ export default function ResearchProjectsPage() {
           <div className="text-center py-20 text-gray-400">
             <p className="text-4xl mb-3">◎</p>
             <p className="font-medium">No research projects</p>
-            {canManage && <p className="text-sm mt-1">Create your first research project to get started.</p>}
+            {canManage && <p className="text-sm mt-1">Start a <Link href="/research-projects/new" className="font-semibold" style={{ color: "#B8935A" }}>New Engagement</Link> to get going.</p>}
           </div>
         )}
 
