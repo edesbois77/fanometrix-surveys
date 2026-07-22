@@ -24,6 +24,12 @@ export const CONNECTOR_CATALOG: ConnectorCatalogEntry[] = [
     ],
   },
   {
+    id: "news", platformIds: ["news"], name: "News",
+    advanced: [
+      { key: "max_articles", type: "number", label: "Max articles per run", help: "Editorial coverage is headline-level; higher collects more outlets.", default: 50 },
+    ],
+  },
+  {
     id: "reddit", platformIds: ["reddit"], name: "Reddit",
     advanced: [
       { key: "subreddits", type: "string[]", label: "Target subreddits", help: "Comma-separated, e.g. soccer, football." },

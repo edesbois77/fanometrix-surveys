@@ -5,10 +5,12 @@
 import type { Connector } from "@/lib/connectors/types";
 import { youtubeConnector } from "@/lib/connectors/youtube";
 import { redditConnector } from "@/lib/connectors/reddit";
+import { newsConnector } from "@/lib/connectors/news";
 
 export const CONNECTORS: Record<string, Connector> = {
   [youtubeConnector.id]: youtubeConnector,
   [redditConnector.id]: redditConnector,
+  [newsConnector.id]: newsConnector,
 };
 
 /** Map a search's platforms[] value (display label or id) to a connector id. */
