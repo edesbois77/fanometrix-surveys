@@ -36,6 +36,7 @@ function serialiseLens(c: EngagementContext): string {
     line("Decision on the table", c.decision),
     line("Commercial objective", c.commercial_objective),
     line("Strategic tension (the thread)", c.strategic_tension),
+    c.decisive_factors.length ? `- What will decide success: ${c.decisive_factors.join("; ")}` : "",
   ].filter(Boolean).join("\n");
 }
 

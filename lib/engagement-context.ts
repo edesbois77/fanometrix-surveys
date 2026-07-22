@@ -41,6 +41,10 @@ export type EngagementContext = {
   // the thread that runs through Planning, Analysis and Recommendations.
   strategic_tension: string | null;
 
+  // WEIGHTING, not more extraction. The one or two factors most likely to decide
+  // whether THIS engagement succeeds. These dominate; everything else is support.
+  decisive_factors: string[];
+
   engagement_type: string | null;      // inferred; ties into the engagement-types lens
   organisation: string | null;         // the brand the work is ultimately ABOUT
   commissioner: string | null;         // who ENGAGED us (often the agency), NOT the brand owner

@@ -1,18 +1,20 @@
 "use client";
 
-// New Engagement, the Commissioning Workspace, an ORIENTATION SPACE (not a form).
-// This is where Fanometrix begins a consultancy engagement. It mirrors how a senior
-// strategist actually starts: they orient themselves to the SITUATION before they
-// interpret anything.
+// New Engagement, the Commissioning Workspace. Where Fanometrix begins a consultancy
+// engagement. Two surfaces:
 //
-//   Situation           everything the user hands over (told + pasted + attached)
-//     → Orient          Fanometrix reflects back the ENGAGEMENT CONTEXT (the lens):
-//                       who commissioned this, for whom, what decision, what market.
-//                       Shown and CONFIRMED before any close reading, so a bad
-//                       orientation is caught while it's cheap to fix.
-//     → Interpret       the read (point of view) + understanding, THROUGH that lens.
-//     → begin           the Research Project is created silently and we hand into
-//                       the Overview with no reload.
+//   ask       an orientation space (not a form): tell me the SITUATION, plus optional
+//             consultant prompts and attached documents. Nothing required.
+//   summary   ONE editorial document (not a dashboard). Orient then Interpret run
+//             server-side in a single pass; the page presents the result in HIERARCHY:
+//             the insight (point of view) leads, the strategic tension and the one or
+//             two DECISIVE factors dominate, the user decides, and only THEN does
+//             supporting material earn attention in sequence, why I'm seeing it this
+//             way, what I'd verify, and finally the engagement metadata (demoted to
+//             supporting evidence). A correction re-orients holistically.
+//
+// On "begin" the Research Project is created silently and we hand into the Overview
+// with no reload. The Engagement Context (the lens) is persisted with it.
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -70,11 +72,8 @@ export default function NewEngagementPage() {
   const [openFrags, setOpenFrags] = useState<string[]>([]);
   const [files, setFiles] = useState<File[]>([]);
   const [dragging, setDragging] = useState(false);
-  const [phase, setPhase] = useState<"ask" | "reading" | "orient" | "reframe" | "creating">("ask");
+  const [phase, setPhase] = useState<"ask" | "reading" | "summary" | "creating">("ask");
   const [result, setResult] = useState<Result | null>(null);
-  const [reorienting, setReorienting] = useState(false);
-  const [orientNote, setOrientNote] = useState("");
-  const [clarify, setClarify] = useState("");
   const [correcting, setCorrecting] = useState(false);
   const [correction, setCorrection] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -99,35 +98,31 @@ export default function NewEngagementPage() {
     return parts.filter(Boolean).join("\n\n");
   }
 
-  // One endpoint, two stages. nextPhase decides where the user lands: a fresh run
-  // or a re-orientation lands on "orient" (confirm the lens); a read-correction
-  // keeps them in "reframe". A read-correction passes the settled context back so
-  // the orientation is preserved (the route skips Orient and re-interprets only).
-  async function analyse(
-    payload: FormData | { material: string; correction?: string; orient_note?: string; context?: EngagementContext },
-    nextPhase: "orient" | "reframe" = "orient",
-  ) {
+  // One editorial pass: Orient then Interpret run server-side in one round trip and
+  // land on the summary. A correction re-orients from scratch (rebuilds the context
+  // AND re-reads), so putting Fanometrix right on anything, the market, the
+  // commissioner, the read, is a single holistic rethink.
+  async function analyse(payload: FormData | { material: string; orient_note?: string }) {
     setError(null); setPhase("reading");
     try {
       const res = payload instanceof FormData
         ? await fetch("/api/commission", { method: "POST", body: payload })
         : await fetch("/api/commission", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...payload, source_label: "Described challenge" }) });
       const json = await res.json().catch(() => ({}));
-      if (!res.ok) { setError(json.error ?? "Something went wrong. Try again."); setPhase(result ? nextPhase : "ask"); return; }
-      setResult(json); setReorienting(false); setOrientNote(""); setCorrecting(false); setClarify(""); setCorrection(""); setShowWorking(false);
-      setPhase(nextPhase);
-    } catch { setError("Something went wrong. Try again."); setPhase(result ? nextPhase : "ask"); }
+      if (!res.ok) { setError(json.error ?? "Something went wrong. Try again."); setPhase(result ? "summary" : "ask"); return; }
+      setResult(json); setCorrecting(false); setCorrection(""); setShowWorking(false);
+      setPhase("summary");
+    } catch { setError("Something went wrong. Try again."); setPhase(result ? "summary" : "ask"); }
   }
 
   function begin() {
     if (!hasSomething) return;
     const material = assembleMaterial();
-    if (files.length) { const fd = new FormData(); fd.append("material", material); files.forEach(f => fd.append("file", f)); analyse(fd, "orient"); }
-    else analyse({ material }, "orient");
+    if (files.length) { const fd = new FormData(); fd.append("material", material); files.forEach(f => fd.append("file", f)); analyse(fd); }
+    else analyse({ material });
   }
 
-  function reOrient(note: string) { if (result && note.trim()) analyse({ material: result.source_text, orient_note: note.trim() }, "orient"); }
-  function reconsider(note: string) { if (result && note.trim()) analyse({ material: result.source_text, correction: note.trim(), context: result.context }, "reframe"); }
+  function reconsider(note: string) { if (result && note.trim()) analyse({ material: result.source_text, orient_note: note.trim() }); }
 
   async function beginEngagement() {
     if (!result) return;
@@ -150,10 +145,10 @@ export default function NewEngagementPage() {
     try {
       const res = await fetch("/api/research-projects", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       const json = await res.json().catch(() => ({}));
-      if (!res.ok || !json.data?.id) { setError(json.error ?? "Couldn't begin the engagement. Try again."); setPhase("reframe"); return; }
+      if (!res.ok || !json.data?.id) { setError(json.error ?? "Couldn't begin the engagement. Try again."); setPhase("summary"); return; }
       stashCommissioned(seedFromCreated(json.data));
       router.push(`/research-projects/${json.data.id}/overview`);
-    } catch { setError("Couldn't begin the engagement. Try again."); setPhase("reframe"); }
+    } catch { setError("Couldn't begin the engagement. Try again."); setPhase("summary"); }
   }
 
   const ctxFields = result ? ENGAGEMENT_CONTEXT_FIELDS.map(f => ({ label: f.label, value: (result.context as unknown as Record<string, string | null>)[f.key] })).filter(f => f.value) : [];
@@ -165,7 +160,7 @@ export default function NewEngagementPage() {
           <Link href="/research-projects" className="text-sm text-gray-400 hover:text-gray-600 transition-colors">← Research Projects</Link>
         </div>
 
-        <div className="flex-1 flex items-center justify-center px-6 py-16">
+        <div className={`flex-1 flex justify-center px-6 ${phase === "summary" ? "items-start pt-10 pb-28" : "items-center py-16"}`}>
           <div className="w-full max-w-2xl">
 
             {phase === "ask" && (
@@ -243,130 +238,53 @@ export default function NewEngagementPage() {
               </div>
             )}
 
-            {/* ORIENT — the visible, correctable beat. Fanometrix says back what it
-                thinks the engagement IS, before it reads anything closely. */}
-            {phase === "orient" && result && (
-              <>
-                <p className="text-[13px] font-semibold uppercase tracking-[0.14em] mb-4" style={{ color: GOLD_INK }}>Before I dig in</p>
-                <p className="text-[22px] md:text-[26px] font-medium tracking-[-0.01em] leading-[1.45]" style={{ color: INK }}>{result.context.orientation || "Here's how I read the situation."}</p>
+            {/* SUMMARY — one editorial document. The insight leads, the tension and
+                the decisive factors dominate, the user decides, and only then does
+                supporting material (reasoning, what to verify, the engagement
+                metadata) earn attention, in sequence. Not a dashboard. */}
+            {phase === "summary" && result && (() => {
+              const toVerify = Array.from(new Set([...result.context.outstanding_questions, ...result.reframe.clarifying_questions]));
+              return (
+              <article>
+                <p className="text-[12px] font-semibold uppercase tracking-[0.16em] mb-5" style={{ color: GOLD_INK }}>{result.reframe.engagement_name}</p>
 
+                {/* THE INSIGHT — Fanometrix's point of view, the headline. */}
+                <p className="text-[25px] md:text-[30px] font-medium tracking-[-0.02em] leading-[1.32]" style={{ color: INK }}>{result.reframe.reframe}</p>
+
+                {/* THE TENSION — the central conflict. */}
                 {result.context.strategic_tension && (
-                  <div className="mt-7 rounded-2xl border-l-2 pl-5 pr-4 py-4" style={{ borderColor: GOLD, background: "#FCF8EF" }}>
+                  <div className="mt-8 border-l-2 pl-5" style={{ borderColor: GOLD }}>
                     <p className="text-[11px] font-semibold uppercase tracking-[0.08em] mb-1.5" style={{ color: GOLD_INK }}>The tension at the heart of it</p>
-                    <p className="text-[17px] md:text-[18px] leading-[1.5] font-medium" style={{ color: INK }}>{result.context.strategic_tension}</p>
+                    <p className="text-[18px] md:text-[19px] leading-[1.5] font-medium" style={{ color: INK }}>{result.context.strategic_tension}</p>
                   </div>
                 )}
 
-                {ctxFields.length > 0 && (
-                  <dl className="mt-7 grid sm:grid-cols-2 gap-x-8 gap-y-3">
-                    {ctxFields.map(f => (
-                      <div key={f.label}>
-                        <dt className="text-[11px] font-semibold uppercase tracking-[0.05em] text-gray-400">{f.label}</dt>
-                        <dd className="text-[15px] leading-snug mt-0.5" style={{ color: INK }}>{f.value}</dd>
-                      </div>
-                    ))}
-                  </dl>
-                )}
-
-                {result.context.signals.length > 0 && (
-                  <div className="mt-7">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.05em] text-gray-400">Why I&apos;m seeing it this way</p>
-                    <ul className="mt-1.5 space-y-1.5">
-                      {result.context.signals.map((s, i) => (
-                        <li key={i} className="text-[14px] text-gray-500 leading-relaxed flex gap-2"><span style={{ color: GOLD }}>·</span><span>{s}</span></li>
+                {/* THE WEIGHTING — the one or two factors that will decide it. */}
+                {result.context.decisive_factors.length > 0 && (
+                  <div className="mt-9">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.08em] mb-3" style={{ color: GOLD_INK }}>What will decide this engagement</p>
+                    <ul className="space-y-3">
+                      {result.context.decisive_factors.map((d, i) => (
+                        <li key={i} className="flex gap-3.5 items-start">
+                          <span className="shrink-0 mt-0.5 w-6 h-6 rounded-full grid place-items-center text-[12px] font-bold" style={{ background: "#FCF8EF", color: GOLD_INK, border: `1px solid ${GOLD}` }}>{i + 1}</span>
+                          <span className="text-[17px] md:text-[18px] leading-[1.45] font-medium" style={{ color: INK }}>{d}</span>
+                        </li>
                       ))}
                     </ul>
                   </div>
                 )}
 
-                {result.context.outstanding_questions.length > 0 && (
-                  <div className="mt-6">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.05em] text-gray-400">Before I&apos;d recommend anything</p>
-                    <ul className="mt-1.5 space-y-1">
-                      {result.context.outstanding_questions.map((q, i) => (
-                        <li key={i} className="text-[14px] text-gray-500 leading-relaxed flex gap-2"><span style={{ color: GOLD }}>·</span><span>{q}</span></li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-
-                <div className="mt-8">
-                  {!reorienting ? (
-                    <div className="flex flex-wrap items-center gap-2.5">
-                      <button onClick={() => setPhase("reframe")} className="text-sm font-semibold px-5 py-2.5 rounded-lg" style={{ background: GOLD, color: INK }}>Yes, that&apos;s the shape of it →</button>
-                      <button onClick={() => setReorienting(true)} className="text-sm font-medium px-4 py-2.5 rounded-lg border" style={{ borderColor: "#E5E7EB", color: INK }}>Actually, let me correct that</button>
-                    </div>
-                  ) : (
-                    <div className="rounded-2xl border p-5" style={{ borderColor: "#E5E7EB", background: "#FFFFFF" }}>
-                      <p className="text-sm font-semibold" style={{ color: INK }}>Put me right. What have I misread about the engagement?</p>
-                      <textarea value={orientNote} onChange={(e) => setOrientNote(e.target.value)} rows={2} autoFocus placeholder="e.g. this is European, not global, and the agency is pitching, it isn't the client&apos;s own brief…"
-                        className="w-full mt-3 resize-none rounded-lg border px-3 py-2 text-[15px] outline-none placeholder:text-gray-400" style={{ borderColor: "#E5E7EB", color: INK }} />
-                      <div className="flex justify-end gap-2 mt-3">
-                        <button onClick={() => { setReorienting(false); setOrientNote(""); }} className="text-sm text-gray-400 hover:text-gray-600 px-3 py-2">Cancel</button>
-                        <button onClick={() => reOrient(orientNote)} disabled={!orientNote.trim()} className="text-sm font-semibold px-4 py-2 rounded-lg transition-opacity disabled:opacity-40" style={{ background: GOLD, color: INK }}>Re-orient →</button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {error && <p className="mt-4 text-[13px]" style={{ color: "#8A4B33" }}>{error}</p>}
-                <button onClick={() => { setPhase("ask"); setResult(null); setReorienting(false); }} className="mt-6 text-sm text-gray-400 hover:text-gray-600 transition-colors">← start over</button>
-              </>
-            )}
-
-            {/* INTERPRET — the read, formed through the confirmed lens. */}
-            {phase === "reframe" && result && (
-              <>
-                <p className="text-[13px] font-semibold uppercase tracking-[0.12em] mb-4" style={{ color: GOLD_INK }}>{result.reframe.engagement_name}</p>
-                <p className="text-[22px] md:text-[26px] font-medium tracking-[-0.01em] leading-[1.45]" style={{ color: INK }}>{result.reframe.reframe}</p>
-
-                {result.reframe.clarifying_questions.length > 0 && (
-                  <div className="mt-8 rounded-2xl border p-5" style={{ borderColor: "#ECDCB8", background: "#FCF8EF" }}>
-                    <p className="text-sm font-semibold" style={{ color: GOLD_INK }}>A couple of things would sharpen this for me:</p>
-                    <ul className="mt-2.5 space-y-1.5">
-                      {result.reframe.clarifying_questions.map((q, i) => (
-                        <li key={i} className="text-[15px] leading-relaxed flex gap-2" style={{ color: INK }}><span style={{ color: GOLD }}>·</span><span>{q}</span></li>
-                      ))}
-                    </ul>
-                    <textarea value={clarify} onChange={(e) => setClarify(e.target.value)} rows={3} placeholder="Fill me in, a line or two is plenty…"
-                      className="w-full mt-4 resize-none rounded-lg border px-3 py-2 text-[15px] outline-none bg-white placeholder:text-gray-400" style={{ borderColor: "#E5E7EB", color: INK }} />
-                    <div className="flex justify-end mt-3">
-                      <button onClick={() => reconsider(clarify)} disabled={!clarify.trim()} className="text-sm font-semibold px-4 py-2 rounded-lg transition-opacity disabled:opacity-40" style={{ background: GOLD, color: INK }}>Sharpen my read →</button>
-                    </div>
-                  </div>
-                )}
-
-                <div className="mt-8 border-t pt-5" style={{ borderColor: "#F1F3F5" }}>
-                  <button onClick={() => setShowWorking(v => !v)} className="text-[13px] font-medium text-gray-400 hover:text-gray-600 transition-colors">
-                    {showWorking ? "Hide the reasoning" : "Why I've come to this view"} {showWorking ? "▲" : "▾"}
-                  </button>
-                  {showWorking && (
-                    <dl className="mt-4 space-y-3">
-                      {UNDERSTANDING_FIELDS.map(({ key, label }) => {
-                        const v = fieldValue(result.understanding, key);
-                        if (!v.text) return null;
-                        return (
-                          <div key={key} className="grid md:grid-cols-[170px_1fr] gap-1 md:gap-3">
-                            <dt className="text-[11px] font-semibold uppercase tracking-[0.05em] text-gray-400 pt-0.5">{label}</dt>
-                            <dd className="text-sm text-gray-600 leading-relaxed">{v.text}{v.inferred && <span className="text-gray-300"> · inferred</span>}</dd>
-                          </div>
-                        );
-                      })}
-                    </dl>
-                  )}
-                </div>
-
-                <div className="mt-8">
+                {/* THE DECISION. */}
+                <div className="mt-10">
                   {!correcting ? (
                     <div className="flex flex-wrap items-center gap-2.5">
-                      <button onClick={beginEngagement} className="text-sm font-semibold px-5 py-2.5 rounded-lg" style={{ background: GOLD, color: INK }}>Yes, that&apos;s it. Let&apos;s begin →</button>
-                      <button onClick={() => setCorrecting(true)} className="text-sm font-medium px-4 py-2.5 rounded-lg border" style={{ borderColor: "#E5E7EB", color: INK }}>Almost, I&apos;d change something</button>
-                      <button onClick={() => setPhase("orient")} className="text-sm font-medium px-4 py-2.5 text-gray-400 hover:text-gray-600 transition-colors">← back to orientation</button>
+                      <button onClick={beginEngagement} className="text-sm font-semibold px-5 py-2.5 rounded-lg" style={{ background: GOLD, color: INK }}>Yes, this is the engagement. Let&apos;s begin →</button>
+                      <button onClick={() => setCorrecting(true)} className="text-sm font-medium px-4 py-2.5 rounded-lg border" style={{ borderColor: "#E5E7EB", color: INK }}>Not quite, let me put you right</button>
                     </div>
                   ) : (
                     <div className="rounded-2xl border p-5" style={{ borderColor: "#E5E7EB", background: "#FFFFFF" }}>
-                      <p className="text-sm font-semibold" style={{ color: INK }}>Tell me where I&apos;ve got it wrong, I&apos;ll think again.</p>
-                      <textarea value={correction} onChange={(e) => setCorrection(e.target.value)} rows={3} autoFocus placeholder="What&apos;s off, or what am I missing…"
+                      <p className="text-sm font-semibold" style={{ color: INK }}>Put me right, I&apos;ll think it through again.</p>
+                      <textarea value={correction} onChange={(e) => setCorrection(e.target.value)} rows={3} autoFocus placeholder="What have I misread, the market, who's asking, the real decision, or the read itself…"
                         className="w-full mt-3 resize-none rounded-lg border px-3 py-2 text-[15px] outline-none placeholder:text-gray-400" style={{ borderColor: "#E5E7EB", color: INK }} />
                       <div className="flex justify-end gap-2 mt-3">
                         <button onClick={() => { setCorrecting(false); setCorrection(""); }} className="text-sm text-gray-400 hover:text-gray-600 px-3 py-2">Cancel</button>
@@ -374,11 +292,74 @@ export default function NewEngagementPage() {
                       </div>
                     </div>
                   )}
+                  {error && <p className="mt-4 text-[13px]" style={{ color: "#8A4B33" }}>{error}</p>}
                 </div>
 
-                {error && <p className="mt-4 text-[13px]" style={{ color: "#8A4B33" }}>{error}</p>}
-              </>
-            )}
+                {/* SUPPORTING — subordinate, below the decision, in sequence. */}
+                <div className="mt-14 pt-9 border-t space-y-9" style={{ borderColor: "#EEF0F2" }}>
+
+                  {/* Why I'm seeing it this way. */}
+                  {result.context.signals.length > 0 && (
+                    <section>
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-gray-400 mb-2">Why I&apos;m seeing it this way</p>
+                      <ul className="space-y-1.5">
+                        {result.context.signals.map((s, i) => (
+                          <li key={i} className="text-[14px] text-gray-500 leading-relaxed flex gap-2"><span style={{ color: GOLD }}>·</span><span>{s}</span></li>
+                        ))}
+                      </ul>
+                    </section>
+                  )}
+
+                  {/* What I'd want to verify. */}
+                  {toVerify.length > 0 && (
+                    <section>
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-gray-400 mb-2">Before I&apos;d recommend anything, I&apos;d want to verify</p>
+                      <ul className="space-y-1.5">
+                        {toVerify.map((q, i) => (
+                          <li key={i} className="text-[14px] text-gray-500 leading-relaxed flex gap-2"><span style={{ color: GOLD }}>·</span><span>{q}</span></li>
+                        ))}
+                      </ul>
+                    </section>
+                  )}
+
+                  {/* The engagement context — supporting evidence, most muted. */}
+                  <section>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-gray-400 mb-2.5">The engagement</p>
+                    {result.context.orientation && <p className="text-[14px] text-gray-500 leading-relaxed mb-4">{result.context.orientation}</p>}
+                    {ctxFields.length > 0 && (
+                      <dl className="grid sm:grid-cols-2 gap-x-8 gap-y-2.5">
+                        {ctxFields.map(f => (
+                          <div key={f.label}>
+                            <dt className="text-[10px] font-semibold uppercase tracking-[0.05em] text-gray-400">{f.label}</dt>
+                            <dd className="text-[14px] leading-snug mt-0.5 text-gray-600">{f.value}</dd>
+                          </div>
+                        ))}
+                      </dl>
+                    )}
+                    <button onClick={() => setShowWorking(v => !v)} className="mt-4 text-[12px] font-medium text-gray-400 hover:text-gray-600 transition-colors">
+                      {showWorking ? "Hide the full reading ▲" : "See the full reading ▾"}
+                    </button>
+                    {showWorking && (
+                      <dl className="mt-3 space-y-2.5">
+                        {UNDERSTANDING_FIELDS.map(({ key, label }) => {
+                          const v = fieldValue(result.understanding, key);
+                          if (!v.text) return null;
+                          return (
+                            <div key={key} className="grid md:grid-cols-[160px_1fr] gap-1 md:gap-3">
+                              <dt className="text-[10px] font-semibold uppercase tracking-[0.05em] text-gray-400 pt-0.5">{label}</dt>
+                              <dd className="text-[13px] text-gray-500 leading-relaxed">{v.text}{v.inferred && <span className="text-gray-300"> · inferred</span>}</dd>
+                            </div>
+                          );
+                        })}
+                      </dl>
+                    )}
+                  </section>
+                </div>
+
+                <button onClick={() => { setPhase("ask"); setResult(null); setCorrecting(false); }} className="mt-10 text-sm text-gray-400 hover:text-gray-600 transition-colors">← start over</button>
+              </article>
+              );
+            })()}
 
           </div>
         </div>

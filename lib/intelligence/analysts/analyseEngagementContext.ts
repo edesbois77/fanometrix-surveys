@@ -52,6 +52,8 @@ Fill each field. Use null for anything the situation genuinely does not support,
 
 STRATEGIC TENSION (the centre of gravity). Name the single commercial CONFLICT at the heart of this engagement, the bind the organisation is caught in, with BOTH sides in view. Not a problem statement, a genuine tension: "X, and yet Y". E.g. "Adidas owns the awareness (68% recall) but not the preference (22% vs Nike's 41%), so every euro spent on visibility widens a credibility gap it hasn't closed." This is the thread the whole engagement will pull on, so make it specific and true to THIS material, never generic. Use null only if the situation is too thin to find one.
 
+DECISIVE FACTORS (weighting, the most important judgement you make here). Do NOT treat everything you've inferred as equally important. Name the ONE or TWO factors most likely to DETERMINE whether this engagement succeeds or fails, the things that, if they go wrong, sink it regardless of everything else. Not a list of everything that matters, the pivotal few. Each a short, sharp phrase a partner would circle on the page. E.g. "Proving the campaign moves preference, not just reach" or "Winning the European board's trust inside six weeks". Give 1, ideally, or at most 2. Everything else becomes supporting context beneath these.
+
 SIGNALS ("why I'm seeing it this way"). Give 2 to 4 plain-language reasons that name the SPECIFIC thing in the material that led you here, so the reader can validate your interpretation at a glance. Each names a concrete signal (a number, an exact phrase, an aside, who wrote what) and what it told you. E.g. "The brand lead's email frames this as the deck that unlocks the board budget, so the real decision is investment, not messaging." This is transparency, NOT chain-of-thought, keep each to one sentence.
 
 ORIENTATION (the spoken part): write ONE or TWO plain sentences, first person, that you would actually say back across the table before digging in, to check you've understood what this engagement is. Name the organisation, the market, and the real decision. Make it unmistakably about THIS engagement, never generic. Example of the SHAPE (different work, model the style not the content): "So this is a partner pitch for Adidas in Europe, the World Cup is the backdrop rather than the subject, and the real question is how Adidas wins ground on Nike in European markets. Have I got that right?" End with a short check like "Have I got that right?".
@@ -67,6 +69,7 @@ Return ONLY valid JSON:
 {
   "orientation": "one or two sentences, spoken back",
   "strategic_tension": "the commercial conflict at the heart, both sides named"|null,
+  "decisive_factors": ["the 1-2 factors most likely to decide success"],
   "engagement_type": "..."|null, "organisation": "..."|null, "commissioner": "..."|null,
   "decision": "the executive decision to be made"|null, "commercial_objective": "..."|null, "market": "..."|null, "intended_audience": "..."|null,
   "available_materials": [ { "label": "...", "type": "client_brief|agency_pitch|email|meeting_notes|existing_research|proposal|commercial|concern|described|other", "note": "..." } ],
@@ -109,6 +112,7 @@ export async function analyseEngagementContext(input: OrientInput): Promise<Enga
   return {
     orientation: stripEmDash(clean(raw.orientation)),
     strategic_tension: nullable(raw.strategic_tension),
+    decisive_factors: strList(raw.decisive_factors, 2),
     engagement_type: nullable(raw.engagement_type),
     organisation: nullable(raw.organisation),
     commissioner: nullable(raw.commissioner),
