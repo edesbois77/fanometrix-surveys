@@ -17,6 +17,7 @@ export const CONTENT_KINDS: Record<string, ContentKindMeta> = {
   comment: { singular: "comment", plural: "comments", conversation: true  },
   post:    { singular: "post",    plural: "posts",    conversation: true  },
   reply:   { singular: "reply",   plural: "replies",  conversation: true  },
+  quote:   { singular: "quote post", plural: "quote posts", conversation: true  },
   article: { singular: "article", plural: "articles", conversation: true  },
   thread:  { singular: "thread",  plural: "threads",  conversation: true  },
   trend:   { singular: "trend",   plural: "trends",   conversation: false },

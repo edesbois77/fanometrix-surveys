@@ -24,6 +24,13 @@ export const CONNECTOR_CATALOG: ConnectorCatalogEntry[] = [
     ],
   },
   {
+    id: "bluesky", platformIds: ["bluesky"], name: "Bluesky",
+    advanced: [
+      { key: "max_posts", type: "number", label: "Max posts per run", help: "Matched posts; replies and quote posts are collected on top.", default: 60 },
+      { key: "replies_per_post", type: "number", label: "Replies per post", help: "Replies and quote posts carry the richest discussion.", default: 25 },
+    ],
+  },
+  {
     id: "news", platformIds: ["news"], name: "News",
     advanced: [
       { key: "max_articles", type: "number", label: "Max articles per run", help: "Editorial coverage is headline-level; higher collects more outlets.", default: 50 },

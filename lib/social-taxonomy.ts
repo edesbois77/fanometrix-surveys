@@ -46,6 +46,7 @@ export const RESEARCH_GOAL_LABELS: Record<string, string> = {
 // A one-line description of what each source contributes.
 export const SOURCE_DESCRIPTIONS: Record<string, string> = {
   "YouTube": "Video conversations",
+  "Bluesky": "Posts, replies and quote posts",
   "Reddit": "Community discussions",
   "News": "Editorial coverage",
   "Google Trends": "Search behaviour",
@@ -55,6 +56,7 @@ export const SOURCE_DESCRIPTIONS: Record<string, string> = {
 };
 
 export const PLATFORMS = [
+  { id: "Bluesky",       label: "Bluesky",        defaultOn: true  },
   { id: "Reddit",        label: "Reddit",         defaultOn: true  },
   { id: "YouTube",       label: "YouTube",         defaultOn: true  },
   { id: "News",          label: "News",            defaultOn: true  },
