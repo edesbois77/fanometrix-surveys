@@ -5,13 +5,17 @@ import type { SurveyResponse } from "@/lib/types";
 import { getMetric } from "@/lib/metrics";
 import { MetricInfo } from "@/app/components/metrics/MetricInfo";
 
+// A count is `null` when the query behind it could not be computed (e.g. the
+// statement timeout cancelled it). That is NOT zero, and the cards must not say
+// it is — null renders as "—" with an explanatory note, never as a figure.
 export type EventCounts = {
-  renders:    number;  // SURVEY_RENDER = loads / impressions
-  viewable?:  number;  // SURVEY_VISIBLE = viewable impressions (from this release)
-  starts:     number;
-  q2_reached: number;
-  q3_reached: number;
-  completed:  number;
+  renders:    number | null;  // SURVEY_RENDER = loads / impressions
+  viewable?:  number | null;  // SURVEY_VISIBLE = viewable impressions (from this release)
+  starts:     number | null;
+  q2_reached: number | null;
+  q3_reached: number | null;
+  completed:  number | null;
+  degraded?:  boolean;        // at least one count above is null
   // Events-based timing (see lib/survey-timing.ts). Completion is full-history;
   // TTFI is forward-only from the SURVEY_VISIBLE release. null = no sample.
   avg_completion_seconds?: number | null;
@@ -20,7 +24,10 @@ export type EventCounts = {
   ttfi_sample?:            number;
 };
 
-function pct(num: number, denom: number): string {
+// Every rate helper takes `number | null`: a null operand means the underlying
+// count is unavailable, so the rate is unknown ("—") rather than 0%.
+function pct(num: number | null, denom: number | null): string {
+  if (num === null || denom === null) return "—";
   if (!denom) return "—";
   if (!num)   return "0%";
   const v = (num / denom) * 100;
@@ -29,20 +36,22 @@ function pct(num: number, denom: number): string {
 
 // Same as pct() but with one extra decimal of precision, for low-magnitude
 // rates (Q1 Answer Rate, Response Rate) where "0.1%"/"<0.1%" loses signal.
-function pctPrecise(num: number, denom: number): string {
+function pctPrecise(num: number | null, denom: number | null): string {
+  if (num === null || denom === null) return "—";
   if (!denom) return "—";
   if (!num)   return "0%";
   const v = (num / denom) * 100;
   return v < 0.01 ? "<0.01%" : `${v.toFixed(v < 10 ? 2 : 1)}%`;
 }
 
-function fmt(n: number): string {
-  return n.toLocaleString();
+function fmt(n: number | null): string {
+  return n === null ? "—" : n.toLocaleString();
 }
 
 // Drop-off from the previous stage — the inverse of the conversion rate. Shown
 // on the subtle connectors between pipeline stages (e.g. "−55%").
-function dropOf(num: number, denom: number): string {
+function dropOf(num: number | null, denom: number | null): string {
+  if (num === null || denom === null) return "—";
   if (!denom) return "—";
   const drop = Math.max(0, 100 - (num / denom) * 100);
   if (drop === 0) return "0%";
@@ -111,7 +120,7 @@ function MetricCard({
 
 type PipelineStage = {
   label: string;
-  count: number;
+  count: number | null;  // null = the count for this stage is unavailable
   conv:  string | null;  // "45% of previous" — null for the first stage
   drop:  string | null;  // "−55%" — shown on the connector before this stage
 };
@@ -321,21 +330,27 @@ export function KpiCards({ responses, events, eventsLoading }: KpiCardsProps) {
   const completionValue  = avgCompletion != null && completionSample > 0 ? `${avgCompletion}s` : "—";
   const ttfiValue        = avgTtfi != null && ttfiSample > 0 ? `${avgTtfi}s` : "—";
 
-  const renders     = events?.renders    ?? 0;  // loads / impressions
-  const viewable    = events?.viewable   ?? 0;  // viewable impressions (from this release)
-  const starts      = events?.starts     ?? 0;
-  const q2Reached   = events?.q2_reached ?? 0;
-  const q3Reached   = events?.q3_reached ?? 0;
-  const evCompleted = events?.completed  ?? 0;
+  // `?? null`, never `?? 0` — an absent or failed count is unknown, not zero.
+  const renders     = events?.renders    ?? null;  // loads / impressions
+  const viewable    = events?.viewable   ?? null;  // viewable impressions (from this release)
+  const starts      = events?.starts     ?? null;
+  const q2Reached   = events?.q2_reached ?? null;
+  const q3Reached   = events?.q3_reached ?? null;
+  const evCompleted = events?.completed  ?? null;
 
   // Viewability = viewable ÷ loads. SURVEY_VISIBLE is forward-only, so a zero
   // viewable count means "no viewable data yet" (render "—") rather than 0%.
-  const viewabilityValue = viewable > 0 ? pctPrecise(viewable, renders) : "—";
+  const viewabilityValue = viewable !== null && viewable > 0 ? pctPrecise(viewable, renders) : "—";
 
   const hasEvents = !eventsLoading && events !== null;
 
+  // One or more counts came back unavailable (query cancelled server-side).
+  const degraded = hasEvents && (events?.degraded === true ||
+    [renders, starts, q2Reached, q3Reached, evCompleted].some(v => v === null));
+
   // When events are loaded but renders=0 and starts=0 yet responses exist,
   // the data predates event tracking. Show — instead of misleading zeros.
+  // A null count is not 0, so a failed query never masquerades as legacy data.
   const isLegacyData = hasEvents && renders === 0 && starts === 0 && completed > 0;
 
   const showEventValue = hasEvents && !isLegacyData;
@@ -343,7 +358,9 @@ export function KpiCards({ responses, events, eventsLoading }: KpiCardsProps) {
   const startRate      = pctPrecise(starts,      renders);
   const completionRate = pct(evCompleted, starts);
   const responseRate   = pctPrecise(evCompleted, renders);
-  const funnelCompleted = showEventValue ? evCompleted : completed;
+  // Fall back to the response-row count when the event count is unavailable —
+  // completed responses are a reliable figure independent of survey_events.
+  const funnelCompleted = showEventValue && evCompleted !== null ? evCompleted : completed;
 
   const legacyFullCount = responses.filter(r => r.q1 && r.q2 && r.q3).length;
   const legacyCompRate  = completed > 0 ? `${Math.round((legacyFullCount / completed) * 100)}%` : "—";
@@ -370,19 +387,19 @@ export function KpiCards({ responses, events, eventsLoading }: KpiCardsProps) {
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
           <MetricCard
             metricId="impressions_loads"
-            value={showEventValue ? renders : "—"}
-            sub="every ad load served"
+            value={showEventValue && renders !== null ? renders : "—"}
+            sub={renders === null && hasEvents ? "count unavailable" : "every ad load served"}
           />
           <MetricCard
             metricId="impressions_viewable"
-            value={showEventValue ? (viewable > 0 ? viewable : "—") : "—"}
-            sub={viewable > 0 ? "scrolled into view" : "available from this release"}
+            value={showEventValue && viewable !== null && viewable > 0 ? viewable : "—"}
+            sub={viewable !== null && viewable > 0 ? "scrolled into view" : "available from this release"}
           />
           <MetricCard
             metricId="viewability_rate"
             value={showEventValue ? viewabilityValue : "—"}
-            sub={viewable > 0 ? "Viewable ÷ Loads" : "available from this release"}
-            highlight={showEventValue && viewable > 0}
+            sub={viewable !== null && viewable > 0 ? "Viewable ÷ Loads" : "available from this release"}
+            highlight={showEventValue && viewable !== null && viewable > 0}
             infoAlign="right"
           />
         </div>
@@ -394,8 +411,8 @@ export function KpiCards({ responses, events, eventsLoading }: KpiCardsProps) {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <MetricCard
             metricId="q1_answered"
-            value={showEventValue ? starts : "—"}
-            sub="first answer selected"
+            value={showEventValue && starts !== null ? starts : "—"}
+            sub={starts === null && hasEvents ? "count unavailable" : "first answer selected"}
           />
           <MetricCard
             metricId="q1_answer_rate"
@@ -412,6 +429,9 @@ export function KpiCards({ responses, events, eventsLoading }: KpiCardsProps) {
         </div>
         {eventsLoading && (
           <p className="text-xs text-gray-400 mt-1">Loading event data…</p>
+        )}
+        {degraded && (
+          <ZeroNotice message="Some event counts could not be computed in time and are shown as —. The figures that did load are accurate. Use Refresh to try again, or narrow the date range." />
         )}
         {isLegacyData && (
           <ZeroNotice message="Impressions and Q1 metrics are not available for historical responses collected before event tracking was enabled." />

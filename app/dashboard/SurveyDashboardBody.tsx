@@ -48,6 +48,16 @@ type CampaignInfo = {
   created_at:      string;
 };
 
+// A genuinely empty funnel: the current scope resolves to no campaigns, so every
+// stage really is zero. Set locally instead of calling the API, which would have
+// to be sent an empty campaign list and would read as "unscoped".
+const EMPTY_EVENT_COUNTS: EventCounts = {
+  renders: 0, viewable: 0, starts: 0, q2_reached: 0, q3_reached: 0, completed: 0,
+  degraded: false,
+  avg_completion_seconds: null, avg_ttfi_seconds: null,
+  completion_sample: 0, ttfi_sample: 0,
+};
+
 type SurveyOption  = { id: string; name: string };
 type GroupOption   = { id: string; group_id: string; name: string; campaign_ids: string[] };
 type ScopeProject  = { id: string; project_name: string; research_mode: "real" | "simulated" };
@@ -285,21 +295,42 @@ export function SurveyDashboardBody({ projectId }: { projectId?: string }) {
 
   // Fetch event counts — re-runs when filters, date bounds, campaign content,
   // or an explicit Refresh change (never on bare array-reference churn).
+  //
+  // Gated on hasLoaded: the campaign list defines the scope of these queries, so
+  // firing before it arrives would send NO campaign_ids and count every campaign
+  // in the database. In the project host that briefly painted another project's
+  // totals over this project's dashboard before the scoped result replaced them;
+  // it also doubled the query load on the largest table in the product. One load
+  // now means one scoped funnel fetch.
   useEffect(() => {
-    const p = new URLSearchParams();
-    if (filters.campaign_id) {
-      p.set("campaign_id", filters.campaign_id);
-    } else if (filters.survey_id) {
-      const ids = campaigns
-        .filter(c => c.effective_survey_id === filters.survey_id)
-        .map(c => c.campaign_id);
-      if (ids.length) p.set("campaign_ids", ids.join(","));
-    } else if (isProject) {
-      // Project host, no in-page filter: scope the funnel to this project's
-      // campaigns so the KPI event counts match the project-scoped responses.
-      const ids = campaigns.map(c => c.campaign_id);
-      if (ids.length) p.set("campaign_ids", ids.join(","));
+    if (!hasLoaded) return;
+
+    // The campaign slugs to scope by. null = deliberately unscoped (global host
+    // with no campaign/survey filter). An EMPTY list means "a scope was asked
+    // for but matches no campaigns" — the funnel is then empty by definition and
+    // must NOT fall through to an unscoped query.
+    let scopeIds: string[] | null = null;
+    if (!filters.campaign_id) {
+      if (filters.survey_id) {
+        scopeIds = campaigns
+          .filter(c => c.effective_survey_id === filters.survey_id)
+          .map(c => c.campaign_id);
+      } else if (isProject) {
+        // Project host, no in-page filter: scope the funnel to this project's
+        // campaigns so the KPI event counts match the project-scoped responses.
+        scopeIds = campaigns.map(c => c.campaign_id);
+      }
     }
+    if (scopeIds && scopeIds.length === 0) {
+      setEventCounts(EMPTY_EVENT_COUNTS);
+      setRenderSeries(null);
+      setEventsLoading(false);
+      return;
+    }
+
+    const p = new URLSearchParams();
+    if (filters.campaign_id) p.set("campaign_id",  filters.campaign_id);
+    else if (scopeIds)       p.set("campaign_ids", scopeIds.join(","));
 
     if (filters.publisher) p.set("publisher", filters.publisher);
     if (filters.placement) p.set("placement", filters.placement);
@@ -326,7 +357,7 @@ export function SurveyDashboardBody({ projectId }: { projectId?: string }) {
       .then(data => setRenderSeries(data ?? null))
       .catch(() => setRenderSeries(null));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters.campaign_id, filters.survey_id, filters.publisher, filters.placement, filters.country, filters.device, filters.browser, datePreset, dateFrom, dateTo, campaignsKey, refreshNonce]);
+  }, [hasLoaded, filters.campaign_id, filters.survey_id, filters.publisher, filters.placement, filters.country, filters.device, filters.browser, datePreset, dateFrom, dateTo, campaignsKey, refreshNonce]);
 
   const activeCampaign = useMemo(
     () => campaigns.find(c => c.campaign_id === filters.campaign_id) ?? null,
