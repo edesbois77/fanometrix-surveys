@@ -295,25 +295,15 @@ export default function NewEngagementPage() {
                   {error && <p className="mt-4 text-[13px]" style={{ color: "#8A4B33" }}>{error}</p>}
                 </div>
 
-                {/* SUPPORTING — subordinate, below the decision, in sequence. */}
+                {/* SUPPORTING — subordinate, below the decision, in sequence. Each
+                    line either sharpens the engagement or moves it forward; nothing
+                    exists only to explain the reasoning. */}
                 <div className="mt-14 pt-9 border-t space-y-9" style={{ borderColor: "#EEF0F2" }}>
 
-                  {/* Why I'm seeing it this way. */}
-                  {result.context.signals.length > 0 && (
-                    <section>
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-gray-400 mb-2">Why I&apos;m seeing it this way</p>
-                      <ul className="space-y-1.5">
-                        {result.context.signals.map((s, i) => (
-                          <li key={i} className="text-[14px] text-gray-500 leading-relaxed flex gap-2"><span style={{ color: GOLD }}>·</span><span>{s}</span></li>
-                        ))}
-                      </ul>
-                    </section>
-                  )}
-
-                  {/* What I'd want to verify. */}
+                  {/* What we'll settle before starting. */}
                   {toVerify.length > 0 && (
                     <section>
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-gray-400 mb-2">Before I&apos;d recommend anything, I&apos;d want to verify</p>
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-gray-400 mb-2">What we&apos;ll settle before starting</p>
                       <ul className="space-y-1.5">
                         {toVerify.map((q, i) => (
                           <li key={i} className="text-[14px] text-gray-500 leading-relaxed flex gap-2"><span style={{ color: GOLD }}>·</span><span>{q}</span></li>
@@ -322,9 +312,9 @@ export default function NewEngagementPage() {
                     </section>
                   )}
 
-                  {/* The engagement context — supporting evidence, most muted. */}
+                  {/* The engagement, in brief. Supporting evidence, most muted. */}
                   <section>
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-gray-400 mb-2.5">The engagement</p>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-gray-400 mb-2.5">The engagement, in brief</p>
                     {result.context.orientation && <p className="text-[14px] text-gray-500 leading-relaxed mb-4">{result.context.orientation}</p>}
                     {ctxFields.length > 0 && (
                       <dl className="grid sm:grid-cols-2 gap-x-8 gap-y-2.5">
@@ -337,7 +327,7 @@ export default function NewEngagementPage() {
                       </dl>
                     )}
                     <button onClick={() => setShowWorking(v => !v)} className="mt-4 text-[12px] font-medium text-gray-400 hover:text-gray-600 transition-colors">
-                      {showWorking ? "Hide the full reading ▲" : "See the full reading ▾"}
+                      {showWorking ? "Hide the detail ▲" : "See the engagement in detail ▾"}
                     </button>
                     {showWorking && (
                       <dl className="mt-3 space-y-2.5">
