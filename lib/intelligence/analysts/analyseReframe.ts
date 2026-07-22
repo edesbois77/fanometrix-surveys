@@ -17,7 +17,12 @@ const MODEL = "gpt-4o";
 
 export type ReframeConfidence = "high" | "medium" | "low";
 
+// What the model works out BEFORE reading the document: the engagement is reasoned
+// from this, not from the brief's framing (docs/commissioning-journey.md).
+export type Commission = { who: string; decision: string; outcome: string; assignment: string };
+
 export type Reframe = {
+  commission: Commission;           // reason from the commission, not the document
   confidence: ReframeConfidence;
   engagement_name: string;          // a real title for the work, never "Untitled"
   reframe: string;                  // judgement-first, specific, position-taking
@@ -38,9 +43,13 @@ ${text.slice(0, 12000)}
 """
 ${corrected ? `\nTHE CLIENT HAS JUST PUSHED BACK / ADDED CONTEXT: "${corrected}"\nThis changes things. OPEN by briefly acknowledging what you now see differently — a genuine "You're right —" or "Ah, so it's really…" — then give your REVISED read incorporating it. Do not restate your old read; show that you listened and thought again. Adapting well here matters more than being right first time.\n` : ""}
 
-Write your read as ONE short paragraph (3–5 sentences), first person, spoken like a sharp senior strategist across the table. It MUST do all three of these or it has failed:
+REASON IN TWO STEPS.
 
-1) ANCHOR ON A SPECIFIC. Find the single most revealing detail in the material — ideally a number, a stated goal, or an exact phrase they used — and build your read AROUND it. Quote it or point right at it. ("The number that jumps out is…", "You said…"). The read must be unmistakably about THIS material.
+STEP 1, THE COMMISSION (do this FIRST, it is how you think, not filler). The material may be several things at once: a brief, a forwarded email, meeting notes, a deadline, an aside the client mentioned. From ALL of it together, work out and fill the "commission" object: who is commissioning this and for whom; the decision they are actually trying to make; the commercial outcome they are chasing; and the ACTUAL ASSIGNMENT, which often differs from what the brief literally asks for. An offhand client aside, a deadline, or a forwarded email frequently reveals the real assignment far more than the brief does. Weigh everything; do NOT just follow the brief's framing. You are someone JOINING the engagement, not someone reading a PDF.
+
+STEP 2, YOUR READ. Now give your first read, GROUNDED IN THE ASSIGNMENT you identified in step 1, never in whatever the document happens to emphasise. If the real assignment differs from the brief's stated ask, THAT GAP is the heart of your read (e.g. "on paper this is a cultural-relevance brief, but what you actually need is X"). Write ONE short paragraph (3–5 sentences), first person, like a sharp senior strategist across the table. It MUST do all of these:
+
+1) ANCHOR ON A SPECIFIC from the material, the single most revealing detail (a number, a stated goal, an exact phrase, or a telling aside) and build the read around it. Quote it or point right at it. ("The line that stops me is…", "You said…"). If a piece of context outside the brief reveals the real assignment, anchor on THAT. The read must be unmistakably about THIS engagement.
 
 2) LEAD WITH JUDGEMENT, NOT DESCRIPTION. Your FIRST sentence must be your verdict — what you think is really going on. If your first sentence restates their situation, delete it and start with the verdict.
 
@@ -65,8 +74,8 @@ A rich brief with tracking data, an objective and named markets is HIGH confiden
 
 ENGAGEMENT NAME: a strong, real title for the work (e.g. "Adidas — World Cup 2026 Cultural Relevance"), never "Untitled".
 
-Return ONLY valid JSON:
-{ "confidence": "high|medium|low", "engagement_name": "...", "reframe": "your first read, 3-5 sentences", "clarifying_questions": ["..."] }`;
+Return ONLY valid JSON (fill "commission" FIRST, then let the reframe follow from its "assignment"):
+{ "commission": { "who": "who is commissioning this, and for whom", "decision": "the decision they're trying to make", "outcome": "the commercial outcome they want", "assignment": "the actual assignment, which may differ from the brief's stated ask" }, "confidence": "high|medium|low", "engagement_name": "...", "reframe": "your first read, 3-5 sentences, grounded in commission.assignment", "clarifying_questions": ["..."] }`;
 }
 
 const clean = (v: unknown): string => (typeof v === "string" ? v.trim() : "");
@@ -83,8 +92,13 @@ export async function analyseReframe(input: ReframeInput): Promise<Reframe> {
   const conf = clean(raw.confidence).toLowerCase();
   const confidence: ReframeConfidence = conf === "high" || conf === "medium" || conf === "low" ? (conf as ReframeConfidence) : "medium";
   const questions = (Array.isArray(raw.clarifying_questions) ? raw.clarifying_questions : []).map(clean).filter(Boolean).slice(0, 3);
+  const c = (raw.commission ?? {}) as Record<string, unknown>;
 
   return {
+    commission: {
+      who: stripEmDash(clean(c.who)), decision: stripEmDash(clean(c.decision)),
+      outcome: stripEmDash(clean(c.outcome)), assignment: stripEmDash(clean(c.assignment)),
+    },
     confidence,
     engagement_name: stripEmDash(clean(raw.engagement_name)) || "New engagement",
     reframe: stripEmDash(clean(raw.reframe)),

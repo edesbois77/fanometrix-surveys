@@ -1,13 +1,14 @@
 "use client";
 
-// New Engagement — the commissioning experience (Slices 1–3).
-// 1: the opening — Fanometrix speaks first; one open space (type / paste / drop).
-// 2: it reads, and comes back with a point of view (not a summary). Low confidence
-//    → it asks questions that teach. It advises, not just interprets.
-// 3: the user reacts — that's it / almost / no. On pushback it acknowledges and
-//    re-reads. On agreement the Research Project is created SILENTLY and the page
-//    hands into the Overview with no reload and no empty flash — the understanding
-//    is seeded so the conversation simply grows into the workspace.
+// New Engagement, the Commissioning Workspace (Slices 1-3, redesigned).
+// Not a form and not a single blank box. The primary interaction stays
+// conversational ("Tell me about this engagement"), but Fanometrix actively helps
+// the user surface the fragments a real engagement begins with, an email, notes, a
+// deadline, an aside the client mentioned, a brief or prior research, through
+// OPTIONAL prompts, never mandatory fields. It reads everything together, and
+// reasons from the COMMISSION (who, what decision, what outcome, the actual
+// assignment) before forming a view. On agreement the Research Project is created
+// silently and the page hands into the Overview with no reload.
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -21,7 +22,15 @@ const GOLD = "#D7B87A";
 const GOLD_INK = "#B8935A";
 const INK = "#0B1929";
 
-const READING_LINES = ["Reading it…", "Sitting with the detail…", "Where's the real tension…", "Forming a view…"];
+const READING_LINES = ["Reading everything you've given me…", "Working out who's really asking, and to decide what…", "Sitting with the detail…", "Where's the real assignment…", "Forming a view…"];
+
+type FragKind = "email" | "notes" | "deadline" | "aside";
+const PROMPTS: { kind: FragKind; chip: string; label: string; material: string; placeholder: string }[] = [
+  { kind: "email", chip: "An email from the client", label: "Client email", material: "CLIENT EMAIL", placeholder: "Paste the email…" },
+  { kind: "notes", chip: "Notes from a meeting", label: "Meeting notes", material: "MEETING NOTES", placeholder: "What was said…" },
+  { kind: "deadline", chip: "A deadline", label: "Deadline", material: "DEADLINE", placeholder: "e.g. board budget review in 6 weeks" },
+  { kind: "aside", chip: "Something they said off the brief", label: "Off the brief", material: "OFF-BRIEF, WHAT THE CLIENT TOLD ME", placeholder: "The thing that isn't written down anywhere…" },
+];
 
 type Result = { reframe: Reframe; understanding: ProjectUnderstanding; source_text: string; source_label: string | null };
 
@@ -31,8 +40,6 @@ const fieldValue = (u: ProjectUnderstanding, key: string) => {
   return { text: isList ? (f.values ?? []).join(" · ") : (f.value ?? ""), inferred: f.provenance === "inferred" };
 };
 
-// Build a full ResearchProject from the created row + computed defaults, so the
-// Overview renders the understanding instantly on handoff (no fetch flash).
 function seedFromCreated(created: Record<string, unknown>): ResearchProject {
   return {
     ...created,
@@ -47,7 +54,9 @@ function seedFromCreated(created: Record<string, unknown>): ResearchProject {
 export default function NewEngagementPage() {
   const router = useRouter();
   const [text, setText] = useState("");
-  const [file, setFile] = useState<File | null>(null);
+  const [frags, setFrags] = useState<Record<FragKind, string>>({ email: "", notes: "", deadline: "", aside: "" });
+  const [openFrags, setOpenFrags] = useState<FragKind[]>([]);
+  const [files, setFiles] = useState<File[]>([]);
   const [dragging, setDragging] = useState(false);
   const [phase, setPhase] = useState<"ask" | "reading" | "reframe" | "creating">("ask");
   const [result, setResult] = useState<Result | null>(null);
@@ -59,26 +68,34 @@ export default function NewEngagementPage() {
   const [showWorking, setShowWorking] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const hasSomething = text.trim().length > 0 || !!file;
+  const hasSomething = text.trim().length > 0 || files.length > 0 || PROMPTS.some(p => frags[p.kind].trim());
 
   useEffect(() => {
     if (phase !== "reading") return;
     setReadingIdx(0);
-    const t = setInterval(() => setReadingIdx(i => (i + 1) % READING_LINES.length), 1300);
+    const t = setInterval(() => setReadingIdx(i => (i + 1) % READING_LINES.length), 1400);
     return () => clearInterval(t);
   }, [phase]);
 
-  function onDrop(e: React.DragEvent) {
-    e.preventDefault(); setDragging(false);
-    const f = e.dataTransfer.files?.[0]; if (f) setFile(f);
+  function addFiles(list: FileList | null) {
+    if (!list) return;
+    setFiles(prev => [...prev, ...Array.from(list)]);
+  }
+  function onDrop(e: React.DragEvent) { e.preventDefault(); setDragging(false); addFiles(e.dataTransfer.files); }
+  function openFrag(kind: FragKind) { setOpenFrags(prev => prev.includes(kind) ? prev : [...prev, kind]); }
+
+  function assembleMaterial(): string {
+    const parts = [text.trim()];
+    for (const p of PROMPTS) { const v = frags[p.kind].trim(); if (v) parts.push(`${p.material}:\n${v}`); }
+    return parts.filter(Boolean).join("\n\n");
   }
 
-  async function analyse(input: { file: File } | { text: string; correction?: string; sourceLabel?: string | null }) {
+  async function analyse(payload: FormData | { material: string; correction?: string }) {
     setError(null); setCorrecting(false); setPhase("reading");
     try {
-      const res = "file" in input
-        ? await fetch("/api/commission", { method: "POST", body: (() => { const fd = new FormData(); fd.append("file", input.file); return fd; })() })
-        : await fetch("/api/commission", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: input.text, correction: input.correction ?? null, source_label: input.sourceLabel ?? "Described challenge" }) });
+      const res = payload instanceof FormData
+        ? await fetch("/api/commission", { method: "POST", body: payload })
+        : await fetch("/api/commission", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ material: payload.material, correction: payload.correction ?? null, source_label: "Described challenge" }) });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) { setError(json.error ?? "Something went wrong. Try again."); setPhase(result ? "reframe" : "ask"); return; }
       setResult(json); setClarify(""); setCorrection(""); setShowWorking(false); setPhase("reframe");
@@ -87,21 +104,20 @@ export default function NewEngagementPage() {
 
   function begin() {
     if (!hasSomething) return;
-    if (file) analyse({ file }); else analyse({ text: text.trim() });
+    const material = assembleMaterial();
+    if (files.length) { const fd = new FormData(); fd.append("material", material); files.forEach(f => fd.append("file", f)); analyse(fd); }
+    else analyse({ material });
   }
 
-  // Answering questions and pushing back both feed context back in and re-read.
   function reconsider(note: string) {
     if (!result || !note.trim()) return;
-    analyse({ text: result.source_text, correction: note.trim(), sourceLabel: result.source_label });
+    analyse({ material: result.source_text, correction: note.trim() });
   }
 
   async function beginEngagement() {
     if (!result) return;
     setError(null); setPhase("creating");
     const u = result.understanding;
-    // project_id is a NOT NULL UNIQUE slug — derive it from the engagement name
-    // with a short suffix so two engagements can never collide.
     const slug = (result.reframe.engagement_name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40)) || "engagement";
     const body = {
       research_mode: "real",
@@ -113,8 +129,6 @@ export default function NewEngagementPage() {
       topic: result.reframe.engagement_name,
       tags: [],
       research_subject: null,
-      // The agreed insight becomes the understanding's opening line, so the Overview
-      // continues the exact thought the user just agreed to.
       understanding: { ...u, reflection: result.reframe.reframe, confirmed: true, confirmed_at: new Date().toISOString() },
     };
     try {
@@ -139,30 +153,55 @@ export default function NewEngagementPage() {
             {phase === "ask" && (
               <>
                 <p className="text-[13px] font-semibold uppercase tracking-[0.14em] mb-5" style={{ color: GOLD_INK }}>New engagement</p>
-                <h1 className="text-4xl md:text-5xl font-bold tracking-[-0.03em] leading-[1.05]" style={{ color: INK }}>Talk me through it.</h1>
-                <p className="mt-4 text-lg leading-relaxed text-gray-500 max-w-xl">What are you working on? Tell me the situation in your own words, I&apos;ll take it from there.</p>
+                <h1 className="text-4xl md:text-5xl font-bold tracking-[-0.03em] leading-[1.05]" style={{ color: INK }}>Tell me about this engagement.</h1>
+                <p className="mt-4 text-lg leading-relaxed text-gray-500 max-w-xl">Whatever you&apos;ve got, the brief, an email, the situation in your own words. The more you give me, the sharper I&apos;ll be.</p>
 
                 <div className="mt-8 rounded-2xl border transition-colors"
                   style={{ borderColor: dragging ? GOLD : "#E5E7EB", background: dragging ? "#FCF8EF" : "#FFFFFF", boxShadow: "0 1px 2px rgba(11,25,41,0.04)" }}
                   onDragOver={(e) => { e.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={onDrop}>
-                  <textarea value={text} onChange={(e) => setText(e.target.value)} rows={7} autoFocus
-                    placeholder="Paste the brief, forward the email, or just describe the challenge…"
+                  <textarea value={text} onChange={(e) => setText(e.target.value)} rows={6} autoFocus
+                    placeholder="What&apos;s the situation? Who's the client, what are they wrestling with, what have they asked for…"
                     className="w-full resize-none bg-transparent px-5 py-4 text-[15px] leading-relaxed outline-none placeholder:text-gray-400" style={{ color: INK }} />
-                  {file && (
-                    <div className="px-5 -mt-1 pb-2">
-                      <span className="inline-flex items-center gap-2 text-[13px] font-medium px-2.5 py-1 rounded-full bg-gray-50 text-gray-600 border border-gray-200">
-                        {file.name}<button onClick={() => setFile(null)} className="text-gray-400 hover:text-gray-600" aria-label="Remove file">✕</button>
-                      </span>
+
+                  {files.length > 0 && (
+                    <div className="px-5 -mt-1 pb-2 flex flex-wrap gap-1.5">
+                      {files.map((f, i) => (
+                        <span key={i} className="inline-flex items-center gap-2 text-[13px] font-medium px-2.5 py-1 rounded-full bg-gray-50 text-gray-600 border border-gray-200">
+                          {f.name}<button onClick={() => setFiles(prev => prev.filter((_, j) => j !== i))} className="text-gray-400 hover:text-gray-600" aria-label={`Remove ${f.name}`}>✕</button>
+                        </span>
+                      ))}
                     </div>
                   )}
+
                   <div className="flex items-center justify-between gap-3 px-5 py-3 border-t" style={{ borderColor: "#F1F3F5" }}>
-                    <button onClick={() => fileRef.current?.click()} className="text-[13px] text-gray-400 hover:text-gray-600 transition-colors inline-flex items-center gap-1.5"><span aria-hidden>↥</span> or drop a brief in</button>
-                    <input ref={fileRef} type="file" accept=".pdf,.docx,.doc,.pptx,.ppt" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) setFile(f); }} />
+                    <button onClick={() => fileRef.current?.click()} className="text-[13px] text-gray-400 hover:text-gray-600 transition-colors inline-flex items-center gap-1.5"><span aria-hidden>↥</span> attach a brief or documents</button>
+                    <input ref={fileRef} type="file" multiple accept=".pdf,.docx,.doc,.pptx,.ppt" hidden onChange={(e) => { addFiles(e.target.files); e.target.value = ""; }} />
                     <button onClick={begin} disabled={!hasSomething} className="text-sm font-semibold px-5 py-2 rounded-lg transition-opacity disabled:opacity-40" style={{ background: GOLD, color: INK }}>Begin →</button>
                   </div>
                 </div>
+
+                {/* The consultant's prompts, optional, never required. */}
+                <div className="mt-6">
+                  <p className="text-[13px] text-gray-400 mb-2.5">A few things that would help me read this properly:</p>
+                  <div className="flex flex-wrap gap-2">
+                    {PROMPTS.filter(p => !openFrags.includes(p.kind)).map(p => (
+                      <button key={p.kind} onClick={() => openFrag(p.kind)} className="text-[13px] px-3 py-1.5 rounded-full border transition-colors hover:bg-gray-50" style={{ borderColor: "#E5E7EB", color: "#4B5563" }}>+ {p.chip}</button>
+                    ))}
+                  </div>
+                  {openFrags.length > 0 && (
+                    <div className="mt-4 space-y-3">
+                      {PROMPTS.filter(p => openFrags.includes(p.kind)).map(p => (
+                        <div key={p.kind}>
+                          <label className="text-[11px] font-semibold uppercase tracking-[0.06em] text-gray-400">{p.label}</label>
+                          <textarea value={frags[p.kind]} onChange={(e) => setFrags(prev => ({ ...prev, [p.kind]: e.target.value }))} rows={p.kind === "deadline" ? 1 : 2} placeholder={p.placeholder}
+                            className="w-full mt-1 resize-none rounded-lg border px-3 py-2 text-[14px] outline-none bg-white placeholder:text-gray-400" style={{ borderColor: "#E5E7EB", color: INK }} />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
                 {error && <p className="mt-4 text-[13px]" style={{ color: "#8A4B33" }}>{error}</p>}
-                <p className="mt-4 text-[13px] text-gray-400">No forms. No fields. Fanometrix reads what you share and comes back with how it sees the problem.</p>
               </>
             )}
 
@@ -198,7 +237,6 @@ export default function NewEngagementPage() {
                   </div>
                 )}
 
-                {/* The reasoning — quiet, secondary. */}
                 <div className="mt-8 border-t pt-5" style={{ borderColor: "#F1F3F5" }}>
                   <button onClick={() => setShowWorking(v => !v)} className="text-[13px] font-medium text-gray-400 hover:text-gray-600 transition-colors">
                     {showWorking ? "Hide the reasoning" : "Why I've come to this view"} {showWorking ? "▲" : "▾"}
@@ -219,7 +257,6 @@ export default function NewEngagementPage() {
                   )}
                 </div>
 
-                {/* The agreement — a conversation, not a confirmation. */}
                 <div className="mt-8">
                   {!correcting ? (
                     <div className="flex flex-wrap items-center gap-2.5">

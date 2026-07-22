@@ -24,36 +24,43 @@ export async function POST(req: NextRequest) {
   try { await requireUser(req, ["admin", "publisher"]); } catch (err) { return err as Response; }
 
   try {
-    let text = "";
+    // The commissioning material is everything the user gave us together: the
+    // primary description plus any labelled fragments (email, notes, deadline,
+    // asides) assembled client-side, plus the text of any attached documents.
+    let material = "";
     let sourceLabel: string | null = null;
     let correction: string | null = null;
 
     const contentType = req.headers.get("content-type") ?? "";
     if (contentType.includes("multipart/form-data")) {
       const form = await req.formData();
-      const file = form.get("file");
-      if (!(file instanceof File)) return NextResponse.json({ error: "No brief file was provided." }, { status: 400 });
-      if (file.size > MAX_BYTES) return NextResponse.json({ error: "That file is over 10MB — paste the key parts instead and I'll work from those." }, { status: 413 });
-      const extracted = await extractBriefText(file);
-      text = extracted.text;
-      sourceLabel = extracted.label;
+      material = typeof form.get("material") === "string" ? (form.get("material") as string) : "";
+      const files = form.getAll("file").filter((f): f is File => f instanceof File);
+      const docTexts: string[] = [];
+      for (const file of files) {
+        if (file.size > MAX_BYTES) return NextResponse.json({ error: "That file is over 10MB, paste the key parts instead and I'll work from those." }, { status: 413 });
+        const extracted = await extractBriefText(file);
+        docTexts.push(`DOCUMENT (${extracted.label}):\n${extracted.text}`);
+      }
+      material = [material, ...docTexts].filter(Boolean).join("\n\n");
+      sourceLabel = files.length ? `${files[0].name}${files.length > 1 ? ` +${files.length - 1} more` : ""}` : "Described challenge";
     } else {
       const body = await req.json().catch(() => ({}));
-      text = typeof body.text === "string" ? body.text : "";
-      sourceLabel = typeof body.source_label === "string" && body.source_label.trim() ? body.source_label.trim() : null;
+      material = typeof body.material === "string" ? body.material : (typeof body.text === "string" ? body.text : "");
+      sourceLabel = typeof body.source_label === "string" && body.source_label.trim() ? body.source_label.trim() : "Described challenge";
       correction = typeof body.correction === "string" && body.correction.trim() ? body.correction.trim() : null;
     }
 
     // The reframe is the point of view; the understanding is the evidence behind
-    // it. Run both from the same material, in parallel. A correction (the client
-    // pushing back or answering a question) is folded into both.
-    const understandingText = correction ? `${text}\n\nClient added: ${correction}` : text;
+    // it. Both reason from the commission (all the material together). A correction
+    // (the client pushing back or answering a question) is folded into both.
+    const understandingText = correction ? `${material}\n\nClient added: ${correction}` : material;
     const [reframe, understanding] = await Promise.all([
-      analyseReframe({ text, correction }),
+      analyseReframe({ text: material, correction }),
       analyseBriefUnderstanding({ briefText: understandingText, sourceLabel }),
     ]);
 
-    return NextResponse.json({ reframe, understanding, source_label: sourceLabel, source_text: text });
+    return NextResponse.json({ reframe, understanding, source_label: sourceLabel, source_text: material });
   } catch (err) {
     if (err instanceof IntelligenceError) return NextResponse.json({ error: err.message }, { status: err.status });
     return NextResponse.json({ error: "Something went wrong reading that. Give it another go." }, { status: 500 });
