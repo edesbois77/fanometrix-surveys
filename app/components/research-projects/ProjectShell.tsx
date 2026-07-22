@@ -34,6 +34,7 @@ type LifecycleKey = "research_question" | "dashboard" | "evidence" | "intelligen
 
 const AREAS: Area[] = [
   { key: "overview",   label: "Overview",               kind: "route",  segment: "overview" },
+  { key: "design",     label: "Evidence Strategy",      kind: "route",  segment: "design" },
   { key: "research",   label: "Research",               kind: "route",  segment: "research",    stageKey: "evidence" },
   { key: "execution",  label: "Execution",              kind: "route",  segment: "execution",   stageKey: "dashboard" },
   { key: "dashboard",  label: "Dashboard",              kind: "route",  segment: "dashboard",   stageKey: "dashboard" },
