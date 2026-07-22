@@ -9,6 +9,16 @@ what we think you're really trying to solve."** If we hired McKinsey, the first
 thirty minutes wouldn't be metadata extraction — it would be our problem, reframed.
 That feeling is what this journey exists to own.
 
+**The test for every decision in this document:** would a user leave the first five
+minutes thinking *"that understood my problem better than I did"*? If a moment
+doesn't move toward that feeling, it's wrong — no matter how correct it is. The
+journey opens with *curiosity and judgement*, not a request for information; it
+takes ownership; it comes back with a genuine reframe grounded in the user's own
+words; it invites a conversation rather than a confirmation; and it lets the
+Research Project come quietly into existence only once the problem is agreed — the
+user should almost forget a project is being created at all. They aren't creating a
+project. They're engaging Fanometrix to solve a problem.
+
 ## Where this sits — the front door to a Research Project (not to Fanometrix)
 
 This journey is not Fanometrix's front door; it is a **Research Project's** front
@@ -63,21 +73,27 @@ visible seam between the conversation and the workspace it becomes.
 - **Why:** the first word sets the frame. "Engagement," not "project," not "form."
 - **Trust:** the vocabulary of a consultancy, not a database.
 
-### Moment 1 — The opening: "What are we trying to solve?"
-- **Sees:** Fanometrix *speaks first* — a warm, confident, category-native prompt:
-  *"What are we trying to solve? Share the brief, forward the email, or just tell me
-  the situation."* The most inviting affordance is **drop a brief** (zero writing);
-  paste and free-text sit equal beside it. The describe box carries a specific,
-  sports/brand-native placeholder that models a good answer.
-- **Fanometrix is thinking:** "Meet them where they are — a PDF, an email, a
-  half-formed thought. My job is to make sense of it, not to make them tidy it up."
-- **Doing:** nothing until submission.
-- **User does:** drops a file, pastes, or types a sentence — the least possible.
-- **Why:** this is the blank-page-anxiety moment. **Fanometrix speaking first turns
-  a blank box into an answer** — responding is far easier than initiating. Accepting
-  messy reality (an email!) signals "we do the work of understanding."
-- **Trust:** it asks the strategist's question in the user's language, and it
-  already sounds like it lives in sport and brand.
+### Moment 1 — The opening: a question, not a request for information
+- **Sees:** *not* a menu of "upload / paste / describe." Fanometrix opens with a
+  single, human, curious question and an open space to answer in — the way a senior
+  strategist opens a first meeting:
+  > *"Talk me through it — what are you working on?"*
+  There is no "upload a brief" call to action, no form, no field labels. Just the
+  question and room to respond. The user can **type, paste an email or meeting notes,
+  or drop a file into the same space** — but the interface never *presents* those as
+  options to choose between; they're simply what the space accepts. The mechanics of
+  input recede entirely behind the invitation to talk.
+- **Fanometrix is thinking:** "I want the situation, not a spec. Tell me what's
+  going on and I'll do the work of making sense of it."
+- **Doing:** nothing until they answer.
+- **User does:** answers however feels natural — a paragraph, a forwarded email, a
+  dropped PDF, a story about a meeting.
+- **Why:** the emotional target of the whole journey starts *here*. "Upload a brief"
+  is software; *"talk me through it"* is a person. Inviting the **story** rather than
+  the artefact disarms blank-page anxiety and signals, from the first second, that
+  the user is in a conversation, not a form.
+- **Trust:** curiosity and judgement, not data collection. It sounds like someone
+  who wants to understand, and who already lives in sport and brand.
 
 ### Moment 2 — The handoff: "Leave it with me."
 - **Sees:** a brief acknowledgement the instant they submit — *"Let me read this
@@ -106,23 +122,28 @@ visible seam between the conversation and the workspace it becomes.
 - **Trust:** it earns the reveal, and it shows it cares about the problem, not the
   paperwork.
 
-### Moment 4 — The reframe: "Here's what we think you're really trying to solve."
-*The moment the whole product is built around.*
-- **Sees:** **not** a page of fields — a single, focused statement, like the first
-  slide of a great pitch. The engagement, **named** ("Adidas — World Cup 2026
-  Cultural Relevance"), and a short, sharp reframe that says the thing the client
-  didn't quite articulate:
-  > *"You don't have an awareness problem — you have more of that than anyone. The
-  > real challenge is that authority in football has moved from the stadium to the
-  > group chat, and your scale now reads as corporate. If that's right, your World
-  > Cup spend is buying reach you already own, not the relevance you need."*
-  It carries: a **negation of the obvious framing**, a flicker of **category
-  pattern-recognition**, the **commercial stake**, and — where warranted — one
-  gentle, honest **provocation** (the thing the client doesn't want to hear).
+### Moment 4 — The reframe: "I don't think this is the question you think it is."
+*The moment the whole product is built around — and the single thing that decides
+whether the user leaves thinking "they understood my problem better than I did."*
+- **Sees:** **not** a page of fields — a single, focused judgement, like a strategist
+  who's read everything and leans forward. It is willing to **challenge the brief's
+  own framing**, and it **hinges on something specific the user actually said**:
+  > *"Having read it, I don't think this is fundamentally a campaign question. You
+  > mentioned your affinity scores have plateaued while awareness is at record highs
+  > — that gap is the whole story. This looks to me like a **brand-relevance
+  > challenge wearing a campaign brief's clothes**: authority in football has moved
+  > from the stadium to the group chat, and at your scale that now reads as
+  > corporate. If I'm right, more visibility is the wrong lever entirely. That's my
+  > read — but you know this better than I do. Have I got the shape of it?"*
+  It carries four things: it **cites a specific from their own words** (the proof it
+  genuinely read and thought — this is what makes the insight land as *understanding*,
+  not template); it **challenges the framing** ("not the question you think it is");
+  it names the **commercial stake**; and it's **offered as a hypothesis to react to**,
+  not a verdict — collaborative from the first breath.
 - **Fanometrix is thinking:** "Show them I understand their business better than the
-  brief did — and that I'm on their side while I do it."
-- **Doing:** presenting the highest-confidence single insight; holding all structure
-  back.
+  brief did — grounded in *their* details — and invite them to think with me."
+- **Doing:** presenting the single highest-confidence judgement; holding all
+  structure back until the problem is agreed.
 - **User does:** reads. Feels understood. (The reaction we want: *"Yes — and they
   said it better than I did."*)
 - **Why:** this is where a consultancy is chosen. Nail it and everything after is
@@ -130,24 +151,35 @@ visible seam between the conversation and the workspace it becomes.
 - **Trust:** it demonstrates understanding *sharper than the client's own* — the
   McKinsey first-meeting feeling, owned.
 
-### Moment 5 — Agreement on the problem (before any structure)
-- **Sees:** one human check beneath the reframe — *"Have we understood your
-  challenge?"* — with room to react: *Yes, that's it* / *Not quite — here's what's
-  off.*
-- **Fanometrix is thinking:** "The client is the authority on their own problem;
-  I've done the thinking, but they confirm the truth."
-- **Doing:** if corrected, it *re-frames* — responds conversationally ("Ah — so it's
-  really about winning switchers, not keeping loyalists. Let me reframe.") and
-  re-derives.
-- **User does:** confirms, or corrects in their own words.
-- **Why:** agreeing on the problem is the foundation everything rests on. Correcting
-  it here is a sentence; correcting it after full derivation is a demolition.
-- **Trust:** partnership — it treats the user as the authority while clearly having
-  the expertise. Not a form, not a lecture.
+### Moment 5 — The conversation about the problem (collaborative, not confirmatory)
+- **Sees:** not a yes/no "does this reflect your challenge?" — an *invitation to
+  react*, the three ways a real conversation actually goes:
+  > *Yes — that's exactly it.* · *Almost — I'd change something.* · *No, you've
+  > misunderstood.*
+- **Fanometrix is thinking:** "This is a hypothesis I'm offering, not a document to
+  approve. They know their business; I want to be corrected where I'm wrong."
+- **Doing:** on *Almost* or *No*, it does not re-prompt or re-validate a form — it
+  **visibly rethinks and explains what changed**: *"Ah — so it isn't Gen Z at all,
+  it's your lapsed core fans. That changes the shape of this: it's less about
+  cultural relevance and more about re-earning a relationship you used to have.
+  Here's how I'd reframe it…"* The user watches a mind adjust in real time.
+- **User does:** reacts in their own words; pushes back; refines the *problem*, not
+  fields.
+- **Why:** agreement on the problem is the foundation everything rests on — and it
+  has to feel like *thinking together*, because that's what turns "approving an AI
+  document" into "working with someone intelligent." Correcting the problem here is a
+  sentence; correcting it after the structure is built is a demolition.
+- **Trust:** the moment it *changes its mind well* — takes the correction, sees its
+  implication, and re-frames — is often more trust-building than getting it right
+  first time. It proves there's judgement behind the words, not a template.
 
 ### Moment 6 — The scoped engagement (progressive, in service of the problem)
 Only now, after the problem is agreed, does Fanometrix show *how it proposes to
-approach it* — revealed by weight, each element a consequence of the last:
+approach it*. Framed as **the reasoning behind its judgement, not fields to fill** —
+Business Challenge, Research Question, Objectives, Audience, Markets, Deliverables,
+Constraints, Stakeholders are **evidence supporting the consultant's thinking**, the
+"here's *why* I read it that way and *how* I'd tackle it," never the primary output.
+Revealed by weight, each element a consequence of the last:
 1. **The Research Question** (proposed) — the single question the engagement will
    answer. Flows straight from the agreed reframe; the bridge from problem to
    approach.
