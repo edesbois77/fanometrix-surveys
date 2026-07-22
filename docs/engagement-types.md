@@ -72,6 +72,47 @@ this is modelled as a first-class, extensible **Engagement Type**, not a two-val
 The divergence concentrates at the **input** (Engagement Context) and **output**
 (deliverable) edges; the middle is shared.
 
+### 2.1 Success Definition — the objective function (per type)
+
+Every engagement type declares not only *who can access it* but **what "success"
+looks like** — the objective against which Fanometrix evaluates progress and
+generates outputs. This is the most fundamental property a type carries, because it
+is what every downstream judgment is measured against. Crucially, **it changes the
+objective, never the workflow.**
+
+| Engagement Type | Success = |
+|---|---|
+| **Research Study** | answer the research question with sufficient confidence |
+| **RFP Response** | produce the strongest evidence-backed strategic recommendation + pitch materials before the submission deadline |
+| **Client Brief** | develop an informed recommendation for the client |
+| **Internal Strategy** | support internal decision-making |
+| **Partnership Planning** | identify the strongest commercial opportunity |
+
+`success_definition` therefore joins `{ internal, default_visibility, capability }`
+as a registry property of each type. It is the **objective function** that
+parameterises — without changing — the shared stages:
+
+- **The Overview's readiness recommendation** ("are we ready?") is evaluated against
+  *this* success definition. The four-outcome spectrum (Ready to Decide / Focused /
+  Full / Refine) generalises to *"are we ready to satisfy the success definition?"*,
+  with type-appropriate language (for RFP, e.g. "Ready to Pitch") and the output it
+  points to.
+- **Planning's "What Success Looks Like"** beat states the type's success
+  definition (refined by the engagement), not a hard-coded "answer the research
+  question".
+- **Analysis + Outputs** are evaluated and generated against it — the deliverable
+  that *constitutes* success differs (research report vs pitch deck).
+
+**Instance refinement.** The type provides the *default* success definition; a
+specific engagement carries its own parameters — most importantly **constraints**
+like the RFP submission **deadline** (from Engagement Context, §3), so readiness for
+an RFP factors in "in time", not only "with confidence". Type = the template; the
+engagement = the specifics.
+
+**Authored, not fabricated.** The success definition is *authored* (part of the
+engagement / Research Design); *progress toward it* is *measured* (the readiness
+recommendation, confidence). Same authored-vs-measured discipline as everywhere else.
+
 ## 3. Engagement Context (distinct from Organisation Intelligence)
 
 Two different things that must not be conflated:
@@ -229,8 +270,12 @@ This is the RFP-stage expression of the platform's core honesty principle.
 New authored engagement/design concepts to record in `docs/research-project-domain.md`:
 - **Project Purpose** (engagement fact on the Project).
 - **Engagement Context** (engagement facts, with per-field sensitivity).
-- **Visibility** on the Project (internal-by-default for RFP) + the RFP capability
-  model.
+- **Engagement Type** (registry-driven, extensible) and its **Success Definition**
+  — the per-type objective function that parameterises readiness, Planning success,
+  Analysis and Outputs, authored and instance-refinable, without changing the
+  workflow.
+- **Visibility** on the Project (internal-by-default for internal types) + the
+  capability model.
 - **Deliverables** (Requested vs Recommended) and purpose-adaptive Outputs.
 - **Partner Intelligence** as a House provider on the Existing Intelligence seam.
 - **Evidential-status labelling** for strategic/creative content.
