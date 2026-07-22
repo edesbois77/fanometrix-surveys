@@ -11,6 +11,7 @@
 // analyseBriefUnderstanding). Optimise for insight, not extraction.
 import { completeJSON } from "@/lib/intelligence/openai";
 import { IntelligenceError } from "@/lib/intelligence/types";
+import { stripEmDash } from "@/lib/strip-em-dash";
 
 const MODEL = "gpt-4o";
 
@@ -51,10 +52,10 @@ THE TEST (apply it before you answer): would this exact paragraph still make sen
 
 BANNED as lazy filler (using these unqualified = failure): "authentic engagement", "emotional connection", "deeper connection", "meaningful engagement", "cultural resonance", "resonate with", "tap into", "leverage", "in today's landscape". If you reach for one, replace it with the concrete, specific thing you actually mean.
 
-VOICE: confident, concise, human. No hedging ("it's worth noting", "it seems", "perhaps"), no throat-clearing, no bullet points. Connect it to what's commercially at stake. End with a short, genuine invitation to react (e.g. "That's my read — have I got the shape of it?"). You are offering a hypothesis to be pushed back on, not a verdict. Ground everything in the material; invent nothing.
+VOICE: confident, concise, human. No hedging ("it's worth noting", "it seems", "perhaps"), no throat-clearing, no bullet points. PUNCTUATION: use commas; NEVER use em-dashes or any long dash; always a comma instead. Connect it to what's commercially at stake. End with a short, genuine invitation to react (e.g. "That's my read — have I got the shape of it?"). You are offering a hypothesis to be pushed back on, not a verdict. Ground everything in the material; invent nothing.
 
 Worked example of the RIGHT altitude and shape (a different brand — model the STYLE, never the content):
-"You've framed this as maximising ROI on the shirt deal — but the line that stops me is recall up 40% while consideration is flat. That's not an activation problem, it's a permission problem: fans clock the logo and feel nothing, because you've bought presence in a rivalry you've never earned a side in. I'd argue the real risk isn't wasted media — it's that another season of neutral visibility quietly trains fans to tune you out. My instinct is this is a credibility question wearing a sponsorship-ROI brief's clothes. That's my read — have I got the shape of it?"
+"You've framed this as maximising ROI on the shirt deal, but the line that stops me is recall up 40% while consideration is flat. That's not an activation problem, it's a permission problem: fans clock the logo and feel nothing, because you've bought presence in a rivalry you've never earned a side in. I'd argue the real risk isn't wasted media, it's that another season of neutral visibility quietly trains fans to tune you out. My instinct is this is a credibility question wearing a sponsorship-ROI brief's clothes. That's my read, have I got the shape of it?"
 
 CONFIDENCE — calibrate honestly, and don't over-hedge:
 - "high": the material has enough to take a clear position (e.g. a stated objective + some evidence or a named audience/market). Take the position; ask NOTHING.
@@ -85,9 +86,9 @@ export async function analyseReframe(input: ReframeInput): Promise<Reframe> {
 
   return {
     confidence,
-    engagement_name: clean(raw.engagement_name) || "New engagement",
-    reframe: clean(raw.reframe),
-    clarifying_questions: confidence === "high" ? [] : questions,
+    engagement_name: stripEmDash(clean(raw.engagement_name)) || "New engagement",
+    reframe: stripEmDash(clean(raw.reframe)),
+    clarifying_questions: (confidence === "high" ? [] : questions).map(stripEmDash),
     generated_at: new Date().toISOString(),
     model: MODEL,
   };

@@ -10,6 +10,7 @@
 // the evidence already supports a confident recommendation, it says so.
 import { completeJSON } from "@/lib/intelligence/openai";
 import { IntelligenceError } from "@/lib/intelligence/types";
+import { stripEmDash } from "@/lib/strip-em-dash";
 import type { ProjectUnderstanding } from "@/lib/understanding";
 import type { ExistingIntelligence } from "@/lib/intelligence/existing/types";
 import {
@@ -73,6 +74,8 @@ Produce, grounded ONLY in the problem + the evidence above (introduce no new fac
    - headline: one-line verdict, plain business language.
    - rationale: 2-3 sentences that cite the confidence and the specific gaps. No new facts.
 
+PUNCTUATION: use commas; NEVER use em-dashes or any long dash in any text you write; always a comma instead.
+
 Return ONLY valid JSON:
 {
   "confidence": { "overall": "high|moderate|low", "summary": "...", "dimensions": [ { "dimension": "...", "level": "high|moderate|low", "basis": "..." } ] },
@@ -98,20 +101,20 @@ export async function analyseKnowledgePosition(input: KnowledgePositionInput): P
 
   const conf = (raw.confidence ?? {}) as Record<string, unknown>;
   const dimensions: ConfidenceDimension[] = (Array.isArray(conf.dimensions) ? conf.dimensions : [])
-    .map(d => { const r = d as Record<string, unknown>; const dim = clean(r?.dimension); return dim ? { dimension: dim, level: level(r?.level), basis: clean(r?.basis) } : null; })
+    .map(d => { const r = d as Record<string, unknown>; const dim = clean(r?.dimension); return dim ? { dimension: stripEmDash(dim), level: level(r?.level), basis: stripEmDash(clean(r?.basis)) } : null; })
     .filter((d): d is ConfidenceDimension => !!d).slice(0, 5);
 
   const frontier: KnowledgeGapItem[] = (Array.isArray(raw.frontier) ? raw.frontier : [])
-    .map(g => { const q = clean((g as Record<string, unknown>)?.question); return q ? { question: q } : null; })
+    .map(g => { const q = clean((g as Record<string, unknown>)?.question); return q ? { question: stripEmDash(q) } : null; })
     .filter((g): g is KnowledgeGapItem => !!g).slice(0, 6);
 
   const rec = (raw.recommendation ?? {}) as Record<string, unknown>;
   const outcome = ((): RecommendationOutcome => { const s = clean(rec.outcome).toLowerCase(); return (OUTCOMES as string[]).includes(s) ? (s as RecommendationOutcome) : "focused_research"; })();
 
   return {
-    confidence: { overall: level(conf.overall), summary: clean(conf.summary), dimensions },
+    confidence: { overall: level(conf.overall), summary: stripEmDash(clean(conf.summary)), dimensions },
     frontier,
-    recommendation: { outcome, headline: clean(rec.headline), rationale: clean(rec.rationale) },
+    recommendation: { outcome, headline: stripEmDash(clean(rec.headline)), rationale: stripEmDash(clean(rec.rationale)) },
     generated_at: new Date().toISOString(),
     model: MODEL,
   };

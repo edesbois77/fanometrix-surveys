@@ -7,6 +7,7 @@
 // conversation searches or documents — those belong to the Research Design.
 import { completeJSON } from "@/lib/intelligence/openai";
 import { IntelligenceError } from "@/lib/intelligence/types";
+import { stripEmDash } from "@/lib/strip-em-dash";
 import {
   type ProjectUnderstanding, type Sourced, type SourcedList, type Provenance,
   type UnderstandingTension,
@@ -48,6 +49,7 @@ Rules:
 - Ground everything in the brief. If a field is not addressed, mark it "inferred" with your best reasonable reading, or leave its value/values empty — never fabricate specifics (numbers, names, dates) that aren't supported.
 - Be METHOD-NEUTRAL. Never mention surveys, conversation/social listening, document analysis, or any research method. This is about understanding the problem, not how to solve it.
 - Keep values concise. Lists: 2-5 items each, omit rather than pad.
+- PUNCTUATION: use commas; NEVER use em-dashes or any long dash in any text you write; always a comma instead.
 
 Return ONLY valid JSON:
 {
@@ -72,11 +74,11 @@ const prov = (v: unknown, fallback: Provenance): Provenance => {
   return (PROVS as string[]).includes(s) ? (s as Provenance) : fallback;
 };
 const strList = (raw: unknown, max = 6): string[] =>
-  (Array.isArray(raw) ? (raw as unknown[]).map(clean).filter(Boolean) : []).slice(0, max);
+  (Array.isArray(raw) ? (raw as unknown[]).map(clean).filter(Boolean).map(stripEmDash) : []).slice(0, max);
 
 function sourced(raw: unknown): Sourced {
   const r = raw as Record<string, unknown> | null;
-  return { value: clean(r?.value), provenance: prov(r?.provenance, "inferred"), source: clean(r?.source) || null };
+  return { value: stripEmDash(clean(r?.value)), provenance: prov(r?.provenance, "inferred"), source: clean(r?.source) || null };
 }
 function sourcedList(raw: unknown): SourcedList {
   const r = raw as Record<string, unknown> | null;
@@ -86,7 +88,7 @@ function parseTension(raw: unknown): UnderstandingTension | null {
   const r = raw as Record<string, unknown> | null;
   const message = clean(r?.message);
   if (!message) return null;
-  return { kind: clean(r?.kind).toLowerCase() === "assumption" ? "assumption" : "tension", message };
+  return { kind: clean(r?.kind).toLowerCase() === "assumption" ? "assumption" : "tension", message: stripEmDash(message) };
 }
 
 export async function analyseBriefUnderstanding(input: BriefInput): Promise<ProjectUnderstanding> {
@@ -100,7 +102,7 @@ export async function analyseBriefUnderstanding(input: BriefInput): Promise<Proj
 
   const rq = sourced(raw.research_question);
   return {
-    reflection: clean(raw.reflection),
+    reflection: stripEmDash(clean(raw.reflection)),
     business_challenge: sourced(raw.business_challenge),
     objectives: sourcedList(raw.objectives),
     research_question: { value: rq.value, provenance: "proposed", source: null },

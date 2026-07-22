@@ -140,7 +140,7 @@ export default function NewEngagementPage() {
               <>
                 <p className="text-[13px] font-semibold uppercase tracking-[0.14em] mb-5" style={{ color: GOLD_INK }}>New engagement</p>
                 <h1 className="text-4xl md:text-5xl font-bold tracking-[-0.03em] leading-[1.05]" style={{ color: INK }}>Talk me through it.</h1>
-                <p className="mt-4 text-lg leading-relaxed text-gray-500 max-w-xl">What are you working on? Tell me the situation in your own words — I&apos;ll take it from there.</p>
+                <p className="mt-4 text-lg leading-relaxed text-gray-500 max-w-xl">What are you working on? Tell me the situation in your own words, I&apos;ll take it from there.</p>
 
                 <div className="mt-8 rounded-2xl border transition-colors"
                   style={{ borderColor: dragging ? GOLD : "#E5E7EB", background: dragging ? "#FCF8EF" : "#FFFFFF", boxShadow: "0 1px 2px rgba(11,25,41,0.04)" }}
@@ -173,7 +173,7 @@ export default function NewEngagementPage() {
                   <span className="w-2 h-2 rounded-full animate-pulse" style={{ background: GOLD, animationDelay: "150ms" }} />
                   <span className="w-2 h-2 rounded-full animate-pulse" style={{ background: GOLD, animationDelay: "300ms" }} />
                 </div>
-                <p className="text-xl font-medium" style={{ color: INK }}>{phase === "creating" ? "Good — let's get to work." : READING_LINES[readingIdx]}</p>
+                <p className="text-xl font-medium" style={{ color: INK }}>{phase === "creating" ? "Good, let's get to work." : READING_LINES[readingIdx]}</p>
               </div>
             )}
 
@@ -190,7 +190,7 @@ export default function NewEngagementPage() {
                         <li key={i} className="text-[15px] leading-relaxed flex gap-2" style={{ color: INK }}><span style={{ color: GOLD }}>·</span><span>{q}</span></li>
                       ))}
                     </ul>
-                    <textarea value={clarify} onChange={(e) => setClarify(e.target.value)} rows={3} placeholder="Fill me in — a line or two is plenty…"
+                    <textarea value={clarify} onChange={(e) => setClarify(e.target.value)} rows={3} placeholder="Fill me in, a line or two is plenty…"
                       className="w-full mt-4 resize-none rounded-lg border px-3 py-2 text-[15px] outline-none bg-white placeholder:text-gray-400" style={{ borderColor: "#E5E7EB", color: INK }} />
                     <div className="flex justify-end mt-3">
                       <button onClick={() => reconsider(clarify)} disabled={!clarify.trim()} className="text-sm font-semibold px-4 py-2 rounded-lg transition-opacity disabled:opacity-40" style={{ background: GOLD, color: INK }}>Sharpen my read →</button>
@@ -223,13 +223,13 @@ export default function NewEngagementPage() {
                 <div className="mt-8">
                   {!correcting ? (
                     <div className="flex flex-wrap items-center gap-2.5">
-                      <button onClick={beginEngagement} className="text-sm font-semibold px-5 py-2.5 rounded-lg" style={{ background: GOLD, color: INK }}>Yes — that&apos;s it. Let&apos;s begin →</button>
-                      <button onClick={() => setCorrecting(true)} className="text-sm font-medium px-4 py-2.5 rounded-lg border" style={{ borderColor: "#E5E7EB", color: INK }}>Almost — I&apos;d change something</button>
+                      <button onClick={beginEngagement} className="text-sm font-semibold px-5 py-2.5 rounded-lg" style={{ background: GOLD, color: INK }}>Yes, that&apos;s it. Let&apos;s begin →</button>
+                      <button onClick={() => setCorrecting(true)} className="text-sm font-medium px-4 py-2.5 rounded-lg border" style={{ borderColor: "#E5E7EB", color: INK }}>Almost, I&apos;d change something</button>
                       <button onClick={() => setCorrecting(true)} className="text-sm font-medium px-4 py-2.5 text-gray-400 hover:text-gray-600 transition-colors">No, you&apos;ve misunderstood</button>
                     </div>
                   ) : (
                     <div className="rounded-2xl border p-5" style={{ borderColor: "#E5E7EB", background: "#FFFFFF" }}>
-                      <p className="text-sm font-semibold" style={{ color: INK }}>Tell me where I&apos;ve got it wrong — I&apos;ll think again.</p>
+                      <p className="text-sm font-semibold" style={{ color: INK }}>Tell me where I&apos;ve got it wrong, I&apos;ll think again.</p>
                       <textarea value={correction} onChange={(e) => setCorrection(e.target.value)} rows={3} autoFocus placeholder="What&apos;s off, or what am I missing…"
                         className="w-full mt-3 resize-none rounded-lg border px-3 py-2 text-[15px] outline-none placeholder:text-gray-400" style={{ borderColor: "#E5E7EB", color: INK }} />
                       <div className="flex justify-end gap-2 mt-3">

@@ -15,6 +15,7 @@
 import { completeJSON } from "@/lib/intelligence/openai";
 import { IntelligenceError } from "@/lib/intelligence/types";
 import { PLATFORMS } from "@/lib/social-taxonomy";
+import { stripEmDash } from "@/lib/strip-em-dash";
 import { analyseSearchStrategy } from "@/lib/intelligence/analysts/analyseSearchStrategy";
 import {
   type ConversationAdvisorBriefing, type ConversationRecommendation, type InformationNeeds,
@@ -101,7 +102,8 @@ Rules:
 - Needs are questions about the world, never search strings, never brand keywords. (For a FedEx UCL sponsorship question, needs are "What do fans value from a sponsor's presence?" — not "FedEx".)
 - Include EVERY platform id you have a view on, recommended true or false; do not silently omit the ones you'd avoid.
 - challenges is an EMPTY array for a well-formed single-objective qualitative question. Most "proceed" questions have no challenges.
-- Be honest in limitations and cannot_answer — restraint builds trust. If a need asks "how many / what %" or willingness to pay, mark THAT NEED not_suitable — but only escalate to a survey complement/redirect when quantification is part of the QUESTION's objective, per the HARD RULE above.`;
+- Be honest in limitations and cannot_answer — restraint builds trust. If a need asks "how many / what %" or willingness to pay, mark THAT NEED not_suitable — but only escalate to a survey complement/redirect when quantification is part of the QUESTION's objective, per the HARD RULE above.
+- PUNCTUATION: in every piece of prose you write (headline, rationale, need text, why-not, limitations), use commas; NEVER use em-dashes or any long dash; always a comma instead.`;
 }
 
 // ── defensive parsing ─────────────────────────────────────────────────────────
@@ -127,7 +129,7 @@ function parseNeed(raw: unknown): InformationNeed | null {
   const r = raw as Record<string, unknown> | null;
   const need = clean(r?.need);
   if (!need) return null;
-  return { need, method_fit: oneOf(r?.method_fit, FITS, "primary"), rationale: clean(r?.rationale) };
+  return { need: stripEmDash(need), method_fit: oneOf(r?.method_fit, FITS, "primary"), rationale: stripEmDash(clean(r?.rationale)) };
 }
 
 function parseTheme(raw: unknown): ResearchTheme | null {
@@ -136,19 +138,19 @@ function parseTheme(raw: unknown): ResearchTheme | null {
   if (!aspect) return null;
   const needs = (Array.isArray(r?.needs) ? r!.needs : []).map(parseNeed).filter((n): n is InformationNeed => !!n).slice(0, 4);
   if (!needs.length) return null;
-  return { aspect, description: clean(r?.description), needs };
+  return { aspect, description: stripEmDash(clean(r?.description)), needs };
 }
 
 function parsePlatform(raw: unknown): PlatformRecommendation | null {
   const r = raw as Record<string, unknown> | null;
   const platform = clean(r?.platform);
   if (!PLATFORM_IDS.includes(platform as (typeof PLATFORM_IDS)[number])) return null;
-  return { platform, recommended: r?.recommended === true, rationale: clean(r?.rationale) };
+  return { platform, recommended: r?.recommended === true, rationale: stripEmDash(clean(r?.rationale)) };
 }
 
 function parseChallenge(raw: unknown): AdvisorChallenge | null {
   const r = raw as Record<string, unknown> | null;
-  const message = clean(r?.message);
+  const message = stripEmDash(clean(r?.message));
   if (!message) return null;
   const type = oneOf(r?.type, ["reframe", "method_handoff", "sharpen"] as const, "sharpen");
   return {
@@ -178,13 +180,13 @@ export async function analyseConversationAdvisor(input: AdvisorInput): Promise<C
 
   const recommendation: ConversationRecommendation = {
     state: oneOf(recRaw.state, STATES, "proceed"),
-    headline: clean(recRaw.headline),
-    rationale: clean(recRaw.rationale),
-    can_answer: clean(recRaw.can_answer),
-    cannot_answer: clean(recRaw.cannot_answer),
+    headline: stripEmDash(clean(recRaw.headline)),
+    rationale: stripEmDash(clean(recRaw.rationale)),
+    can_answer: stripEmDash(clean(recRaw.can_answer)),
+    cannot_answer: stripEmDash(clean(recRaw.cannot_answer)),
     complementary_method: oneOfOrNull(recRaw.complementary_method, METHODS),
     platforms,
-    limitations: strList(recRaw.limitations, 6),
+    limitations: strList(recRaw.limitations, 6).map(stripEmDash),
     challenges: (Array.isArray(recRaw.challenges) ? recRaw.challenges : []).map(parseChallenge).filter((c): c is AdvisorChallenge => !!c).slice(0, 3),
     generated_at: new Date().toISOString(),
     model: MODEL,
