@@ -610,8 +610,12 @@ export function ThemedSurvey(props: ThemedSurveyProps) {
   const pulseRef        = useRef<ReturnType<typeof setInterval> | null>(null);
   const isVisibleRef    = useRef(false);
   const advancingRef    = useRef(false);
+  // Completion timer: starts at the first answer (SURVEY_START), NOT at mount.
+  // This measures engaged completion time, excluding pre-interaction idle /
+  // off-screen dwell. Set on first answer below; the mount value is a fallback.
   const startRef        = useRef(Date.now());
   const hasRendered     = useRef(false);
+  const hasVisible      = useRef(false); // SURVEY_VISIBLE = genuine viewport entry
   const hasStarted      = useRef(false);
   const hasCompleted    = useRef(false);
 
@@ -649,6 +653,14 @@ export function ThemedSurvey(props: ThemedSurveyProps) {
         if (!hasRendered.current) {
           hasRendered.current = true;
           sendEvent("SURVEY_RENDER");
+        }
+        // SURVEY_VISIBLE = became visible to the respondent; start of TTFI.
+        // Here it coincides with SURVEY_RENDER (both fire on viewport entry),
+        // but it is emitted as a distinct event so the metric is renderer-
+        // agnostic (Classic's SURVEY_RENDER fires on data-load, not viewport).
+        if (!hasVisible.current) {
+          hasVisible.current = true;
+          sendEvent("SURVEY_VISIBLE");
         }
       } else {
         setIsRunning(false);
@@ -718,6 +730,11 @@ export function ThemedSurvey(props: ThemedSurveyProps) {
     // SURVEY_START: first answer
     if (!hasStarted.current) {
       hasStarted.current = true;
+      // Start the completion timer at first interaction. This runs in a click
+      // handler, not render, so Date.now() is fine — react-hooks/purity can't
+      // prove the callsite is outside render, hence the scoped disable.
+      // eslint-disable-next-line react-hooks/purity
+      startRef.current = Date.now();
       sendEvent("SURVEY_START");
     }
 

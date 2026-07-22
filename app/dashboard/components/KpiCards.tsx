@@ -2,6 +2,8 @@
 
 import { Fragment } from "react";
 import type { SurveyResponse } from "@/lib/types";
+import { getMetric } from "@/lib/metrics";
+import { MetricInfo } from "@/app/components/metrics/MetricInfo";
 
 export type EventCounts = {
   renders:    number;
@@ -9,12 +11,13 @@ export type EventCounts = {
   q2_reached: number;
   q3_reached: number;
   completed:  number;
+  // Events-based timing (see lib/survey-timing.ts). Completion is full-history;
+  // TTFI is forward-only from the SURVEY_VISIBLE release. null = no sample.
+  avg_completion_seconds?: number | null;
+  avg_ttfi_seconds?:       number | null;
+  completion_sample?:      number;
+  ttfi_sample?:            number;
 };
-
-function avg(nums: (number | null)[]): number {
-  const valid = nums.filter((n): n is number => n !== null);
-  return valid.length ? Math.round(valid.reduce((a, b) => a + b, 0) / valid.length) : 0;
-}
 
 function pct(num: number, denom: number): string {
   if (!denom) return "—";
@@ -56,63 +59,46 @@ function relTime(fromMs: number, nowMs: number): string {
   return `${Math.floor(d / 30)}mo ago`;
 }
 
-// ── Delivery card ─────────────────────────────────────────────────────────────
-
-function DeliveryCard({
-  label, value, sub, tooltip,
+// ── Metric card ───────────────────────────────────────────────────────────────
+// One card shape for every headline metric. The (i) icon pulls its Definition /
+// Formula / Why-it-matters from the canonical registry (lib/metrics) via
+// MetricInfo — pass `metricId` and the label + tooltip come for free. `note` is
+// for card-state context that isn't part of the metric's definition (e.g. a
+// legacy-data caveat); it renders as a plain secondary marker.
+function MetricCard({
+  metricId, label, value, sub, highlight, valueColor, note, infoAlign = "left",
 }: {
-  label: string; value: string | number; sub: string; tooltip?: string;
+  metricId?: string;
+  label?: string;
+  value: string | number;
+  sub?: string;
+  highlight?: boolean;
+  valueColor?: string;
+  note?: string;
+  infoAlign?: "left" | "right";
 }) {
+  const name  = label ?? (metricId ? getMetric(metricId)?.name : undefined) ?? "";
+  const color = valueColor ?? (highlight ? "#D7B87A" : "#0B1929");
   return (
-    <div className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm flex-1 min-w-0">
-      <p className="text-xs text-gray-400 font-medium uppercase tracking-wide flex items-center gap-1">
-        {label}
-        {tooltip && (
+    <div className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm min-w-0">
+      <div className="text-xs text-gray-400 font-medium uppercase tracking-wide flex items-center gap-1">
+        <span className="truncate">{name}</span>
+        {metricId && <span className="flex-shrink-0"><MetricInfo metricId={metricId} align={infoAlign} /></span>}
+        {note && (
           <span
-            title={tooltip}
-            aria-label={tooltip}
+            className="flex-shrink-0"
+            title={note}
+            aria-label={note}
             style={{ cursor: "help", fontSize: 11, opacity: 0.6, lineHeight: 1 }}
           >
             ⓘ
           </span>
         )}
-      </p>
-      <p className="text-2xl font-bold mt-1" style={{ color: "#0B1929" }}>
+      </div>
+      <p className="text-2xl font-bold mt-1" style={{ color }}>
         {typeof value === "number" ? value.toLocaleString() : value}
       </p>
-      <p className="text-xs text-gray-400 mt-0.5">{sub}</p>
-    </div>
-  );
-}
-
-// ── Engagement card ───────────────────────────────────────────────────────────
-
-function EngagementCard({
-  label, value, sub, highlight, tooltip,
-}: {
-  label: string; value: string; sub: string; highlight?: boolean; tooltip?: string;
-}) {
-  return (
-    <div className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm flex-1 min-w-0">
-      <p className="text-xs text-gray-400 font-medium uppercase tracking-wide flex items-center gap-1">
-        {label}
-        {tooltip && (
-          <span
-            title={tooltip}
-            aria-label={tooltip}
-            style={{ cursor: "help", fontSize: 11, opacity: 0.6, lineHeight: 1 }}
-          >
-            ⓘ
-          </span>
-        )}
-      </p>
-      <p
-        className="text-2xl font-bold mt-1"
-        style={{ color: highlight ? "#D7B87A" : "#0B1929" }}
-      >
-        {value}
-      </p>
-      <p className="text-xs text-gray-400 mt-0.5">{sub}</p>
+      {sub && <p className="text-xs text-gray-400 mt-0.5">{sub}</p>}
     </div>
   );
 }
@@ -120,8 +106,7 @@ function EngagementCard({
 // ── Conversion pipeline ─────────────────────────────────────────────────────
 // A compact horizontal journey from Survey Render to Completed Response. Each
 // stage is a small card (name · count · share of the previous stage); between
-// stages a subtle connector carries the drop-off. Occupies ~⅓ of the height the
-// old vertical funnel needed while keeping all five stages.
+// stages a subtle connector carries the drop-off.
 
 type PipelineStage = {
   label: string;
@@ -171,9 +156,8 @@ function ConversionPipeline({ stages }: { stages: PipelineStage[] }) {
 }
 
 // ── Research Confidence ───────────────────────────────────────────────────────
-// How far the current sample can be trusted, stated in plain statistics: the
-// number of completed responses and the resulting 95% margin of error. The label
-// is tied to DEFINED margin-of-error thresholds (not a vague adjective):
+// How far the current sample can be trusted, stated in plain statistics. The
+// Sample Quality band is tied to DEFINED margin-of-error thresholds:
 //   ≤ ±5%   → High Confidence  (n ≳ 385 — the industry ±5% survey standard)
 //   ≤ ±10%  → Reliable         (n ≳ 96)
 //   ≤ ±15%  → Directional      (n ≳ 43)
@@ -219,50 +203,21 @@ function bandFor(moe: number | null): ConfBand {
   return CONF_BANDS.early;
 }
 
-function ResearchConfidence({ n }: { n: number }) {
-  const moe  = marginOfError(n);
-  const band = bandFor(moe);
-
-  return (
-    <div className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm flex flex-col">
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400">Research Confidence</p>
-        <span className="text-[10px] text-gray-400">95% confidence level</span>
-      </div>
-      <p className="text-2xl font-bold mt-1" style={{ color: band.color }}>{band.label}</p>
-      {moe !== null ? (
-        <>
-          <p className="text-sm font-semibold mt-1.5" style={{ color: "#0B1929" }}>
-            {fmt(n)} completed {n === 1 ? "response" : "responses"} · ±{moe}% margin of error
-          </p>
-          <p className="text-xs text-gray-500 mt-1.5 leading-relaxed">{band.meaning(moe)}</p>
-        </>
-      ) : (
-        <p className="text-xs text-gray-400 mt-1.5">{band.meaning(0)}</p>
-      )}
-    </div>
-  );
-}
-
 // ── Collection Status ─────────────────────────────────────────────────────────
-// Is the research actively collecting? Volume today / this week, recency of the
-// last response, and how many publishers and countries are currently live
-// (seen in the last 24h). Purely derived from the response records in view.
+// Is the research actively collecting? Volume today / this week and recency of
+// the last response. Live publisher / country breadth now lives under Exposure.
 
 const DAY_MS  = 86_400_000;
 const WEEK_MS = 7 * DAY_MS;
 
-type StatusBand = { label: string; color: string; dot: string };
+type Activity = { today: number; week: number; lastTs: number; livePubs: number; liveCountries: number };
 
-function CollectionStatus({ responses }: { responses: SurveyResponse[] }) {
-  const now = Date.now();
-
-  let lastTs = 0;
-  let today = 0;
-  let week = 0;
+// Single pass over the responses in view: recent volume, recency, and the
+// distinct publishers / countries seen in the last 24h (surfaced under Exposure).
+function computeActivity(responses: SurveyResponse[], now: number): Activity {
+  let lastTs = 0, today = 0, week = 0;
   const livePubs = new Set<string>();
   const liveCountries = new Set<string>();
-
   for (const r of responses) {
     const t = new Date(r.created_at).getTime();
     if (Number.isNaN(t)) continue;
@@ -275,7 +230,13 @@ function CollectionStatus({ responses }: { responses: SurveyResponse[] }) {
       if (r.country)   liveCountries.add(r.country);
     }
   }
+  return { today, week, lastTs, livePubs: livePubs.size, liveCountries: liveCountries.size };
+}
 
+type StatusBand = { label: string; color: string; dot: string };
+
+function CollectionStatus({ activity, now }: { activity: Activity; now: number }) {
+  const { today, week, lastTs, livePubs, liveCountries } = activity;
   const age = lastTs ? now - lastTs : Infinity;
   const status: StatusBand =
     !lastTs         ? { label: "No responses",        color: "#9CA3AF", dot: "#D1D5DB" } :
@@ -283,10 +244,14 @@ function CollectionStatus({ responses }: { responses: SurveyResponse[] }) {
     age <= WEEK_MS  ? { label: "Slowing",             color: "#B45309", dot: "#F59E0B" } :
                       { label: "Paused",              color: "#9CA3AF", dot: "#D1D5DB" };
 
-  const stat = (label: string, value: string | number) => (
+  // Compact stat with its canonical (i) definition from the registry.
+  const stat = (metricId: string, value: string | number, infoAlign: "left" | "right" = "left") => (
     <div>
       <p className="text-lg font-bold tabular-nums leading-none" style={{ color: "#0B1929" }}>{value}</p>
-      <p className="text-[10px] text-gray-400 mt-0.5">{label}</p>
+      <span className="mt-0.5 flex items-center gap-1 text-[10px] text-gray-400">
+        <span className="truncate">{getMetric(metricId)?.name ?? metricId}</span>
+        <span className="flex-shrink-0"><MetricInfo metricId={metricId} align={infoAlign} /></span>
+      </span>
     </div>
   );
 
@@ -299,11 +264,11 @@ function CollectionStatus({ responses }: { responses: SurveyResponse[] }) {
           {status.label}
         </span>
       </div>
-      <div className="grid grid-cols-2 gap-x-4 gap-y-3 mt-3">
-        {stat("responses today", fmt(today))}
-        {stat("this week", fmt(week))}
-        {stat("publishers live", fmt(livePubs.size))}
-        {stat("countries collecting", fmt(liveCountries.size))}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-3 mt-3">
+        {stat("publishers_live",      fmt(livePubs))}
+        {stat("countries_collecting", fmt(liveCountries))}
+        {stat("responses_today",      fmt(today))}
+        {stat("responses_this_week",  fmt(week), "right")}
       </div>
       <p className="text-xs text-gray-400 mt-3">
         {lastTs ? `Last response ${relTime(lastTs, now)}` : "No responses collected yet"}
@@ -338,11 +303,22 @@ interface KpiCardsProps {
   eventsLoading: boolean;
 }
 
-const LEGACY_TOOLTIP = "Survey event tracking was introduced after these responses were collected.";
-
 export function KpiCards({ responses, events, eventsLoading }: KpiCardsProps) {
-  const avgTime   = avg(responses.map(r => r.response_duration_seconds));
   const completed = responses.length;
+
+  // eslint-disable-next-line react-hooks/purity -- render-time clock read for "live in last 24h" / recency; stable enough for a dashboard snapshot
+  const now = Date.now();
+  const activity = computeActivity(responses, now);
+
+  // Events-based timing (single source of truth; see lib/survey-timing.ts).
+  // Completion is correct across ALL history; TTFI is forward-only from the
+  // SURVEY_VISIBLE release, so a zero sample renders as "available from launch".
+  const avgCompletion    = events?.avg_completion_seconds ?? null;
+  const completionSample = events?.completion_sample ?? 0;
+  const avgTtfi          = events?.avg_ttfi_seconds ?? null;
+  const ttfiSample       = events?.ttfi_sample ?? 0;
+  const completionValue  = avgCompletion != null && completionSample > 0 ? `${avgCompletion}s` : "—";
+  const ttfiValue        = avgTtfi != null && ttfiSample > 0 ? `${avgTtfi}s` : "—";
 
   const renders     = events?.renders    ?? 0;
   const starts      = events?.starts     ?? 0;
@@ -366,6 +342,9 @@ export function KpiCards({ responses, events, eventsLoading }: KpiCardsProps) {
   const legacyFullCount = responses.filter(r => r.q1 && r.q2 && r.q3).length;
   const legacyCompRate  = completed > 0 ? `${Math.round((legacyFullCount / completed) * 100)}%` : "—";
 
+  const moe  = marginOfError(completed);
+  const band = bandFor(moe);
+
   const pipelineStages: PipelineStage[] = [
     { label: "Survey Renders",      count: renders,         conv: null,                                     drop: null                       },
     { label: "Q1 Answered",         count: starts,          conv: `${pct(starts, renders)} of previous`,    drop: dropOf(starts, renders)    },
@@ -379,78 +358,86 @@ export function KpiCards({ responses, events, eventsLoading }: KpiCardsProps) {
 
       <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Collection Health</h2>
 
-      {/* ── DELIVERY METRICS ──────────────────────────────────────────── */}
+      {/* ── EXPOSURE ──────────────────────────────────────────────────── */}
       <div>
-        <SectionLabel>Delivery Metrics</SectionLabel>
-        <div className="flex gap-3">
-          <DeliveryCard
-            label="Survey Renders"
+        <SectionLabel>Exposure</SectionLabel>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+          <MetricCard
+            metricId="survey_renders"
             value={showEventValue ? renders : "—"}
-            sub="creatives loaded"
-            tooltip={isLegacyData
-              ? LEGACY_TOOLTIP
-              : "Fanometrix-measured creative loads. Not the same as publisher ad server impressions, reach or frequency."}
+            sub="viewport opportunities to engage"
           />
-          <DeliveryCard
-            label="Q1 Answered"
+        </div>
+      </div>
+
+      {/* ── ENGAGEMENT ────────────────────────────────────────────────── */}
+      <div>
+        <SectionLabel>Engagement</SectionLabel>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <MetricCard
+            metricId="q1_answered"
             value={showEventValue ? starts : "—"}
             sub="first answer selected"
-            tooltip={isLegacyData ? LEGACY_TOOLTIP : undefined}
           />
-          <DeliveryCard
-            label="Completed Responses"
-            value={completed}
-            sub="all questions answered"
+          <MetricCard
+            metricId="q1_answer_rate"
+            value={showEventValue ? startRate : "—"}
+            sub="Q1 Answered ÷ Renders"
+            highlight={showEventValue}
+          />
+          <MetricCard
+            metricId="avg_time_to_first_interaction"
+            value={ttfiValue}
+            sub={ttfiSample > 0 ? "survey visible → first answer" : "available from this release"}
+            infoAlign="right"
           />
         </div>
         {eventsLoading && (
           <p className="text-xs text-gray-400 mt-1">Loading event data…</p>
         )}
         {isLegacyData && (
-          <ZeroNotice message="Survey Renders and Q1 Answered are not available for historical responses collected before event tracking was enabled." />
+          <ZeroNotice message="Survey Renders and Q1 metrics are not available for historical responses collected before event tracking was enabled." />
         )}
         {!hasEvents && !eventsLoading && (
-          <ZeroNotice message="Survey Renders and Q1 Answered require event tracking, no events recorded yet." />
+          <ZeroNotice message="Survey Renders and Q1 metrics require event tracking, no events recorded yet." />
         )}
       </div>
 
-      {/* ── ENGAGEMENT METRICS ────────────────────────────────────────── */}
+      {/* ── COMPLETION ────────────────────────────────────────────────── */}
       <div>
-        <SectionLabel>Engagement Metrics</SectionLabel>
+        <SectionLabel>Completion</SectionLabel>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <EngagementCard
-            label="Q1 Answer Rate"
-            value={showEventValue ? startRate : "—"}
-            sub="Q1 Answered ÷ Renders"
-            highlight={showEventValue}
-            tooltip={isLegacyData ? LEGACY_TOOLTIP : undefined}
+          <MetricCard
+            metricId="completed_responses"
+            value={completed}
+            sub="all questions answered"
           />
           {showEventValue ? (
-            <EngagementCard
-              label="Completion Rate"
+            <MetricCard
+              metricId="completion_rate"
               value={completionRate}
               sub="Completed ÷ Q1 Answered"
               highlight
             />
           ) : (
-            <EngagementCard
-              label="Legacy Completion Rate"
+            <MetricCard
+              label="Completion Rate"
               value={legacyCompRate}
-              sub="All-Q responses ÷ total responses"
-              tooltip="Calculated from completed response records, not survey event tracking. Switches to Completed ÷ Q1 Answered automatically once event data is available."
+              sub="all-Q responses ÷ total (legacy)"
+              note="Calculated from completed response records, not survey event tracking. Switches to Completed ÷ Q1 Answered automatically once event data is available."
             />
           )}
-          <EngagementCard
-            label="Response Rate"
+          <MetricCard
+            metricId="overall_conversion_rate"
             value={showEventValue ? responseRate : "—"}
             sub="Completed ÷ Renders"
             highlight={showEventValue}
-            tooltip={isLegacyData ? LEGACY_TOOLTIP : undefined}
           />
-          <EngagementCard
-            label="Avg Response Time"
-            value={avgTime > 0 ? `${avgTime}s` : "—"}
-            sub="seconds per survey"
+          <MetricCard
+            metricId="avg_completion_time"
+            value={completionValue}
+            sub="first answer → completion"
+            infoAlign="right"
           />
         </div>
       </div>
@@ -475,11 +462,35 @@ export function KpiCards({ responses, events, eventsLoading }: KpiCardsProps) {
         )}
       </div>
 
-      {/* ── RESEARCH CONFIDENCE + COLLECTION STATUS ────────────────────── */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <ResearchConfidence n={completed} />
-        <CollectionStatus responses={responses} />
+      {/* ── RESEARCH CONFIDENCE ───────────────────────────────────────── */}
+      <div>
+        <SectionLabel>Research Confidence</SectionLabel>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <MetricCard
+            metricId="confidence_level"
+            value="95%"
+            sub="statistical standard"
+          />
+          <MetricCard
+            metricId="margin_of_error"
+            value={moe !== null ? `±${moe}%` : "—"}
+            sub={`n = ${fmt(completed)} completed`}
+          />
+          <MetricCard
+            metricId="sample_quality"
+            value={band.label}
+            valueColor={band.color}
+            sub={moe !== null ? "based on margin of error" : "awaiting responses"}
+            infoAlign="right"
+          />
+        </div>
+        <p className="text-xs text-gray-500 mt-2 leading-relaxed">
+          {moe !== null ? band.meaning(moe) : band.meaning(0)}
+        </p>
       </div>
+
+      {/* ── COLLECTION STATUS ─────────────────────────────────────────── */}
+      <CollectionStatus activity={activity} now={now} />
 
     </div>
   );

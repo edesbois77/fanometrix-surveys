@@ -109,10 +109,14 @@ function tally(data: SurveyResponse[], field: keyof SurveyResponse) {
   return Object.entries(m).sort((a, b) => b[1] - a[1]);
 }
 
-function avgNum(nums: (number | null)[]): number {
-  const v = nums.filter((n): n is number => n !== null);
-  return v.length ? Math.round(v.reduce((a, b) => a + b, 0) / v.length) : 0;
-}
+// Events-based timing for this campaign (from /api/dashboard/events; see
+// lib/survey-timing.ts). Completion is full-history; TTFI is forward-only.
+type CampaignTiming = {
+  avg_completion_seconds: number | null;
+  avg_ttfi_seconds:       number | null;
+  completion_sample:      number;
+  ttfi_sample:            number;
+};
 
 function uniqueVals(data: SurveyResponse[], field: keyof SurveyResponse) {
   return [...new Set(data.map(r => r[field] as string).filter(Boolean))].sort();
@@ -120,26 +124,31 @@ function uniqueVals(data: SurveyResponse[], field: keyof SurveyResponse) {
 
 // ─── KPI Cards ───────────────────────────────────────────────────────────────
 
-function CampaignKpis({ responses }: { responses: SurveyResponse[] }) {
+function CampaignKpis({ responses, timing }: { responses: SurveyResponse[]; timing: CampaignTiming | null }) {
   const total      = responses.length;
   const complete   = responses.filter(r => r.q1 && r.q2 && r.q3).length;
   const completion = total > 0 ? Math.round(complete / total * 100) : 0;
-  const avgTime    = avgNum(responses.map(r => r.response_duration_seconds));
   const countries  = new Set(responses.map(r => r.country).filter(Boolean)).size;
   const publishers = new Set(responses.map(r => r.publisher).filter(Boolean)).size;
   const placements = new Set(responses.map(r => r.placement).filter(Boolean)).size;
 
+  // Events-based timing (single source of truth; see lib/survey-timing.ts).
+  // Completion is full-history; TTFI is forward-only from the SURVEY_VISIBLE release.
+  const ttfiOk       = (timing?.ttfi_sample ?? 0) > 0 && timing?.avg_ttfi_seconds != null;
+  const completionOk = (timing?.completion_sample ?? 0) > 0 && timing?.avg_completion_seconds != null;
+
   const cards = [
     { label: "Total Responses",     value: total.toLocaleString(),            sub: "for this campaign" },
     { label: "Completion Rate",      value: `${completion}%`,                  sub: "all 3 questions"   },
-    { label: "Avg Response Time",    value: avgTime > 0 ? `${avgTime}s` : "—", sub: "seconds"           },
+    { label: "Avg Time to First Interaction", value: ttfiOk ? `${timing!.avg_ttfi_seconds}s` : "—", sub: ttfiOk ? "survey visible → first answer" : "new — from this release" },
+    { label: "Avg Completion Time",  value: completionOk ? `${timing!.avg_completion_seconds}s` : "—", sub: "first answer → completion" },
     { label: "Countries",            value: countries || "—",                   sub: "represented"       },
     { label: "Publishers Running",   value: publishers || "—",                  sub: "media partners"    },
     { label: "Active Placements",    value: placements || "—",                  sub: "positions"         },
   ];
 
   return (
-    <div className="grid grid-cols-3 md:grid-cols-6 gap-3 mb-4">
+    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3 mb-4">
       {cards.map(({ label, value, sub }) => (
         <div key={label} className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm">
           <p className="text-xs text-gray-400 font-medium leading-tight">{label}</p>
@@ -351,6 +360,36 @@ export function CampaignDashboard({ campaignId, embedded = false }: { campaignId
 
   const dateBounds = useMemo(() => getDateBounds(datePreset, dateFrom, dateTo), [datePreset, dateFrom, dateTo]);
   const filtered   = useMemo(() => applyFilters(responses, filters, dateBounds), [responses, filters, dateBounds]);
+
+  // Events-based timing metrics, scoped to this campaign + the events-supported
+  // filters (survey_events has no club/competition/fan_segment columns, so those
+  // filters cannot narrow timing — the other filters and date range do).
+  const [timing, setTiming] = useState<CampaignTiming | null>(null);
+  useEffect(() => {
+    const cid = campaign?.campaign_id;
+    if (!cid) return; // campaign not loaded yet; effect re-runs once it is
+    const params = new URLSearchParams({ campaign_id: cid });
+    if (filters.publisher) params.set("publisher", filters.publisher);
+    if (filters.placement) params.set("placement", filters.placement);
+    if (filters.country)   params.set("country",   filters.country);
+    if (filters.device)    params.set("device",    filters.device);
+    if (filters.browser)   params.set("browser",   filters.browser);
+    if (dateBounds) {
+      params.set("date_from", `${dateBounds.from}T00:00:00.000Z`);
+      params.set("date_to",   `${dateBounds.to}T23:59:59.999Z`);
+    }
+    let cancelled = false;
+    fetch(`/api/dashboard/events?${params.toString()}`)
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (!cancelled) setTiming(d ? {
+        avg_completion_seconds: d.avg_completion_seconds ?? null,
+        avg_ttfi_seconds:       d.avg_ttfi_seconds ?? null,
+        completion_sample:      d.completion_sample ?? 0,
+        ttfi_sample:            d.ttfi_sample ?? 0,
+      } : null); })
+      .catch(() => { if (!cancelled) setTiming(null); });
+    return () => { cancelled = true; };
+  }, [campaign?.campaign_id, filters, dateBounds]);
 
   function setFilter(field: keyof CampaignFilters, value: string) {
     setFilters(f => ({ ...f, [field]: value }));
@@ -605,7 +644,7 @@ export function CampaignDashboard({ campaignId, embedded = false }: { campaignId
         ) : (
           <>
             {/* KPI cards */}
-            <CampaignKpis responses={filtered} />
+            <CampaignKpis responses={filtered} timing={timing} />
 
             {/* Responses over time */}
             <TimeLine responses={filtered} />

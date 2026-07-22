@@ -195,7 +195,7 @@ function DetailPanel({ row, groupLabel, onClose }: { row: GroupedRow; groupLabel
           <p className="text-sm text-gray-500 mt-1">
             {row.responses.toLocaleString()} responses
             &nbsp;·&nbsp;{Math.round(row.completionRate * 100)}% completion rate
-            {row.avgDuration !== null && <>&nbsp;·&nbsp;{row.avgDuration}s avg response time</>}
+            {row.avgDuration !== null && <>&nbsp;·&nbsp;{row.avgDuration}s avg completion time</>}
           </p>
         </div>
         <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-2xl leading-none ml-4">×</button>

@@ -2,8 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { requireUser } from "@/lib/auth-server";
 import { visibleResourceIds } from "@/lib/access";
+import { getTimingStats, type TimingFilter } from "@/lib/survey-timing";
 
-const EMPTY = { renders: 0, starts: 0, q2_reached: 0, q3_reached: 0, completed: 0 };
+const EMPTY = {
+  renders: 0, starts: 0, q2_reached: 0, q3_reached: 0, completed: 0,
+  avg_completion_seconds: null, avg_ttfi_seconds: null,
+  completion_sample: 0, ttfi_sample: 0,
+};
 
 export async function GET(req: NextRequest) {
   let user;
@@ -68,9 +73,19 @@ export async function GET(req: NextRequest) {
     return q;
   }
 
-  const results = await Promise.all(
-    ["SURVEY_RENDER", "SURVEY_START", "QUESTION_2_REACHED", "QUESTION_3_REACHED", "SURVEY_COMPLETED"].map(countQuery)
-  );
+  // Timing metrics (events-based; see lib/survey-timing.ts + docs/metrics-timing.md)
+  // reuse the exact same dimension/scope/date filters as the funnel counts.
+  const timingFilter: TimingFilter = {
+    campaign_id, campaign_ids, publisher, placement, country, device, browser,
+    date_from, date_to, scopedCampaignIds,
+  };
+
+  const [results, timing] = await Promise.all([
+    Promise.all(
+      ["SURVEY_RENDER", "SURVEY_START", "QUESTION_2_REACHED", "QUESTION_3_REACHED", "SURVEY_COMPLETED"].map(countQuery)
+    ),
+    getTimingStats(supabaseAdmin, timingFilter),
+  ]);
 
   return NextResponse.json({
     renders:    results[0].count ?? 0,
@@ -78,5 +93,9 @@ export async function GET(req: NextRequest) {
     q2_reached: results[2].count ?? 0,
     q3_reached: results[3].count ?? 0,
     completed:  results[4].count ?? 0,
+    avg_completion_seconds: timing.avg_completion_seconds,
+    avg_ttfi_seconds:       timing.avg_ttfi_seconds,
+    completion_sample:      timing.completion_sample,
+    ttfi_sample:            timing.ttfi_sample,
   });
 }

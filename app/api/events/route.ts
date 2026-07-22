@@ -17,6 +17,7 @@ function malformedOptional(v: unknown): boolean {
 
 const VALID_TYPES = new Set([
   "SURVEY_RENDER",
+  "SURVEY_VISIBLE", // genuine viewport entry; start of Avg Time to First Interaction
   "SURVEY_START",
   "QUESTION_2_REACHED",
   "QUESTION_3_REACHED",

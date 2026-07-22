@@ -385,8 +385,10 @@ export function ClassicSurvey(props: ClassicSurveyProps) {
     market, surveyLanguage, sessionId, urlLang,
   } = props;
 
+  // Completion timer: starts at the first answer (SURVEY_START), NOT at mount.
+  // This measures engaged completion time, excluding pre-interaction idle /
+  // off-screen dwell. Set on first answer below; the mount value is a fallback.
   const startRef = useRef<number>(Date.now());
-  useEffect(() => { startRef.current = Date.now(); }, []);
 
   const [step, setStep] = useState(0);
   const [answers, setAnswers] = useState<Record<string, number>>({});
@@ -397,7 +399,9 @@ export function ClassicSurvey(props: ClassicSurveyProps) {
   const [errorMsg, setErrorMsg] = useState("Something went wrong, tap an answer to try again.");
 
   // ─── Event tracking state ────────────────────────────────────────────────
+  const rootRef = useRef<HTMLDivElement>(null);
   const hasRendered = useRef(false);
+  const hasVisible = useRef(false); // SURVEY_VISIBLE = genuine viewport entry
   const hasStarted = useRef(false);
   const hasCompleted = useRef(false);
   const deviceRef = useRef<string | null>(device);
@@ -428,6 +432,24 @@ export function ClassicSurvey(props: ClassicSurveyProps) {
       }),
     }).catch(() => {/* non-fatal */});
   }, [isPreview, sessionId, publisher, placement, placementId, creativeId, country]);
+
+  // SURVEY_VISIBLE: fire once when the survey genuinely enters the viewport.
+  // Distinct from SURVEY_RENDER (data-load): this is the "became visible to the
+  // respondent" moment and is the start of Avg Time to First Interaction. Its
+  // server-side created_at is paired with SURVEY_START to compute TTFI.
+  useEffect(() => {
+    const el = rootRef.current;
+    if (!el || isPreview || typeof IntersectionObserver === "undefined") return;
+    const obs = new IntersectionObserver(([e]) => {
+      if (e.isIntersecting && !hasVisible.current) {
+        hasVisible.current = true;
+        sendEvent("SURVEY_VISIBLE");
+        obs.disconnect();
+      }
+    }, { threshold: 0.1 });
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [isPreview, sendEvent]);
 
   // SURVEY_RENDER: fire once when questions are loaded.
   useEffect(() => {
@@ -463,6 +485,10 @@ export function ClassicSurvey(props: ClassicSurveyProps) {
     // SURVEY_START: first answer ever
     if (!hasStarted.current) {
       hasStarted.current = true;
+      // Start the completion timer at first interaction. Runs in a click
+      // handler, not render — react-hooks/purity false-positives on Date.now().
+      // eslint-disable-next-line react-hooks/purity
+      startRef.current = Date.now();
       sendEvent("SURVEY_START");
     }
 
@@ -540,6 +566,7 @@ export function ClassicSurvey(props: ClassicSurveyProps) {
 
   return (
     <div
+      ref={rootRef}
       style={{
         width: 300,
         height: 250,

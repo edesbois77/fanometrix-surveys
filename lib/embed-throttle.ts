@@ -9,14 +9,14 @@
 //   • It is keyed by the survey SESSION id, never by IP. Mobile fans on the same
 //     publisher (LiveScore, FotMob, …) routinely share a carrier-NAT IP, so an
 //     IP limit would blanket-block real traffic. A session_id is unique per
-//     impression; a genuine session fires <=5 events, so a per-session cap has no
+//     impression; a genuine session fires <=6 events, so a per-session cap has no
 //     effect on real users.
 //
 // The window/cap are deliberately generous: they only ever catch a session that
 // is emitting an order of magnitude more events than the survey can produce.
 
 const WINDOW_MS = 10 * 60_000; // ~ a survey session's lifetime
-const MAX_EVENTS = 30;         // real sessions fire <=5; 30 is pure headroom
+const MAX_EVENTS = 30;         // real sessions fire <=6; 30 is pure headroom
 const MAX_KEYS = 50_000;       // hard memory ceiling for the bucket map
 
 type Bucket = { count: number; resetAt: number };
