@@ -21,7 +21,8 @@ import { useRouter } from "next/navigation";
 import { AdminShell } from "@/app/components/AdminShell";
 import type { Reframe } from "@/lib/intelligence/analysts/analyseReframe";
 import { type ProjectUnderstanding } from "@/lib/understanding";
-import { ENGAGEMENT_CONTEXT_FIELDS, type EngagementContext } from "@/lib/engagement-context";
+import { type EngagementContext } from "@/lib/engagement-context";
+import { BRIEF_FIELDS, BRIEF_LIST_FIELDS, type Brief } from "@/lib/brief";
 import { stashCommissioned } from "@/lib/commissioning-handoff";
 import type { ResearchProject } from "@/app/components/research-projects/ProjectProvider";
 
@@ -46,7 +47,7 @@ const PROMPTS: Prompt[] = [
 ];
 const TEXT_PROMPTS = PROMPTS.filter(p => p.mode === "text");
 
-type Result = { context: EngagementContext; reframe: Reframe; understanding: ProjectUnderstanding; source_text: string; source_label: string | null };
+type Result = { context: EngagementContext; brief: Brief; reframe: Reframe; understanding: ProjectUnderstanding; source_text: string; source_label: string | null };
 
 function seedFromCreated(created: Record<string, unknown>): ResearchProject {
   return {
@@ -72,6 +73,7 @@ export default function NewEngagementPage() {
   const [correction, setCorrection] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [readingIdx, setReadingIdx] = useState(0);
+  const [showBrief, setShowBrief] = useState(false);
 
   const hasSomething = text.trim().length > 0 || files.length > 0 || TEXT_PROMPTS.some(p => (frags[p.kind] ?? "").trim());
 
@@ -136,6 +138,7 @@ export default function NewEngagementPage() {
       tags: [],
       research_subject: result.context.organisation ?? null,
       engagement_context: result.context,
+      brief: result.brief,
       understanding: { ...u, reflection: result.reframe.reframe, confirmed: true, confirmed_at: new Date().toISOString() },
     };
     try {
@@ -147,7 +150,6 @@ export default function NewEngagementPage() {
     } catch { setError("Couldn't begin the engagement. Try again."); setPhase("summary"); }
   }
 
-  const ctxFields = result ? ENGAGEMENT_CONTEXT_FIELDS.map(f => ({ label: f.label, value: (result.context as unknown as Record<string, string | null>)[f.key] })).filter(f => f.value) : [];
 
   return (
     <AdminShell>
@@ -311,20 +313,40 @@ export default function NewEngagementPage() {
                     </section>
                   )}
 
-                  {/* The engagement, in brief. Supporting evidence, most muted. */}
-                  {ctxFields.length > 0 && (
-                    <section>
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-gray-400 mb-2.5">The engagement, in brief</p>
-                      <dl className="grid sm:grid-cols-2 gap-x-8 gap-y-2.5">
-                        {ctxFields.map(f => (
-                          <div key={f.label}>
-                            <dt className="text-[10px] font-semibold uppercase tracking-[0.05em] text-gray-400">{f.label}</dt>
-                            <dd className="text-[14px] leading-snug mt-0.5 text-gray-600">{f.value}</dd>
+                  {/* THE BRIEF — the factual record of what was supplied. A distinct
+                      artefact that SUPPORTS the engagement, collapsed by default. */}
+                  {(() => {
+                    const b = result.brief;
+                    const scalars = BRIEF_FIELDS.map(f => ({ label: f.label, value: (b as unknown as Record<string, string | null>)[f.key] })).filter(f => f.value);
+                    const lists = BRIEF_LIST_FIELDS.map(f => ({ label: f.label, values: (b as unknown as Record<string, string[]>)[f.key] ?? [] })).filter(f => f.values.length);
+                    if (!b.summary && !scalars.length && !lists.length) return null;
+                    return (
+                      <section>
+                        <button onClick={() => setShowBrief(v => !v)} className="text-[11px] font-semibold uppercase tracking-[0.06em] text-gray-400 hover:text-gray-600 transition-colors">The brief {showBrief ? "▲" : "▾"}</button>
+                        {showBrief && (
+                          <div className="mt-3">
+                            {b.summary && <p className="text-[14px] text-gray-500 leading-relaxed mb-4">{b.summary}</p>}
+                            {(scalars.length > 0 || lists.length > 0) && (
+                              <dl className="grid sm:grid-cols-2 gap-x-8 gap-y-2.5">
+                                {scalars.map(f => (
+                                  <div key={f.label}>
+                                    <dt className="text-[10px] font-semibold uppercase tracking-[0.05em] text-gray-400">{f.label}</dt>
+                                    <dd className="text-[14px] leading-snug mt-0.5 text-gray-600">{f.value}</dd>
+                                  </div>
+                                ))}
+                                {lists.map(f => (
+                                  <div key={f.label}>
+                                    <dt className="text-[10px] font-semibold uppercase tracking-[0.05em] text-gray-400">{f.label}</dt>
+                                    <dd className="text-[14px] leading-snug mt-0.5 text-gray-600">{f.values.join(" · ")}</dd>
+                                  </div>
+                                ))}
+                              </dl>
+                            )}
                           </div>
-                        ))}
-                      </dl>
-                    </section>
-                  )}
+                        )}
+                      </section>
+                    );
+                  })()}
                 </div>
 
                 <button onClick={() => { setPhase("ask"); setResult(null); setCorrecting(false); }} className="mt-10 text-sm text-gray-400 hover:text-gray-600 transition-colors">← start over</button>

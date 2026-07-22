@@ -12,6 +12,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth-server";
 import { IntelligenceError } from "@/lib/intelligence/types";
 import { analyseEngagementContext } from "@/lib/intelligence/analysts/analyseEngagementContext";
+import { analyseBrief } from "@/lib/intelligence/analysts/analyseBrief";
 import { analyseReframe } from "@/lib/intelligence/analysts/analyseReframe";
 import { analyseBriefUnderstanding } from "@/lib/intelligence/analysts/analyseBriefUnderstanding";
 import type { EngagementContext } from "@/lib/engagement-context";
@@ -62,11 +63,15 @@ export async function POST(req: NextRequest) {
       if (body.context && typeof body.context === "object" && !orientNote) priorContext = body.context as EngagementContext;
     }
 
-    // STAGE 1 — ORIENT. Build (or re-build) the Engagement Context: our structured
-    // read of the situation, the LENS for everything after. We only reuse a prior
-    // lens when the client is correcting the READ (not the orientation); any
-    // orientation correction re-orients from scratch.
-    const context = priorContext ?? await analyseEngagementContext({ situation: material, orientNote });
+    // STAGE 1 — ORIENT (+ record the BRIEF). The Engagement Context is our structured
+    // read of the situation, the LENS for everything after. The Brief is the purely
+    // factual synthesis of the same material (what the client asked for), independent
+    // of the lens, so it runs in parallel. We only reuse a prior lens when the client
+    // is correcting the READ; any orientation correction re-orients from scratch.
+    const [context, brief] = await Promise.all([
+      priorContext ? Promise.resolve(priorContext) : analyseEngagementContext({ situation: material, orientNote }),
+      analyseBrief({ material }),
+    ]);
 
     // STAGE 2 — INTERPRET. The reframe is the point of view; the understanding is
     // the evidence behind it. BOTH read the material THROUGH the context, never
@@ -77,7 +82,7 @@ export async function POST(req: NextRequest) {
       analyseBriefUnderstanding({ briefText: understandingText, context, sourceLabel }),
     ]);
 
-    return NextResponse.json({ context, reframe, understanding, source_label: sourceLabel, source_text: material });
+    return NextResponse.json({ context, brief, reframe, understanding, source_label: sourceLabel, source_text: material });
   } catch (err) {
     if (err instanceof IntelligenceError) return NextResponse.json({ error: err.message }, { status: err.status });
     return NextResponse.json({ error: "Something went wrong reading that. Give it another go." }, { status: 500 });
