@@ -17,7 +17,12 @@
 import type { Connector, CollectContext, CollectResult, NormalisedItem } from "@/lib/connectors/types";
 import type { SearchStrategy } from "@/lib/search-strategy";
 
-const APPVIEW = "https://public.api.bsky.app/xrpc";
+// The AUTHENTICATED AppView. This distinction matters: public.api.bsky.app serves
+// unauthenticated reads (profiles, threads, quotes) but refuses auth-gated
+// endpoints, returning 403 for searchPosts even when a valid Bearer token is
+// presented. Since every call here is authenticated, they all go to the
+// authenticated AppView.
+const APPVIEW = "https://api.bsky.app/xrpc";
 const PDS = "https://bsky.social/xrpc";
 const UA = "Fanometrix/1.0 (research)";
 
