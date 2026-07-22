@@ -83,6 +83,10 @@ Give each recommended method a fit verdict of primary, supporting, conditional o
 
 DO NOT DEFAULT BY ROLE. In particular, a STRATEGIC requirement must not automatically become trend analysis. Strategic evidence is often best served by the Research Library, industry and analyst reports, academic research on the underlying behaviour, news coverage, or unprompted conversation, depending entirely on what the requirement asks. Choose from the full list above on the merits of each requirement, and say why in the rationale.
 
+EXPLAIN THE CHOICE, NOT JUST THE METHODS. A reader must understand why the primary method was chosen OVER the alternatives, not merely that each method has a use. The strategy rationale must carry that trade-off explicitly, e.g. "conversation cannot reach this because fans do not discuss sponsors unprompted, so the survey carries it and conversation only corroborates". Parallel justifications are not an explanation of a choice.
+
+NAME WHAT YOU REJECTED. Where a method would be an obvious thing to try but genuinely will not work for this requirement, INCLUDE it with fit "not_suitable" and say plainly why. A rejected method that is explained is more useful to the client than a silent omission, and it shows the design considered it.
+
 HOW TO THINK, in order:
 1. What must we LEARN to answer the research question and serve the decision? Express these as evidence requirements, not topics.
 2. Which ROLE supplies each? Evidence about the client is direct; about rivals or comparable campaigns is comparative; about how the market or audience behaves is strategic.
@@ -120,7 +124,7 @@ Return ONLY valid JSON:
       "expected_availability": "high|moderate|low|none",
       "availability_note": "honest reasoning on whether this evidence exists",
       "evidence_strategy": {
-        "rationale": "why this is the right way to obtain this evidence",
+        "rationale": "why this approach, INCLUDING why the primary method was chosen over the alternatives",
         "comparators": [ { "name": "...", "why": "..." } ],
         "recommended_methods": [ { "method": "${RESEARCH_METHODS.join("|")}",
                      "fit": "primary|supporting|conditional|not_suitable",
@@ -194,8 +198,13 @@ function parseRequirement(raw: unknown): EvidenceRequirement | null {
   // requirement (a model slip), so a good design is never lost to shape drift.
   const strat = (r?.evidence_strategy ?? r) as Record<string, unknown>;
 
+  // Ordered by fit so the PRIMARY recommendation always leads. The model returns
+  // them in arbitrary order, which buried the primary method behind a supporting
+  // one on the page the user approves from.
   const recommended_methods = (Array.isArray(strat?.recommended_methods) ? strat.recommended_methods : [])
-    .map(parseMethod).filter((m): m is MethodRecommendation => !!m).slice(0, 6);
+    .map(parseMethod).filter((m): m is MethodRecommendation => !!m)
+    .sort((a, b) => FITS.indexOf(a.fit) - FITS.indexOf(b.fit))
+    .slice(0, 6);
 
   // A requirement whose evidence does not exist must not carry searches: the
   // design refuses to commission work it does not believe in.

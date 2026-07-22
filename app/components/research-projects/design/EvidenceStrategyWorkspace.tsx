@@ -17,7 +17,7 @@ import {
 } from "@/app/components/workspace-ui";
 import {
   type ResearchDesign, type EvidenceRequirement, type EvidenceAvailability,
-  RESEARCH_METHOD_LABEL, EVIDENCE_AVAILABILITY_LABEL, requirementsByRole,
+  RESEARCH_METHOD_LABEL, EVIDENCE_AVAILABILITY_LABEL,
   proposedConversationSearches, isApproved,
 } from "@/lib/research-design";
 import { EVIDENCE_ROLE_LABEL, EVIDENCE_ROLE_DESCRIPTION, type EvidenceRole } from "@/lib/evidence-role";
@@ -44,7 +44,8 @@ function RequirementCard({ req, searchCount }: { req: EvidenceRequirement; searc
     <Card className="p-5">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="text-[15px] font-semibold leading-snug" style={{ color: "var(--text)" }}>{req.requirement}</p>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.06em]" style={{ color: "var(--text-muted)" }}>What we need to learn</p>
+          <p className="mt-1 text-[15px] font-semibold leading-snug" style={{ color: "var(--text)" }}>{req.requirement}</p>
           {req.aspect && (
             <p className="mt-1 text-[12px]" style={{ color: "var(--text-muted)" }}>Research Aspect: {req.aspect}</p>
           )}
@@ -53,7 +54,7 @@ function RequirementCard({ req, searchCount }: { req: EvidenceRequirement; searc
           label={EVIDENCE_AVAILABILITY_LABEL[req.expected_availability]} />
       </div>
 
-      <Field label="Purpose">{req.why_it_matters}</Field>
+      <Field label="Why this matters">{req.why_it_matters}</Field>
 
       <Field label="Expected availability">
         <span style={{ color: "var(--text-muted)" }}>{req.availability_note}</span>
@@ -82,8 +83,9 @@ function RequirementCard({ req, searchCount }: { req: EvidenceRequirement; searc
         </Field>
       )}
 
+      {s.rationale && <Field label="Why this approach">{s.rationale}</Field>}
+
       <Field label="Recommended research methods">
-        {s.rationale && <p className="mb-2" style={{ color: "var(--text-muted)" }}>{s.rationale}</p>}
         <ul className="space-y-2">
           {s.recommended_methods.map((m, i) => (
             <li key={i} className="flex items-start gap-2.5">
@@ -163,7 +165,6 @@ export function EvidenceStrategyWorkspace() {
 
   if (projectLoading || loading) return <PageLoadingState />;
 
-  const byRole = requirementsByRole(design);
   const searches = proposedConversationSearches(design);
   const approved = isApproved(design);
 
@@ -211,7 +212,9 @@ export function EvidenceStrategyWorkspace() {
           </Card>
 
           {ROLE_ORDER.map(role => {
-            const reqs = byRole[role];
+            // Keep each requirement's index in the design so searches attribute to
+            // the exact requirement that asked for them.
+            const reqs = (design.requirements ?? []).map((r, i) => ({ r, i })).filter(x => x.r.role === role);
             if (!reqs.length) return null;
             return (
               <section key={role}>
@@ -222,9 +225,9 @@ export function EvidenceStrategyWorkspace() {
                   {EVIDENCE_ROLE_DESCRIPTION[role]}
                 </p>
                 <div className="space-y-3">
-                  {reqs.map((r, i) => (
+                  {reqs.map(({ r, i }) => (
                     <RequirementCard key={i} req={r}
-                      searchCount={searches.filter(s => s.role === role && s.aspect === r.aspect).length} />
+                      searchCount={searches.filter(s => s.requirement_index === i).length} />
                   ))}
                 </div>
               </section>

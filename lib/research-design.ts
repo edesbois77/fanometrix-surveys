@@ -124,19 +124,27 @@ export type ResearchDesign = {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 /** Every conversation search the design proposes, flattened with the context each
- *  search must inherit when it is created (Phase 3). */
-export function proposedConversationSearches(
-  design: ResearchDesign | null | undefined,
-): { search: ProposedSearch; role: EvidenceRole; aspect: string | null; information_needs: string[] }[] {
-  const out: { search: ProposedSearch; role: EvidenceRole; aspect: string | null; information_needs: string[] }[] = [];
-  for (const r of design?.requirements ?? []) {
+ *  search must inherit when it is created (Phase 3). Carries requirement_index so
+ *  a search is tied to the exact requirement that asked for it: matching on role
+ *  and aspect double-counts whenever two requirements share them. */
+export type ProposedSearchPlan = {
+  search: ProposedSearch;
+  role: EvidenceRole;
+  aspect: string | null;
+  information_needs: string[];
+  requirement_index: number;
+};
+
+export function proposedConversationSearches(design: ResearchDesign | null | undefined): ProposedSearchPlan[] {
+  const out: ProposedSearchPlan[] = [];
+  (design?.requirements ?? []).forEach((r, requirement_index) => {
     for (const m of r.evidence_strategy?.recommended_methods ?? []) {
       if (m.method !== "conversation") continue;
       for (const s of m.conversation_searches ?? []) {
-        out.push({ search: s, role: r.role, aspect: r.aspect, information_needs: r.information_needs });
+        out.push({ search: s, role: r.role, aspect: r.aspect, information_needs: r.information_needs, requirement_index });
       }
     }
-  }
+  });
   return out;
 }
 
