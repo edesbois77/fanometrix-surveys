@@ -20,30 +20,37 @@ wire the dormant governance read/AI gates; prove it all with tests. Nothing else
 ## 2. Data model (migrations)
 
 **Migration A — `research_projects`:**
-- `project_purpose text NOT NULL DEFAULT 'research_study' CHECK (project_purpose IN ('research_study','rfp_pitch'))`
+- `engagement_type text NOT NULL DEFAULT 'research_study' CHECK (engagement_type IN ('research_study','rfp_response'))` — extensible enum; new internal types (client_brief, internal_strategy, partnership_planning…) are added here + in the registry, with no enforcement change.
 - `visibility text NOT NULL DEFAULT 'organisation' CHECK (visibility IN ('project','organisation','internal','platform'))`
 - `ai_access text NOT NULL DEFAULT 'organisation' CHECK (ai_access IN ('project','organisation','internal','platform'))`
 - `learning_permission text NOT NULL DEFAULT 'no_learning' CHECK (learning_permission IN ('no_learning','anonymous','aggregated','platform'))`
-- Index on `project_purpose`; partial index `WHERE project_purpose='rfp_pitch'`.
+- Index on `engagement_type`; partial index `WHERE engagement_type='rfp_response'`.
 - **Existing study projects are unaffected** — defaults reproduce today's behaviour
-  (organisation-scoped, AI-usable within org). Only `rfp_pitch` creation sets the
-  internal-by-default trio (`visibility='internal', ai_access='internal',
-  learning_permission='no_learning'`), applied in the create path (§4), not by
-  column default — so a study never accidentally becomes internal.
+  (organisation-scoped, AI-usable within org). Only creation of an **internal**
+  engagement type sets the internal-by-default trio (`visibility='internal',
+  ai_access='internal', learning_permission='no_learning'`), applied in the create
+  path (§4) from the type's registry entry, not by column default — so a study never
+  accidentally becomes internal.
 
 **Migration B — `users`:**
-- `can_access_internal_rfp boolean NOT NULL DEFAULT false` — mirrors
+- `can_access_internal_engagements boolean NOT NULL DEFAULT false` — mirrors
   `can_present_simulations` exactly (a capability grant, not a role).
 
-## 3. Capability layer (splittable by design)
+**Engagement-type registry** (`lib/engagement-types.ts`, config not schema): each
+type declares `{ internal, default_visibility, capability }`. v1: `research_study`
+(external, organisation) and `rfp_response` (internal, capability-gated).
+Enforcement reads the registry — it never hard-codes a type id.
+
+## 3. Capability layer (action-aware, splittable by design)
 
 New `lib/capabilities.ts` — the single source of capability truth:
-- `type Capability = 'view_internal_rfp' | 'create_internal_rfp'` (extensible).
-- `can(user, capability): boolean` — today BOTH map to `user.role === 'admin' ||
-  user.canAccessInternalRfp`. Splitting later = change this mapping only; **no call
-  site changes** (satisfies "allow more granular capabilities without rewriting the
-  project model").
-- `AuthedUser` gains `canAccessInternalRfp: boolean` (populated in
+- `can(user, action, engagementType): boolean`, `action ∈ 'view' | 'create' |
+  'edit' | 'export'`. Today, for an **internal** type, all four actions resolve to
+  `user.role === 'admin' || user.canAccessInternalEngagements`; a non-internal type
+  resolves to the normal path. **Splitting later** (separate view/create/edit/export
+  capabilities — `export` likely first, as it governs producing shareable artefacts)
+  = change this resolver only; **no call-site changes**.
+- `AuthedUser` gains `canAccessInternalEngagements: boolean` (populated in
   `lib/auth-server.ts` from the column; admins forced true), mirroring
   `canPresentSimulations`.
 

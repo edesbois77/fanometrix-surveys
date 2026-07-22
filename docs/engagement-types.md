@@ -30,22 +30,34 @@ Needs → Evidence → Analysis. Purpose is a lens that adapts only three things
 
 Everything below serves "adapt, don't fragment."
 
-## 2. Project Purpose
+## 2. Engagement Type
 
-A new, orthogonal engagement fact on the Research Project (the Project owns
-engagement facts — domain model §3):
+The concept is broader than RFPs: the internal use case spans client briefs,
+internal strategy work, partnership planning and future kinds of engagement.
+**Research Study and RFP Response are simply the first two Engagement Types.** So
+this is modelled as a first-class, extensible **Engagement Type**, not a two-value
+"RFP-or-not" flag.
 
-- `project_purpose ∈ "research_study" | "rfp_pitch"` (default `research_study`).
-- **Orthogonal to `study_type`** (the 12-value research methodology enum) and to
-  `research_mode` (`real`/`simulated`, immutable). Purpose is *why the engagement
-  exists*, not its methodology or its data mode — so it is its own column, not an
-  overload of either.
-- Read by each stage's engine/template as a lens. The Understanding, Planning,
-  Analysis and Outputs adapt emphasis and output shape by purpose; the shared
-  engines and data structures do not change.
-- Mutable by cleared users (a study can become a pitch), but switching **to**
-  `rfp_pitch` applies the internal-by-default posture (§4) — a purpose change is
-  also a visibility event.
+- `engagement_type` — an orthogonal engagement fact on the Research Project (the
+  Project owns engagement facts — domain model §3). **Orthogonal to `study_type`**
+  (the 12-value methodology enum) and `research_mode` (`real`/`simulated`,
+  immutable): the engagement type is *why the engagement exists*, its own column.
+- **Registry-driven (the key to extensibility).** Each type is defined in an
+  engagement-type registry that *declares its own properties* — `internal?`,
+  `default_visibility`, `capability_required`, and later its commissioning-context
+  shape, output templates and analysis emphasis. Adding a type (client_brief,
+  internal_strategy, partnership_planning…) is a **registry entry**, with **no
+  change to enforcement or workflow**. Enforcement reads `type.internal` +
+  `type.capability_required`; it never hard-codes "rfp".
+- v1 registry: `research_study` (external-available, org-visible) and
+  `rfp_response` (internal, capability-gated, internal-by-default).
+- Read by each stage's engine/template as a **lens** (a registry lookup): the
+  Understanding, Planning, Analysis and Outputs adapt emphasis and output shape by
+  type; the shared engines and data structures do not change. Same pluggable
+  pattern as connectors, advisors and intelligence providers.
+- Mutable by cleared users (a study can become a pitch), but switching **to** an
+  internal type applies that type's internal-by-default posture (§4) — a type
+  change is also a visibility event.
 
 **How each stage adapts (same spine, different lens):**
 
@@ -95,20 +107,28 @@ pass, and it gates `simulated`-project visibility in the list route and creation
 And **`organisationType === "internal"`** already exists (Fanometrix's own org
 type). We mirror this rather than invent a parallel model.
 
-**Capability model:**
-- Add per-user capabilities `can_view_internal_rfp` and `can_create_internal_rfp`
-  (columns on `users`, surfaced on `AuthedUser`), checked **separately from role**.
-  Admins always pass; users in an `internal` organisation default to both; external
-  roles (brand/agency/publisher) get neither unless explicitly granted. (v1 may ship
-  a single `can_access_internal_rfp` covering both and split later — the
-  `canPresentSimulations` precedent is a single flag.)
+**Capability model (action-aware, splittable):**
+- v1 ships **one** per-user capability `can_access_internal_engagements` (column on
+  `users`, surfaced on `AuthedUser`), checked **separately from role** and named for
+  *internal engagements* generally — not RFP specifically.
+- The resolver is **action-aware from day one**: `can(user, action, engagementType)`
+  where `action ∈ view | create | edit | export`. Today, for any `internal`
+  engagement type, all four actions resolve to `admin || canAccessInternalEngagements`;
+  a non-internal type resolves to the normal path. **Splitting later** (viewing,
+  creating, editing, exporting internal engagements as *separate* capabilities —
+  `export` is the likeliest first split, as it governs producing shareable artefacts)
+  changes only the resolver mapping, **never the call sites**.
+- **Grant rule:** admins always pass; otherwise the explicit per-user flag; **org
+  membership (incl. `organisationType==='internal'`) never grants it** — "authorised
+  to see confidential internal work", not merely "works at Fanometrix". Default denied.
 
 **Internal-by-default visibility:**
-- RFP projects default to **internal** visibility. Reuse the governance model
+- Internal engagement types default to **internal** visibility, per the type's
+  registry entry (`default_visibility`). Reuse the governance model
   `library_documents` already defines (`visibility ∈ project|organisation|internal|
   platform`, `ai_access`, `GOVERNANCE_DEFAULTS` = internal-by-default) — add a
-  `visibility` column to `research_projects` on the same enum: default
-  `organisation` for research_study, `internal` for rfp_pitch.
+  `visibility` column to `research_projects` on the same enum: `organisation` for
+  `research_study`, `internal` for internal types (e.g. `rfp_response`).
 
 **Defense in depth — enforced at three layers (never "just hide the button"):**
 1. **UI** — the "RFP / Pitch Response" purpose option renders only with
@@ -235,19 +255,34 @@ authored-vs-measured discipline are unchanged.
 
 ## 11. Proposed build phasing (later — not now)
 
-1. **Project Purpose + capability + internal-by-default enforcement** — the column,
-   the `can_*_internal_rfp` capabilities on `AuthedUser`, and the three-layer
+1. **Engagement Type + capability + internal-by-default enforcement** — the
+   `engagement_type` column + registry, the `can_access_internal_engagements`
+   capability on `AuthedUser` via an action-aware resolver, and the three-layer
    enforcement (UI option, create/list/detail server checks, provider filtering +
    wiring the dormant AI-read gate). *Security-first: land the access model before
-   any RFP content exists.*
+   any internal-engagement content exists.* (Plan: `docs/rfp-phase1-plan.md`.)
 2. **Engagement Context** — the structured capture in the Overview, field
    sensitivity, brief auto-extraction; separated from Organisation Intelligence.
-3. **Adaptive outputs** — Requested vs Recommended deliverables; purpose-aware
-   Output templates (report vs pitch-deck sections); Analysis emphasis by purpose.
+3. **Adaptive outputs** — Requested vs Recommended deliverables; type-aware
+   Output templates (report vs pitch-deck sections); Analysis emphasis by type.
 4. **Partner Intelligence** — the partner store + the House provider + the
    partner-recommendation output module (internal-only).
 5. **Strategic/creative honesty** — evidential-status labelling across
    strategic/creative content.
 
-Phase 1 is a **security/access** change and should land and be verified before any
-RFP-specific content or outputs are built on top of it.
+## 12. Sequencing (do not delay Overview & Planning)
+
+This whole extension is **additive and security-first**, and it is **queued behind
+the current work** — it must not delay completing the Overview and the Planning
+stage. Recommended order:
+
+1. **Finish the Overview** — user review of the live page (migrations 127–129),
+   optional Recall/synthesis caching.
+2. **Planning slices 1–3.**
+3. **Engagement-Type Phase 1** (the access model above).
+
+The security-first invariant holds naturally: **no internal engagement can be
+created until Phase 1 exists**, because Phase 1 *is* what enables creating one — so
+the access model necessarily precedes any internal content. There is therefore no
+pressure to build Phase 1 before Overview/Planning; only before the first internal
+engagement.
