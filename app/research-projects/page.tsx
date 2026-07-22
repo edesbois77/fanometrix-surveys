@@ -364,7 +364,9 @@ export default function ResearchProjectsPage() {
     const res = await fetch(`/api/research-projects/${p.id}${force ? "?force=true" : ""}`, { method: "DELETE" });
     const json = await res.json();
     if (!res.ok) {
-      if (res.status === 409 && confirm(`${json.error} Delete anyway?`)) {
+      // A live-survey block is a HARD restriction — never offer "delete anyway".
+      // Only the soft deployment-confirm 409 may be forced.
+      if (res.status === 409 && json.code !== "live_surveys" && confirm(`${json.error} Delete anyway?`)) {
         handleDelete(p, true);
       } else {
         showToast(json.error ?? "Could not delete project.", false);

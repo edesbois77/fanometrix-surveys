@@ -13,6 +13,7 @@ import { logActivity } from "@/lib/research-project-activity";
 import { getSocialMentionStatsBySearchIds } from "@/lib/social-stats";
 import { getCollectionStatusBySearchIds } from "@/lib/collection/search-collection-status";
 import { deleteSimulatedProject } from "@/lib/simulation/delete-simulated-project";
+import { computeEffectiveStatus, type CampaignForStatus } from "@/lib/campaign-status";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   let session;
@@ -520,7 +521,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
 
   const { data: project } = await supabaseAdmin
     .from("research_projects")
-    .select("research_mode")
+    .select("research_mode, start_date, end_date, archive_after_days, target_responses")
     .eq("id", id)
     .single();
 
@@ -565,15 +566,56 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   const force = searchParams.get("force") === "true";
   const now = new Date().toISOString();
 
-  const { count } = await supabaseAdmin
+  // ── HARD block: never delete a project with LIVE surveys collecting responses.
+  // This is a genuine restriction, NOT the soft "confirm to delete anyway" below —
+  // it cannot be bypassed with ?force=true. "Live" is the COMPUTED effective
+  // status (dates + target vs response count), not just the stored column, and
+  // campaigns inherit window/target fields from the project, so we mirror that.
+  const { data: projectCampaigns } = await supabaseAdmin
     .from("campaigns")
-    .select("id", { count: "exact", head: true })
+    .select("id, campaign_id, status, manual_status_override, start_date, end_date, target_responses, archive_after_days, status_updated_at")
     .eq("research_project_id", id)
     .is("deleted_at", null);
 
-  if ((count ?? 0) > 0 && !force) {
+  if (projectCampaigns && projectCampaigns.length > 0) {
+    const campaignIds = projectCampaigns.map(c => c.campaign_id).filter(Boolean) as string[];
+    const responseCounts: Record<string, number> = {};
+    if (campaignIds.length > 0) {
+      const { data: stats } = await supabaseAdmin
+        .from("vw_campaign_stats")
+        .select("campaign_id, response_count")
+        .in("campaign_id", campaignIds);
+      for (const s of stats ?? []) responseCounts[s.campaign_id as string] = Number(s.response_count ?? 0);
+    }
+    const nowDate = new Date();
+    const liveCount = projectCampaigns.filter(c => {
+      const forStatus: CampaignForStatus = {
+        status: c.status,
+        manual_status_override: c.manual_status_override,
+        start_date: c.start_date ?? project.start_date,
+        end_date: c.end_date ?? project.end_date,
+        target_responses: c.target_responses ?? project.target_responses,
+        archive_after_days: c.archive_after_days ?? project.archive_after_days,
+        status_updated_at: c.status_updated_at,
+      };
+      return computeEffectiveStatus(forStatus, responseCounts[c.campaign_id as string] ?? 0, nowDate) === "live";
+    }).length;
+
+    if (liveCount > 0) {
+      return NextResponse.json(
+        {
+          error: `This project has ${liveCount} live survey${liveCount === 1 ? "" : "s"} currently collecting responses. Pause or close ${liveCount === 1 ? "it" : "them"} before deleting the project.`,
+          code: "live_surveys",
+        },
+        { status: 409 }
+      );
+    }
+  }
+
+  const count = projectCampaigns?.length ?? 0;
+  if (count > 0 && !force) {
     return NextResponse.json(
-      { error: `This project has ${count} active deployment(s). Confirm to delete anyway.` },
+      { error: `This project has ${count} deployment(s). Confirm to delete anyway.` },
       { status: 409 }
     );
   }
