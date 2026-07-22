@@ -20,7 +20,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AdminShell } from "@/app/components/AdminShell";
 import type { Reframe } from "@/lib/intelligence/analysts/analyseReframe";
-import { UNDERSTANDING_FIELDS, type ProjectUnderstanding } from "@/lib/understanding";
+import { type ProjectUnderstanding } from "@/lib/understanding";
 import { ENGAGEMENT_CONTEXT_FIELDS, type EngagementContext } from "@/lib/engagement-context";
 import { stashCommissioned } from "@/lib/commissioning-handoff";
 import type { ResearchProject } from "@/app/components/research-projects/ProjectProvider";
@@ -29,7 +29,7 @@ const GOLD = "#D7B87A";
 const GOLD_INK = "#B8935A";
 const INK = "#0B1929";
 
-const ORIENTING_LINES = ["Reading everything you've given me…", "Working out who's really asking, and to decide what…", "What world am I entering…", "Getting my bearings…"];
+const ORIENTING_LINES = ["Reading everything through…", "Working out who's really asking, and to decide what…", "Getting my bearings…"];
 
 // Text fragments open a labelled box; document prompts focus the file picker.
 type Prompt = { kind: string; chip: string; mode: "text" | "file"; label?: string; material?: string; placeholder?: string };
@@ -47,12 +47,6 @@ const PROMPTS: Prompt[] = [
 const TEXT_PROMPTS = PROMPTS.filter(p => p.mode === "text");
 
 type Result = { context: EngagementContext; reframe: Reframe; understanding: ProjectUnderstanding; source_text: string; source_label: string | null };
-
-const fieldValue = (u: ProjectUnderstanding, key: string) => {
-  const f = (u as unknown as Record<string, { value?: string; values?: string[]; provenance: string }>)[key];
-  const isList = UNDERSTANDING_FIELDS.find(x => x.key === key)?.kind === "list";
-  return { text: isList ? (f.values ?? []).join(" · ") : (f.value ?? ""), inferred: f.provenance === "inferred" };
-};
 
 function seedFromCreated(created: Record<string, unknown>): ResearchProject {
   return {
@@ -78,7 +72,6 @@ export default function NewEngagementPage() {
   const [correction, setCorrection] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [readingIdx, setReadingIdx] = useState(0);
-  const [showWorking, setShowWorking] = useState(false);
 
   const hasSomething = text.trim().length > 0 || files.length > 0 || TEXT_PROMPTS.some(p => (frags[p.kind] ?? "").trim());
 
@@ -110,7 +103,7 @@ export default function NewEngagementPage() {
         : await fetch("/api/commission", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...payload, source_label: "Described challenge" }) });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) { setError(json.error ?? "Something went wrong. Try again."); setPhase(result ? "summary" : "ask"); return; }
-      setResult(json); setCorrecting(false); setCorrection(""); setShowWorking(false);
+      setResult(json); setCorrecting(false); setCorrection("");
       setPhase("summary");
     } catch { setError("Something went wrong. Try again."); setPhase(result ? "summary" : "ask"); }
   }
@@ -167,13 +160,13 @@ export default function NewEngagementPage() {
               <>
                 <p className="text-[13px] font-semibold uppercase tracking-[0.14em] mb-5" style={{ color: GOLD_INK }}>New engagement</p>
                 <h1 className="text-4xl md:text-5xl font-bold tracking-[-0.03em] leading-[1.05]" style={{ color: INK }}>Let&apos;s get oriented.</h1>
-                <p className="mt-4 text-lg leading-relaxed text-gray-500 max-w-xl">Help me understand the situation. Share anything you&apos;ve got, a brief, an email, meeting notes, previous research, a deck, or simply tell me what&apos;s going on.</p>
+                <p className="mt-4 text-lg leading-relaxed text-gray-500 max-w-xl">Tell me about the situation. Bring whatever you&apos;ve got, or just talk me through it.</p>
 
                 <div className="mt-8 rounded-2xl border transition-colors"
                   style={{ borderColor: dragging ? GOLD : "#E5E7EB", background: dragging ? "#FCF8EF" : "#FFFFFF", boxShadow: "0 1px 2px rgba(11,25,41,0.04)" }}
                   onDragOver={(e) => { e.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={onDrop}>
                   <textarea value={text} onChange={(e) => setText(e.target.value)} rows={6} autoFocus
-                    placeholder="What&apos;s the situation? Who's the client, who's asking, what are they wrestling with, what have they asked for…"
+                    placeholder="The situation, the client, what they&apos;ve actually asked for, and anything said off the record…"
                     className="w-full resize-none bg-transparent px-5 py-4 text-[15px] leading-relaxed outline-none placeholder:text-gray-400" style={{ color: INK }} />
 
                   {files.length > 0 && (
@@ -198,7 +191,7 @@ export default function NewEngagementPage() {
 
                 {/* The consultant's prompts, thinking aids, never required. */}
                 <div className="mt-6">
-                  <p className="text-[13px] text-gray-400 mb-2.5">A few things that would help me read this properly:</p>
+                  <p className="text-[13px] text-gray-400 mb-2.5">Anything else that would help?</p>
                   <div className="flex flex-wrap gap-2">
                     {PROMPTS.filter(p => p.mode === "file" || !openFrags.includes(p.kind)).map(p => (
                       p.mode === "file" ? (
@@ -239,9 +232,10 @@ export default function NewEngagementPage() {
             )}
 
             {/* SUMMARY — one editorial document. The insight leads, the tension and
-                the decisive factors dominate, the user decides, and only then does
-                supporting material (reasoning, what to verify, the engagement
-                metadata) earn attention, in sequence. Not a dashboard. */}
+                the decisive factors dominate, the user decides, and only then do the
+                two supporting notes (what we'll settle, the engagement in brief) earn
+                attention. Nothing here explains the reasoning; every line either
+                sharpens the engagement or moves it forward. Not a dashboard. */}
             {phase === "summary" && result && (() => {
               const toVerify = Array.from(new Set([...result.context.outstanding_questions, ...result.reframe.clarifying_questions]));
               return (
@@ -313,10 +307,9 @@ export default function NewEngagementPage() {
                   )}
 
                   {/* The engagement, in brief. Supporting evidence, most muted. */}
-                  <section>
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-gray-400 mb-2.5">The engagement, in brief</p>
-                    {result.context.orientation && <p className="text-[14px] text-gray-500 leading-relaxed mb-4">{result.context.orientation}</p>}
-                    {ctxFields.length > 0 && (
+                  {ctxFields.length > 0 && (
+                    <section>
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-gray-400 mb-2.5">The engagement, in brief</p>
                       <dl className="grid sm:grid-cols-2 gap-x-8 gap-y-2.5">
                         {ctxFields.map(f => (
                           <div key={f.label}>
@@ -325,25 +318,8 @@ export default function NewEngagementPage() {
                           </div>
                         ))}
                       </dl>
-                    )}
-                    <button onClick={() => setShowWorking(v => !v)} className="mt-4 text-[12px] font-medium text-gray-400 hover:text-gray-600 transition-colors">
-                      {showWorking ? "Hide the detail ▲" : "See the engagement in detail ▾"}
-                    </button>
-                    {showWorking && (
-                      <dl className="mt-3 space-y-2.5">
-                        {UNDERSTANDING_FIELDS.map(({ key, label }) => {
-                          const v = fieldValue(result.understanding, key);
-                          if (!v.text) return null;
-                          return (
-                            <div key={key} className="grid md:grid-cols-[160px_1fr] gap-1 md:gap-3">
-                              <dt className="text-[10px] font-semibold uppercase tracking-[0.05em] text-gray-400 pt-0.5">{label}</dt>
-                              <dd className="text-[13px] text-gray-500 leading-relaxed">{v.text}{v.inferred && <span className="text-gray-300"> · inferred</span>}</dd>
-                            </div>
-                          );
-                        })}
-                      </dl>
-                    )}
-                  </section>
+                    </section>
+                  )}
                 </div>
 
                 <button onClick={() => { setPhase("ask"); setResult(null); setCorrecting(false); }} className="mt-10 text-sm text-gray-400 hover:text-gray-600 transition-colors">← start over</button>
