@@ -26,6 +26,7 @@ export async function POST(req: NextRequest) {
   try {
     let text = "";
     let sourceLabel: string | null = null;
+    let correction: string | null = null;
 
     const contentType = req.headers.get("content-type") ?? "";
     if (contentType.includes("multipart/form-data")) {
@@ -40,13 +41,16 @@ export async function POST(req: NextRequest) {
       const body = await req.json().catch(() => ({}));
       text = typeof body.text === "string" ? body.text : "";
       sourceLabel = typeof body.source_label === "string" && body.source_label.trim() ? body.source_label.trim() : null;
+      correction = typeof body.correction === "string" && body.correction.trim() ? body.correction.trim() : null;
     }
 
     // The reframe is the point of view; the understanding is the evidence behind
-    // it. Run both from the same material, in parallel.
+    // it. Run both from the same material, in parallel. A correction (the client
+    // pushing back or answering a question) is folded into both.
+    const understandingText = correction ? `${text}\n\nClient added: ${correction}` : text;
     const [reframe, understanding] = await Promise.all([
-      analyseReframe({ text }),
-      analyseBriefUnderstanding({ briefText: text, sourceLabel }),
+      analyseReframe({ text, correction }),
+      analyseBriefUnderstanding({ briefText: understandingText, sourceLabel }),
     ]);
 
     return NextResponse.json({ reframe, understanding, source_label: sourceLabel, source_text: text });

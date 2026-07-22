@@ -19,6 +19,7 @@ import type { CampaignGroupSummary } from "@/app/components/research-projects/Ca
 import type { SimulationInfo } from "@/app/components/simulation/SimulationInformationPanel";
 import type { LangCode } from "@/lib/survey-locale";
 import type { ProjectUnderstanding } from "@/lib/understanding";
+import { getCommissioned, clearCommissioned } from "@/lib/commissioning-handoff";
 
 export type ActivityRow = { id: string; event_type: string; description: string; actor: string | null; created_at: string };
 
@@ -184,17 +185,23 @@ export function useResearchProject(): ResearchProjectContextValue {
 }
 
 export function ProjectProvider({ projectId: id, children }: { projectId: string; children: ReactNode }) {
-  const [project, setProject] = useState<ResearchProject | null>(null);
+  // Seed from the commissioning handoff (Slice 3) so a just-agreed engagement's
+  // understanding renders instantly — no loading flash — while the full project
+  // hydrates in the background. For any normal open the seed is null.
+  const [project, setProject] = useState<ResearchProject | null>(() => getCommissioned(id));
   const [orgs, setOrgs] = useState<Org[]>([]);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [campaignGroups, setCampaignGroups] = useState<CampaignGroupSummary[]>([]);
   const [deletedCampaigns, setDeletedCampaigns] = useState<Campaign[]>([]);
   const [loadingDeletedCampaigns, setLoadingDeletedCampaigns] = useState(false);
-  const [loading, setLoading] = useState(true);
+  // If we were seeded, we already have something to show — never blank the screen.
+  const [loading, setLoading] = useState(() => getCommissioned(id) == null);
   const [error, setError] = useState("");
 
   const load = useCallback(async () => {
-    setLoading(true); setError("");
+    // Note: no setLoading(true) here — a background hydrate must never blank a
+    // screen that already has a (seeded or previously-loaded) project.
+    setError("");
     const [pRes, oRes, cRes, gRes] = await Promise.all([
       fetch(`/api/research-projects/${id}`),
       fetch("/api/organisations"),
@@ -208,6 +215,7 @@ export function ProjectProvider({ projectId: id, children }: { projectId: string
     setCampaigns(cJson.data ?? []);
     setCampaignGroups(gJson.data ?? []);
     setLoading(false);
+    clearCommissioned(id);
   }, [id]);
 
   useEffect(() => { load(); }, [load]);

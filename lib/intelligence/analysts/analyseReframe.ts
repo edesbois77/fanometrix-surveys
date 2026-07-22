@@ -25,15 +25,17 @@ export type Reframe = {
   model: string | null;
 };
 
-export type ReframeInput = { text: string };
+export type ReframeInput = { text: string; correction?: string | null };
 
-function buildPrompt(text: string): string {
+function buildPrompt(text: string, correction?: string | null): string {
+  const corrected = correction?.trim();
   return `You are a senior strategy consultant at Fanometrix (sport, fan and brand). A client has handed you the material below. You have read it, thought hard about it, and you are giving them your FIRST READ — the thing that decides whether they trust you to continue. Get this wrong and they leave. Get it right and they think "they understood my problem better than I did."
 
 THE MATERIAL:
 """
 ${text.slice(0, 12000)}
 """
+${corrected ? `\nTHE CLIENT HAS JUST PUSHED BACK / ADDED CONTEXT: "${corrected}"\nThis changes things. OPEN by briefly acknowledging what you now see differently — a genuine "You're right —" or "Ah, so it's really…" — then give your REVISED read incorporating it. Do not restate your old read; show that you listened and thought again. Adapting well here matters more than being right first time.\n` : ""}
 
 Write your read as ONE short paragraph (3–5 sentences), first person, spoken like a sharp senior strategist across the table. It MUST do all three of these or it has failed:
 
@@ -74,7 +76,7 @@ export async function analyseReframe(input: ReframeInput): Promise<Reframe> {
   }
 
   const raw = await completeJSON<Record<string, unknown>>({
-    prompt: buildPrompt(input.text), model: MODEL, maxTokens: 900, temperature: 0.5,
+    prompt: buildPrompt(input.text, input.correction), model: MODEL, maxTokens: 900, temperature: 0.5,
   });
 
   const conf = clean(raw.confidence).toLowerCase();
