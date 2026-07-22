@@ -114,7 +114,8 @@ export function EvidenceStrategyWorkspace() {
   const projectId = project?.id;
   const [design, setDesign] = useState<ResearchDesign | null>(null);
   const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState<"generate" | "approve" | null>(null);
+  const [busy, setBusy] = useState<"generate" | "approve" | "searches" | null>(null);
+  const [genResult, setGenResult] = useState<{ generated: { name: string; action: string }[]; skipped: { name: string; reason: string }[] } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -163,6 +164,18 @@ export function EvidenceStrategyWorkspace() {
     setBusy(null);
   }
 
+  async function generateSearches() {
+    if (!projectId) return;
+    setBusy("searches"); setError(null);
+    try {
+      const res = await fetch(`/api/research-projects/${projectId}/research-design/generate-searches`, { method: "POST" });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) setError(json.error ?? "Couldn't generate the searches.");
+      else setGenResult(json.data);
+    } catch { setError("Couldn't generate the searches."); }
+    setBusy(null);
+  }
+
   if (projectLoading || loading) return <PageLoadingState />;
 
   const searches = proposedConversationSearches(design);
@@ -201,6 +214,29 @@ export function EvidenceStrategyWorkspace() {
                 {design.approved_by ? `Approved by ${design.approved_by}` : "Approved"}
                 {searches.length > 0 && `, ${searches.length} conversation search${searches.length === 1 ? "" : "es"} ready to create`}.
               </span>
+              {searches.length > 0 && (
+                <div className="mt-3">
+                  <Button onClick={generateSearches} disabled={busy !== null}>
+                    {busy === "searches" ? "Generating…" : "Generate conversation searches"}
+                  </Button>
+                </div>
+              )}
+              {genResult && (
+                <div className="mt-3 text-[13px]" style={{ color: "var(--text-muted)" }}>
+                  {genResult.generated.length > 0 && (
+                    <p>{genResult.generated.filter(g => g.action === "created").length} created,{" "}
+                      {genResult.generated.filter(g => g.action === "updated").length} updated:{" "}
+                      {genResult.generated.map(g => g.name).join(", ")}.</p>
+                  )}
+                  {genResult.skipped.length > 0 && (
+                    <ul className="mt-1.5 space-y-1">
+                      {genResult.skipped.map((sk, i) => (
+                        <li key={i}>Not created, {sk.name}: {sk.reason}</li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
             </Card>
           )}
 
