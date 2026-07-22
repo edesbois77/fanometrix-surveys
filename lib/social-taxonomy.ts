@@ -2,6 +2,10 @@
  * Football conversation taxonomy — V2 AI classification reference.
  * Mirrors the social_taxonomy DB table. Used in AI prompts and UI dropdowns.
  */
+import {
+  type EvidenceRole, DEFAULT_EVIDENCE_ROLE,
+  EVIDENCE_ROLE_LABEL, EVIDENCE_ROLE_DESCRIPTION, EVIDENCE_ROLE_RELEVANCE_RULE,
+} from "@/lib/evidence-role";
 
 export const FOOTBALL_TOPICS = [
   "Transfers", "Ticketing", "Matchday Experience", "Streaming",
@@ -96,6 +100,11 @@ export type ClassificationContext = {
   entityType?: string;    // Brand | Club | Competition | Topic
   researchGoal?: string;
   researchQuestion?: string;
+  /** WHY this search collects: direct | comparative | strategic. Each role has its
+   *  own relevance test (lib/evidence-role.ts). This is what makes "the subject
+   *  need not be named" correct for comparative/strategic evidence and forbidden
+   *  for direct evidence, where it would license speculative bridging. */
+  evidenceRole?: EvidenceRole;
   /** The primary subject the conversation must ENGAGE to be relevant — distinct
    *  from the surrounding context. Sharing the context alone is not relevance.
    *  When informationNeeds are supplied this becomes SOFT context: a conversation
@@ -131,6 +140,20 @@ export function buildClassificationPrompt(content: string, context?: Classificat
   const needs = (context?.informationNeeds ?? []).filter(n => n?.need?.trim());
   const definedAspects = Array.from(new Set(needs.map(n => n.aspect.trim()).filter(Boolean)));
 
+  // THE EVIDENCE ROLE governs the relevance test. It is stated first and it
+  // OVERRIDES any general guidance below, because "the subject need not be
+  // named" is correct for comparative/strategic evidence and is precisely the
+  // loophole that admits junk when the search is direct.
+  const role: EvidenceRole = context?.evidenceRole ?? DEFAULT_EVIDENCE_ROLE;
+  const roleBlock = `EVIDENCE ROLE: ${EVIDENCE_ROLE_LABEL[role].toUpperCase()}. ${EVIDENCE_ROLE_DESCRIPTION[role]}
+${EVIDENCE_ROLE_RELEVANCE_RULE[role]}
+This role's test OVERRIDES any general guidance below wherever they disagree.`;
+
+  // The single most common failure: awarding relevance for a speculative chain
+  // ("could influence", "may indirectly affect", "if fans associate"). Genuine
+  // evidence engages the subject of its role; it does not need a bridge built.
+  const antiBridging = `- NO SPECULATIVE BRIDGING. Relevance must come from what the conversation ACTUALLY discusses, not from a chain of inference about what it might imply. If justifying relevance requires words like "could influence", "may affect", "indirectly", "if fans associate" or "this might suggest", then it is NOT relevant: score ~0.0 and mark it Off-topic. A conversation that merely shares a brand name, a sport, a competition or a mood with the research is not evidence.`;
+
   const relevanceAnchor = needs.length
     ? `INFORMATION NEEDS — the evidence this research must obtain. Judge relevance against THESE:
 ${needs.map(n => `- [${n.aspect}] ${n.need}`).join("\n")}
@@ -141,7 +164,9 @@ ${q ? `\nOVERALL RESEARCH QUESTION these needs serve: "${q}"` : ""}${primary ? `
 
   const relevanceRule = needs.length
     ? `- relevance: how much this conversation MATERIALLY HELPS ANSWER one or more of the INFORMATION NEEDS above (1.0 = directly and substantively answers a need; 0.0 = answers none).
-- A conversation is RELEVANT if it gives fan opinion, reaction, experience, an example, or a fact that bears on a need — EVEN IF it never mentions the primary subject. Worked example for the need "What makes a sponsorship activation memorable?": a fan enthusing about a RIVAL brand's brilliant activation IS strong evidence, because it answers that need. Do not require the subject to be named.
+${role === "direct"
+      ? `- Because this is a DIRECT search, answering a need is NOT sufficient on its own: the conversation must also genuinely engage the research subject itself. Do not accept a conversation that answers a need only in the abstract, or that names the subject in an unrelated sense.`
+      : `- A conversation is RELEVANT if it gives fan opinion, reaction, experience, an example, or a fact that bears on a need, EVEN IF it never mentions the primary subject. Worked example for the need "What makes a sponsorship activation memorable?": a fan enthusing about a RIVAL brand's brilliant activation IS strong evidence, because it answers that need. This relaxation applies because the role is ${EVIDENCE_ROLE_LABEL[role]}; it would NOT apply to a direct search.`}
 - It is NOT relevant if it only shares a topic, competition or entity with the research but answers none of the needs. Sharing the competition named in the research — or even naming the subject — is NOT enough on its own.
     • NOT RELEVANT (topic only, no need answered): "For me, it has to be Eze's goal" — a Champions League moment that answers none of the needs. Score ~0.0 even though it is clearly about football.
     • NOT RELEVANT (wrong meaning of the subject): "My FedEx parcel is stuck in transit, terrible service" — this is about the courier business, NOT the sponsorship. It answers no need. Score ~0.0 / Off-topic even though it names FedEx.
@@ -152,11 +177,13 @@ ${q ? `\nOVERALL RESEARCH QUESTION these needs serve: "${q}"` : ""}${primary ? `
     : q
     ? `- relevance: how much this conversation MATERIALLY HELPS ANSWER the research question — a fan opinion, reaction, experience or fact that actually bears on it (1.0 = directly and substantively helps answer it; 0.0 = no meaningful bearing).
 - The test is "does this help ANSWER the question?", NOT "does this share an entity, competition or topic with the question?". Sharing the competition, event, club or topic named in the question is NOT enough on its own.
-- The conversation must engage the PRIMARY SUBJECT of the question AND the specific thing it asks about. Worked example for "How do football fans perceive FedEx's UEFA Champions League sponsorship?":
+${role === "direct"
+    ? `- The conversation must engage the PRIMARY SUBJECT of the question AND the specific thing it asks about. Worked example for "How do football fans perceive FedEx's UEFA Champions League sponsorship?":
     • RELEVANT: fans reacting to, praising, criticising or opining on FedEx's sponsorship, its presence around the Champions League, its brand fit, or their perception of it.
     • NOT RELEVANT (context only, subject absent): "For me, it has to be Eze's goal" — this is about a Champions League moment but says nothing about FedEx or the sponsorship, so it does not help answer the question. Score ~0.0 even though it is clearly about football.
     • NOT RELEVANT (wrong meaning of the subject): a FedEx logistics, delivery, parcel or driver story — mentions FedEx but not the sponsorship. Score ~0.0.
-- Do NOT inflate relevance for detailed, on-topic-for-football content that never touches the subject of the question. Topic or competition overlap is not evidence. When the subject is absent or only incidental, relevance is low regardless of how football-relevant the content otherwise is.
+- Do NOT inflate relevance for detailed, on-topic-for-football content that never touches the subject of the question. Topic or competition overlap is not evidence. When the subject is absent or only incidental, relevance is low regardless of how football-relevant the content otherwise is.`
+    : `- IMPORTANT: because the evidence role is ${EVIDENCE_ROLE_LABEL[role].toUpperCase()}, the research subject of the question is NOT required to appear, and its absence must NOT reduce the score. Judge the item against the role's test above: a strong ${role === "comparative" ? "comparable brand, sponsor or campaign" : "insight into the market, audience or their behaviour"} scores HIGH (0.7+) even though the subject is never mentioned. Score low only when the item fails the role's own test, e.g. general match banter or reaction that engages ${role === "comparative" ? "no comparable brand or campaign" : "no attitude or behaviour relevant to the research"}.`}
 - why_this_matters: 1–2 sentences explaining WHY this conversation is (or isn't) useful to the research question and what it lets the researcher learn. Do NOT merely restate the sentiment.
 - research_aspect: the single facet of the research this conversation most contributes to — a short 1–3 word Title Case label you generate to fit THIS research question (e.g. Brand Perception, Sponsorship Awareness, Fan Benefits, Brand Fit, Purchase Intent, Activation Recall). Pick the most fitting; invent an apt one if none of these fit. If the conversation is not relevant, use "Off-topic".`
     : `- relevance: how relevant this mention is to the research subject above (1.0 = directly about it, 0.0 = unrelated). If no subject was given, judge general football relevance.
@@ -164,6 +191,8 @@ ${q ? `\nOVERALL RESEARCH QUESTION these needs serve: "${q}"` : ""}${primary ? `
 - research_aspect: a short 1–3 word Title Case label for the facet it contributes to (e.g. Brand Perception, Fan Benefits), or "Off-topic" if not relevant.`;
 
   return `You are a research analyst assessing a single collected conversation as research evidence. The domain is set by the research context below; do not assume one.
+
+${roleBlock}
 ${[relevanceAnchor, subjectBits].filter(Boolean).join("\n")}
 Content: "${content}"
 
@@ -187,6 +216,7 @@ Rules:
 - subtopic should be a specific aspect within the topic, or null
 - entities: named entities explicitly referenced (clubs, brands, competitions, players); [] if none
 ${relevanceRule}
+${antiBridging}
 - confidence: your overall certainty in the relevance judgement (0.0–1.0)
 - ai_summary should be written from a third-person analyst perspective, e.g. "Fans express frustration about..."
 - If the content does not fit the listed topics, set topic to null. If it is unintelligible or has no bearing on the research, set sentiment to Unknown and relevance low.`;

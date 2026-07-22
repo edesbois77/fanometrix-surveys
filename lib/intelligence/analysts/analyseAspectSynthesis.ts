@@ -22,6 +22,9 @@ import { clampReferences } from "@/lib/intelligence/validate-references";
 import { stripEmDash } from "@/lib/strip-em-dash";
 import type { EngagementContext } from "@/lib/engagement-context";
 import type { Brief } from "@/lib/brief";
+import {
+  type EvidenceRole, asEvidenceRole, EVIDENCE_ROLE_LABEL, EVIDENCE_ROLE_ATTRIBUTION_RULE,
+} from "@/lib/evidence-role";
 import { getApprovedProjectSocialSearchIds } from "@/lib/research-sources/project-searches";
 import { classifyAspects, type AspectClassifyInput } from "@/lib/intelligence/aspect-classify";
 import type { LocalisedQuestion } from "@/lib/survey-locale";
@@ -72,6 +75,10 @@ export type EvidenceItemRef = {
   relevance: number | null;      // 0–1, for the finding's derived confidence
   confidence: string | null;     // classifier confidence: High | Medium | Low
   sentiment: string | null;      // Positive | Neutral | Negative | null
+  // WHAT KIND of evidence this is. Travels from collection so a finding can never
+  // silently attribute a competitor's conversation to the client. Optional so
+  // previously stored syntheses keep rendering (they predate the role).
+  evidence_role?: EvidenceRole;
 };
 
 // DETERMINISTIC quantification for a finding, computed AFTER generation from the
@@ -136,6 +143,7 @@ type Evidence = {
   why: string | null;       // "why this matters"
   relevance: number;        // 0–1
   confidence: string | null;// classifier confidence label
+  role: EvidenceRole;       // direct | comparative | strategic
 };
 
 const MIN_EVIDENCE_PER_ASPECT = 3;   // below this, an aspect is noise, not a section
@@ -165,7 +173,7 @@ async function gatherConversationEvidence(projectId: string): Promise<Evidence[]
 
   const { data: rows } = await supabaseAdmin
     .from("social_mentions")
-    .select("id, search_id, content, research_aspect, relevance_score, relevance_rationale, relevance_confidence, sentiment, market, platform")
+    .select("id, search_id, content, research_aspect, relevance_score, relevance_rationale, relevance_confidence, sentiment, market, platform, evidence_role")
     .in("search_id", searchIds)
     .eq("excluded", false)
     .not("research_aspect", "is", null)
@@ -176,7 +184,7 @@ async function gatherConversationEvidence(projectId: string): Promise<Evidence[]
   for (const r of (rows ?? []) as {
     id: string; search_id: string | null; content: string | null; research_aspect: string | null;
     relevance_score: number | null; relevance_rationale: string | null; relevance_confidence: string | null;
-    sentiment: string | null; market: string | null; platform: string | null;
+    sentiment: string | null; market: string | null; platform: string | null; evidence_role: string | null;
   }[]) {
     const aspect = r.research_aspect?.trim();
     if (!aspect || aspect.toLowerCase() === "off-topic") continue;
@@ -195,6 +203,7 @@ async function gatherConversationEvidence(projectId: string): Promise<Evidence[]
       platform: r.platform,
       provenance,
       why: r.relevance_rationale,
+      role: asEvidenceRole(r.evidence_role),
       relevance: r.relevance_score,
       confidence: r.relevance_confidence,
     });
@@ -268,6 +277,7 @@ async function gatherSurveyEvidence(projectId: string, ctx: AspectCtx): Promise<
       source_id: s.surveyId, source_label: s.surveyName,
       content: s.text, aspect, sentiment: null, market: null, platform: null,
       provenance: s.question, why: c.why_this_matters, relevance: c.relevance, confidence: c.confidence,
+      role: "direct",
     });
   }
   return out;
@@ -325,6 +335,7 @@ async function gatherDocumentEvidence(projectId: string, ctx: AspectCtx): Promis
       source_id: it.rowId, source_label: it.title,
       content: it.text, aspect, sentiment: null, market: null, platform: null,
       provenance: it.provenance, why: c.why_this_matters, relevance: c.relevance, confidence: c.confidence,
+      role: "direct",
     });
   }
   return out;
@@ -404,16 +415,25 @@ function aspectFacts(all: Evidence[], shown: Evidence[]): string {
     `- Items that materially answer the research question (relevance ${STRONG_RELEVANCE}+): ${strong} of ${n}`,
     `- Sentiment across the aspect: ${s.positive_pct}% positive, ${s.neutral_pct}% neutral, ${s.negative_pct}% negative`,
     `- Sources: ${byType.map(x => `${x.c} ${SOURCE_WORD[x.t]}${x.c === 1 ? "" : "s"}`).join(", ")}`,
+    `- Evidence by role: ${(["direct", "comparative", "strategic"] as EvidenceRole[])
+      .map(r => ({ r, c: all.filter(i => i.role === r).length })).filter(x => x.c > 0)
+      .map(x => `${x.c} ${EVIDENCE_ROLE_LABEL[x.r].toLowerCase()}`).join(", ")}`,
     markets.length ? `- Markets represented: ${markets.join(", ")}` : "",
   ].filter(Boolean).join("\n");
 }
 
 function buildAspectPrompt(aspect: string, lens: string, facts: string, items: Evidence[]): string {
   const list = items.map((e, i) =>
-    `[${i}] (${SOURCE_WORD[e.ref.type]}${e.sentiment ? `, ${e.sentiment}` : ""}${e.market ? `, ${e.market}` : ""}) "${e.content.slice(0, EVIDENCE_CHARS)}"${e.why ? `\n     analyst note: ${e.why.slice(0, WHY_CHARS)}` : ""}`
+    `[${i}] (${EVIDENCE_ROLE_LABEL[e.role].toUpperCase()} · ${SOURCE_WORD[e.ref.type]}${e.sentiment ? `, ${e.sentiment}` : ""}${e.market ? `, ${e.market}` : ""}) "${e.content.slice(0, EVIDENCE_CHARS)}"${e.why ? `\n     analyst note: ${e.why.slice(0, WHY_CHARS)}` : ""}`
   ).join("\n");
   const types = Array.from(new Set(items.map(i => i.ref.type)));
   const multi = types.length > 1;
+  // Attribution rules for exactly the roles present. This is what stops a
+  // competitor's conversation becoming "fans think the client is...".
+  const rolesPresent = Array.from(new Set(items.map(i => i.role)));
+  const attribution = rolesPresent
+    .map(r => `- ${EVIDENCE_ROLE_LABEL[r].toUpperCase()} evidence ${EVIDENCE_ROLE_ATTRIBUTION_RULE[r]}`)
+    .join("\n");
   return `You are a senior research consultant writing the "${aspect}" section of a client analysis. Your job is NOT to summarise conversations. It is to move the client closer to answering their research question, and to do it in a way that stands up to scrutiny.
 
 THE ENGAGEMENT (reason from this throughout, never merely describe the evidence):
@@ -421,6 +441,10 @@ ${lens || "- (no engagement context recorded; reason from the evidence alone)"}
 
 THE EVIDENCE classified under "${aspect}"${multi ? `, drawn from multiple sources (${types.map(t => SOURCE_WORD[t]).join(", ")})` : ""}. Each item carries an analyst note recorded when it was judged relevant. Use those notes as INPUT to your thinking, they tell you why the item was kept, but never quote or restate them:
 ${list}
+
+EVIDENCE ROLES AND ATTRIBUTION. Each item is tagged with the ROLE it was collected for. This governs what you are allowed to say about it, and it is not negotiable:
+${attribution}
+Never blend roles into a single claim about the client. If a judgement rests on comparative or strategic evidence, say whose evidence it is ("among rival sponsors", "in this audience generally"), and never phrase it as what fans think about the client.
 
 THE FACTS (computed, exact). These are the ONLY figures you may state. Never count, estimate or infer a number yourself:
 ${facts}
@@ -564,6 +588,7 @@ function toItemRef(e: Evidence): EvidenceItemRef {
     source_id: e.source_id, source_label: e.source_label,
     snippet: e.content, provenance: e.provenance,
     relevance: e.relevance, confidence: e.confidence, sentiment: e.sentiment,
+    evidence_role: e.role,
   };
 }
 

@@ -13,6 +13,7 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 import { classifyContent } from "@/lib/ai-classify";
 import { getProjectResearchQuestionForSearch } from "@/lib/research-sources/project-searches";
 import { resolveInformationNeeds } from "@/lib/research-sources/information-needs";
+import { asEvidenceRole } from "@/lib/evidence-role";
 import { flattenNeeds } from "@/lib/information-needs";
 import { submitForApproval } from "@/lib/evidence-review";
 import { getConnector, connectorIdForPlatform } from "@/lib/connectors";
@@ -64,7 +65,7 @@ export async function runCollection(opts: {
 }): Promise<RunCollectionResult> {
   const { data: search, error: sErr } = await supabaseAdmin
     .from("social_searches")
-    .select("id, name, description, markets, platforms, languages, collect_from, collect_to, collect_window, connector_config, entity_type, research_goal, is_simulated, relevance_threshold, search_strategy, reddit_subreddits, social_keywords(keyword)")
+    .select("id, name, description, markets, platforms, languages, collect_from, collect_to, collect_window, connector_config, entity_type, research_goal, is_simulated, relevance_threshold, search_strategy, evidence_role, reddit_subreddits, social_keywords(keyword)")
     .eq("id", opts.searchId)
     .single<SearchRow>();
 
@@ -213,7 +214,10 @@ export async function runCollection(opts: {
   // resolver, so this pipeline doesn't depend on WHERE they are stored — when
   // they move to the project's Research Design, only the resolver changes.
   const informationNeeds = flattenNeeds(await resolveInformationNeeds({ searchId: search.id }));
-  const classifyCtx = { keywords, entityType: search.entity_type ?? undefined, researchGoal: search.research_goal ?? undefined, researchQuestion: researchQuestion ?? undefined, primarySubject: search.search_strategy?.primary_entity?.term ?? undefined, informationNeeds: informationNeeds.length ? informationNeeds : undefined };
+  // WHY this search collects. Governs the relevance test applied to every item,
+  // and is stamped on each row so the role travels into Analysis.
+  const evidenceRole = asEvidenceRole((search as { evidence_role?: unknown }).evidence_role);
+  const classifyCtx = { keywords, entityType: search.entity_type ?? undefined, researchGoal: search.research_goal ?? undefined, researchQuestion: researchQuestion ?? undefined, primarySubject: search.search_strategy?.primary_entity?.term ?? undefined, informationNeeds: informationNeeds.length ? informationNeeds : undefined, evidenceRole };
   const rows: Record<string, unknown>[] = new Array(newItems.length);
   for (let i = 0; i < newItems.length; i += CLASSIFY_CONCURRENCY) {
     const slice = newItems.slice(i, i + CLASSIFY_CONCURRENCY);
@@ -233,6 +237,7 @@ export async function runCollection(opts: {
         relevance_rationale: c?.relevance_rationale ?? null, relevance_confidence: c?.confidence_label ?? null,
         research_aspect: c?.research_aspect ?? null,
         information_need: c?.information_need ?? null,
+        evidence_role: evidenceRole,
       };
     }));
   }
