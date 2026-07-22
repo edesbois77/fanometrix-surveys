@@ -88,9 +88,11 @@ objective, never the workflow.**
 | **Internal Strategy** | support internal decision-making |
 | **Partnership Planning** | identify the strongest commercial opportunity |
 
-`success_definition` therefore joins `{ internal, default_visibility, capability }`
-as a registry property of each type. It is the **objective function** that
-parameterises — without changing — the shared stages:
+A Success Definition describes not only *when an engagement is complete* but *what
+constitutes a successful output*. So `success_definition` **and an
+`output_profile`** join `{ internal, default_visibility, capability }` as registry
+properties of each type (see §2.2). The success definition is the **objective
+function** that parameterises — without changing — the shared stages:
 
 - **The Overview's readiness recommendation** ("are we ready?") is evaluated against
   *this* success definition. The four-outcome spectrum (Ready to Decide / Focused /
@@ -112,6 +114,38 @@ engagement = the specifics.
 **Authored, not fabricated.** The success definition is *authored* (part of the
 engagement / Research Design); *progress toward it* is *measured* (the readiness
 recommendation, confidence). Same authored-vs-measured discipline as everywhere else.
+
+### 2.2 Output Profile — what a successful output looks like (per type)
+
+Alongside the success definition, each engagement type owns an **output profile**:
+defaults that let Fanometrix adapt reports and recommendations naturally, **without
+introducing new workflows**. Four properties, all instance-refinable:
+
+| Property | What it sets | Research Study | RFP Response |
+|---|---|---|---|
+| **Default deliverables** | the outputs this type produces | research report / conclusions | pitch-deck sections (strategy, insight, activation, media/partner, measurement, evidence appendix) |
+| **Intended audience** | who the output is for (shapes framing/tone) | research/client stakeholders | the pitch evaluation panel |
+| **Evidence threshold** | the rigour bar for "sufficient" | high — answer with confidence | strong-enough-to-be-compelling; directional + clearly-labelled creative acceptable |
+| **Presentation style** | how outputs are framed/styled | formal research report | persuasive, narrative pitch deck |
+
+How each flows through the *shared* spine:
+- **Evidence threshold parameterises the readiness machinery we already built.** The
+  bar at which "Ready to Decide / Ready to Pitch" fires — and the confidence a
+  finding must reach to count as "sufficient" — is set here, per type. A Research
+  Study demands high confidence; an RFP may proceed on compelling directional
+  evidence plus clearly-labelled creative hypotheses (per the evidential-status
+  rules, §8). Same readiness engine; a type-specific threshold.
+- **Intended audience + presentation style parameterise Outputs/Reports** — the
+  framing, tone and structure of the generated report or deck. Same generation
+  pipeline; type-specific voice.
+- **Default deliverables** seed the Requested-vs-Recommended deliverable set (§5)
+  and the output templates.
+
+These are **defaults, not locks**: a specific engagement refines any of them (a
+board-level study may raise its evidence threshold; an RFP may name a specific
+deliverable set from the brief). Type = the template; engagement = the specifics.
+The output profile changes *what a good answer looks like*, never *how the workflow
+runs*.
 
 ## 3. Engagement Context (distinct from Organisation Intelligence)
 
@@ -270,10 +304,12 @@ This is the RFP-stage expression of the platform's core honesty principle.
 New authored engagement/design concepts to record in `docs/research-project-domain.md`:
 - **Project Purpose** (engagement fact on the Project).
 - **Engagement Context** (engagement facts, with per-field sensitivity).
-- **Engagement Type** (registry-driven, extensible) and its **Success Definition**
-  — the per-type objective function that parameterises readiness, Planning success,
-  Analysis and Outputs, authored and instance-refinable, without changing the
-  workflow.
+- **Engagement Type** (registry-driven, extensible) with its **Success Definition**
+  (the objective — when complete) and **Output Profile** (default deliverables,
+  intended audience, evidence threshold, presentation style — what a good output
+  looks like). These parameterise readiness, Planning success, Analysis and Outputs;
+  authored, instance-refinable, and never change the workflow. The **evidence
+  threshold** feeds the existing readiness/confidence machinery directly.
 - **Visibility** on the Project (internal-by-default for internal types) + the
   capability model.
 - **Deliverables** (Requested vs Recommended) and purpose-adaptive Outputs.
