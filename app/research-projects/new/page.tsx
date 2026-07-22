@@ -38,6 +38,7 @@ const PROMPTS: Prompt[] = [
   { kind: "email", chip: "An email from the client or agency", mode: "text", label: "Email", material: "CLIENT / AGENCY EMAIL", placeholder: "Paste the email…" },
   { kind: "notes", chip: "Notes from a meeting", mode: "text", label: "Meeting notes", material: "MEETING NOTES", placeholder: "What was said…" },
   { kind: "deadline", chip: "A deadline", mode: "text", label: "Deadline", material: "DEADLINE", placeholder: "e.g. board budget review in 6 weeks" },
+  { kind: "kpis", chip: "KPIs", mode: "text", label: "KPIs", material: "KPIS / SUCCESS METRICS", placeholder: "The numbers they're measured on, targets, what success looks like…" },
   { kind: "commercial", chip: "Budget or commercial context", mode: "text", label: "Commercial context", material: "BUDGET / COMMERCIAL CONTEXT", placeholder: "The budget, the stakes, what's riding on it…" },
   { kind: "worry", chip: "Anything you're worried about", mode: "text", label: "What's worrying you", material: "WHAT THE USER IS WORRIED ABOUT", placeholder: "The thing nagging at you that isn't written down…" },
 ];
