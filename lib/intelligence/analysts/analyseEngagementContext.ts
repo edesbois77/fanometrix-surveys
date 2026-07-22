@@ -41,14 +41,18 @@ Work out the ENGAGEMENT CONTEXT. Read the WHOLE situation together, and weight t
 
 Fill each field. Use null for anything the situation genuinely does not support, do NOT invent an organisation, an agency, a market or an audience that isn't there.
 - engagement_type: the kind of work this is, in a few words (e.g. "Agency pitch support", "Brand strategy", "Sponsorship evaluation", "Partnership planning"). Infer it from the situation.
-- organisation: the brand/organisation the work is ultimately ABOUT.
-- commissioner: who handed us this work (an agency, a partner, a named person or team). May differ from the organisation.
-- decision: the specific decision they are trying to make.
+- organisation: the brand/organisation the work is ultimately ABOUT (e.g. Adidas).
+- commissioner: who ENGAGED Fanometrix, the party who commissioned this work and to whom we answer. This is a DIFFERENT concept from the organisation. When an agency is running the engagement (e.g. M&C Saatchi, a pitching agency, a consultancy), the AGENCY is the commissioner, not the brand. Only name the brand here if the brand itself directly commissioned us. If you cannot tell who engaged us, use null, do NOT just repeat the organisation.
+- decision: the EXECUTIVE decision the stakeholders must make, the boardroom choice everything downstream exists to support (e.g. "whether to invest in the Backyard Legends campaign", "which of two markets to lead with", "renew the sponsorship or walk"). It is a business decision with money or direction riding on it, NEVER a research question or a description of the output. If your sentence starts with "understand", "explore" or "find out", it is wrong, rewrite it as the decision that finding out would inform.
 - commercial_objective: the commercial outcome they are chasing.
 - market: the geography / market scope. Be specific and literal to the material. This field has its own line because it is the one most often wrongly assumed.
 - intended_audience: who the eventual output must speak to (fans, a board, a pitch panel, a specific segment).
 - available_materials: an inventory of what you were actually given. One entry per distinct piece, each { "label": short name, "type": one of [client_brief, agency_pitch, email, meeting_notes, existing_research, proposal, commercial, concern, described, other], "note": one line on what it tells you or how far to trust it }.
-- missing_information: what a good strategist notices is conspicuously ABSENT and would want before committing (0-4 items). Empty if the picture is genuinely complete.
+- outstanding_questions: professional diligence, the things you would want resolved BEFORE you'd recommend anything. Phrase each as a sharp question a senior consultant would actually raise, not a note about a "missing field" (0-4 items). Empty if you'd be comfortable proceeding.
+
+STRATEGIC TENSION (the centre of gravity). Name the single commercial CONFLICT at the heart of this engagement, the bind the organisation is caught in, with BOTH sides in view. Not a problem statement, a genuine tension: "X, and yet Y". E.g. "Adidas owns the awareness (68% recall) but not the preference (22% vs Nike's 41%), so every euro spent on visibility widens a credibility gap it hasn't closed." This is the thread the whole engagement will pull on, so make it specific and true to THIS material, never generic. Use null only if the situation is too thin to find one.
+
+SIGNALS ("why I'm seeing it this way"). Give 2 to 4 plain-language reasons that name the SPECIFIC thing in the material that led you here, so the reader can validate your interpretation at a glance. Each names a concrete signal (a number, an exact phrase, an aside, who wrote what) and what it told you. E.g. "The brand lead's email frames this as the deck that unlocks the board budget, so the real decision is investment, not messaging." This is transparency, NOT chain-of-thought, keep each to one sentence.
 
 ORIENTATION (the spoken part): write ONE or TWO plain sentences, first person, that you would actually say back across the table before digging in, to check you've understood what this engagement is. Name the organisation, the market, and the real decision. Make it unmistakably about THIS engagement, never generic. Example of the SHAPE (different work, model the style not the content): "So this is a partner pitch for Adidas in Europe, the World Cup is the backdrop rather than the subject, and the real question is how Adidas wins ground on Nike in European markets. Have I got that right?" End with a short check like "Have I got that right?".
 
@@ -62,10 +66,12 @@ PUNCTUATION: use commas; NEVER use em-dashes or any long dash; always a comma in
 Return ONLY valid JSON:
 {
   "orientation": "one or two sentences, spoken back",
+  "strategic_tension": "the commercial conflict at the heart, both sides named"|null,
   "engagement_type": "..."|null, "organisation": "..."|null, "commissioner": "..."|null,
-  "decision": "..."|null, "commercial_objective": "..."|null, "market": "..."|null, "intended_audience": "..."|null,
+  "decision": "the executive decision to be made"|null, "commercial_objective": "..."|null, "market": "..."|null, "intended_audience": "..."|null,
   "available_materials": [ { "label": "...", "type": "client_brief|agency_pitch|email|meeting_notes|existing_research|proposal|commercial|concern|described|other", "note": "..." } ],
-  "missing_information": ["..."],
+  "outstanding_questions": ["a sharp question to resolve before recommending"],
+  "signals": ["a concrete signal from the material and what it told you"],
   "confidence": "high|medium|low"
 }`;
 }
@@ -98,11 +104,11 @@ export async function analyseEngagementContext(input: OrientInput): Promise<Enga
   const confidence: ContextConfidence = conf === "high" || conf === "medium" || conf === "low" ? (conf as ContextConfidence) : "medium";
   const materials = (Array.isArray(raw.available_materials) ? raw.available_materials : [])
     .map(parseMaterial).filter((m): m is MaterialItem => !!m).slice(0, 8);
-  const missing = (Array.isArray(raw.missing_information) ? raw.missing_information : [])
-    .map(clean).filter(Boolean).map(stripEmDash).slice(0, 4);
+  const strList = (v: unknown, max: number) => (Array.isArray(v) ? v : []).map(clean).filter(Boolean).map(stripEmDash).slice(0, max);
 
   return {
     orientation: stripEmDash(clean(raw.orientation)),
+    strategic_tension: nullable(raw.strategic_tension),
     engagement_type: nullable(raw.engagement_type),
     organisation: nullable(raw.organisation),
     commissioner: nullable(raw.commissioner),
@@ -111,7 +117,8 @@ export async function analyseEngagementContext(input: OrientInput): Promise<Enga
     market: nullable(raw.market),
     intended_audience: nullable(raw.intended_audience),
     available_materials: materials,
-    missing_information: missing,
+    outstanding_questions: strList(raw.outstanding_questions, 4),
+    signals: strList(raw.signals, 4),
     confidence,
     generated_at: new Date().toISOString(),
     model: MODEL,

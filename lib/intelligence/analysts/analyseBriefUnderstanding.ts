@@ -35,6 +35,7 @@ function serialiseLens(c: EngagementContext): string {
     line("Intended audience", c.intended_audience),
     line("Decision on the table", c.decision),
     line("Commercial objective", c.commercial_objective),
+    line("Strategic tension (the thread)", c.strategic_tension),
   ].filter(Boolean).join("\n");
 }
 

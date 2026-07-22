@@ -250,6 +250,13 @@ export default function NewEngagementPage() {
                 <p className="text-[13px] font-semibold uppercase tracking-[0.14em] mb-4" style={{ color: GOLD_INK }}>Before I dig in</p>
                 <p className="text-[22px] md:text-[26px] font-medium tracking-[-0.01em] leading-[1.45]" style={{ color: INK }}>{result.context.orientation || "Here's how I read the situation."}</p>
 
+                {result.context.strategic_tension && (
+                  <div className="mt-7 rounded-2xl border-l-2 pl-5 pr-4 py-4" style={{ borderColor: GOLD, background: "#FCF8EF" }}>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.08em] mb-1.5" style={{ color: GOLD_INK }}>The tension at the heart of it</p>
+                    <p className="text-[17px] md:text-[18px] leading-[1.5] font-medium" style={{ color: INK }}>{result.context.strategic_tension}</p>
+                  </div>
+                )}
+
                 {ctxFields.length > 0 && (
                   <dl className="mt-7 grid sm:grid-cols-2 gap-x-8 gap-y-3">
                     {ctxFields.map(f => (
@@ -261,12 +268,23 @@ export default function NewEngagementPage() {
                   </dl>
                 )}
 
-                {result.context.missing_information.length > 0 && (
+                {result.context.signals.length > 0 && (
+                  <div className="mt-7">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.05em] text-gray-400">Why I&apos;m seeing it this way</p>
+                    <ul className="mt-1.5 space-y-1.5">
+                      {result.context.signals.map((s, i) => (
+                        <li key={i} className="text-[14px] text-gray-500 leading-relaxed flex gap-2"><span style={{ color: GOLD }}>·</span><span>{s}</span></li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {result.context.outstanding_questions.length > 0 && (
                   <div className="mt-6">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.05em] text-gray-400">What I don&apos;t have yet</p>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.05em] text-gray-400">Before I&apos;d recommend anything</p>
                     <ul className="mt-1.5 space-y-1">
-                      {result.context.missing_information.map((m, i) => (
-                        <li key={i} className="text-[14px] text-gray-500 leading-relaxed flex gap-2"><span style={{ color: GOLD }}>·</span><span>{m}</span></li>
+                      {result.context.outstanding_questions.map((q, i) => (
+                        <li key={i} className="text-[14px] text-gray-500 leading-relaxed flex gap-2"><span style={{ color: GOLD }}>·</span><span>{q}</span></li>
                       ))}
                     </ul>
                   </div>

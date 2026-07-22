@@ -36,16 +36,22 @@ export type EngagementContext = {
   // it reads anything closely. This is the visible, correctable beat.
   orientation: string;
 
+  // The commercial conflict at the HEART of the engagement — the bind the
+  // organisation is caught in, both sides named. A first-class concept: it becomes
+  // the thread that runs through Planning, Analysis and Recommendations.
+  strategic_tension: string | null;
+
   engagement_type: string | null;      // inferred; ties into the engagement-types lens
-  organisation: string | null;         // the brand the work is ultimately about
-  commissioner: string | null;         // who handed us the work (agency / person / team)
-  decision: string | null;             // the decision they are trying to make
+  organisation: string | null;         // the brand the work is ultimately ABOUT
+  commissioner: string | null;         // who ENGAGED us (often the agency), NOT the brand owner
+  decision: string | null;             // the executive decision stakeholders must make
   commercial_objective: string | null; // the commercial outcome they are chasing
   market: string | null;               // geography / market scope — its OWN field on purpose
   intended_audience: string | null;    // who the eventual output must speak to
 
   available_materials: MaterialItem[];  // the inventory of what we actually have
-  missing_information: string[];        // what a strategist notices is conspicuously absent
+  outstanding_questions: string[];      // professional diligence: resolve before recommending
+  signals: string[];                    // "why I'm seeing it this way" — the read's evidence
 
   confidence: ContextConfidence;        // confidence in the CONTEXT (not the read)
   generated_at: string | null;
