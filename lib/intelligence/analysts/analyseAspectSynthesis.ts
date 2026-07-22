@@ -19,6 +19,9 @@ import { completeJSON } from "@/lib/intelligence/openai";
 import { getSummary } from "@/lib/intelligence/store";
 import { IntelligenceError } from "@/lib/intelligence/types";
 import { clampReferences } from "@/lib/intelligence/validate-references";
+import { stripEmDash } from "@/lib/strip-em-dash";
+import type { EngagementContext } from "@/lib/engagement-context";
+import type { Brief } from "@/lib/brief";
 import { getApprovedProjectSocialSearchIds } from "@/lib/research-sources/project-searches";
 import { classifyAspects, type AspectClassifyInput } from "@/lib/intelligence/aspect-classify";
 import type { LocalisedQuestion } from "@/lib/survey-locale";
@@ -71,7 +74,20 @@ export type EvidenceItemRef = {
   sentiment: string | null;      // Positive | Neutral | Negative | null
 };
 
-export type AspectKeyFinding = { finding: string; evidence: EvidenceItemRef[] };
+// DETERMINISTIC quantification for a finding, computed AFTER generation from the
+// evidence the model actually cited. The model is never asked to count: it may
+// only reuse figures we supply, and these are the true ones. This is what keeps
+// consultancy-grade prose from drifting into invented frequency claims.
+export type FindingSupport = {
+  items: number;          // evidence items cited by this finding
+  of_total: number;       // out of the aspect's total evidence
+  strong: number;         // cited items that materially answer the question
+  positive: number; neutral: number; negative: number;
+  source_types: EvidenceSourceType[];
+};
+
+// `support` is optional so previously stored syntheses keep rendering.
+export type AspectKeyFinding = { finding: string; evidence: EvidenceItemRef[]; support?: FindingSupport };
 export type AspectRecommendedAction = { action: string; rationale: string; based_on_findings: number[] };
 
 // A contradiction is SURFACED, never averaged away — where evidence genuinely
@@ -124,7 +140,13 @@ type Evidence = {
 
 const MIN_EVIDENCE_PER_ASPECT = 3;   // below this, an aspect is noise, not a section
 const MAX_ASPECTS = 8;               // keep the page focused; smaller aspects roll up elsewhere
-const MAX_EVIDENCE_PER_ASPECT = 40;  // token bound — cite from the most relevant
+// Fewer, FULLER items synthesise better than more fragments: a truncated post
+// produces a finding built on half a thought. Trading breadth for depth, and
+// making room for each item's "why this matters" note.
+const MAX_EVIDENCE_PER_ASPECT = 25;
+const EVIDENCE_CHARS = 600;
+const WHY_CHARS = 220;
+const STRONG_RELEVANCE = 0.7;        // an item that materially answers the question
 
 // ── Source gatherer: conversations ───────────────────────────────────────────
 // The ONLY source-aware code. Returns relevant, aspect-classified conversations
@@ -320,24 +342,94 @@ function sentimentSplit(items: Evidence[]): { positive_pct: number; neutral_pct:
 
 const SOURCE_WORD: Record<EvidenceSourceType, string> = { conversation: "conversation", survey: "survey", document: "document" };
 
-function buildAspectPrompt(aspect: string, researchQuestion: string | null, items: Evidence[]): string {
+// ── Research Aspects as stable knowledge objects ─────────────────────────────
+// Free-generated aspect labels fragment ("Sponsorship Awareness" vs "Sponsor
+// Awareness"), which splits one theme into several thin ones, each then dropped
+// by MIN_EVIDENCE_PER_ASPECT — evidence disappears silently. Canonicalisation is
+// DETERMINISTIC and deliberately MECHANICAL (case, punctuation, simple plurals).
+// It must never merge genuinely different aspects, so there is no semantic
+// matching here: "Brand Perception" and "Brand Fit" stay apart, by design.
+const singular = (w: string): string =>
+  w.endsWith("ss") ? w : w.endsWith("ies") ? `${w.slice(0, -3)}y` : w.endsWith("s") ? w.slice(0, -1) : w;
+
+export function canonicalAspectKey(label: string): string {
+  return label.toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .split(/\s+/).filter(Boolean)
+    .map(singular)
+    .join(" ");
+}
+
+// An aspect earns its place by MATERIALLY CONTRIBUTING TO THE RESEARCH QUESTION,
+// not by being the loudest. relevance_score is judged at classification time
+// against the question / information needs, so mean relevance IS the
+// contribution signal. Volume is included only as saturating weight-of-evidence,
+// so a large weak aspect never outranks a smaller decisive one.
+export function aspectContribution(items: Evidence[]): number {
+  const n = items.length || 1;
+  const meanRel = items.reduce((s, i) => s + i.relevance, 0) / n;
+  const strongShare = items.filter(i => i.relevance >= STRONG_RELEVANCE).length / n;
+  const volume = Math.min(1, Math.log10(1 + n) / Math.log10(1 + 12));
+  return meanRel * 0.6 + strongShare * 0.25 + volume * 0.15;
+}
+
+// The engagement lens. Analysis must reason from the commission, not merely
+// summarise evidence — the same discipline commissioning uses.
+function serialiseLens(rq: string | null, ec: EngagementContext | null, brief: Brief | null): string {
+  const line = (label: string, v: string | null | undefined) => (v && v.trim() ? `- ${label}: ${v.trim()}` : "");
+  return [
+    line("THE RESEARCH QUESTION (everything below must help answer this)", rq),
+    line("Engagement type", ec?.engagement_type),
+    line("Organisation", ec?.organisation ?? brief?.client),
+    line("Commissioned by", ec?.commissioner ?? brief?.commissioned_by),
+    line("The decision the client must make", ec?.decision),
+    line("Commercial objective", ec?.commercial_objective),
+    line("Strategic tension", ec?.strategic_tension),
+    ec?.decisive_factors?.length ? `- What will decide success: ${ec.decisive_factors.join("; ")}` : "",
+    line("Market", ec?.market ?? brief?.geography),
+    line("Audience", ec?.intended_audience ?? brief?.audience),
+  ].filter(Boolean).join("\n");
+}
+
+// Every number the model is permitted to use, computed here. Nothing else.
+function aspectFacts(all: Evidence[], shown: Evidence[]): string {
+  const n = all.length;
+  const s = sentimentSplit(all);
+  const strong = all.filter(i => i.relevance >= STRONG_RELEVANCE).length;
+  const byType = (["conversation", "survey", "document"] as EvidenceSourceType[])
+    .map(t => ({ t, c: all.filter(i => i.ref.type === t).length })).filter(x => x.c > 0);
+  const markets = Array.from(new Set(all.map(i => i.market).filter(Boolean)));
+  return [
+    `- Evidence items for this aspect: ${n} (the ${shown.length} most relevant are shown below)`,
+    `- Items that materially answer the research question (relevance ${STRONG_RELEVANCE}+): ${strong} of ${n}`,
+    `- Sentiment across the aspect: ${s.positive_pct}% positive, ${s.neutral_pct}% neutral, ${s.negative_pct}% negative`,
+    `- Sources: ${byType.map(x => `${x.c} ${SOURCE_WORD[x.t]}${x.c === 1 ? "" : "s"}`).join(", ")}`,
+    markets.length ? `- Markets represented: ${markets.join(", ")}` : "",
+  ].filter(Boolean).join("\n");
+}
+
+function buildAspectPrompt(aspect: string, lens: string, facts: string, items: Evidence[]): string {
   const list = items.map((e, i) =>
-    `[${i}] (${SOURCE_WORD[e.ref.type]}${e.sentiment ? `, ${e.sentiment}` : ""}${e.market ? `, ${e.market}` : ""}) "${e.content.slice(0, 300)}"`
+    `[${i}] (${SOURCE_WORD[e.ref.type]}${e.sentiment ? `, ${e.sentiment}` : ""}${e.market ? `, ${e.market}` : ""}) "${e.content.slice(0, EVIDENCE_CHARS)}"${e.why ? `\n     analyst note: ${e.why.slice(0, WHY_CHARS)}` : ""}`
   ).join("\n");
   const types = Array.from(new Set(items.map(i => i.ref.type)));
   const multi = types.length > 1;
-  return `You are a senior research analyst writing the "${aspect}" section of a research analysis.
-${researchQuestion ? `Overall research question: "${researchQuestion}"\n` : ""}
-You are given evidence classified under "${aspect}", drawn from ${multi ? `multiple sources (${types.map(t => SOURCE_WORD[t]).join(", ")})` : `${SOURCE_WORD[types[0]]} evidence`}. Each item is tagged with its source type. Synthesise it into a section a client would read in a professional research report — grounded ONLY in this evidence, never invented.
+  return `You are a senior research consultant writing the "${aspect}" section of a client analysis. Your job is NOT to summarise conversations. It is to move the client closer to answering their research question, and to do it in a way that stands up to scrutiny.
 
-Evidence (index in brackets):
+THE ENGAGEMENT (reason from this throughout, never merely describe the evidence):
+${lens || "- (no engagement context recorded; reason from the evidence alone)"}
+
+THE EVIDENCE classified under "${aspect}"${multi ? `, drawn from multiple sources (${types.map(t => SOURCE_WORD[t]).join(", ")})` : ""}. Each item carries an analyst note recorded when it was judged relevant. Use those notes as INPUT to your thinking, they tell you why the item was kept, but never quote or restate them:
 ${list}
+
+THE FACTS (computed, exact). These are the ONLY figures you may state. Never count, estimate or infer a number yourself:
+${facts}
 
 Return ONLY valid JSON:
 {
-  "summary": "2–4 sentences: what the evidence for this aspect shows overall.",
+  "summary": "2–4 sentences: what this aspect contributes to ANSWERING the research question, and how far it gets us.",
   "key_findings": [
-    { "finding": "a specific, evidence-backed finding (one sentence)", "evidence": [array of the evidence indices above that support THIS finding] }
+    { "finding": "a consultancy judgement (1–2 sentences)", "evidence": [array of the evidence indices above that support THIS finding] }
   ],
   "contradictions": [
     { "tension": "one sentence naming the disagreement and what it suggests", "sides": [ { "position": "what this side of the evidence shows", "evidence": [indices supporting this side] }, { "position": "what the other side shows", "evidence": [indices supporting it] } ] }
@@ -347,13 +439,26 @@ Return ONLY valid JSON:
   ]
 }
 
-Rules:
-- Ground every finding in the evidence shown. Each finding MUST cite the indices of the evidence items that support it; never cite an index not shown above.
-${multi ? "- Where sources agree, a finding backed by more than one source type is stronger — cite all supporting items. Where survey/document/conversation evidence points in DIFFERENT directions, do not average it away; state the finding the evidence supports and let the divergence stand.\n" : ""}- CONTRADICTIONS: only when the evidence GENUINELY DIVERGES — one body of evidence points one way while another points the opposite (e.g. survey approval vs largely negative conversations, or sources disagreeing). Give both sides, each citing its own evidence indices, and name what the divergence suggests (e.g. prompted opinion vs unsolicited discussion). Do NOT invent a contradiction where evidence is merely thin or absent, and never resolve it by averaging. Return an empty array if there is no genuine contradiction.
-- 2–5 key findings — only what the evidence genuinely supports; do not pad.
-- 0–3 recommended actions — omit rather than invent. An action must follow from the findings, not restate them.
-- Do not generalise a single voice into "fans" plural; if only one or two items raise something specific, say so or describe the broader theme.
-- Write in plain, confident analyst prose. No hedging boilerplate, no mention of AI, prompts or scores.`;
+WHAT A FINDING MUST BE. Not a description of what people said, a JUDGEMENT about what it means. Every finding must do all four:
+ 1. LEAD WITH THE JUDGEMENT. First clause states what you conclude, not what was observed.
+ 2. ANSWER PART OF THE RESEARCH QUESTION. Say what it settles, or narrows, for the decision on the table.
+ 3. SAY WHY IT MATTERS commercially, tied to the objective or the decision above.
+ 4. STAY EVIDENCE-GROUNDED. Cite the indices that support it; never cite an index not shown.
+
+WEAK (a description, rejected): "Fans express frustration about matchday experience."
+STRONG (a judgement): "Matchday experience is the strongest barrier to sponsor appreciation in this evidence: it is raised unprompted more than any other theme, and it is the only one where negative sentiment outweighs positive. That matters commercially because the sponsorship is being judged on an experience the sponsor does not control."
+
+QUANTIFICATION, strictly: you may only use figures given in THE FACTS, verbatim. Do NOT invent counts, percentages or proportions. Do NOT make a comparative or superlative claim ("most", "strongest", "consistently") unless THE FACTS support that comparison; if they do not, make the judgement without the comparative.
+
+HONESTY OVER COMPLETENESS: if this evidence does not answer part of the research question, say so plainly in the summary. Never stretch thin evidence into an answer. A narrow, well-supported finding beats a broad, weakly-supported one.
+
+Other rules:
+- 2–5 key findings, only what the evidence genuinely supports; do not pad.
+${multi ? "- Where sources agree, a finding backed by more than one source type is stronger, cite all supporting items. Where sources point in DIFFERENT directions, do not average it away; state the finding the evidence supports and let the divergence stand.\n" : ""}- CONTRADICTIONS: only when the evidence GENUINELY DIVERGES, one body pointing one way while another points the opposite (e.g. survey approval vs largely negative conversations). Give both sides, each citing its own indices, and name what the divergence suggests (e.g. prompted opinion vs unsolicited discussion). Do NOT invent a contradiction where evidence is merely thin, and never resolve one by averaging. Empty array if there is none.
+- 0–3 recommended actions. Each must serve THE DECISION named above and be specific enough to act on. Omit rather than invent; an action must follow from the findings, not restate them.
+- Do not generalise a single voice into "fans" plural; if only one or two items raise something, say so.
+- BANNED as filler: "authentic engagement", "emotional connection", "deeper connection", "meaningful engagement", "cultural resonance", "resonate with", "tap into", "leverage", "in today's landscape". Replace with the concrete thing you actually mean.
+- VOICE: plain, confident consultant prose. No hedging ("it seems", "perhaps"), no throat-clearing, no mention of AI, prompts, scores or classification. PUNCTUATION: use commas; NEVER use em-dashes or any long dash; always a comma instead.`;
 }
 
 type RawAspectOut = {
@@ -388,19 +493,33 @@ function computeAspectGaps(items: Evidence[]): AspectGap[] {
   return gaps;
 }
 
-async function synthesiseAspect(aspect: string, researchQuestion: string | null, items: Evidence[]): Promise<AspectSection> {
+// True quantification for a finding, from the evidence it actually cites.
+function findingSupport(evidence: EvidenceItemRef[], totalItems: number): FindingSupport {
+  const c = (s: string) => evidence.filter(e => e.sentiment === s).length;
+  return {
+    items: evidence.length,
+    of_total: totalItems,
+    strong: evidence.filter(e => (e.relevance ?? 0) >= STRONG_RELEVANCE).length,
+    positive: c("Positive"), neutral: c("Neutral"), negative: c("Negative"),
+    source_types: (["conversation", "survey", "document"] as EvidenceSourceType[]).filter(t => evidence.some(e => e.type === t)),
+  };
+}
+
+async function synthesiseAspect(aspect: string, lens: string, items: Evidence[]): Promise<AspectSection> {
   // Feed the most relevant items (bounded); findings cite from what's shown.
   const shown = [...items].sort((a, b) => b.relevance - a.relevance).slice(0, MAX_EVIDENCE_PER_ASPECT);
-  const raw = await completeJSON<RawAspectOut>({ prompt: buildAspectPrompt(aspect, researchQuestion, shown), maxTokens: 1900 });
+  const raw = await completeJSON<RawAspectOut>({
+    prompt: buildAspectPrompt(aspect, lens, aspectFacts(items, shown), shown), maxTokens: 1900,
+  });
 
-  const str = (v: unknown): string => (typeof v === "string" ? v.trim() : "");
+  const str = (v: unknown): string => stripEmDash(typeof v === "string" ? v.trim() : "");
   const intArr = (v: unknown): number[] => (Array.isArray(v) ? v.filter((n): n is number => Number.isInteger(n)) : []);
 
   const key_findings: AspectKeyFinding[] = (raw.key_findings ?? [])
-    .map(f => ({
-      finding: str(f?.finding),
-      evidence: clampReferences(intArr(f?.evidence), shown.length).map(i => toItemRef(shown[i])),
-    }))
+    .map(f => {
+      const evidence = clampReferences(intArr(f?.evidence), shown.length).map(i => toItemRef(shown[i]));
+      return { finding: str(f?.finding), evidence, support: findingSupport(evidence, items.length) };
+    })
     .filter(f => f.finding.length > 0);
 
   // Contradictions: only keep a genuine two-sided divergence where each side has
@@ -483,8 +602,16 @@ export async function countRelevantEvidenceSince(projectId: string, since: strin
 
 export async function analyseAspectSynthesis(projectId: string): Promise<AspectSynthesisReport> {
   const { data: proj } = await supabaseAdmin
-    .from("research_projects").select("research_question").eq("id", projectId).maybeSingle();
+    .from("research_projects").select("research_question, engagement_context, brief").eq("id", projectId).maybeSingle();
   const researchQuestion = (proj?.research_question as string | null)?.trim() || null;
+  // The engagement lens. Analysis reasons from the commission, not just the
+  // evidence. Null on projects commissioned before the lens existed, in which
+  // case synthesis degrades to reasoning from the research question alone.
+  const lens = serialiseLens(
+    researchQuestion,
+    (proj?.engagement_context as EngagementContext | null) ?? null,
+    (proj?.brief as Brief | null) ?? null,
+  );
   const primarySubject = await getProjectPrimarySubject(projectId);
 
   // Source-agnostic assembly. Conversations (aspect-classified at collection)
@@ -506,23 +633,37 @@ export async function analyseAspectSynthesis(projectId: string): Promise<AspectS
     throw new IntelligenceError(422, "No relevant classified evidence yet. Collect and approve conversations, or attach surveys/documents with approved intelligence, then synthesise.");
   }
 
-  // Group by aspect; keep the substantive ones, most-evidenced first.
-  const byAspect = new Map<string, Evidence[]>();
+  // Group by CANONICAL aspect key, so near-duplicate labels contribute to one
+  // knowledge object instead of fragmenting into thin sections that then fall
+  // below MIN_EVIDENCE_PER_ASPECT and vanish. Display label = the most common
+  // original spelling, so canonicalisation never changes what the reader sees.
+  const byAspect = new Map<string, { label: string; labels: Map<string, number>; items: Evidence[] }>();
   for (const e of evidence) {
-    const arr = byAspect.get(e.aspect) ?? [];
-    arr.push(e);
-    byAspect.set(e.aspect, arr);
+    const key = canonicalAspectKey(e.aspect);
+    if (!key) continue;
+    const entry = byAspect.get(key) ?? { label: e.aspect, labels: new Map<string, number>(), items: [] };
+    entry.items.push(e);
+    entry.labels.set(e.aspect, (entry.labels.get(e.aspect) ?? 0) + 1);
+    byAspect.set(key, entry);
   }
-  const ranked = Array.from(byAspect.entries())
-    .filter(([, items]) => items.length >= MIN_EVIDENCE_PER_ASPECT)
-    .sort((a, b) => b[1].length - a[1].length);
+  for (const entry of byAspect.values()) {
+    entry.label = Array.from(entry.labels.entries())
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0][0];
+  }
+
+  // Rank by CONTRIBUTION TO THE RESEARCH QUESTION, not by volume: an aspect
+  // earns its section because it materially helps answer the question, not
+  // because it is the loudest theme in the evidence.
+  const ranked = Array.from(byAspect.values())
+    .filter(a => a.items.length >= MIN_EVIDENCE_PER_ASPECT)
+    .sort((a, b) => aspectContribution(b.items) - aspectContribution(a.items));
 
   if (ranked.length === 0) {
     throw new IntelligenceError(422, `Not enough classified evidence per aspect to synthesise yet (need at least ${MIN_EVIDENCE_PER_ASPECT} relevant evidence items sharing a research aspect). Collect or attach more, then synthesise.`);
   }
 
   const selected = ranked.slice(0, MAX_ASPECTS);
-  const aspects = await Promise.all(selected.map(([aspect, items]) => synthesiseAspect(aspect, researchQuestion, items)));
+  const aspects = await Promise.all(selected.map(a => synthesiseAspect(a.label, lens, a.items)));
 
   const omitted = ranked.length - selected.length;
   return {

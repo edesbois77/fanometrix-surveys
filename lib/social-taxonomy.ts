@@ -163,14 +163,14 @@ ${q ? `\nOVERALL RESEARCH QUESTION these needs serve: "${q}"` : ""}${primary ? `
 - why_this_matters: 1–2 sentences on why this conversation is or isn't useful evidence.
 - research_aspect: a short 1–3 word Title Case label for the facet it contributes to (e.g. Brand Perception, Fan Benefits), or "Off-topic" if not relevant.`;
 
-  return `You are a football fan intelligence analyst assessing a single collected conversation as research evidence.
+  return `You are a research analyst assessing a single collected conversation as research evidence. The domain is set by the research context below; do not assume one.
 ${[relevanceAnchor, subjectBits].filter(Boolean).join("\n")}
 Content: "${content}"
 
 Respond with valid JSON only, no markdown, no explanation:
 {
   "sentiment": "Positive" | "Neutral" | "Negative" | "Unknown",
-  "topic": one of [${FOOTBALL_TOPICS.map(t => `"${t}"`).join(", ")}],
+  "topic": one of [${FOOTBALL_TOPICS.map(t => `"${t}"`).join(", ")}] or null,
   "subtopic": most specific subtopic or null if none applies,
   "research_aspect": "the aspect of the research this contributes to",
   "information_need": "verbatim information need it best answers, or null",
@@ -183,11 +183,11 @@ Respond with valid JSON only, no markdown, no explanation:
 
 Rules:
 - sentiment must be one of: Positive, Neutral, Negative, Unknown
-- topic must be one of the listed topics
+- topic: this is a LEGACY football vocabulary. Use one of the listed topics ONLY if the conversation genuinely fits it; otherwise use null. NEVER force a fit, and never pick a "closest match". The meaningful taxonomy is research_aspect, which you generate from the research itself.
 - subtopic should be a specific aspect within the topic, or null
 - entities: named entities explicitly referenced (clubs, brands, competitions, players); [] if none
 ${relevanceRule}
 - confidence: your overall certainty in the relevance judgement (0.0–1.0)
 - ai_summary should be written from a third-person analyst perspective, e.g. "Fans express frustration about..."
-- If the content is not clearly football-related, set topic to the closest match, sentiment to Unknown and relevance low`;
+- If the content does not fit the listed topics, set topic to null. If it is unintelligible or has no bearing on the research, set sentiment to Unknown and relevance low.`;
 }

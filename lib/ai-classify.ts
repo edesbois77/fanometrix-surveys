@@ -9,7 +9,11 @@ export type ConfidenceLabel = "High" | "Medium" | "Low";
 
 export type ClassificationResult = {
   sentiment:  Sentiment;
-  topic:      string;
+  // The legacy closed football vocabulary. NULL when the content doesn't genuinely
+  // fit one, never coerced: Fanometrix builds research taxonomies, not football
+  // ones. The domain-neutral taxonomy is `research_aspect`, which emerges from the
+  // evidence and the research question.
+  topic:      string | null;
   subtopic:   string | null;
   ai_summary: string;
   entities:   ClassificationEntity[];
@@ -70,7 +74,7 @@ async function classifyWithOpenAI(content: string, context?: ClassificationConte
   const need = str(parsed.information_need);
   return {
     sentiment:  (["Positive","Neutral","Negative","Unknown"].includes(parsed.sentiment) ? parsed.sentiment : "Unknown") as Sentiment,
-    topic:      FOOTBALL_TOPICS.includes(parsed.topic) ? parsed.topic : "Transfers",
+    topic:      FOOTBALL_TOPICS.includes(parsed.topic) ? parsed.topic : null,
     subtopic:   parsed.subtopic ?? null,
     ai_summary: parsed.ai_summary ?? "Unable to summarise.",
     entities:   parseEntities(parsed.entities),
@@ -90,7 +94,8 @@ function classifyRuleBased(content: string): ClassificationResult {
   if (/\b(great|love|amazing|brilliant|fantastic|excellent)\b/.test(lower)) sentiment = "Positive";
   if (/\b(awful|terrible|hate|ridiculous|worst|disgusting|overpriced|poor)\b/.test(lower)) sentiment = "Negative";
 
-  let topic = "Transfers";
+  // Null unless the content genuinely matches a known topic — never a default.
+  let topic: string | null = null;
   if (/ticket|season.?pass|membership|hospitality/i.test(lower)) topic = "Ticketing";
   else if (/stream|tv|watch|broadcast/i.test(lower)) topic = "Streaming";
   else if (/transfer|sign|bought|sold|deal/i.test(lower)) topic = "Transfers";
@@ -101,7 +106,7 @@ function classifyRuleBased(content: string): ClassificationResult {
     sentiment,
     topic,
     subtopic:   null,
-    ai_summary: `Fan ${sentiment === "Positive" ? "expresses positive views" : sentiment === "Negative" ? "expresses concerns" : "comments"} about ${topic.toLowerCase()}.`,
+    ai_summary: `Fan ${sentiment === "Positive" ? "expresses positive views" : sentiment === "Negative" ? "expresses concerns" : "comments"}${topic ? ` about ${topic.toLowerCase()}` : ""}.`,
     entities:   [],
     // A rule-based fallback CANNOT judge question relevance — leave it unscored
     // (null) so the Evidence view never hides it on a guess. No rationale/aspect.
