@@ -13,7 +13,7 @@
 //     → Interpret       the read (point of view) + understanding, THROUGH that lens.
 //     → begin           the Research Project is created silently and we hand into
 //                       the Overview with no reload.
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AdminShell } from "@/app/components/AdminShell";
@@ -79,7 +79,6 @@ export default function NewEngagementPage() {
   const [error, setError] = useState<string | null>(null);
   const [readingIdx, setReadingIdx] = useState(0);
   const [showWorking, setShowWorking] = useState(false);
-  const fileRef = useRef<HTMLInputElement>(null);
 
   const hasSomething = text.trim().length > 0 || files.length > 0 || TEXT_PROMPTS.some(p => (frags[p.kind] ?? "").trim());
 
@@ -192,10 +191,11 @@ export default function NewEngagementPage() {
                   )}
 
                   <div className="flex items-center justify-between gap-3 px-5 py-3 border-t" style={{ borderColor: "#F1F3F5" }}>
-                    <button onClick={() => fileRef.current?.click()} className="text-[13px] text-gray-400 hover:text-gray-600 transition-colors inline-flex items-center gap-1.5"><span aria-hidden>↥</span> attach a brief, research or a deck</button>
-                    {/* Visually hidden, NOT `hidden`/display:none — Safari silently
-                        refuses to open a display:none file input via .click(). */}
-                    <input ref={fileRef} type="file" multiple accept=".pdf,.docx,.doc,.pptx,.ppt" className="sr-only" tabIndex={-1} aria-hidden onChange={(e) => { addFiles(e.target.files); e.target.value = ""; }} />
+                    {/* Native <label htmlFor> opens the picker in every browser,
+                        including Safari, where a scripted input.click() is unreliable.
+                        The input is sr-only (rendered), NOT hidden/display:none. */}
+                    <label htmlFor="commission-files" className="cursor-pointer text-[13px] text-gray-400 hover:text-gray-600 transition-colors inline-flex items-center gap-1.5"><span aria-hidden>↥</span> attach a brief, research or a deck</label>
+                    <input id="commission-files" type="file" multiple accept=".pdf,.docx,.doc,.pptx,.ppt" className="sr-only" tabIndex={-1} onChange={(e) => { addFiles(e.target.files); e.target.value = ""; }} />
                     <button onClick={begin} disabled={!hasSomething} className="text-sm font-semibold px-5 py-2 rounded-lg transition-opacity disabled:opacity-40" style={{ background: GOLD, color: INK }}>Get oriented →</button>
                   </div>
                 </div>
@@ -205,8 +205,13 @@ export default function NewEngagementPage() {
                   <p className="text-[13px] text-gray-400 mb-2.5">A few things that would help me read this properly:</p>
                   <div className="flex flex-wrap gap-2">
                     {PROMPTS.filter(p => p.mode === "file" || !openFrags.includes(p.kind)).map(p => (
-                      <button key={p.kind} onClick={() => p.mode === "file" ? fileRef.current?.click() : setOpenFrags(prev => prev.includes(p.kind) ? prev : [...prev, p.kind])}
-                        className="text-[13px] px-3 py-1.5 rounded-full border transition-colors hover:bg-gray-50" style={{ borderColor: "#E5E7EB", color: "#4B5563" }}>+ {p.chip}</button>
+                      p.mode === "file" ? (
+                        // Document chips are labels for the same input — reliable in Safari.
+                        <label key={p.kind} htmlFor="commission-files" className="cursor-pointer text-[13px] px-3 py-1.5 rounded-full border transition-colors hover:bg-gray-50" style={{ borderColor: "#E5E7EB", color: "#4B5563" }}>+ {p.chip}</label>
+                      ) : (
+                        <button key={p.kind} onClick={() => setOpenFrags(prev => prev.includes(p.kind) ? prev : [...prev, p.kind])}
+                          className="text-[13px] px-3 py-1.5 rounded-full border transition-colors hover:bg-gray-50" style={{ borderColor: "#E5E7EB", color: "#4B5563" }}>+ {p.chip}</button>
+                      )
                     ))}
                   </div>
                   {openFrags.length > 0 && (
