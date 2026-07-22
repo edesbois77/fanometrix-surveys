@@ -23,6 +23,7 @@ const PUBLIC_PATHS = new Set([
   "/survey",
   "/embed",
   "/access-denied",
+  "/trust/responsible-reddit-data",
 ]);
 
 // API paths excluded from the normal user-SESSION auth below. "Public" here
