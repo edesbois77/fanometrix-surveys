@@ -193,7 +193,9 @@ export default function NewEngagementPage() {
 
                   <div className="flex items-center justify-between gap-3 px-5 py-3 border-t" style={{ borderColor: "#F1F3F5" }}>
                     <button onClick={() => fileRef.current?.click()} className="text-[13px] text-gray-400 hover:text-gray-600 transition-colors inline-flex items-center gap-1.5"><span aria-hidden>↥</span> attach a brief, research or a deck</button>
-                    <input ref={fileRef} type="file" multiple accept=".pdf,.docx,.doc,.pptx,.ppt" hidden onChange={(e) => { addFiles(e.target.files); e.target.value = ""; }} />
+                    {/* Visually hidden, NOT `hidden`/display:none — Safari silently
+                        refuses to open a display:none file input via .click(). */}
+                    <input ref={fileRef} type="file" multiple accept=".pdf,.docx,.doc,.pptx,.ppt" className="sr-only" tabIndex={-1} aria-hidden onChange={(e) => { addFiles(e.target.files); e.target.value = ""; }} />
                     <button onClick={begin} disabled={!hasSomething} className="text-sm font-semibold px-5 py-2 rounded-lg transition-opacity disabled:opacity-40" style={{ background: GOLD, color: INK }}>Get oriented →</button>
                   </div>
                 </div>
