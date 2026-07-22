@@ -12,16 +12,31 @@ import {
   type ProjectUnderstanding, type Sourced, type SourcedList, type Provenance,
   type UnderstandingTension,
 } from "@/lib/understanding";
+import type { EngagementContext } from "@/lib/engagement-context";
 
 const MODEL = "gpt-4o";
 
 export type BriefInput = {
   briefText: string;                 // extracted brief, or the described challenge
+  context?: EngagementContext | null; // the lens from Orient — read the brief through it
   projectName?: string | null;
   existingQuestion?: string | null;  // any research question already on the project
   existingObjective?: string | null;
   sourceLabel?: string | null;       // filename or "Described challenge"
 };
+
+function serialiseLens(c: EngagementContext): string {
+  const line = (label: string, v: string | null) => (v ? `- ${label}: ${v}` : "");
+  return [
+    line("Engagement", c.engagement_type),
+    line("Organisation", c.organisation),
+    line("Commissioned by", c.commissioner),
+    line("Market / geography", c.market),
+    line("Intended audience", c.intended_audience),
+    line("Decision on the table", c.decision),
+    line("Commercial objective", c.commercial_objective),
+  ].filter(Boolean).join("\n");
+}
 
 function buildPrompt(input: BriefInput): string {
   const ctx = [
@@ -30,8 +45,10 @@ function buildPrompt(input: BriefInput): string {
     input.existingObjective?.trim() ? `An objective already noted: "${input.existingObjective.trim()}"` : "",
   ].filter(Boolean).join("\n");
 
-  return `You are a senior researcher at Fanometrix, a research consultancy for sports & fan brands. A client has given you the brief below. Reflect back your understanding of their business problem the way an experienced consultant would in an opening meeting — demonstrating that you GET it, not parroting fields back.
+  const lens = input.context ? serialiseLens(input.context) : "";
 
+  return `You are a senior researcher at Fanometrix, a research consultancy for sports & fan brands. A client has given you the brief below. Reflect back your understanding of their business problem the way an experienced consultant would in an opening meeting — demonstrating that you GET it, not parroting fields back.
+${lens ? `\nYOU HAVE ALREADY ORIENTED YOURSELF. Read the brief THROUGH this settled engagement context, never outside it (if it says the market is Europe, your understanding is about Europe):\n${lens}\n` : ""}
 ${ctx ? ctx + "\n" : ""}CLIENT BRIEF (the only ground truth — never invent facts not supported here):
 """
 ${input.briefText.slice(0, 12000)}

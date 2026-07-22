@@ -1,13 +1,20 @@
-// Commissioning — the pre-project analysis endpoint (Slice 2). No Research Project
-// exists yet. It takes the client's material (described text, pasted email, or an
-// uploaded PDF/DOCX brief), and returns Fanometrix's FIRST READ — the reframe (the
-// point of view) plus the supporting understanding (the evidence behind it). The
-// reframe is the star; the understanding is secondary.
+// Commissioning — the pre-project analysis endpoint. No Research Project exists yet.
+// It follows how a consultant actually begins, in two stages over one round trip:
+//
+//   Situation (the raw material the user handed over)
+//     → ORIENT     → Engagement Context (our structured read, the standing LENS)
+//     → INTERPRET  → the reframe (point of view) + understanding (evidence), read
+//                    THROUGH the lens, never outside it.
+//
+// Corrections split cleanly: an orient_note re-orients from scratch; a `correction`
+// (pushing back on the read) keeps the settled context and re-interprets only.
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth-server";
 import { IntelligenceError } from "@/lib/intelligence/types";
+import { analyseEngagementContext } from "@/lib/intelligence/analysts/analyseEngagementContext";
 import { analyseReframe } from "@/lib/intelligence/analysts/analyseReframe";
 import { analyseBriefUnderstanding } from "@/lib/intelligence/analysts/analyseBriefUnderstanding";
+import type { EngagementContext } from "@/lib/engagement-context";
 import { extractPdf, extractDocx } from "@/lib/library-documents/extract-text";
 
 const MAX_BYTES = 10 * 1024 * 1024;
@@ -24,12 +31,14 @@ export async function POST(req: NextRequest) {
   try { await requireUser(req, ["admin", "publisher"]); } catch (err) { return err as Response; }
 
   try {
-    // The commissioning material is everything the user gave us together: the
-    // primary description plus any labelled fragments (email, notes, deadline,
-    // asides) assembled client-side, plus the text of any attached documents.
+    // The SITUATION is everything the user gave us together: the primary
+    // description plus any labelled fragments (email, notes, deadline, asides)
+    // assembled client-side, plus the text of any attached documents.
     let material = "";
     let sourceLabel: string | null = null;
-    let correction: string | null = null;
+    let correction: string | null = null;     // client pushing back on the READ
+    let orientNote: string | null = null;     // client correcting the ORIENTATION
+    let priorContext: EngagementContext | null = null; // keep the settled lens on a read-correction
 
     const contentType = req.headers.get("content-type") ?? "";
     if (contentType.includes("multipart/form-data")) {
@@ -49,18 +58,26 @@ export async function POST(req: NextRequest) {
       material = typeof body.material === "string" ? body.material : (typeof body.text === "string" ? body.text : "");
       sourceLabel = typeof body.source_label === "string" && body.source_label.trim() ? body.source_label.trim() : "Described challenge";
       correction = typeof body.correction === "string" && body.correction.trim() ? body.correction.trim() : null;
+      orientNote = typeof body.orient_note === "string" && body.orient_note.trim() ? body.orient_note.trim() : null;
+      if (body.context && typeof body.context === "object" && !orientNote) priorContext = body.context as EngagementContext;
     }
 
-    // The reframe is the point of view; the understanding is the evidence behind
-    // it. Both reason from the commission (all the material together). A correction
-    // (the client pushing back or answering a question) is folded into both.
+    // STAGE 1 — ORIENT. Build (or re-build) the Engagement Context: our structured
+    // read of the situation, the LENS for everything after. We only reuse a prior
+    // lens when the client is correcting the READ (not the orientation); any
+    // orientation correction re-orients from scratch.
+    const context = priorContext ?? await analyseEngagementContext({ situation: material, orientNote });
+
+    // STAGE 2 — INTERPRET. The reframe is the point of view; the understanding is
+    // the evidence behind it. BOTH read the material THROUGH the context, never
+    // outside it. A read-correction is folded into both.
     const understandingText = correction ? `${material}\n\nClient added: ${correction}` : material;
     const [reframe, understanding] = await Promise.all([
-      analyseReframe({ text: material, correction }),
-      analyseBriefUnderstanding({ briefText: understandingText, sourceLabel }),
+      analyseReframe({ text: material, context, correction }),
+      analyseBriefUnderstanding({ briefText: understandingText, context, sourceLabel }),
     ]);
 
-    return NextResponse.json({ reframe, understanding, source_label: sourceLabel, source_text: material });
+    return NextResponse.json({ context, reframe, understanding, source_label: sourceLabel, source_text: material });
   } catch (err) {
     if (err instanceof IntelligenceError) return NextResponse.json({ error: err.message }, { status: err.status });
     return NextResponse.json({ error: "Something went wrong reading that. Give it another go." }, { status: 500 });

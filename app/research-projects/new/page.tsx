@@ -1,20 +1,25 @@
 "use client";
 
-// New Engagement, the Commissioning Workspace (Slices 1-3, redesigned).
-// Not a form and not a single blank box. The primary interaction stays
-// conversational ("Tell me about this engagement"), but Fanometrix actively helps
-// the user surface the fragments a real engagement begins with, an email, notes, a
-// deadline, an aside the client mentioned, a brief or prior research, through
-// OPTIONAL prompts, never mandatory fields. It reads everything together, and
-// reasons from the COMMISSION (who, what decision, what outcome, the actual
-// assignment) before forming a view. On agreement the Research Project is created
-// silently and the page hands into the Overview with no reload.
+// New Engagement, the Commissioning Workspace, an ORIENTATION SPACE (not a form).
+// This is where Fanometrix begins a consultancy engagement. It mirrors how a senior
+// strategist actually starts: they orient themselves to the SITUATION before they
+// interpret anything.
+//
+//   Situation           everything the user hands over (told + pasted + attached)
+//     → Orient          Fanometrix reflects back the ENGAGEMENT CONTEXT (the lens):
+//                       who commissioned this, for whom, what decision, what market.
+//                       Shown and CONFIRMED before any close reading, so a bad
+//                       orientation is caught while it's cheap to fix.
+//     → Interpret       the read (point of view) + understanding, THROUGH that lens.
+//     → begin           the Research Project is created silently and we hand into
+//                       the Overview with no reload.
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AdminShell } from "@/app/components/AdminShell";
 import type { Reframe } from "@/lib/intelligence/analysts/analyseReframe";
 import { UNDERSTANDING_FIELDS, type ProjectUnderstanding } from "@/lib/understanding";
+import { ENGAGEMENT_CONTEXT_FIELDS, type EngagementContext } from "@/lib/engagement-context";
 import { stashCommissioned } from "@/lib/commissioning-handoff";
 import type { ResearchProject } from "@/app/components/research-projects/ProjectProvider";
 
@@ -22,17 +27,23 @@ const GOLD = "#D7B87A";
 const GOLD_INK = "#B8935A";
 const INK = "#0B1929";
 
-const READING_LINES = ["Reading everything you've given me…", "Working out who's really asking, and to decide what…", "Sitting with the detail…", "Where's the real assignment…", "Forming a view…"];
+const ORIENTING_LINES = ["Reading everything you've given me…", "Working out who's really asking, and to decide what…", "What world am I entering…", "Getting my bearings…"];
 
-type FragKind = "email" | "notes" | "deadline" | "aside";
-const PROMPTS: { kind: FragKind; chip: string; label: string; material: string; placeholder: string }[] = [
-  { kind: "email", chip: "An email from the client", label: "Client email", material: "CLIENT EMAIL", placeholder: "Paste the email…" },
-  { kind: "notes", chip: "Notes from a meeting", label: "Meeting notes", material: "MEETING NOTES", placeholder: "What was said…" },
-  { kind: "deadline", chip: "A deadline", label: "Deadline", material: "DEADLINE", placeholder: "e.g. board budget review in 6 weeks" },
-  { kind: "aside", chip: "Something they said off the brief", label: "Off the brief", material: "OFF-BRIEF, WHAT THE CLIENT TOLD ME", placeholder: "The thing that isn't written down anywhere…" },
+// Text fragments open a labelled box; document prompts focus the file picker.
+type Prompt = { kind: string; chip: string; mode: "text" | "file"; label?: string; material?: string; placeholder?: string };
+const PROMPTS: Prompt[] = [
+  { kind: "brief", chip: "A client brief", mode: "file" },
+  { kind: "research", chip: "Existing research", mode: "file" },
+  { kind: "proposal", chip: "A previous proposal", mode: "file" },
+  { kind: "email", chip: "An email from the client or agency", mode: "text", label: "Email", material: "CLIENT / AGENCY EMAIL", placeholder: "Paste the email…" },
+  { kind: "notes", chip: "Notes from a meeting", mode: "text", label: "Meeting notes", material: "MEETING NOTES", placeholder: "What was said…" },
+  { kind: "deadline", chip: "A deadline", mode: "text", label: "Deadline", material: "DEADLINE", placeholder: "e.g. board budget review in 6 weeks" },
+  { kind: "commercial", chip: "Budget or commercial context", mode: "text", label: "Commercial context", material: "BUDGET / COMMERCIAL CONTEXT", placeholder: "The budget, the stakes, what's riding on it…" },
+  { kind: "worry", chip: "Anything you're worried about", mode: "text", label: "What's worrying you", material: "WHAT THE USER IS WORRIED ABOUT", placeholder: "The thing nagging at you that isn't written down…" },
 ];
+const TEXT_PROMPTS = PROMPTS.filter(p => p.mode === "text");
 
-type Result = { reframe: Reframe; understanding: ProjectUnderstanding; source_text: string; source_label: string | null };
+type Result = { context: EngagementContext; reframe: Reframe; understanding: ProjectUnderstanding; source_text: string; source_label: string | null };
 
 const fieldValue = (u: ProjectUnderstanding, key: string) => {
   const f = (u as unknown as Record<string, { value?: string; values?: string[]; provenance: string }>)[key];
@@ -54,12 +65,14 @@ function seedFromCreated(created: Record<string, unknown>): ResearchProject {
 export default function NewEngagementPage() {
   const router = useRouter();
   const [text, setText] = useState("");
-  const [frags, setFrags] = useState<Record<FragKind, string>>({ email: "", notes: "", deadline: "", aside: "" });
-  const [openFrags, setOpenFrags] = useState<FragKind[]>([]);
+  const [frags, setFrags] = useState<Record<string, string>>({});
+  const [openFrags, setOpenFrags] = useState<string[]>([]);
   const [files, setFiles] = useState<File[]>([]);
   const [dragging, setDragging] = useState(false);
-  const [phase, setPhase] = useState<"ask" | "reading" | "reframe" | "creating">("ask");
+  const [phase, setPhase] = useState<"ask" | "reading" | "orient" | "reframe" | "creating">("ask");
   const [result, setResult] = useState<Result | null>(null);
+  const [reorienting, setReorienting] = useState(false);
+  const [orientNote, setOrientNote] = useState("");
   const [clarify, setClarify] = useState("");
   const [correcting, setCorrecting] = useState(false);
   const [correction, setCorrection] = useState("");
@@ -68,51 +81,53 @@ export default function NewEngagementPage() {
   const [showWorking, setShowWorking] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const hasSomething = text.trim().length > 0 || files.length > 0 || PROMPTS.some(p => frags[p.kind].trim());
+  const hasSomething = text.trim().length > 0 || files.length > 0 || TEXT_PROMPTS.some(p => (frags[p.kind] ?? "").trim());
 
   useEffect(() => {
     if (phase !== "reading") return;
     setReadingIdx(0);
-    const t = setInterval(() => setReadingIdx(i => (i + 1) % READING_LINES.length), 1400);
+    const t = setInterval(() => setReadingIdx(i => (i + 1) % ORIENTING_LINES.length), 1500);
     return () => clearInterval(t);
   }, [phase]);
 
-  function addFiles(list: FileList | null) {
-    if (!list) return;
-    setFiles(prev => [...prev, ...Array.from(list)]);
-  }
+  function addFiles(list: FileList | null) { if (list) setFiles(prev => [...prev, ...Array.from(list)]); }
   function onDrop(e: React.DragEvent) { e.preventDefault(); setDragging(false); addFiles(e.dataTransfer.files); }
-  function openFrag(kind: FragKind) { setOpenFrags(prev => prev.includes(kind) ? prev : [...prev, kind]); }
 
   function assembleMaterial(): string {
     const parts = [text.trim()];
-    for (const p of PROMPTS) { const v = frags[p.kind].trim(); if (v) parts.push(`${p.material}:\n${v}`); }
+    for (const p of TEXT_PROMPTS) { const v = (frags[p.kind] ?? "").trim(); if (v) parts.push(`${p.material}:\n${v}`); }
     return parts.filter(Boolean).join("\n\n");
   }
 
-  async function analyse(payload: FormData | { material: string; correction?: string }) {
-    setError(null); setCorrecting(false); setPhase("reading");
+  // One endpoint, two stages. nextPhase decides where the user lands: a fresh run
+  // or a re-orientation lands on "orient" (confirm the lens); a read-correction
+  // keeps them in "reframe". A read-correction passes the settled context back so
+  // the orientation is preserved (the route skips Orient and re-interprets only).
+  async function analyse(
+    payload: FormData | { material: string; correction?: string; orient_note?: string; context?: EngagementContext },
+    nextPhase: "orient" | "reframe" = "orient",
+  ) {
+    setError(null); setPhase("reading");
     try {
       const res = payload instanceof FormData
         ? await fetch("/api/commission", { method: "POST", body: payload })
-        : await fetch("/api/commission", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ material: payload.material, correction: payload.correction ?? null, source_label: "Described challenge" }) });
+        : await fetch("/api/commission", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...payload, source_label: "Described challenge" }) });
       const json = await res.json().catch(() => ({}));
-      if (!res.ok) { setError(json.error ?? "Something went wrong. Try again."); setPhase(result ? "reframe" : "ask"); return; }
-      setResult(json); setClarify(""); setCorrection(""); setShowWorking(false); setPhase("reframe");
-    } catch { setError("Something went wrong. Try again."); setPhase(result ? "reframe" : "ask"); }
+      if (!res.ok) { setError(json.error ?? "Something went wrong. Try again."); setPhase(result ? nextPhase : "ask"); return; }
+      setResult(json); setReorienting(false); setOrientNote(""); setCorrecting(false); setClarify(""); setCorrection(""); setShowWorking(false);
+      setPhase(nextPhase);
+    } catch { setError("Something went wrong. Try again."); setPhase(result ? nextPhase : "ask"); }
   }
 
   function begin() {
     if (!hasSomething) return;
     const material = assembleMaterial();
-    if (files.length) { const fd = new FormData(); fd.append("material", material); files.forEach(f => fd.append("file", f)); analyse(fd); }
-    else analyse({ material });
+    if (files.length) { const fd = new FormData(); fd.append("material", material); files.forEach(f => fd.append("file", f)); analyse(fd, "orient"); }
+    else analyse({ material }, "orient");
   }
 
-  function reconsider(note: string) {
-    if (!result || !note.trim()) return;
-    analyse({ material: result.source_text, correction: note.trim() });
-  }
+  function reOrient(note: string) { if (result && note.trim()) analyse({ material: result.source_text, orient_note: note.trim() }, "orient"); }
+  function reconsider(note: string) { if (result && note.trim()) analyse({ material: result.source_text, correction: note.trim(), context: result.context }, "reframe"); }
 
   async function beginEngagement() {
     if (!result) return;
@@ -128,7 +143,8 @@ export default function NewEngagementPage() {
       study_type: "fan_understanding",
       topic: result.reframe.engagement_name,
       tags: [],
-      research_subject: null,
+      research_subject: result.context.organisation ?? null,
+      engagement_context: result.context,
       understanding: { ...u, reflection: result.reframe.reframe, confirmed: true, confirmed_at: new Date().toISOString() },
     };
     try {
@@ -139,6 +155,8 @@ export default function NewEngagementPage() {
       router.push(`/research-projects/${json.data.id}/overview`);
     } catch { setError("Couldn't begin the engagement. Try again."); setPhase("reframe"); }
   }
+
+  const ctxFields = result ? ENGAGEMENT_CONTEXT_FIELDS.map(f => ({ label: f.label, value: (result.context as unknown as Record<string, string | null>)[f.key] })).filter(f => f.value) : [];
 
   return (
     <AdminShell>
@@ -153,14 +171,14 @@ export default function NewEngagementPage() {
             {phase === "ask" && (
               <>
                 <p className="text-[13px] font-semibold uppercase tracking-[0.14em] mb-5" style={{ color: GOLD_INK }}>New engagement</p>
-                <h1 className="text-4xl md:text-5xl font-bold tracking-[-0.03em] leading-[1.05]" style={{ color: INK }}>Tell me about this engagement.</h1>
-                <p className="mt-4 text-lg leading-relaxed text-gray-500 max-w-xl">Whatever you&apos;ve got, the brief, an email, the situation in your own words. The more you give me, the sharper I&apos;ll be.</p>
+                <h1 className="text-4xl md:text-5xl font-bold tracking-[-0.03em] leading-[1.05]" style={{ color: INK }}>Let&apos;s get oriented.</h1>
+                <p className="mt-4 text-lg leading-relaxed text-gray-500 max-w-xl">Help me understand the situation. Share anything you&apos;ve got, a brief, an email, meeting notes, previous research, a deck, or simply tell me what&apos;s going on.</p>
 
                 <div className="mt-8 rounded-2xl border transition-colors"
                   style={{ borderColor: dragging ? GOLD : "#E5E7EB", background: dragging ? "#FCF8EF" : "#FFFFFF", boxShadow: "0 1px 2px rgba(11,25,41,0.04)" }}
                   onDragOver={(e) => { e.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={onDrop}>
                   <textarea value={text} onChange={(e) => setText(e.target.value)} rows={6} autoFocus
-                    placeholder="What&apos;s the situation? Who's the client, what are they wrestling with, what have they asked for…"
+                    placeholder="What&apos;s the situation? Who's the client, who's asking, what are they wrestling with, what have they asked for…"
                     className="w-full resize-none bg-transparent px-5 py-4 text-[15px] leading-relaxed outline-none placeholder:text-gray-400" style={{ color: INK }} />
 
                   {files.length > 0 && (
@@ -174,26 +192,27 @@ export default function NewEngagementPage() {
                   )}
 
                   <div className="flex items-center justify-between gap-3 px-5 py-3 border-t" style={{ borderColor: "#F1F3F5" }}>
-                    <button onClick={() => fileRef.current?.click()} className="text-[13px] text-gray-400 hover:text-gray-600 transition-colors inline-flex items-center gap-1.5"><span aria-hidden>↥</span> attach a brief or documents</button>
+                    <button onClick={() => fileRef.current?.click()} className="text-[13px] text-gray-400 hover:text-gray-600 transition-colors inline-flex items-center gap-1.5"><span aria-hidden>↥</span> attach a brief, research or a deck</button>
                     <input ref={fileRef} type="file" multiple accept=".pdf,.docx,.doc,.pptx,.ppt" hidden onChange={(e) => { addFiles(e.target.files); e.target.value = ""; }} />
-                    <button onClick={begin} disabled={!hasSomething} className="text-sm font-semibold px-5 py-2 rounded-lg transition-opacity disabled:opacity-40" style={{ background: GOLD, color: INK }}>Begin →</button>
+                    <button onClick={begin} disabled={!hasSomething} className="text-sm font-semibold px-5 py-2 rounded-lg transition-opacity disabled:opacity-40" style={{ background: GOLD, color: INK }}>Get oriented →</button>
                   </div>
                 </div>
 
-                {/* The consultant's prompts, optional, never required. */}
+                {/* The consultant's prompts, thinking aids, never required. */}
                 <div className="mt-6">
                   <p className="text-[13px] text-gray-400 mb-2.5">A few things that would help me read this properly:</p>
                   <div className="flex flex-wrap gap-2">
-                    {PROMPTS.filter(p => !openFrags.includes(p.kind)).map(p => (
-                      <button key={p.kind} onClick={() => openFrag(p.kind)} className="text-[13px] px-3 py-1.5 rounded-full border transition-colors hover:bg-gray-50" style={{ borderColor: "#E5E7EB", color: "#4B5563" }}>+ {p.chip}</button>
+                    {PROMPTS.filter(p => p.mode === "file" || !openFrags.includes(p.kind)).map(p => (
+                      <button key={p.kind} onClick={() => p.mode === "file" ? fileRef.current?.click() : setOpenFrags(prev => prev.includes(p.kind) ? prev : [...prev, p.kind])}
+                        className="text-[13px] px-3 py-1.5 rounded-full border transition-colors hover:bg-gray-50" style={{ borderColor: "#E5E7EB", color: "#4B5563" }}>+ {p.chip}</button>
                     ))}
                   </div>
                   {openFrags.length > 0 && (
                     <div className="mt-4 space-y-3">
-                      {PROMPTS.filter(p => openFrags.includes(p.kind)).map(p => (
+                      {TEXT_PROMPTS.filter(p => openFrags.includes(p.kind)).map(p => (
                         <div key={p.kind}>
                           <label className="text-[11px] font-semibold uppercase tracking-[0.06em] text-gray-400">{p.label}</label>
-                          <textarea value={frags[p.kind]} onChange={(e) => setFrags(prev => ({ ...prev, [p.kind]: e.target.value }))} rows={p.kind === "deadline" ? 1 : 2} placeholder={p.placeholder}
+                          <textarea value={frags[p.kind] ?? ""} onChange={(e) => setFrags(prev => ({ ...prev, [p.kind]: e.target.value }))} rows={p.kind === "deadline" ? 1 : 2} placeholder={p.placeholder}
                             className="w-full mt-1 resize-none rounded-lg border px-3 py-2 text-[14px] outline-none bg-white placeholder:text-gray-400" style={{ borderColor: "#E5E7EB", color: INK }} />
                         </div>
                       ))}
@@ -212,10 +231,64 @@ export default function NewEngagementPage() {
                   <span className="w-2 h-2 rounded-full animate-pulse" style={{ background: GOLD, animationDelay: "150ms" }} />
                   <span className="w-2 h-2 rounded-full animate-pulse" style={{ background: GOLD, animationDelay: "300ms" }} />
                 </div>
-                <p className="text-xl font-medium" style={{ color: INK }}>{phase === "creating" ? "Good, let's get to work." : READING_LINES[readingIdx]}</p>
+                <p className="text-xl font-medium" style={{ color: INK }}>{phase === "creating" ? "Good, let's get to work." : ORIENTING_LINES[readingIdx]}</p>
               </div>
             )}
 
+            {/* ORIENT — the visible, correctable beat. Fanometrix says back what it
+                thinks the engagement IS, before it reads anything closely. */}
+            {phase === "orient" && result && (
+              <>
+                <p className="text-[13px] font-semibold uppercase tracking-[0.14em] mb-4" style={{ color: GOLD_INK }}>Before I dig in</p>
+                <p className="text-[22px] md:text-[26px] font-medium tracking-[-0.01em] leading-[1.45]" style={{ color: INK }}>{result.context.orientation || "Here's how I read the situation."}</p>
+
+                {ctxFields.length > 0 && (
+                  <dl className="mt-7 grid sm:grid-cols-2 gap-x-8 gap-y-3">
+                    {ctxFields.map(f => (
+                      <div key={f.label}>
+                        <dt className="text-[11px] font-semibold uppercase tracking-[0.05em] text-gray-400">{f.label}</dt>
+                        <dd className="text-[15px] leading-snug mt-0.5" style={{ color: INK }}>{f.value}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                )}
+
+                {result.context.missing_information.length > 0 && (
+                  <div className="mt-6">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.05em] text-gray-400">What I don&apos;t have yet</p>
+                    <ul className="mt-1.5 space-y-1">
+                      {result.context.missing_information.map((m, i) => (
+                        <li key={i} className="text-[14px] text-gray-500 leading-relaxed flex gap-2"><span style={{ color: GOLD }}>·</span><span>{m}</span></li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                <div className="mt-8">
+                  {!reorienting ? (
+                    <div className="flex flex-wrap items-center gap-2.5">
+                      <button onClick={() => setPhase("reframe")} className="text-sm font-semibold px-5 py-2.5 rounded-lg" style={{ background: GOLD, color: INK }}>Yes, that&apos;s the shape of it →</button>
+                      <button onClick={() => setReorienting(true)} className="text-sm font-medium px-4 py-2.5 rounded-lg border" style={{ borderColor: "#E5E7EB", color: INK }}>Actually, let me correct that</button>
+                    </div>
+                  ) : (
+                    <div className="rounded-2xl border p-5" style={{ borderColor: "#E5E7EB", background: "#FFFFFF" }}>
+                      <p className="text-sm font-semibold" style={{ color: INK }}>Put me right. What have I misread about the engagement?</p>
+                      <textarea value={orientNote} onChange={(e) => setOrientNote(e.target.value)} rows={2} autoFocus placeholder="e.g. this is European, not global, and the agency is pitching, it isn't the client&apos;s own brief…"
+                        className="w-full mt-3 resize-none rounded-lg border px-3 py-2 text-[15px] outline-none placeholder:text-gray-400" style={{ borderColor: "#E5E7EB", color: INK }} />
+                      <div className="flex justify-end gap-2 mt-3">
+                        <button onClick={() => { setReorienting(false); setOrientNote(""); }} className="text-sm text-gray-400 hover:text-gray-600 px-3 py-2">Cancel</button>
+                        <button onClick={() => reOrient(orientNote)} disabled={!orientNote.trim()} className="text-sm font-semibold px-4 py-2 rounded-lg transition-opacity disabled:opacity-40" style={{ background: GOLD, color: INK }}>Re-orient →</button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {error && <p className="mt-4 text-[13px]" style={{ color: "#8A4B33" }}>{error}</p>}
+                <button onClick={() => { setPhase("ask"); setResult(null); setReorienting(false); }} className="mt-6 text-sm text-gray-400 hover:text-gray-600 transition-colors">← start over</button>
+              </>
+            )}
+
+            {/* INTERPRET — the read, formed through the confirmed lens. */}
             {phase === "reframe" && result && (
               <>
                 <p className="text-[13px] font-semibold uppercase tracking-[0.12em] mb-4" style={{ color: GOLD_INK }}>{result.reframe.engagement_name}</p>
@@ -262,7 +335,7 @@ export default function NewEngagementPage() {
                     <div className="flex flex-wrap items-center gap-2.5">
                       <button onClick={beginEngagement} className="text-sm font-semibold px-5 py-2.5 rounded-lg" style={{ background: GOLD, color: INK }}>Yes, that&apos;s it. Let&apos;s begin →</button>
                       <button onClick={() => setCorrecting(true)} className="text-sm font-medium px-4 py-2.5 rounded-lg border" style={{ borderColor: "#E5E7EB", color: INK }}>Almost, I&apos;d change something</button>
-                      <button onClick={() => setCorrecting(true)} className="text-sm font-medium px-4 py-2.5 text-gray-400 hover:text-gray-600 transition-colors">No, you&apos;ve misunderstood</button>
+                      <button onClick={() => setPhase("orient")} className="text-sm font-medium px-4 py-2.5 text-gray-400 hover:text-gray-600 transition-colors">← back to orientation</button>
                     </div>
                   ) : (
                     <div className="rounded-2xl border p-5" style={{ borderColor: "#E5E7EB", background: "#FFFFFF" }}>
@@ -278,7 +351,6 @@ export default function NewEngagementPage() {
                 </div>
 
                 {error && <p className="mt-4 text-[13px]" style={{ color: "#8A4B33" }}>{error}</p>}
-                <button onClick={() => { setPhase("ask"); setResult(null); setCorrecting(false); }} className="mt-6 text-sm text-gray-400 hover:text-gray-600 transition-colors">← start over</button>
               </>
             )}
 
