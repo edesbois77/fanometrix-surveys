@@ -84,6 +84,9 @@ export default function NewEngagementPage() {
 
   function addFiles(list: FileList | null) { if (list) setFiles(prev => [...prev, ...Array.from(list)]); }
   function onDrop(e: React.DragEvent) { e.preventDefault(); setDragging(false); addFiles(e.dataTransfer.files); }
+  // Each file trigger nests its OWN input inside the <label>, so clicking it opens
+  // the picker natively in every browser. No scripted .click(), no shared id.
+  function onPick(e: React.ChangeEvent<HTMLInputElement>) { addFiles(e.target.files); e.target.value = ""; }
 
   function assembleMaterial(): string {
     const parts = [text.trim()];
@@ -180,11 +183,10 @@ export default function NewEngagementPage() {
                   )}
 
                   <div className="flex items-center justify-between gap-3 px-5 py-3 border-t" style={{ borderColor: "#F1F3F5" }}>
-                    {/* Native <label htmlFor> opens the picker in every browser,
-                        including Safari, where a scripted input.click() is unreliable.
-                        The input is sr-only (rendered), NOT hidden/display:none. */}
-                    <label htmlFor="commission-files" className="cursor-pointer text-[13px] text-gray-400 hover:text-gray-600 transition-colors inline-flex items-center gap-1.5"><span aria-hidden>↥</span> attach a brief, research or a deck</label>
-                    <input id="commission-files" type="file" multiple accept=".pdf,.docx,.doc,.pptx,.ppt" className="sr-only" tabIndex={-1} onChange={(e) => { addFiles(e.target.files); e.target.value = ""; }} />
+                    <label className="cursor-pointer text-[13px] text-gray-400 hover:text-gray-600 transition-colors inline-flex items-center gap-1.5">
+                      <span aria-hidden>↥</span> attach a brief, research or a deck
+                      <input type="file" multiple accept=".pdf,.docx,.doc,.pptx,.ppt" className="sr-only" onChange={onPick} />
+                    </label>
                     <button onClick={begin} disabled={!hasSomething} className="text-sm font-semibold px-5 py-2 rounded-lg transition-opacity disabled:opacity-40" style={{ background: GOLD, color: INK }}>Get oriented →</button>
                   </div>
                 </div>
@@ -195,8 +197,11 @@ export default function NewEngagementPage() {
                   <div className="flex flex-wrap gap-2">
                     {PROMPTS.filter(p => p.mode === "file" || !openFrags.includes(p.kind)).map(p => (
                       p.mode === "file" ? (
-                        // Document chips are labels for the same input — reliable in Safari.
-                        <label key={p.kind} htmlFor="commission-files" className="cursor-pointer text-[13px] px-3 py-1.5 rounded-full border transition-colors hover:bg-gray-50" style={{ borderColor: "#E5E7EB", color: "#4B5563" }}>+ {p.chip}</label>
+                        // Each document chip nests its own file input — native, reliable everywhere.
+                        <label key={p.kind} className="cursor-pointer text-[13px] px-3 py-1.5 rounded-full border transition-colors hover:bg-gray-50" style={{ borderColor: "#E5E7EB", color: "#4B5563" }}>
+                          + {p.chip}
+                          <input type="file" multiple accept=".pdf,.docx,.doc,.pptx,.ppt" className="sr-only" onChange={onPick} />
+                        </label>
                       ) : (
                         <button key={p.kind} onClick={() => setOpenFrags(prev => prev.includes(p.kind) ? prev : [...prev, p.kind])}
                           className="text-[13px] px-3 py-1.5 rounded-full border transition-colors hover:bg-gray-50" style={{ borderColor: "#E5E7EB", color: "#4B5563" }}>+ {p.chip}</button>
