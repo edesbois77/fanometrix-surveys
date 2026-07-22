@@ -642,7 +642,21 @@ export function ThemedSurvey(props: ThemedSurveyProps) {
     }).catch(() => {/* non-fatal */});
   }
 
-  // IntersectionObserver — start timer when in view, fire SURVEY_RENDER once
+  // SURVEY_RENDER = a load / impression. Fires once on mount (this component only
+  // mounts when questions are ready), regardless of viewport — so it counts every
+  // ad load, consistently with ClassicSurvey. Viewability = SURVEY_VISIBLE ÷
+  // SURVEY_RENDER. (Previously this fired on viewport entry, which under-counted
+  // impressions and was inconsistent with the classic renderer.)
+  useEffect(() => {
+    if (!hasRendered.current) {
+      hasRendered.current = true;
+      sendEvent("SURVEY_RENDER");
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // IntersectionObserver — run the countdown when in view, and fire SURVEY_VISIBLE
+  // once on genuine viewport entry (the "viewable impression" + start of TTFI).
   useEffect(() => {
     const el = containerRef.current;
     if (!el || typeof IntersectionObserver === "undefined") return;
@@ -650,14 +664,6 @@ export function ThemedSurvey(props: ThemedSurveyProps) {
       isVisibleRef.current = e.isIntersecting;
       if (e.isIntersecting && !document.hidden) {
         setIsRunning(true);
-        if (!hasRendered.current) {
-          hasRendered.current = true;
-          sendEvent("SURVEY_RENDER");
-        }
-        // SURVEY_VISIBLE = became visible to the respondent; start of TTFI.
-        // Here it coincides with SURVEY_RENDER (both fire on viewport entry),
-        // but it is emitted as a distinct event so the metric is renderer-
-        // agnostic (Classic's SURVEY_RENDER fires on data-load, not viewport).
         if (!hasVisible.current) {
           hasVisible.current = true;
           sendEvent("SURVEY_VISIBLE");

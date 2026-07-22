@@ -28,14 +28,18 @@ to timing, in order:
 
 | Event | Fires when | Emitted by |
 |---|---|---|
-| `SURVEY_VISIBLE` | The survey genuinely enters the viewport (IntersectionObserver, threshold 0.1). **New in this release.** | `ThemedSurvey.tsx`, `ClassicSurvey.tsx` |
+| `SURVEY_RENDER` | The survey creative **loads** (on mount, once questions are ready) — one per ad load, regardless of viewport. Both renderers now fire this on load. = **Impressions (Loads)**. | both renderers |
+| `SURVEY_VISIBLE` | The survey genuinely enters the viewport (IntersectionObserver, threshold 0.1). = **Impressions (Viewable)** + start of TTFI. **New in this release.** | both renderers |
 | `SURVEY_START` | The respondent selects their **first answer** (Q1). | both renderers |
 | `SURVEY_COMPLETED` | The respondent answers the **final question** (survey submitted). | both renderers |
 
-`SURVEY_RENDER` also exists but is **not** used for timing. Its meaning differs
-by renderer (Themed = viewport entry; Classic = data-loaded), which is exactly
-why a dedicated `SURVEY_VISIBLE` event was introduced — so "became visible" means
-the same thing everywhere.
+**Exposure metrics:** Impressions (Loads) = `SURVEY_RENDER` count · Impressions
+(Viewable) = `SURVEY_VISIBLE` count · **Viewability** = Viewable ÷ Loads.
+Historically Themed's `SURVEY_RENDER` fired on *viewport entry*, not load, so
+Themed loads before this release are under-counted (Classic was always load-based);
+`SURVEY_VISIBLE` is forward-only, so Viewability is available from this release
+onwards. The funnel rates (Q1 Answer Rate, Overall Conversion Rate) use Impressions
+(Loads) as the denominator.
 
 `created_at` is server-insert time, so there is sub-second network jitter between
 the client event and the row timestamp. This is negligible against multi-second

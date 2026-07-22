@@ -6,7 +6,8 @@ import { getMetric } from "@/lib/metrics";
 import { MetricInfo } from "@/app/components/metrics/MetricInfo";
 
 export type EventCounts = {
-  renders:    number;
+  renders:    number;  // SURVEY_RENDER = loads / impressions
+  viewable?:  number;  // SURVEY_VISIBLE = viewable impressions (from this release)
   starts:     number;
   q2_reached: number;
   q3_reached: number;
@@ -104,7 +105,7 @@ function MetricCard({
 }
 
 // ── Conversion pipeline ─────────────────────────────────────────────────────
-// A compact horizontal journey from Survey Render to Completed Response. Each
+// A compact horizontal journey from Impression to Completed Response. Each
 // stage is a small card (name · count · share of the previous stage); between
 // stages a subtle connector carries the drop-off.
 
@@ -320,11 +321,16 @@ export function KpiCards({ responses, events, eventsLoading }: KpiCardsProps) {
   const completionValue  = avgCompletion != null && completionSample > 0 ? `${avgCompletion}s` : "—";
   const ttfiValue        = avgTtfi != null && ttfiSample > 0 ? `${avgTtfi}s` : "—";
 
-  const renders     = events?.renders    ?? 0;
+  const renders     = events?.renders    ?? 0;  // loads / impressions
+  const viewable    = events?.viewable   ?? 0;  // viewable impressions (from this release)
   const starts      = events?.starts     ?? 0;
   const q2Reached   = events?.q2_reached ?? 0;
   const q3Reached   = events?.q3_reached ?? 0;
   const evCompleted = events?.completed  ?? 0;
+
+  // Viewability = viewable ÷ loads. SURVEY_VISIBLE is forward-only, so a zero
+  // viewable count means "no viewable data yet" (render "—") rather than 0%.
+  const viewabilityValue = viewable > 0 ? pctPrecise(viewable, renders) : "—";
 
   const hasEvents = !eventsLoading && events !== null;
 
@@ -346,7 +352,7 @@ export function KpiCards({ responses, events, eventsLoading }: KpiCardsProps) {
   const band = bandFor(moe);
 
   const pipelineStages: PipelineStage[] = [
-    { label: "Survey Renders",      count: renders,         conv: null,                                     drop: null                       },
+    { label: "Impressions (Loads)", count: renders,         conv: null,                                     drop: null                       },
     { label: "Q1 Answered",         count: starts,          conv: `${pct(starts, renders)} of previous`,    drop: dropOf(starts, renders)    },
     { label: "Question 2 Reached",  count: q2Reached,       conv: `${pct(q2Reached, starts)} of previous`,  drop: dropOf(q2Reached, starts)  },
     { label: "Question 3 Reached",  count: q3Reached,       conv: `${pct(q3Reached, q2Reached)} of previous`, drop: dropOf(q3Reached, q2Reached) },
@@ -363,9 +369,21 @@ export function KpiCards({ responses, events, eventsLoading }: KpiCardsProps) {
         <SectionLabel>Exposure</SectionLabel>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
           <MetricCard
-            metricId="survey_renders"
+            metricId="impressions_loads"
             value={showEventValue ? renders : "—"}
-            sub="viewport opportunities to engage"
+            sub="every ad load served"
+          />
+          <MetricCard
+            metricId="impressions_viewable"
+            value={showEventValue ? (viewable > 0 ? viewable : "—") : "—"}
+            sub={viewable > 0 ? "scrolled into view" : "available from this release"}
+          />
+          <MetricCard
+            metricId="viewability_rate"
+            value={showEventValue ? viewabilityValue : "—"}
+            sub={viewable > 0 ? "Viewable ÷ Loads" : "available from this release"}
+            highlight={showEventValue && viewable > 0}
+            infoAlign="right"
           />
         </div>
       </div>
@@ -382,7 +400,7 @@ export function KpiCards({ responses, events, eventsLoading }: KpiCardsProps) {
           <MetricCard
             metricId="q1_answer_rate"
             value={showEventValue ? startRate : "—"}
-            sub="Q1 Answered ÷ Renders"
+            sub="Q1 Answered ÷ Impressions"
             highlight={showEventValue}
           />
           <MetricCard
@@ -396,10 +414,10 @@ export function KpiCards({ responses, events, eventsLoading }: KpiCardsProps) {
           <p className="text-xs text-gray-400 mt-1">Loading event data…</p>
         )}
         {isLegacyData && (
-          <ZeroNotice message="Survey Renders and Q1 metrics are not available for historical responses collected before event tracking was enabled." />
+          <ZeroNotice message="Impressions and Q1 metrics are not available for historical responses collected before event tracking was enabled." />
         )}
         {!hasEvents && !eventsLoading && (
-          <ZeroNotice message="Survey Renders and Q1 metrics require event tracking, no events recorded yet." />
+          <ZeroNotice message="Impressions and Q1 metrics require event tracking, no events recorded yet." />
         )}
       </div>
 
@@ -430,7 +448,7 @@ export function KpiCards({ responses, events, eventsLoading }: KpiCardsProps) {
           <MetricCard
             metricId="overall_conversion_rate"
             value={showEventValue ? responseRate : "—"}
-            sub="Completed ÷ Renders"
+            sub="Completed ÷ Impressions"
             highlight={showEventValue}
           />
           <MetricCard
@@ -449,7 +467,7 @@ export function KpiCards({ responses, events, eventsLoading }: KpiCardsProps) {
           <div className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm">
             <ZeroNotice message={isLegacyData
               ? "Pipeline stages are not available for responses collected before event tracking was introduced."
-              : "Pipeline stages will appear once event tracking records its first Survey Render."} />
+              : "Pipeline stages will appear once event tracking records its first impression."} />
             {completed > 0 && (
               <p className="text-sm mt-2">
                 <span className="font-bold tabular-nums" style={{ color: "#0B1929" }}>{fmt(completed)}</span>

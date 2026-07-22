@@ -5,7 +5,7 @@ import { visibleResourceIds } from "@/lib/access";
 import { getTimingStats, type TimingFilter } from "@/lib/survey-timing";
 
 const EMPTY = {
-  renders: 0, starts: 0, q2_reached: 0, q3_reached: 0, completed: 0,
+  renders: 0, viewable: 0, starts: 0, q2_reached: 0, q3_reached: 0, completed: 0,
   avg_completion_seconds: null, avg_ttfi_seconds: null,
   completion_sample: 0, ttfi_sample: 0,
 };
@@ -82,17 +82,18 @@ export async function GET(req: NextRequest) {
 
   const [results, timing] = await Promise.all([
     Promise.all(
-      ["SURVEY_RENDER", "SURVEY_START", "QUESTION_2_REACHED", "QUESTION_3_REACHED", "SURVEY_COMPLETED"].map(countQuery)
+      ["SURVEY_RENDER", "SURVEY_VISIBLE", "SURVEY_START", "QUESTION_2_REACHED", "QUESTION_3_REACHED", "SURVEY_COMPLETED"].map(countQuery)
     ),
     getTimingStats(supabaseAdmin, timingFilter),
   ]);
 
   return NextResponse.json({
-    renders:    results[0].count ?? 0,
-    starts:     results[1].count ?? 0,
-    q2_reached: results[2].count ?? 0,
-    q3_reached: results[3].count ?? 0,
-    completed:  results[4].count ?? 0,
+    renders:    results[0].count ?? 0,  // SURVEY_RENDER = loads / impressions
+    viewable:   results[1].count ?? 0,  // SURVEY_VISIBLE = viewable impressions
+    starts:     results[2].count ?? 0,
+    q2_reached: results[3].count ?? 0,
+    q3_reached: results[4].count ?? 0,
+    completed:  results[5].count ?? 0,
     avg_completion_seconds: timing.avg_completion_seconds,
     avg_ttfi_seconds:       timing.avg_ttfi_seconds,
     completion_sample:      timing.completion_sample,
