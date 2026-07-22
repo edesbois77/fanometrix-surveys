@@ -159,7 +159,7 @@ export default function NewEngagementPage() {
                 {/* The supporting structure — evidence behind the thinking, kept quiet. */}
                 <div className="mt-8 border-t pt-5" style={{ borderColor: "#F1F3F5" }}>
                   <button onClick={() => setShowWorking(v => !v)} className="text-[13px] font-medium text-gray-400 hover:text-gray-600 transition-colors">
-                    {showWorking ? "Hide my working" : "Show my working"} {showWorking ? "▲" : "▾"}
+                    {showWorking ? "Hide the reasoning" : "Why I've come to this view"} {showWorking ? "▲" : "▾"}
                   </button>
                   {showWorking && (
                     <dl className="mt-4 space-y-3">
@@ -178,7 +178,7 @@ export default function NewEngagementPage() {
                 </div>
 
                 {error && <p className="mt-4 text-[13px]" style={{ color: "#8A4B33" }}>{error}</p>}
-                <p className="mt-8 text-[13px] text-gray-400">(Slice 2 ends here. Reacting to this read — and beginning the engagement — is the next slice.)</p>
+                <p className="mt-8 text-[13px] text-gray-400">(Next: you react — agree, adjust, or push back — and we begin the engagement.)</p>
                 <button onClick={() => { setPhase("ask"); setResult(null); }} className="mt-4 text-sm text-gray-400 hover:text-gray-600 transition-colors">← start over</button>
               </>
             )}
