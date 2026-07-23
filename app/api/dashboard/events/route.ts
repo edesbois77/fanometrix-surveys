@@ -76,12 +76,8 @@ export async function GET(req: NextRequest) {
     return q;
   }
 
-  // A count that could not be computed is NOT zero. survey_events is large and
-  // growing, so a count can be cancelled by the statement timeout (57014) while
-  // its smaller siblings succeed. Coercing that to 0 used to render a confident
-  // "Impressions (Loads) 0" next to a real Q1 Answered figure, and collapsed
-  // every impression-denominated rate to "—" via a zero denominator. Returning
-  // null lets the client say "not available" instead of stating a false zero.
+  // A count that could not be computed is NOT zero. Returning null lets the
+  // client say "not available" instead of stating a false zero.
   async function safeCount(eventType: string): Promise<number | null> {
     const { count, error } = await countQuery(eventType);
     if (error) {
@@ -91,6 +87,53 @@ export async function GET(req: NextRequest) {
     return count ?? 0;
   }
 
+  // The campaign scope as a single list, which is what the rollup function takes.
+  // null means unscoped. An empty list means "a scope was requested that matches
+  // no campaigns", which is an empty funnel, not an unscoped query.
+  const requested: string[] | null =
+    campaign_id ? [campaign_id] : campaign_ids ? campaign_ids : null;
+  const effectiveCampaignIds: string[] | null =
+    scopedCampaignIds === null
+      ? requested
+      : requested === null
+        ? scopedCampaignIds
+        : requested.filter(id => scopedCampaignIds!.includes(id));
+
+  // Funnel counts from the rollups, plus raw only for the unsealed tail.
+  //
+  // This replaces six exact COUNT(*) queries over survey_events. Those scale
+  // linearly with matched rows: at 784k renders the project-scoped one costs
+  // 4-7s against an 8s budget and grows by ~440k rows a day, so it fails
+  // intermittently under production concurrency and permanently within weeks.
+  // dashboard_event_counts sums precomputed buckets instead and touches raw
+  // only for the window the rollup has not sealed yet, which is bounded by the
+  // sealing lag rather than by the size of history.
+  //
+  // Falls back to the old per-type counts if the rollup path errors, so a
+  // problem in the new layer degrades to the previous behaviour rather than an
+  // empty dashboard. See docs/event-analytics-architecture.md §7.
+  async function funnelFromRollup(): Promise<Record<string, number> | null> {
+    const { data, error } = await supabaseAdmin.rpc("dashboard_event_counts", {
+      p_campaign_ids: effectiveCampaignIds,
+      p_from:         date_from,
+      p_to:           date_to,
+      p_publisher:    publisher,
+      p_placement:    placement,
+      p_country:      country,
+      p_device:       device,
+      p_browser:      browser,
+    });
+    if (error) {
+      console.error("[dashboard/events] rollup query failed:", error.code, error.message);
+      return null;
+    }
+    const out: Record<string, number> = {};
+    for (const row of (data ?? []) as { event_type: string; event_count: number }[]) {
+      out[row.event_type] = Number(row.event_count) || 0;
+    }
+    return out;
+  }
+
   // Timing metrics (events-based; see lib/survey-timing.ts + docs/metrics-timing.md)
   // reuse the exact same dimension/scope/date filters as the funnel counts.
   const timingFilter: TimingFilter = {
@@ -98,10 +141,17 @@ export async function GET(req: NextRequest) {
     date_from, date_to, scopedCampaignIds,
   };
 
+  const TYPES = ["SURVEY_RENDER", "SURVEY_VISIBLE", "SURVEY_START", "QUESTION_2_REACHED", "QUESTION_3_REACHED", "SURVEY_COMPLETED"];
+
   const [results, timing] = await Promise.all([
-    Promise.all(
-      ["SURVEY_RENDER", "SURVEY_VISIBLE", "SURVEY_START", "QUESTION_2_REACHED", "QUESTION_3_REACHED", "SURVEY_COMPLETED"].map(safeCount)
-    ),
+    (async (): Promise<(number | null)[]> => {
+      if (effectiveCampaignIds !== null && effectiveCampaignIds.length === 0) {
+        return TYPES.map(() => 0);   // scope matches no campaigns: a real zero
+      }
+      const rolled = await funnelFromRollup();
+      if (rolled) return TYPES.map(t => rolled[t] ?? 0);
+      return Promise.all(TYPES.map(safeCount));   // fallback: previous behaviour
+    })(),
     // Timing paginates raw event rows and throws on a failed page. That must not
     // take the whole funnel down with it — the counts above are useful on their
     // own, so a timing failure degrades to "no sample" (rendered as "—").

@@ -92,7 +92,13 @@ function EmbedSurvey() {
   const publisher     = params.get("publisher")    ?? null;
   const placement     = params.get("placement")    ?? null;
   const placementId   = params.get("placement_id") ?? null;
-  const creativeId    = params.get("creative_id")  ?? null;
+  // Explicit ?creative_id= override, for ad tags that name a creative directly.
+  // Almost nothing sets it, which is why creative_id was NULL on 100% of rows
+  // (1.13M events, 5.3k responses) despite the whole write path working: the
+  // embed reported this parameter instead of the design it actually rendered.
+  // See docs/m1-migration-plan.md §2. The reported value now falls back to the
+  // server-resolved design (creativeDesign, below).
+  const creativeIdParam = params.get("creative_id") ?? null;
   const club          = params.get("club")         ?? null;
   const competition   = params.get("competition")  ?? null;
   const countryParam  = params.get("country")      ?? "";
@@ -213,6 +219,12 @@ function EmbedSurvey() {
   // classic layout, or an unresolvable design) falls back to Classic.
   const layout = customTheme ? "timer" : "classic";
 
+  // What this impression actually showed. creativeDesign is the design the embed
+  // API resolved server-side from the campaign (or its inherited research
+  // project) and is what we render with, so it is the truthful answer to "which
+  // creative did this fan see". An explicit URL override still wins when present.
+  const reportedCreativeId = creativeIdParam ?? creativeDesign;
+
   if (layout === "timer") {
     return (
       <ThemedSurvey
@@ -229,7 +241,7 @@ function EmbedSurvey() {
         publisher={publisher}
         placement={placement}
         placementId={placementId}
-        creativeId={creativeId}
+        creativeId={reportedCreativeId}
         club={club}
         competition={competition}
         country={country}
@@ -258,7 +270,7 @@ function EmbedSurvey() {
       publisher={publisher}
       placement={placement}
       placementId={placementId}
-      creativeId={creativeId}
+      creativeId={reportedCreativeId}
       club={club}
       competition={competition}
       country={country}
