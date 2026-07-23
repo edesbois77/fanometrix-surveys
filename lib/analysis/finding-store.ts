@@ -200,7 +200,7 @@ export function toRows(opts: {
 
 // ── Writes ───────────────────────────────────────────────────────────────────
 
-export type PersistedRun = { runId: string; written: number; superseded: number };
+export type PersistedRun = { runId: string; written: number; candidates: number; superseded: number };
 
 /** Persist a reasoning run.
  *
@@ -209,8 +209,10 @@ export type PersistedRun = { runId: string; written: number; superseded: number 
  *  or rejected alone. Nothing is destroyed, so the record of what the platform
  *  believed last month survives, and an approval made last week is not quietly
  *  replaced by a fresh guess. */
-export async function persistRun(run: ReasoningRun, opts?: { model?: string | null }): Promise<PersistedRun> {
-  const runId = randomUUID();
+export async function persistRun(run: ReasoningRun, opts?: { model?: string | null; runId?: string }): Promise<PersistedRun> {
+  // The run id is the analysis_runs row id when a job supplies one, so a
+  // project's findings and the run that formed them share one identifier.
+  const runId = opts?.runId ?? randomUUID();
   const needIds = run.results.map(r => r.needId);
 
   // Supersede first, so a failure part-way through leaves the previous run
@@ -262,7 +264,7 @@ export async function persistRun(run: ReasoningRun, opts?: { model?: string | nu
     if (error) throw new Error(error.message);
   }
 
-  return { runId, written: findings.length, superseded };
+  return { runId, written: findings.length, candidates: findings.filter(f => f.rank === 1).length, superseded };
 }
 
 // ── Reads ────────────────────────────────────────────────────────────────────
