@@ -88,7 +88,14 @@ CREATE TABLE IF NOT EXISTS findings (
   reviewed_by           text,
   reviewed_at           timestamptz,
   published_at          timestamptz,
+  -- A rejection carries a CLASS as well as a note, because "unwarranted" and
+  -- "immaterial" are different professional judgements and the difference is
+  -- worth keeping: one is about the evidence, the other about the commission.
+  reject_class          text        CHECK (reject_class IN ('unwarranted','immaterial','duplicate','out_of_scope','wrong_assertion')),
   reject_reason         text,
+  -- An analyst's standing note on a claim, kept apart from the AI's warrant so
+  -- regeneration can never overwrite a person's reading.
+  analyst_note          text,
 
   -- Lineage. Nothing is deleted; claims are superseded, and anything that cited
   -- a version keeps citing that version.
@@ -172,9 +179,10 @@ CREATE TABLE IF NOT EXISTS finding_revisions (
   finding_id    uuid        NOT NULL REFERENCES findings(id) ON DELETE CASCADE,
   version       int         NOT NULL,
   action        text        NOT NULL
-                CHECK (action IN ('created','reframed','narrowed','split','merged',
-                                  'evidence_changed','override','approved','rejected',
-                                  'published','superseded','reopened')),
+                CHECK (action IN ('created','authored','reframed','narrowed','split','merged',
+                                  'evidence_changed','evidence_requested','override',
+                                  'approved','rejected','published','withheld',
+                                  'superseded','reopened')),
   actor         text        NOT NULL,
   summary       text,
   before        jsonb,

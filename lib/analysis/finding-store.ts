@@ -267,12 +267,25 @@ export async function persistRun(run: ReasoningRun, opts?: { model?: string | nu
 
 // ── Reads ────────────────────────────────────────────────────────────────────
 
-export type StoredFinding = FindingRow & {
-  status: string;
+/** A row as it comes BACK, which is not the shape it went in as: the database
+ *  assigns ids and the lifecycle has moved on from the one value insert writes. */
+export type StoredEvidenceRow = EvidenceRow & { id: string };
+
+export type StoredFinding = Omit<FindingRow, "status"> & {
+  status: "candidate" | "in_review" | "approved" | "rejected" | "superseded";
   published: boolean;
   reviewed_by: string | null;
+  reviewed_at: string | null;
+  published_at: string | null;
+  reject_class: string | null;
+  reject_reason: string | null;
+  analyst_note: string | null;
   override_confidence: string | null;
-  evidence?: EvidenceRow[];
+  override_reason: string | null;
+  supersedes_id: string | null;
+  split_from_id: string | null;
+  merged_into_id: string | null;
+  evidence?: StoredEvidenceRow[];
 };
 
 /** Findings for a project. `status` defaults to the live candidate set; pass
@@ -304,7 +317,7 @@ export async function getFinding(id: string): Promise<StoredFinding | null> {
   if (!data) return null;
   const { data: evidence } = await supabaseAdmin
     .from("finding_evidence").select("*").eq("finding_id", id).order("rejected", { ascending: true });
-  return { ...(data as StoredFinding), evidence: (evidence ?? []) as EvidenceRow[] };
+  return { ...(data as StoredFinding), evidence: (evidence ?? []) as StoredEvidenceRow[] };
 }
 
 /** The approved set, which is the only thing Reports, Recommendations and
