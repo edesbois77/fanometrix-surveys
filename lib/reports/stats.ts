@@ -109,7 +109,7 @@ export const CONFIDENCE_LABEL: Record<Confidence, string> = {
 };
 
 export const CONFIDENCE_MEANING: Record<Confidence, string> = {
-  high: "A clear difference. Large enough, and consistent enough, to plan against.",
+  high: "A clear difference. Large enough and consistent enough, to plan against.",
   moderate: "A real difference on the evidence so far. Worth acting on, worth re-testing.",
   early: "An observation, not yet a finding. The sample cannot separate this from normal variation.",
 };

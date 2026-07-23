@@ -27,7 +27,7 @@ export default function ReportError({
   return (
     <ReportShell title="This report could not be loaded">
       <p style={{ margin: "0 0 22px" }}>
-        The report is generated from live campaign data each time it is opened, and that did not complete. This is
+        The report is generated from live campaign data each time it is opened and that did not complete. This is
         almost always temporary.
       </p>
       <button

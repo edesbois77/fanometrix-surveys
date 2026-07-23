@@ -620,7 +620,7 @@ function buildCreativeComparison(
     const after = countLoads(buckets, viewableFrom, (b) => baselineIds.has(b.campaignId));
     if (before > 0 && after / before < 0.2) {
       caveats.push(
-        "Viewable-impression measurement began part way through the campaign, after most of the first creative's delivery. Viewability is therefore compared only across the window in which both were measured, and is not used to adjust any other figure.",
+        "Viewable-impression measurement began part way through the campaign, after most of the first creative's delivery. Viewability is therefore compared only across the window in which both were measured and is not used to adjust any other figure.",
       );
     }
   }
@@ -695,7 +695,7 @@ function describeHours(hourly: HourPoint[]): AudienceIntelligenceReport["hourlyI
     // data puts it, and a report that says "evening" while pointing at 04:00
     // has stopped describing the campaign.
     observations.push(
-      `Delivery is concentrated rather than spread: ${formatHour(peak.hour)} alone carries ${Math.round(share * 100)}% of all impressions, and the busiest six hours carry ${Math.round(
+      `Delivery is concentrated rather than spread: ${formatHour(peak.hour)} alone carries ${Math.round(share * 100)}% of all impressions and the busiest six hours carry ${Math.round(
         (hourly
           .slice()
           .sort((a, b) => b.loads - a.loads)
@@ -1012,7 +1012,7 @@ function buildDecisions(
     if (top) {
       out.push({
         headline: "Take the sponsorship read to market as a sales asset",
-        action: `Your audience answered a brand-perception question directly, at a scale a panel would charge for. That is a first-party proof point about the quality of your readers, and it is reusable in every sponsorship conversation you have this year.`,
+        action: `Your audience answered a brand-perception question directly, at a scale a panel would charge for. That is a first-party proof point about the quality of your readers and it is reusable in every sponsorship conversation you have this year.`,
         evidence: `${Math.round(top.share * 100)}% of ${q1.sampleSize} respondents chose "${top.label}" on the sponsorship question.`,
         worth: null,
         confidence: "high",
@@ -1187,7 +1187,7 @@ function buildRecommendations(
     if (decisive.length > 0) {
       out.push({
         title: `Make ${creative.variant.label} the default creative for the next campaign`,
-        detail: `It produced more completed responses from the same volume of inventory. Rolling it out across every market is the single highest-value change available, and costs nothing in delivery.`,
+        detail: `It produced more completed responses from the same volume of inventory. Rolling it out across every market is the single highest-value change available and costs nothing in delivery.`,
         basis: `${joinList(decisive.map((d) => d.label))} improved against ${creative.baseline.label}.`,
       });
       out.push({
@@ -1211,7 +1211,7 @@ function buildRecommendations(
         ? `Weight the next buy toward ${best.label}, once the creative effect is separated out`
         : `Weight the next buy toward ${best.label}`,
       detail: confounded
-        ? `${best.label} returned the most completed responses per impression in this study, but it also ran a different creative mix from the other markets, so part of that advantage belongs to the creative rather than the audience. Running one creative across every market in the next campaign settles which, and is worth doing before the budget moves.`
+        ? `${best.label} returned the most completed responses per impression in this study, but it also ran a different creative mix from the other markets, so part of that advantage belongs to the creative rather than the audience. Running one creative across every market in the next campaign settles which and is worth doing before the budget moves.`
         : `${best.label} returned the most completed responses per impression in this study. Shifting share toward it raises total sample without raising delivery.`,
       basis: `${best.rates.responsesPer10k.toFixed(1)} responses per 10,000 impressions, index ${best.index.responseRate} against the campaign average.`,
     });
@@ -1231,7 +1231,7 @@ function buildRecommendations(
     out.push({
       title: `Protect the ${formatHour(hours.peakHour)} window and test a second placement around ${formatHour(hours.bestEngagementHour)}`,
       detail:
-        "The peak is where the volume is and should be defended. The higher-converting hours outside it are currently under-used, and are the cheapest place to find additional sample without bidding against yourself for the busiest inventory.",
+        "The peak is where the volume is and should be defended. The higher-converting hours outside it are currently under-used and are the cheapest place to find additional sample without bidding against yourself for the busiest inventory.",
       basis: `Peak delivery at ${formatHour(hours.peakHour)}; strongest engagement rate at ${formatHour(hours.bestEngagementHour)} among hours with enough starts to compare.`,
     });
   }
@@ -1326,7 +1326,7 @@ function buildMethodology(
   );
 
   out.push(
-    `Differences are tested before they are described. Anything labelled High Confidence or Moderate Confidence has cleared a 95% statistical bar; anything labelled Early Observation has not, and is shown because it is interesting rather than because it is settled. Markets with fewer than ${MIN_REPORTABLE_SAMPLE} completed responses are reported in full but never described as different from the campaign.`,
+    `Differences are tested before they are described. Anything labelled High Confidence or Moderate Confidence has cleared a 95% statistical bar; anything labelled Early Observation has not and is shown because it is interesting rather than because it is settled. Markets with fewer than ${MIN_REPORTABLE_SAMPLE} completed responses are reported in full but never described as different from the campaign.`,
   );
 
   // The creative comparison raises its own viewability caveat when the two
@@ -1338,14 +1338,14 @@ function buildMethodology(
 
   if (viewability && !creativeCoversViewability) {
     out.push(
-      "Viewable-impression measurement began part way through the campaign. Viewability is quoted only across the window in which it was recorded, and is never used to restate an earlier figure.",
+      "Viewable-impression measurement began part way through the campaign. Viewability is quoted only across the window in which it was recorded and is never used to restate an earlier figure.",
     );
   }
 
   out.push(...creativeCaveats);
 
   out.push(
-    "Pre-launch test traffic is excluded. No other publisher's delivery, response or commercial data appears anywhere in this report, and no comparison in it is drawn against a named partner.",
+    "Pre-launch test traffic is excluded. No other publisher's delivery, response or commercial data appears anywhere in this report and no comparison in it is drawn against a named partner.",
   );
 
   return out;

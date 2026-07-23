@@ -73,7 +73,7 @@ const PUBLISHER: NarrativeProfile = {
     },
     "executive-summary": {
       eyebrow: "Executive Summary",
-      title: "What to do differently, and the numbers behind it",
+      title: "What to do differently and the numbers behind it",
       standfirst:
         "Everything after this page is the evidence for these decisions. If you read nothing else, read this one.",
     },
@@ -115,7 +115,7 @@ const PUBLISHER: NarrativeProfile = {
     },
     "what-we-learned": {
       eyebrow: "What We Learned",
-      title: "What the evidence supports, and what it does not",
+      title: "What the evidence supports and what it does not",
       standfirst:
         "Two lists, deliberately separate. The first is what the data establishes. The second is what it is consistent with but has not proved.",
     },
@@ -141,7 +141,7 @@ const PUBLISHER: NarrativeProfile = {
       eyebrow: "Methodology",
       title: "How these numbers were produced",
       standfirst:
-        "A report that cannot be checked is not research. This is what was measured, how, and where the limits are.",
+        "A report that cannot be checked is not research. This is what was measured, how and where the limits are.",
     },
   },
 };

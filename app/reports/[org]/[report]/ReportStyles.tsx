@@ -19,8 +19,12 @@ export function ReportStyles() {
       body { background: #FFFFFF; }
 
       /* A report is read on phones. Nothing may scroll the page sideways: wide
-         content (tables, charts) scrolls inside its own container instead. */
-      html, body { overflow-x: hidden; max-width: 100%; }
+         content (tables, charts) scrolls inside its own container instead.
+         Note what is NOT here: overflow-x on html or body. It looks like the
+         obvious backstop, but it makes the root a scroll container and
+         position: sticky then has nothing to stick to, which silently kills the
+         section rail. The overflow is fixed at source instead, by clamping the
+         auto-fit grid minimums and giving the scrolling children min-width: 0. */
       .report-band, .report-band > div { max-width: 100%; }
 
       /* Anchors must clear the sticky rail, or a jumped-to section header sits
