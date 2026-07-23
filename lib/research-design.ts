@@ -106,6 +106,25 @@ export type EvidenceRequirement = {
 
 export type ResearchDesignStatus = "draft" | "approved";
 
+/** THE PERIOD THE EVIDENCE MUST COVER — commissioned once, on the design.
+ *
+ *  The window is a research decision, not a per-search setting: "the 2025/26
+ *  season" is part of what the strategy undertakes to establish, and every task
+ *  the strategy creates has to honour it. Before this it lived nowhere, so each
+ *  generator fell back to its own default and the approved strategy quietly
+ *  stopped being the source of truth for execution.
+ *
+ *  `from`/`to` are ISO dates (YYYY-MM-DD) or full timestamps. A null `to` means
+ *  "to date", which the collection pipeline already treats as an open upper
+ *  bound. A design with no window at all keeps whatever default its generator
+ *  used before, so nothing regresses. */
+export type CollectionWindow = {
+  from: string | null;
+  to: string | null;
+  /** Why this period, in the commissioner's words. */
+  note?: string | null;
+};
+
 export type ResearchDesign = {
   research_question: string | null;
   research_objective: string | null;
@@ -113,6 +132,9 @@ export type ResearchDesign = {
   strategy_summary: string;              // the overall strategy, stated plainly
   requirements: EvidenceRequirement[];
   not_worth_attempting: string[];        // deliberately not chased, and why
+  /** The period every generated task must collect over. Absent on designs that
+   *  predate this, which keeps their generators on their previous defaults. */
+  collection_window?: CollectionWindow | null;
   // The approval gate: the user approves the STRATEGY, never the search terms.
   status: ResearchDesignStatus;
   approved_at: string | null;
@@ -122,6 +144,35 @@ export type ResearchDesign = {
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+/** The collect_* columns a generated task must carry so it collects over the
+ *  window the strategy commissioned.
+ *
+ *  THE ONE PLACE that translates a commissioned window into task configuration.
+ *  Every generator — Conversation, News, and whatever comes next — calls this
+ *  rather than choosing its own window, which is what makes the approved
+ *  strategy the single source of truth for execution.
+ *
+ *  A design with an explicit `from` becomes a CUSTOM window: the collection
+ *  pipeline resolves relative presets ("90d") against "now" at each run, which
+ *  is right for ongoing monitoring and wrong for a fixed research period like a
+ *  completed season. `fallbackWindow` preserves a generator's previous default
+ *  for designs commissioned before windows existed. */
+export function collectionWindowFields(
+  design: ResearchDesign | null | undefined,
+  fallbackWindow: string | null = null,
+): { collect_window: string | null; collect_from: string | null; collect_to: string | null } {
+  const w = design?.collection_window;
+  const from = w?.from?.trim();
+  if (!from) return { collect_window: fallbackWindow, collect_from: null, collect_to: null };
+  return {
+    collect_window: "custom",
+    collect_from: from,
+    // Null means "to date" — an open upper bound, which the pipeline and every
+    // connector already handle.
+    collect_to: w?.to?.trim() || null,
+  };
+}
 
 /** Every conversation search the design proposes, flattened with the context each
  *  search must inherit when it is created (Phase 3). Carries requirement_index so

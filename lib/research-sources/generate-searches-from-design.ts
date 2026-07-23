@@ -20,6 +20,7 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 import { IntelligenceError } from "@/lib/intelligence/types";
 import {
   type ResearchDesign, type ProposedSearchPlan, proposedConversationSearches, isApproved,
+  collectionWindowFields,
 } from "@/lib/research-design";
 import type { EvidenceRole } from "@/lib/evidence-role";
 import type { InformationNeeds } from "@/lib/information-needs";
@@ -78,6 +79,11 @@ export async function generateSearchesFromDesign(
   const plans = proposedConversationSearches(design);
   const generated: GeneratedSearch[] = [];
   const skipped: SkippedSearch[] = [];
+
+  // The period the strategy commissioned. Resolved once for the whole run so
+  // every search created here collects over the same window. No fallback: a
+  // design without a window leaves these columns untouched, exactly as before.
+  const window = collectionWindowFields(design);
 
   // Existing generated searches for this project, keyed by origin, so a
   // re-generation updates rather than duplicates.
@@ -145,6 +151,7 @@ export async function generateSearchesFromDesign(
       markets: s.markets,
       platforms: s.platforms,
       languages: s.languages,
+      ...window,
       relevance_threshold: THRESHOLD_BY_AVAILABILITY[req.expected_availability] ?? 60,
       information_needs: informationNeedsFor(plan, req.requirement),
       search_strategy: {

@@ -76,6 +76,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       context: proj.engagement_context,
       brief: proj.brief,
     });
+    // The collection window is COMMISSIONED, not generated: it is a decision the
+    // client made about the period the research must cover, so re-designing the
+    // strategy must not silently discard it. Everything else is regenerated.
+    if (proj.research_design?.collection_window) {
+      design.collection_window = proj.research_design.collection_window;
+    }
     await saveDesign(id, design);
     return NextResponse.json({ data: design }, { status: 201 });
   } catch (err) {
