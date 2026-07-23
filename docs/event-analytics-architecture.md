@@ -558,20 +558,24 @@ than designing for the swap.
 
 ---
 
-## 13. Open decisions
+## 13. Decisions
 
-Flagged rather than assumed. Each needs a product answer before the phase that
-depends on it.
+### Resolved (2026-07-23)
 
-1. **Raw retention window.** 30 days is a guess balancing debuggability against
-   cost. Compliance or client contracts may demand longer. Affects M4.
-2. **Archive destination.** Supabase Storage keeps everything in one vendor; S3 is
-   cheaper and more standard. Affects M4.
-3. **Is per-creative attribution needed in rollups?** `creative_id` is currently
-   encoded into campaign slugs (`..._invitation_creative_2`), which is a symptom of
-   the key doing modelling work. Including it as a rollup dimension multiplies
-   cardinality. Related to the deferred creative A/B testing work.
-4. **Sealing lag of 15 minutes.** Should be validated against observed ingest
-   transaction durations rather than assumed.
-5. **Does anything outside the dashboard read `survey_events`?** Exports and future
-   client-facing reporting need auditing before M3 removes direct access.
+1. **Raw retention: 30 days by default.** Revisit if a client contract requires
+   longer. Archived partitions remain replayable, so lengthening retention later
+   costs restore time, not lost data.
+2. **`creative_id` is a first-class column**, not something encoded into campaign
+   slugs. It becomes a rollup dimension and the basis for per-creative performance,
+   which is currently not attributable. See [M1 plan](m1-migration-plan.md) §4 for
+   how historical rows are handled.
+3. **No production code reads `survey_events` directly.** All reads go through the
+   aggregate query layer. Enforced mechanically, not by convention: see
+   [M1 plan](m1-migration-plan.md) §8.
+
+### Still open
+
+4. **Archive destination.** Supabase Storage keeps everything in one vendor; S3 is
+   cheaper and more standard. Affects M4, not M1.
+5. **Sealing lag of 15 minutes.** Should be validated against observed ingest
+   transaction durations rather than assumed. Affects M2.
