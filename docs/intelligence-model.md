@@ -180,14 +180,26 @@ definitions; most of them record a failure the platform has already had.
 - *Never:* is inferred at synthesis. Role travels from collection, unchanged.
 
 **Source Contract**
-- *Is:* a declaration, made once per source type, of the kinds of knowledge it
-  can produce and, critically, the kinds it can never establish.
-- *Exists because:* with dozens of sources, admissibility cannot be reasoned case
-  by case. It must follow from a rule.
+- *Is:* a declaration, made once per source type, of two things: the kinds of
+  knowledge it can produce (and the kinds it can never establish), and the
+  smallest independent observation it produces.
+- *Exists because:* with dozens of sources, admissibility and independence cannot
+  be reasoned case by case. Both must follow from a declaration the source makes
+  about itself.
 - *Owns:* the extension point of the entire platform. A new source is a new
   contract; nothing else in this model changes.
 - *Never:* describes technology. A contract is about the nature of the knowledge,
-  not the API that delivered it.
+  not the API that delivered it. And it is never inferred, recalculated or
+  overridden downstream: **gathering inherits the contract, it does not make
+  epistemic judgements of its own.**
+
+A contract declares its contribution kind either as a constant or as a **declared
+mapping** over the item, and both are declarations. Most sources produce one kind.
+Some genuinely produce several: a news item is `documented_activity` when a
+journalist reports what happened, `interested_claim` when a party announces its
+own work, and `expert_judgement` when a named columnist assesses it. Forcing one
+kind per source would lose a distinction the platform already draws correctly.
+What matters is that the *rule* lives in the contract, never in the gatherer.
 
 **Contribution Kind**
 - *Is:* the vocabulary source contracts are written in. Per
@@ -198,6 +210,22 @@ definitions; most of them record a failure the platform has already had.
 - *Owns:* what a source can and cannot establish.
 - *Never:* grows without discipline. A proposed seventh kind must carry a
   prohibition none of the six carries, or it is not earning its place.
+
+**Observation Unit**
+- *Is:* the smallest independent observation a source produces, declared by its
+  contract. A completed survey response. A unique author. An original publisher.
+  A document. A study.
+- *Exists because:* independence is the difference between corroboration and
+  repetition, and it cannot be computed generically without the source saying
+  what one observation of it is. Two items sharing an observation unit are one
+  observation, not two, whatever their volume.
+- *Owns:* the denominator of corroboration, and therefore the defence against
+  confidence inflating on repetition.
+- *Never:* is counted in items. An evidence item may **aggregate** many
+  observation units (a survey statistic stands on hundreds of responses) or share
+  one with many other items (fifty syndications of one story). Both are true at
+  once, so an item declares its unit **and** how many observations it carries,
+  and independence sums the second across distinct instances of the first.
 
 **Admissibility**
 - *Is:* the verdict produced by projecting one information need through one source
