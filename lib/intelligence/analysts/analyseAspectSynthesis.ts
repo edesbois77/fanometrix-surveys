@@ -25,6 +25,9 @@ import type { Brief } from "@/lib/brief";
 import {
   type EvidenceRole, asEvidenceRole, EVIDENCE_ROLE_LABEL, EVIDENCE_ROLE_ATTRIBUTION_RULE,
 } from "@/lib/evidence-role";
+import {
+  asNewsSourceType, NEWS_SOURCE_TYPE_LABEL, NEWS_SOURCE_TYPE_ATTRIBUTION_RULE,
+} from "@/lib/news-taxonomy";
 import { getApprovedProjectSocialSearchIds } from "@/lib/research-sources/project-searches";
 import { classifyAspects, type AspectClassifyInput } from "@/lib/intelligence/aspect-classify";
 import type { LocalisedQuestion } from "@/lib/survey-locale";
@@ -144,6 +147,17 @@ type Evidence = {
   relevance: number;        // 0–1
   confidence: string | null;// classifier confidence label
   role: EvidenceRole;       // direct | comparative | strategic
+  /** News Coverage only. An article is not a conversation, and the difference
+   *  has to survive into the prompt: WHO printed it, what KIND of statement it
+   *  is, and what synthesis is therefore permitted to do with it. Without this
+   *  an article renders as an anonymous quote and a brand's claim about its own
+   *  activation reads as a fan saying it worked. */
+  news?: {
+    publisher: string | null;
+    sourceTypeLabel: string;
+    attributionRule: string;
+    hasFanEvidence: boolean;
+  };
 };
 
 const MIN_EVIDENCE_PER_ASPECT = 3;   // below this, an aspect is noise, not a section
@@ -173,7 +187,7 @@ async function gatherConversationEvidence(projectId: string): Promise<Evidence[]
 
   const { data: rows } = await supabaseAdmin
     .from("social_mentions")
-    .select("id, search_id, content, research_aspect, relevance_score, relevance_rationale, relevance_confidence, sentiment, market, platform, evidence_role")
+    .select("id, search_id, content, research_aspect, relevance_score, relevance_rationale, relevance_confidence, sentiment, market, platform, evidence_role, content_kind, author, published_at, metadata")
     .in("search_id", searchIds)
     .eq("excluded", false)
     .not("research_aspect", "is", null)
@@ -185,20 +199,47 @@ async function gatherConversationEvidence(projectId: string): Promise<Evidence[]
     id: string; search_id: string | null; content: string | null; research_aspect: string | null;
     relevance_score: number | null; relevance_rationale: string | null; relevance_confidence: string | null;
     sentiment: string | null; market: string | null; platform: string | null; evidence_role: string | null;
+    content_kind: string | null; author: string | null; published_at: string | null;
+    metadata: Record<string, unknown> | null;
   }[]) {
     const aspect = r.research_aspect?.trim();
     if (!aspect || aspect.toLowerCase() === "off-topic") continue;
     if (!r.content?.trim()) continue;
     const threshold = (thresholdBySearch.get(r.search_id ?? "") ?? 50) / 100;
     if (typeof r.relevance_score !== "number" || r.relevance_score < threshold) continue;
-    const provenance = [r.platform, r.market].filter(Boolean).join(" · ") || null;
+
+    // An article carries its masthead and its source type into synthesis, and
+    // its "sentiment" (the tone of the COVERAGE) is dropped, because the prompt
+    // renders that field as the speaker's feeling.
+    const isArticle = r.content_kind === "article";
+    const meta = (r.metadata ?? {}) as {
+      publisher?: unknown;
+      news?: { source_type?: unknown; attribution?: unknown; fan_evidence?: unknown };
+    };
+    const publisher = typeof meta.publisher === "string" ? meta.publisher : null;
+    const rawType = typeof meta.news?.source_type === "string" ? meta.news.source_type : "unclear";
+    const sourceType = asNewsSourceType(rawType);
+    const attributedTo = typeof meta.news?.attribution === "string" ? meta.news.attribution : null;
+    const news = isArticle
+      ? {
+          publisher,
+          sourceTypeLabel: NEWS_SOURCE_TYPE_LABEL[sourceType],
+          attributionRule: NEWS_SOURCE_TYPE_ATTRIBUTION_RULE[sourceType],
+          hasFanEvidence: meta.news?.fan_evidence === "reported" || meta.news?.fan_evidence === "quoted",
+        }
+      : undefined;
+
+    const provenance = isArticle
+      ? [publisher, r.author, r.published_at ? new Date(r.published_at).toISOString().slice(0, 10) : null].filter(Boolean).join(" · ") || null
+      : [r.platform, r.market].filter(Boolean).join(" · ") || null;
+
     out.push({
       ref: { type: "conversation", id: r.id },
       source_id: r.search_id ?? "",
-      source_label: nameBySearch.get(r.search_id ?? "") ?? "Conversation search",
-      content: r.content.trim(),
+      source_label: nameBySearch.get(r.search_id ?? "") ?? (isArticle ? "News Coverage" : "Conversation search"),
+      content: isArticle && attributedTo ? `${r.content.trim()}\n(claim attributed to: ${attributedTo})` : r.content.trim(),
       aspect,
-      sentiment: r.sentiment,
+      sentiment: isArticle ? null : r.sentiment,
       market: r.market,
       platform: r.platform,
       provenance,
@@ -206,6 +247,7 @@ async function gatherConversationEvidence(projectId: string): Promise<Evidence[]
       role: asEvidenceRole(r.evidence_role),
       relevance: r.relevance_score,
       confidence: r.relevance_confidence,
+      news,
     });
   }
   return out;
@@ -423,9 +465,15 @@ function aspectFacts(all: Evidence[], shown: Evidence[]): string {
 }
 
 function buildAspectPrompt(aspect: string, lens: string, facts: string, items: Evidence[]): string {
-  const list = items.map((e, i) =>
-    `[${i}] (${EVIDENCE_ROLE_LABEL[e.role].toUpperCase()} · ${SOURCE_WORD[e.ref.type]}${e.sentiment ? `, ${e.sentiment}` : ""}${e.market ? `, ${e.market}` : ""}) "${e.content.slice(0, EVIDENCE_CHARS)}"${e.why ? `\n     analyst note: ${e.why.slice(0, WHY_CHARS)}` : ""}`
-  ).join("\n");
+  const list = items.map((e, i) => {
+    // A news article is labelled as an article by its masthead and its source
+    // type, never as a "conversation" — otherwise a press release renders
+    // indistinguishably from something a supporter said.
+    const head = e.news
+      ? `${EVIDENCE_ROLE_LABEL[e.role].toUpperCase()} · NEWS ARTICLE, ${e.news.sourceTypeLabel}${e.news.publisher ? `, ${e.news.publisher}` : ""}${e.market ? `, ${e.market}` : ""}`
+      : `${EVIDENCE_ROLE_LABEL[e.role].toUpperCase()} · ${SOURCE_WORD[e.ref.type]}${e.sentiment ? `, ${e.sentiment}` : ""}${e.market ? `, ${e.market}` : ""}`;
+    return `[${i}] (${head}) "${e.content.slice(0, EVIDENCE_CHARS)}"${e.why ? `\n     analyst note: ${e.why.slice(0, WHY_CHARS)}` : ""}`;
+  }).join("\n");
   const types = Array.from(new Set(items.map(i => i.ref.type)));
   const multi = types.length > 1;
   // Attribution rules for exactly the roles present. This is what stops a
@@ -434,6 +482,22 @@ function buildAspectPrompt(aspect: string, lens: string, facts: string, items: E
   const attribution = rolesPresent
     .map(r => `- ${EVIDENCE_ROLE_LABEL[r].toUpperCase()} evidence ${EVIDENCE_ROLE_ATTRIBUTION_RULE[r]}`)
     .join("\n");
+
+  // News articles bring a SECOND attribution axis on top of the role: what kind
+  // of statement each one is. A journalist's reporting, a brand's claim about
+  // itself and a columnist's opinion are three different things, and only the
+  // source types actually present are stated, so the prompt stays specific.
+  const newsItems = items.filter(i => i.news);
+  const newsBlock = newsItems.length
+    ? `\nNEWS COVERAGE IS NOT FAN CONVERSATION. Some evidence above is EDITORIAL COVERAGE. It tells you what a publication printed, never what an audience feels. These rules are absolute:
+${Array.from(new Set(newsItems.map(i => `- ${i.news!.sourceTypeLabel}: ${i.news!.attributionRule}`))).join("\n")}
+- NEVER infer fan opinion, enthusiasm, backlash or indifference from an article. Neither the existence of coverage, nor how much of it there is, nor how favourable its tone, is evidence of what fans think.
+${newsItems.some(i => i.news!.hasFanEvidence)
+  ? `- Where an article does report fan reaction, attribute it to the publisher that reported it ("as reported by X"), and treat it as second-hand.`
+  : `- NONE of the articles above contains fan quotes, polling or reported audience reaction. You therefore CANNOT say anything about what fans think on the strength of this coverage.`}
+- A claim by a brand or rights holder about its own activation is a CLAIM, not an outcome. Write "X said its activation…", never "X's activation succeeded".
+- Where several outlets carried the same story, that is distribution, not corroboration. Never present it as multiple independent sources agreeing.`
+    : "";
   return `You are a senior research consultant writing the "${aspect}" section of a client analysis. Your job is NOT to summarise conversations. It is to move the client closer to answering their research question, and to do it in a way that stands up to scrutiny.
 
 THE ENGAGEMENT (reason from this throughout, never merely describe the evidence):
@@ -444,6 +508,7 @@ ${list}
 
 EVIDENCE ROLES AND ATTRIBUTION. Each item is tagged with the ROLE it was collected for. This governs what you are allowed to say about it, and it is not negotiable:
 ${attribution}
+${newsBlock}
 Never blend roles into a single claim about the client. If a judgement rests on comparative or strategic evidence, say whose evidence it is ("among rival sponsors", "in this audience generally"), and never phrase it as what fans think about the client.
 
 THE FACTS (computed, exact). These are the ONLY figures you may state. Never count, estimate or infer a number yourself:
