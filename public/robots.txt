@@ -17,6 +17,10 @@ Disallow: /home
 Disallow: /dashboard
 Disallow: /insights
 Disallow: /analysis
+# Partner Audience Intelligence Reports. Password protected, and additionally
+# served with noindex metadata and an X-Robots-Tag header — this line stops a
+# well-behaved crawler ever requesting one. They appear in no sitemap.
+Disallow: /reports
 
 # Marketing pages (/, /for-publishers, /publisher-guide, /privacy, …) remain
 # crawlable — they are intentionally not listed above.

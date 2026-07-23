@@ -34,7 +34,13 @@ const PUBLIC_PATHS = new Set([
 //     (see app/api/cron/jobs/tick/route.ts + lib/jobs/cron-auth.ts). It has no
 //     user session, so the session gate would 401 it before it could run; it
 //     must bypass that gate but is never callable without the secret.
-const PUBLIC_API_PREFIXES = ["/api/auth", "/api/submit", "/api/reporting", "/api/embed", "/api/access-requests", "/api/publisher", "/api/dashboard", "/api/events", "/api/cron"];
+// "/api/reports" is the partner Audience Intelligence Report's own API (unlock
+// + CSV downloads). It has no platform session — the recipient is a publisher
+// contact, not a Fanometrix user — and enforces its own per-report password
+// challenge inside each handler (lib/reports/access.ts). Same pattern as
+// /api/cron: exempt from the session gate, never callable without its own
+// credential.
+const PUBLIC_API_PREFIXES = ["/api/auth", "/api/submit", "/api/reporting", "/api/embed", "/api/access-requests", "/api/publisher", "/api/dashboard", "/api/events", "/api/cron", "/api/reports"];
 
 // Routes restricted to brand/agency (not accessible at this stage — redirect to /insights)
 const BRAND_AGENCY_RESTRICTED = [
@@ -161,6 +167,19 @@ export async function middleware(req: NextRequest) {
   // Localised privacy pages — /en/privacy, /de/privacy, /fr/privacy, etc.
   if (/^\/[a-z]{2}\/privacy$/.test(pathname)) {
     return NextResponse.next();
+  }
+
+  // Partner Audience Intelligence Reports. These are read by publisher contacts
+  // who have no Fanometrix account, so the platform session gate must not stand
+  // in front of them; the route enforces its own per-report password instead
+  // (app/reports/[org]/[report]/page.tsx). The X-Robots-Tag is belt-and-braces
+  // alongside the route's own noindex metadata and the robots.txt disallow:
+  // these reports carry a partner's commercial performance and must never be
+  // indexed, cached or snippeted by anything.
+  if (pathname.startsWith("/reports")) {
+    const res = NextResponse.next();
+    res.headers.set("X-Robots-Tag", "noindex, nofollow, noarchive, nosnippet, noimageindex");
+    return res;
   }
 
   // Public pages — only special-case /login to redirect logged-in users

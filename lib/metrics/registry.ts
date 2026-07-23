@@ -168,6 +168,17 @@ const DEFINITIONS: MetricDefinition[] = [
     lastVerified: VERIFIED,
   },
   {
+    id: "median_completion_time",
+    name: "Typical Completion Time",
+    definition: "The time taken by the middle respondent to complete the survey after selecting their first answer — half finished faster, half slower.",
+    formula: "median( SURVEY_COMPLETED − SURVEY_START )",
+    whyItMatters: "The length of the ask as a real respondent experiences it. Preferred over the average wherever a small number of respondents leave the survey open in a background tab, which pulls a mean far above anything a fan actually experienced.",
+    format: "duration_seconds",
+    domain: "surveys",
+    dataSource: "responses (response_duration_seconds)",
+    lastVerified: VERIFIED,
+  },
+  {
     id: "avg_completion_time",
     name: "Avg Completion Time",
     definition: "The average time taken to complete the survey after selecting the first answer, across completed surveys.",
