@@ -10,7 +10,7 @@ import type { FlatNeed } from "@/lib/information-needs";
 // the method could answer the question comes from the approved design.
 
 const need = (over: Partial<FlatNeed> = {}): FlatNeed => ({
-  id: "need_abc", aspect: "Brand Perception", need: "How do fans describe it?", method_fit: "primary", ...over,
+  id: "need_abc", aspect: "Brand Perception", need: "How do fans describe it?", method_fit: "primary", requirement: "Understand how fans see the sponsorship", ...over,
 });
 
 const row = (over: Partial<CollectedRow> = {}): CollectedRow => ({

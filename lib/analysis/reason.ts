@@ -11,7 +11,8 @@ import { formPropositions } from "@/lib/analysis/formation";
 import { disconfirm } from "@/lib/analysis/disconfirmation";
 import { toCandidate, type CandidateResult } from "@/lib/analysis/candidate";
 import { coverageForNeed, rollUpCoverage, type NeedCoverage, type Coverage } from "@/lib/analysis/coverage";
-import { declaredNeeds } from "@/lib/analysis/assignment";
+import { declaredNeeds, requirementIdFor } from "@/lib/analysis/assignment";
+import type { FlatNeed } from "@/lib/information-needs";
 import { isApproved, type ResearchDesign } from "@/lib/research-design";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
@@ -20,9 +21,16 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
  *  model provider from a wide research design. */
 const CONCURRENCY = 3;
 
+/** A question, with the requirement it serves. Carried alongside the results so
+ *  persistence can anchor a Finding to exactly one requirement without looking up
+ *  a position in an array that changes every time the design is regenerated. */
+export type ReasonedNeed = FlatNeed & { requirementKey: string };
+
 export type ReasoningRun = {
   projectId: string;
   results: CandidateResult[];
+  /** By need id, for every question reasoned over. */
+  needs: Map<string, ReasonedNeed>;
   /** Coverage over every question the DESIGN declared, not over the questions
    *  that happened to receive evidence. The honest denominator. */
   coverage: Coverage;
@@ -75,5 +83,12 @@ export async function reasonOverProject(projectId: string): Promise<ReasoningRun
     ...unexamined.map(n => coverageForNeed(n.needId, [])),
   ];
 
-  return { projectId, results, coverage: rollUpCoverage(needCoverage), unexamined, unmapped };
+  const needs = new Map<string, ReasonedNeed>(
+    gathered.map(({ need }) => [
+      need.id,
+      { ...need, requirementKey: requirementIdFor({ aspect: need.aspect, requirement: need.requirement }) },
+    ]),
+  );
+
+  return { projectId, results, needs, coverage: rollUpCoverage(needCoverage), unexamined, unmapped };
 }

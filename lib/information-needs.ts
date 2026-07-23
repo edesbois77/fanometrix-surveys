@@ -69,7 +69,16 @@ export type InformationNeeds = { themes: ResearchTheme[] };
 // (docs/evidence-contribution.md §1). It is carried now: it is a real verdict
 // about whether this method can answer this need, and admissibility is entitled
 // to know it.
-export type FlatNeed = { id: string; aspect: string; need: string; method_fit: MethodFit };
+export type FlatNeed = {
+  id: string;
+  aspect: string;
+  need: string;
+  method_fit: MethodFit;
+  /** The requirement this question serves, as the theme records it. A Finding is
+   *  anchored to exactly one requirement, so the anchor has to travel with the
+   *  question rather than be looked up from a position in an array. */
+  requirement: string;
+};
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 // Every need across all themes (e.g. for counts).
@@ -80,11 +89,12 @@ export function allNeeds(needs: InformationNeeds): InformationNeed[] {
 // Flatten to the neutral {aspect, need} pairs, dropping empties. Accepts a
 // loosely-typed object so it tolerates jsonb read straight from storage.
 export function flattenNeeds(
-  needs: { themes?: { aspect?: string; needs?: { id?: string; need?: string; method_fit?: string }[] }[] } | null | undefined,
+  needs: { themes?: { aspect?: string; description?: string; needs?: { id?: string; need?: string; method_fit?: string }[] }[] } | null | undefined,
 ): FlatNeed[] {
   const out: FlatNeed[] = [];
   for (const t of needs?.themes ?? []) {
     const aspect = (t.aspect ?? "").trim();
+    const requirement = (t.description ?? "").trim() || aspect;
     for (const n of t.needs ?? []) {
       const need = (n.need ?? "").trim();
       if (!aspect || !need) continue;
@@ -96,6 +106,7 @@ export function flattenNeeds(
         aspect,
         need,
         method_fit: asMethodFit(n.method_fit),
+        requirement,
       });
     }
   }

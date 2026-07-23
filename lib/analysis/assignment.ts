@@ -60,8 +60,17 @@ export function needsOf(req: EvidenceRequirement, methodFit: MethodFit): FlatNee
   return req.information_needs
     .map(need => need.trim())
     .filter(Boolean)
-    .map(need => ({ id: needIdFor(aspect, need), aspect, need, method_fit: methodFit }));
+    .map(need => ({
+      id: needIdFor(aspect, need), aspect, need,
+      method_fit: methodFit, requirement: req.requirement,
+    }));
 }
+
+/** Stable identity for a requirement, seeded the same way a need's is. A Finding
+ *  is anchored to exactly one requirement, so the anchor needs a key rather than
+ *  a position in an array, which changes every time the design is regenerated. */
+export const requirementIdFor = (req: { aspect: string | null; requirement: string }): string =>
+  needIdFor(req.aspect ?? "General", req.requirement).replace("need_", "req_");
 
 /** Assign one source to the questions the design commissioned its method(s) to
  *  answer.
