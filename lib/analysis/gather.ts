@@ -19,8 +19,100 @@ import { flattenNeeds, type FlatNeed } from "@/lib/information-needs";
 import { asEvidenceRole } from "@/lib/evidence-role";
 import { frameEvidence, type EvidenceFrame, type FramedItem } from "@/lib/analysis/framing";
 import {
-  CONVERSATION_CONTRACT, NEWS_CONTRACT, resolve,
+  CONVERSATION_CONTRACT, NEWS_CONTRACT, SURVEY_CONTRACT, DOCUMENT_CONTRACT, resolve,
 } from "@/lib/analysis/source-contract";
+import { assignSource } from "@/lib/analysis/assignment";
+import { isApproved, type ResearchDesign } from "@/lib/research-design";
+import { getSummary } from "@/lib/intelligence/store";
+import type { DocumentIntelligenceReport } from "@/lib/intelligence/analysts/analyseDocumentForProject";
+import type { LocalisedQuestion } from "@/lib/survey-locale";
+
+/** Below this a survey reads nothing reliable off its own responses. The same
+ *  floor Survey Intelligence already applies, so one number means one thing. */
+const MIN_SURVEY_RESPONSES = 50;
+/** An option below this share is real but not notable, and admitting the long
+ *  tail buries the findings that matter under near-noise. */
+const NOTABLE_OPTION_PCT = 15;
+/** Bound the evidence one document contributes, so a long report cannot crowd
+ *  out every other source in a frame. */
+const MAX_ITEMS_PER_DOCUMENT = 40;
+
+/** Everything a survey establishes, as items. The observation unit is the
+ *  completed response and the dedup key is the instrument, so two statistics from
+ *  one survey draw on one pool of respondents rather than two. */
+async function surveyItems(surveyId: string): Promise<Omit<FramedItem, "methodFit" | "bearing">[]> {
+  const { data: survey } = await supabaseAdmin
+    .from("surveys").select("name, questions, is_simulated").eq("id", surveyId).maybeSingle();
+  if (!survey) return [];
+
+  const { data: responses } = await supabaseAdmin
+    .from("responses").select("q1, q2, q3").eq("survey_id", surveyId).eq("is_demo", survey.is_simulated);
+  const all = responses ?? [];
+  if (all.length < MIN_SURVEY_RESPONSES) return [];
+
+  const questions = ((survey.questions ?? []) as LocalisedQuestion[]).slice(0, 3);
+  const keys = ["q1", "q2", "q3"] as const;
+  const out: Omit<FramedItem, "methodFit" | "bearing">[] = [];
+
+  questions.forEach((q, i) => {
+    if (!q) return;
+    const counts: Record<string, number> = {};
+    let answered = 0;
+    for (const r of all) {
+      const raw = (r as Record<string, string | null>)[keys[i]];
+      if (raw == null || raw === "") continue;
+      const label = q.options.find(o => o.id === Number(raw))?.text.en ?? String(raw);
+      counts[label] = (counts[label] ?? 0) + 1;
+      answered++;
+    }
+    Object.entries(counts)
+      .sort((a, b) => b[1] - a[1])
+      .map(([label, count]) => ({ label, pct: answered ? Math.round((count / answered) * 100) : 0 }))
+      .filter(o => o.pct >= NOTABLE_OPTION_PCT)
+      .slice(0, 4)
+      .forEach((o, j) => {
+        const resolved = resolve(SURVEY_CONTRACT, { surveyId, responses: answered });
+        out.push({
+          evidenceId: `${surveyId}#q${i}#${o.label}#${j}`,
+          contribution: resolved.contribution,
+          observationKey: resolved.observationKey,
+          observations: resolved.observations,
+          role: "direct",
+          provenance: q.text.en ?? `Question ${i + 1}`,
+        });
+      });
+  });
+  return out;
+}
+
+/** What a document establishes, read from its already-approved, project-specific
+ *  Document Intelligence. Never the source file again: the approved analysis is
+ *  the evidence, and re-reading the PDF here would be a second interpretation of
+ *  the same material. */
+async function documentItems(evidenceRowId: string): Promise<Omit<FramedItem, "methodFit" | "bearing">[]> {
+  const summary = await getSummary<DocumentIntelligenceReport>("document_project", evidenceRowId, "research_summary");
+  if (!summary || (summary.status !== "approved" && summary.status !== "published")) return [];
+
+  const content = summary.edited_content ?? summary.content;
+  // Authorship decides whether a document is established knowledge or an
+  // interested party's claim about itself, and it is not recoverable from the
+  // file. Until it is recorded, the more constrained reading applies.
+  const resolved = resolve(DOCUMENT_CONTRACT, { documentId: evidenceRowId, authorship: "interested" });
+
+  const entries = [
+    ...content.key_findings.map(f => ({ id: f.id, text: f.text })),
+    ...content.statistics.map(s => ({ id: s.id, text: s.value ? `${s.value}: ${s.text}` : s.text })),
+  ].slice(0, MAX_ITEMS_PER_DOCUMENT);
+
+  return entries.map(e => ({
+    evidenceId: `${evidenceRowId}#${e.id}`,
+    contribution: resolved.contribution,
+    observationKey: resolved.observationKey,
+    observations: resolved.observations,
+    role: "direct" as const,
+    provenance: content.document_summary.title,
+  }));
+}
 
 /** One row as Collection stores it, reduced to what a contract needs. Named
  *  structurally rather than after a table, so the pure mapping below does not
@@ -172,20 +264,65 @@ export async function gatherFrames(projectId: string): Promise<GatherResult> {
     }
   }
 
-  // Sources attached to the project that this increment cannot map to a need.
-  // Surveys and documents attach to the PROJECT rather than to a need, so their
-  // mapping has to come from the approved design's method assignment. Naming them
-  // is honest; guessing a mapping would not be.
+  // ── Project-attached evidence, assigned through the approved design ────────
+  // A survey or a document knows nothing about any question, so the design's own
+  // method assignment supplies the mapping (lib/analysis/assignment.ts). Nothing
+  // is guessed: a source unassigned by the design stays unassigned here.
+  const { data: projectRow } = await supabaseAdmin
+    .from("research_projects").select("research_design").eq("id", projectId).maybeSingle();
+  const design = (projectRow?.research_design as ResearchDesign | null) ?? null;
+  const requirements = design && isApproved(design) ? design.requirements : [];
+
   const { data: attached } = await supabaseAdmin
     .from("research_project_evidence")
-    .select("evidence_type, evidence_id")
+    .select("id, evidence_type, evidence_id")
     .eq("research_project_id", projectId)
     .in("evidence_type", ["survey", "document"]);
-  for (const row of (attached ?? []) as { evidence_type: string; evidence_id: string }[]) {
-    unmapped.push({
-      evidenceType: row.evidence_type, evidenceId: row.evidence_id,
-      reason: "Attached to the project rather than to a question. Mapping it needs the approved design's method assignment.",
-    });
+
+  for (const link of (attached ?? []) as { id: string; evidence_type: string; evidence_id: string }[]) {
+    const contract = link.evidence_type === "survey" ? SURVEY_CONTRACT : DOCUMENT_CONTRACT;
+
+    if (requirements.length === 0) {
+      unmapped.push({
+        evidenceType: link.evidence_type, evidenceId: link.evidence_id,
+        reason: "The project has no approved Research Design, so there is nothing to assign this evidence to.",
+      });
+      continue;
+    }
+
+    const { assigned, unassigned } = assignSource({ fulfils: contract.fulfils, requirements });
+    if (assigned.length === 0) {
+      unmapped.push({
+        evidenceType: link.evidence_type, evidenceId: link.evidence_id,
+        reason: unassigned[0]?.reason ?? "The approved design commissioned no questions this source can answer.",
+      });
+      continue;
+    }
+
+    const items = link.evidence_type === "survey"
+      ? await surveyItems(link.evidence_id)
+      : await documentItems(link.id);
+
+    if (items.length === 0) {
+      unmapped.push({
+        evidenceType: link.evidence_type, evidenceId: link.evidence_id,
+        reason: link.evidence_type === "survey"
+          ? "This survey has no responses yet, or too few to read anything off."
+          : "This document has no approved Document Intelligence yet.",
+      });
+      continue;
+    }
+
+    for (const { need } of assigned) {
+      const entry = itemsByNeed.get(need.id) ?? { need, items: [] };
+      for (const item of items) {
+        // Assigned, not yet judged. The design commissioned this source to answer
+        // this question; nothing has yet judged how far THIS item does so, and a
+        // number invented here would be the one genuinely dishonest option.
+        entry.items.push({ ...item, methodFit: need.method_fit, bearing: null });
+      }
+      itemsByNeed.set(need.id, entry);
+    }
   }
 
   return {

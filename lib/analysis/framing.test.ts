@@ -88,6 +88,32 @@ test("a projection carries the condition each item is admitted under", () => {
   assert.ok(p.admitted[0].constraint?.includes("attribute"), "the constraint must survive onto the claim");
 });
 
+// ── Assigned by the design, not yet judged against the question ──────────────
+
+test("evidence the design assigned but nobody has judged is admitted, not excluded", () => {
+  // A survey attached to a project is commissioned to answer a question, but
+  // nothing has yet judged how far a particular statistic does so. Null is
+  // unknown, never zero, and inventing a number to fill the gap would be the one
+  // genuinely dishonest option.
+  const frame = frameOf([item({ bearing: null })]);
+  assert.equal(frame.admitted.length, 1);
+  assert.equal(frame.excluded.length, 0);
+});
+
+test("unjudged evidence scores nothing for bearing, which is the conservative outcome", () => {
+  const judged = frameOf([item({ bearing: 0.9 }), item({ bearing: 0.9 }), item({ bearing: 0.9 })]);
+  const unjudged = frameOf([item({ bearing: null }), item({ bearing: null }), item({ bearing: null })]);
+
+  const cite = (f: ReturnType<typeof frameOf>) =>
+    projectFor(f, "descriptive").admitted.map(a => toCitation(a, "establishes"));
+
+  const strong = deriveConfidence({ citations: cite(judged), assertion: "descriptive", disconfirmed: true });
+  const weaker = deriveConfidence({ citations: cite(unjudged), assertion: "descriptive", disconfirmed: true });
+
+  assert.equal(strong.level, "High");
+  assert.notEqual(weaker.level, "High", "unknown bearing must never read as strong bearing");
+});
+
 // ── The design's verdict on the method reaches admissibility ─────────────────
 
 test("evidence from a method the design judged unable to answer the question is excluded", () => {

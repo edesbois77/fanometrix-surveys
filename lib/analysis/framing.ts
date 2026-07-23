@@ -40,8 +40,16 @@ export type FramedItem = {
    *  is carried through the frame rather than gating it (see §Role below). */
   role: EvidenceRole;
   /** 0 to 1: how directly this item bears on THIS need, judged upstream against
-   *  the need itself. */
-  bearing: number;
+   *  the need itself.
+   *
+   *  NULL where the item was ASSIGNED to the need by the approved design but no
+   *  per-item judgement has been made against it (lib/analysis/assignment.ts).
+   *  Null is unknown, never zero: the design commissioned this source to answer
+   *  this question, so the item is admitted, but nothing has yet judged how far
+   *  this particular item does so. Unknown weight scores nothing in the
+   *  assessment layer, which is the conservative outcome, and inventing a number
+   *  to fill the gap would be the one genuinely dishonest option. */
+  bearing: number | null;
   /** The observation unit behind this item, declared by its Source Contract.
    *  Two items sharing it are one observation. */
   observationKey: string;
@@ -122,7 +130,9 @@ export function frameEvidence(opts: {
   const admitted: FramedItem[] = [];
   const excluded: Exclusion[] = [];
   for (const item of opts.items) {
-    if (item.bearing < floor) {
+    // An unjudged item is admitted on the strength of the design's assignment.
+    // Only a judgement that came back BELOW the floor excludes.
+    if (typeof item.bearing === "number" && item.bearing < floor) {
       excluded.push({
         evidenceId: item.evidenceId,
         reason: "does_not_bear",
@@ -158,7 +168,9 @@ export type AdmittedForClaim = {
   role: EvidenceRole;
   observationKey: string;
   observations: number;
-  bearing: number;
+  /** Null where the item was assigned by the design but not yet judged against
+   *  this need. Unknown, never zero. */
+  bearing: number | null;
   admissibility: Exclude<Admissibility, "inadmissible">;
   /** The condition this item is admitted under. Survives onto the claim, so a
    *  constrained citation is never quietly treated as an unconstrained one. */

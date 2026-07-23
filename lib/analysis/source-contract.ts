@@ -12,6 +12,7 @@
 // not of how we happen to store it.
 import type { ContributionKind } from "@/lib/analysis/types";
 import { CONTRIBUTION_LABEL } from "@/lib/analysis/types";
+import type { ResearchMethod } from "@/lib/research-design";
 
 /** The part of a contract that needs no item. Readable on its own, so a person
  *  (or a research design) can ask what a source is good for before any evidence
@@ -22,6 +23,14 @@ export type SourceContractDeclaration = {
   /** Every kind this source may supply. One entry for most sources; several
    *  where the source genuinely produces different kinds of knowledge. */
   produces: ContributionKind[];
+  /** The research method(s) this source executes, as the approved Research
+   *  Design names them. This is what lets evidence attached to a PROJECT be
+   *  assigned to the QUESTIONS the design commissioned that method to answer
+   *  (lib/analysis/assignment.ts), without the assignment layer knowing what any
+   *  particular source is. Several entries where one store can hold materially
+   *  different research: a Research Library document may be an academic study, an
+   *  industry report, or neither. */
+  fulfils: ResearchMethod[];
   observation: {
     /** The smallest independent observation, as a person would say it. */
     unit: string;
@@ -55,6 +64,7 @@ export const CONVERSATION_CONTRACT: SourceContract<ConversationItem> = {
   id: "conversation",
   label: "Conversation",
   produces: ["unprompted_discourse"],
+  fulfils: ["conversation"],
   observation: { unit: "unique author", plural: "unique authors" },
   cannotEstablish: "how many people hold a view, or what those who said nothing think",
   contributionFor: () => "unprompted_discourse",
@@ -86,6 +96,7 @@ export const NEWS_CONTRACT: SourceContract<NewsItem> = {
   id: "news",
   label: "News Coverage",
   produces: ["documented_activity", "interested_claim", "expert_judgement"],
+  fulfils: ["news"],
   observation: { unit: "original publisher", plural: "original publishers" },
   cannotEstablish: "what any audience thought of what was reported",
   contributionFor: it => {
@@ -121,6 +132,7 @@ export const SURVEY_CONTRACT: SourceContract<SurveyItem> = {
   id: "survey",
   label: "Survey",
   produces: ["elicited_perception"],
+  fulfils: ["survey"],
   observation: { unit: "completed response", plural: "completed responses" },
   cannotEstablish: "what people actually did, as opposed to what they say they did or would do",
   contributionFor: () => "elicited_perception",
@@ -145,6 +157,10 @@ export const DOCUMENT_CONTRACT: SourceContract<DocumentItem> = {
   id: "document",
   label: "Research Library",
   produces: ["established_knowledge", "interested_claim"],
+  // One store, three kinds of research. Which of them a given document IS cannot
+  // be recovered from the file, so assignment takes the most conservative verdict
+  // the design gave any of them (lib/analysis/assignment.ts).
+  fulfils: ["library", "industry_report", "academic"],
   observation: { unit: "document", plural: "documents" },
   cannotEstablish: "that what it found elsewhere holds for this engagement",
   contributionFor: it => (it.authorship === "interested" ? "interested_claim" : "established_knowledge"),
