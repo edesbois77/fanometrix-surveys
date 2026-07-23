@@ -31,9 +31,13 @@ export const CONNECTOR_CATALOG: ConnectorCatalogEntry[] = [
     ],
   },
   {
-    id: "news", platformIds: ["news"], name: "News",
+    id: "news", platformIds: ["news"], name: "News Coverage",
     advanced: [
-      { key: "max_articles", type: "number", label: "Max articles per run", help: "Editorial coverage is headline-level; higher collects more outlets.", default: 50 },
+      { key: "max_articles", type: "number", label: "Max articles per run", help: "Applied after syndicated copies are merged, so this is a count of distinct stories.", default: 60 },
+      { key: "feed_packs", type: "string[]", label: "Publisher packs", help: "sponsorship_business, marketing_trade, football_media. Football desks are off by default: high volume, low sponsorship precision." },
+      { key: "feed_ids", type: "string[]", label: "Individual publishers", help: "Catalogue ids, e.g. sportspro, sportbusiness, campaign-uk." },
+      { key: "feed_urls", type: "string[]", label: "Additional feed URLs", help: "Any other publisher RSS/Atom feed. Ranked below the verified catalogue when choosing which copy of a story to keep." },
+      { key: "use_search_index", type: "number", label: "Also query the search index", help: "1 to include the keyless news search index for retrospective coverage; 0 for publisher feeds only. The index is heavily rate limited and best-effort.", default: 1 },
     ],
   },
   {

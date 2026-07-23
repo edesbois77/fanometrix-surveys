@@ -11,6 +11,7 @@
 // nothing YouTube- or Reddit-specific.
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { classifyContent } from "@/lib/ai-classify";
+import { classifyArticle } from "@/lib/news-classify";
 import { getProjectResearchQuestionForSearch } from "@/lib/research-sources/project-searches";
 import { resolveInformationNeeds } from "@/lib/research-sources/information-needs";
 import { asEvidenceRole } from "@/lib/evidence-role";
@@ -146,10 +147,17 @@ export async function runCollection(opts: {
   const idByKey = new Map<string, string>();
   const metaById = new Map<string, unknown>();
   const knownExternalIds = new Set<string>();
+  // Syndication keys already held, for sources whose items get republished (News).
+  // Without this, the same press release picked up by another outlet in a later
+  // run would be a NEW external_id and would read as a second, independent piece
+  // of evidence. Sources that set no syndication_key are unaffected.
+  const knownSyndicationKeys = new Set<string>();
   for (const r of (existingRows ?? []) as { id: string; connector: string | null; external_id: string | null; metadata: unknown }[]) {
     idByKey.set(`${r.connector}:${r.external_id}`, r.id);
     metaById.set(r.id, r.metadata);
     if (r.external_id) knownExternalIds.add(r.external_id);
+    const key = (r.metadata as { syndication_key?: unknown } | null)?.syndication_key;
+    if (typeof key === "string" && key) knownSyndicationKeys.add(key);
   }
 
   // ── Collect from every connector ─────────────────────────────────────────
@@ -170,6 +178,7 @@ export async function runCollection(opts: {
       dateTo: window.dateTo,
       config,
       knownExternalIds,
+      knownSyndicationKeys,
       strategy: search.search_strategy,
     };
     try {
@@ -218,11 +227,37 @@ export async function runCollection(opts: {
   // and is stamped on each row so the role travels into Analysis.
   const evidenceRole = asEvidenceRole((search as { evidence_role?: unknown }).evidence_role);
   const classifyCtx = { keywords, entityType: search.entity_type ?? undefined, researchGoal: search.research_goal ?? undefined, researchQuestion: researchQuestion ?? undefined, primarySubject: search.search_strategy?.primary_entity?.term ?? undefined, informationNeeds: informationNeeds.length ? informationNeeds : undefined, evidenceRole };
+
+  // ARTICLES ARE NOT CONVERSATION. An 'article' content kind is routed to the
+  // news classifier instead, which judges what a PUBLICATION printed — what kind
+  // of statement it is, who is making the claim, and whether the piece contains
+  // any actual evidence of fan reaction. Running the fan-conversation prompt over
+  // a press release is precisely how coverage tone becomes "fans think…", so the
+  // split is made here, generically on content kind, rather than per connector.
+  const newsCtx = {
+    researchQuestion: researchQuestion ?? undefined,
+    requirement: (search.search_strategy as { design_origin?: { requirement?: string } } | null)?.design_origin?.requirement,
+    informationNeeds: informationNeeds.length ? informationNeeds : undefined,
+    primarySubject: search.search_strategy?.primary_entity?.term ?? undefined,
+    evidenceRole,
+  };
+
   const rows: Record<string, unknown>[] = new Array(newItems.length);
   for (let i = 0; i < newItems.length; i += CLASSIFY_CONCURRENCY) {
     const slice = newItems.slice(i, i + CLASSIFY_CONCURRENCY);
     await Promise.all(slice.map(async ({ connectorId, platform, item }, j) => {
-      const c = item.content.trim() ? await classifyContent(item.content, classifyCtx) : null;
+      const meta = (item.metadata ?? {}) as Record<string, unknown>;
+      const isArticle = item.content_kind === "article";
+      const article = isArticle && item.content.trim()
+        ? await classifyArticle(item.content, {
+            ...newsCtx,
+            publisher: typeof meta.publisher === "string" ? meta.publisher : undefined,
+            publisherTier: typeof meta.publisher_tier === "string" ? meta.publisher_tier : undefined,
+            author: item.author ?? undefined,
+            publishedAt: item.published_at ?? undefined,
+          })
+        : null;
+      const c = article ?? (!isArticle && item.content.trim() ? await classifyContent(item.content, classifyCtx) : null);
       rows[i + j] = {
         search_id: search.id, collection_run_id: runId, collected_at: startedAt,
         first_seen_at: startedAt, first_seen_run_id: runId, last_seen_at: startedAt, last_seen_run_id: runId,
@@ -230,7 +265,11 @@ export async function runCollection(opts: {
         external_id: item.external_id, parent_external_id: item.parent_external_id,
         author: item.author, source_url: item.source_url, content: item.content,
         published_at: item.published_at, market: item.market, language: item.language ?? "en",
-        metadata: item.metadata, import_source: `${connectorId}_api`, is_simulated: false,
+        // News provenance rides on metadata (jsonb) rather than new columns:
+        // source type, who is claiming it, whether the claim is established, and
+        // whether the article carries any actual fan evidence.
+        metadata: article ? { ...item.metadata, news: article.news } : item.metadata,
+        import_source: `${connectorId}_api`, is_simulated: false,
         sentiment: c?.sentiment ?? null, topic: c?.topic ?? null, subtopic: c?.subtopic ?? null,
         ai_summary: c?.ai_summary ?? null, entities: c?.entities ?? null,
         relevance_score: c?.relevance ?? null, confidence: c?.confidence ?? null,
@@ -296,7 +335,12 @@ export async function runCollection(opts: {
     const rs = r.relevance_score;
     if (typeof rs === "number") { if (Math.round(rs * 100) >= threshold) relevant++; else lowRelevance++; }
     byKind[String(r.content_kind)] = (byKind[String(r.content_kind)] ?? 0) + 1;
-    if (r.content_kind !== "video") {
+    // Articles are excluded from the sentiment roll-up on purpose. An article's
+    // sentiment is the TONE OF THE COVERAGE, not an audience's feeling, and this
+    // roll-up is what the workspace renders as "% positive". Counting coverage
+    // tone there would present favourable press as fan approval — the exact
+    // conflation the news safeguards exist to prevent.
+    if (r.content_kind !== "video" && r.content_kind !== "article") {
       if (r.sentiment) bySentiment[String(r.sentiment)] = (bySentiment[String(r.sentiment)] ?? 0) + 1;
       if (r.topic) byTopic[String(r.topic)] = (byTopic[String(r.topic)] ?? 0) + 1;
       if (Array.isArray(r.entities)) {

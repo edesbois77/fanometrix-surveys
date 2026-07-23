@@ -77,6 +77,13 @@ export type CollectContext = {
    *  genuinely new evidence. Absent/empty on a first run; non-incremental
    *  connectors ignore it (the pipeline dedups their output regardless). */
   knownExternalIds?: Set<string>;
+  /** Syndication keys already in this search's evidence base (metadata
+   *  .syndication_key). Only sources whose items are REPUBLISHED need this:
+   *  external-id dedup catches the same URL twice, but not the same press
+   *  release carried by a different outlet in a later run, which would otherwise
+   *  read as a second, independent piece of evidence. Empty for sources that
+   *  don't set a syndication key. */
+  knownSyndicationKeys?: Set<string>;
   /** The compiled Search Strategy for this search. When present, a connector
    *  should compile it into its own native query (anchoring the primary subject
    *  to its context, applying exclusions) instead of using flat `keywords`.
