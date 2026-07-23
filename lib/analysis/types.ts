@@ -67,16 +67,20 @@ export type Citation = {
   stance: CitationStance;
   admissibility: Admissibility;
   contribution: ContributionKind;
-  /** Opaque key identifying the INDEPENDENT LINE of evidence this item belongs
-   *  to. Two citations sharing a key are one line, never two.
+  /** The OBSERVATION UNIT behind this citation, as declared by its Source
+   *  Contract (lib/analysis/source-contract.ts). Two citations sharing a key are
+   *  one observation, never two.
    *
-   *  The producer decides what constitutes a line (a publisher, a survey
-   *  instrument, a study, an author), and this layer only counts distinct keys,
-   *  so it never learns about source types. This is the whole defence against
-   *  the failure that has already shipped once: fifty syndications of one wire
-   *  story reading as fifty corroborating sources (Principle: corroboration
-   *  requires independence). */
-  line: string;
+   *  This layer only compares keys, so it never learns what a source is: a
+   *  unique author, an original publisher and a study are all just keys here.
+   *  It is the defence against the failure that has already shipped once, fifty
+   *  syndications of one wire story reading as fifty corroborating sources. */
+  observationKey: string;
+  /** How many independent observations this citation carries. One for most
+   *  items. More where an item AGGREGATES observations: a survey statistic
+   *  stands on every response behind it, and scoring it as a single observation
+   *  would cap the native instrument for a magnitude claim below High. */
+  observations: number;
   /** 0 to 1. How directly this item bears on THIS claim. Null where the
    *  producer could not judge it, which is treated as unknown rather than as
    *  zero, because absent judgement is not evidence of irrelevance. */

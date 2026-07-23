@@ -12,15 +12,16 @@ function cite(over: Partial<Citation> = {}): Citation {
     stance: "establishes" as CitationStance,
     admissibility: "admissible" as Admissibility,
     contribution: "unprompted_discourse" as ContributionKind,
-    line: "line-1",
+    observationKey: "unit-1",
+    observations: 1,
     weight: 0.8,
     ...over,
   };
 }
 
-/** n citations, each on its own independent line. */
+/** n citations, each its own independent observation. */
 const lines = (n: number, over: Partial<Citation> = {}): Citation[] =>
-  Array.from({ length: n }, (_, i) => cite({ line: `line-${i}`, ...over }));
+  Array.from({ length: n }, (_, i) => cite({ observationKey: `unit-${i}`, observations: 1, ...over }));
 
 // ── Invariant 7: inadmissible evidence contributes nowhere ───────────────────
 
@@ -40,18 +41,41 @@ test("evidence admitted only with limits cannot carry a claim on its own", () =>
 
 // ── Corroboration requires independence ──────────────────────────────────────
 
-test("fifty carriers of one story are one line of evidence, not fifty", () => {
+test("fifty carriers of one story are one observation, not fifty", () => {
   // The failure this guards has already shipped once: syndicated coverage read
   // as many independent sources agreeing.
-  const syndicated = Array.from({ length: 50 }, () => cite({ line: "wire-story-a" }));
+  const syndicated = Array.from({ length: 50 }, () => cite({ observationKey: "wire-story-a", observations: 1 }));
   const ind = independentLines(syndicated);
   assert.equal(ind.supporting, 1);
   assert.equal(ind.items, 50, "the item count is still reported, so the gap is visible");
 });
 
-test("a claim resting on a single line can never reach High confidence", () => {
+test("an item that aggregates observations is counted in observations, not in items", () => {
+  // The gap runs the other way too. A survey statistic is one item standing on
+  // every response behind it, and scoring it as a single observation would cap
+  // the native instrument for a magnitude claim below High.
+  const statistic = cite({ observationKey: "survey:a", observations: 400, contribution: "elicited_perception" as ContributionKind });
+  const ind = independentLines([statistic]);
+  assert.equal(ind.supporting, 400);
+  assert.equal(ind.items, 1);
+});
+
+test("two statistics from one survey draw on one pool of respondents, not two", () => {
+  const pool = (over = {}) => cite({ observationKey: "survey:a", observations: 400, contribution: "elicited_perception" as ContributionKind, ...over });
+  assert.equal(independentLines([pool(), pool()]).supporting, 400, "the same respondents must not be counted twice");
+});
+
+test("a well-sampled survey can carry a measurement, which is what it is for", () => {
   const conf = deriveConfidence({
-    citations: Array.from({ length: 40 }, () => cite({ line: "one-source", weight: 1 })),
+    citations: [cite({ observationKey: "survey:a", observations: 400, contribution: "elicited_perception" as ContributionKind, weight: 0.9 })],
+    assertion: "magnitude", disconfirmed: true,
+  });
+  assert.equal(conf.level, "High", "one statistic on 400 responses is not one line of evidence");
+});
+
+test("a claim resting on a single observation can never reach High confidence", () => {
+  const conf = deriveConfidence({
+    citations: Array.from({ length: 40 }, () => cite({ observationKey: "one-source", observations: 1, weight: 1 })),
     assertion: "descriptive", disconfirmed: true,
   });
   assert.notEqual(conf.level, "High", "one source agreeing with itself is not corroboration");
@@ -62,9 +86,9 @@ test("diversity is of the kind of knowledge, not of the number of sources", () =
   assert.deepEqual(contributionKinds(threeSourcesOneKind), ["unprompted_discourse"]);
 
   const threeKinds = [
-    cite({ line: "a", contribution: "unprompted_discourse" as ContributionKind }),
-    cite({ line: "b", contribution: "elicited_perception" as ContributionKind }),
-    cite({ line: "c", contribution: "established_knowledge" as ContributionKind }),
+    cite({ observationKey: "a", observations: 1, contribution: "unprompted_discourse" as ContributionKind }),
+    cite({ observationKey: "b", observations: 1, contribution: "elicited_perception" as ContributionKind }),
+    cite({ observationKey: "c", observations: 1, contribution: "established_knowledge" as ContributionKind }),
   ];
   assert.equal(contributionKinds(threeKinds).length, 3);
   assert.ok(
@@ -110,7 +134,7 @@ test("evidence strength is blind to the kind of claim, because it grades the gro
 
 test("contested evidence lowers confidence but does not make the evidence poor", () => {
   const supporting = lines(3);
-  const contested = [...supporting, ...lines(3, { stance: "contests" as CitationStance }).map((c, i) => cite({ ...c, line: `against-${i}` }))];
+  const contested = [...supporting, ...lines(3, { stance: "contests" as CitationStance }).map((c, i) => cite({ ...c, observationKey: `against-${i}`, observations: 1 }))];
 
   const strengthAlone = deriveEvidenceStrength(supporting);
   const strengthContested = deriveEvidenceStrength(contested);
@@ -154,7 +178,7 @@ test("an absence backed by no search at all is not confident", () => {
 
 test("a claim short of High says what would raise it, naming the actual deficit", () => {
   const conf = deriveConfidence({
-    citations: [cite({ line: "only", contribution: "unprompted_discourse" as ContributionKind })],
+    citations: [cite({ observationKey: "only", observations: 1, contribution: "unprompted_discourse" as ContributionKind })],
     assertion: "descriptive", disconfirmed: false,
   });
   const advice = conf.whatWouldRaiseIt.join(" | ");
@@ -166,9 +190,9 @@ test("a claim short of High says what would raise it, naming the actual deficit"
 test("a claim already at High is not told how to improve", () => {
   const conf = deriveConfidence({
     citations: [
-      cite({ line: "a", contribution: "unprompted_discourse" as ContributionKind, weight: 0.9 }),
-      cite({ line: "b", contribution: "elicited_perception" as ContributionKind, weight: 0.9 }),
-      cite({ line: "c", contribution: "established_knowledge" as ContributionKind, weight: 0.9 }),
+      cite({ observationKey: "a", observations: 1, contribution: "unprompted_discourse" as ContributionKind, weight: 0.9 }),
+      cite({ observationKey: "b", observations: 1, contribution: "elicited_perception" as ContributionKind, weight: 0.9 }),
+      cite({ observationKey: "c", observations: 1, contribution: "established_knowledge" as ContributionKind, weight: 0.9 }),
     ],
     assertion: "descriptive", disconfirmed: true,
   });
@@ -186,7 +210,7 @@ test("no volume of with-limits evidence adds up to a claim it can carry", () => 
     citations: [
       ...lines(6, { admissibility: "admissible_with_limits" as Admissibility, weight: 0.9 }),
       ...lines(3, { admissibility: "admissible_with_limits" as Admissibility, weight: 0.9, contribution: "expert_judgement" as ContributionKind })
-        .map((c, i) => cite({ ...c, line: `expert-${i}` })),
+        .map((c, i) => cite({ ...c, observationKey: `expert-${i}` })),
     ],
     assertion: "descriptive", disconfirmed: true,
   });

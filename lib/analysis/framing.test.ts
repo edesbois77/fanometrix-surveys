@@ -20,7 +20,8 @@ function item(over: Partial<FramedItem> = {}): FramedItem {
     contribution: "unprompted_discourse" as ContributionKind,
     role: "direct" as EvidenceRole,
     bearing: 0.8,
-    line: `line-${seq}`,
+    observationKey: `unit-${seq}`,
+    observations: 1,
     provenance: null,
     ...over,
   };
@@ -145,9 +146,9 @@ test("comparative evidence is admitted to the frame and its share is reported", 
 
 test("a projection converts into citations the assessment layer can grade", () => {
   const frame = frameOf([
-    item({ contribution: "elicited_perception" as ContributionKind, bearing: 0.9, line: "survey-a" }),
-    item({ contribution: "unprompted_discourse" as ContributionKind, bearing: 0.9, line: "reddit" }),
-    item({ contribution: "established_knowledge" as ContributionKind, bearing: 0.9, line: "study-x" }),
+    item({ contribution: "elicited_perception" as ContributionKind, bearing: 0.9, observationKey: "survey-a", observations: 1 }),
+    item({ contribution: "unprompted_discourse" as ContributionKind, bearing: 0.9, observationKey: "reddit", observations: 1 }),
+    item({ contribution: "established_knowledge" as ContributionKind, bearing: 0.9, observationKey: "study-x", observations: 1 }),
   ]);
   const projection = projectFor(frame, "descriptive");
   const citations = projection.admitted.map(a => toCitation(a, "establishes"));
@@ -161,9 +162,9 @@ test("the with-limits verdict survives framing into the grade", () => {
   // established_knowledge is with-limits everywhere, so a claim built only from
   // it is capped however good it looks (compatibility-matrix §6.2).
   const frame = frameOf([
-    item({ contribution: "established_knowledge" as ContributionKind, bearing: 0.95, line: "a" }),
-    item({ contribution: "established_knowledge" as ContributionKind, bearing: 0.95, line: "b" }),
-    item({ contribution: "established_knowledge" as ContributionKind, bearing: 0.95, line: "c" }),
+    item({ contribution: "established_knowledge" as ContributionKind, bearing: 0.95, observationKey: "a", observations: 1 }),
+    item({ contribution: "established_knowledge" as ContributionKind, bearing: 0.95, observationKey: "b", observations: 1 }),
+    item({ contribution: "established_knowledge" as ContributionKind, bearing: 0.95, observationKey: "c", observations: 1 }),
   ]);
   const citations = projectFor(frame, "descriptive").admitted.map(a => toCitation(a, "establishes"));
   const conf = deriveConfidence({ citations, assertion: "descriptive", disconfirmed: true });

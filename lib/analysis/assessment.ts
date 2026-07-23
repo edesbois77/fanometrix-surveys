@@ -26,30 +26,46 @@ import { hasNativeKind, combinationViolations, type CombinationViolation } from 
 // ── Independence ─────────────────────────────────────────────────────────────
 
 export type Independence = {
-  /** Distinct lines of evidence that establish or qualify the claim. */
+  /** Independent observations that establish or qualify the claim. */
   supporting: number;
-  /** Distinct lines that point the other way. */
+  /** Independent observations that point the other way. */
   contesting: number;
-  /** Distinct lines overall. */
+  /** Independent observations overall. */
   total: number;
   /** Admissible, weight-carrying citations. Kept alongside `total` precisely so
-   *  the gap between the two is visible: 40 items across 2 lines is a thinner
-   *  base than the item count suggests. */
+   *  the gap between the two is visible in both directions: 40 items standing on
+   *  2 observations is a thinner base than the item count suggests, and one
+   *  survey statistic standing on 400 responses is a broader one. */
   items: number;
 };
 
-/** How many genuinely separate lines of evidence stand behind a claim, as
- *  distinct from how many items. Repetition is not agreement and distribution is
- *  not corroboration: fifty carriers of one wire story are one line. */
+/** How many genuinely independent observations stand behind a claim, as distinct
+ *  from how many items. Repetition is not agreement and distribution is not
+ *  corroboration: fifty carriers of one wire story are one observation.
+ *
+ *  Observations are summed across DISTINCT units, never across items, so two
+ *  statistics from one survey contribute that survey's responses once rather
+ *  than twice. Where citations disagree about a unit's size the largest is
+ *  taken, since they are describing the same pool. */
 export function independentLines(citations: Citation[]): Independence {
   const counted = citations.filter(c => isAdmissible(c) && CARRIES_WEIGHT.has(c.stance));
-  const supporting = new Set<string>();
-  const contesting = new Set<string>();
+  const supporting = new Map<string, number>();
+  const contesting = new Map<string, number>();
   for (const c of counted) {
-    (c.stance === "contests" ? contesting : supporting).add(c.line);
+    const into = c.stance === "contests" ? contesting : supporting;
+    const size = Math.max(1, Math.floor(c.observations));
+    into.set(c.observationKey, Math.max(into.get(c.observationKey) ?? 0, size));
   }
-  const all = new Set<string>([...supporting, ...contesting]);
-  return { supporting: supporting.size, contesting: contesting.size, total: all.size, items: counted.length };
+  const sum = (m: Map<string, number>) => [...m.values()].reduce((a, b) => a + b, 0);
+  // A unit that both supports and contests is counted on each side, because it
+  // genuinely does both: a survey whose two questions disagree is evidence
+  // pointing both ways, not evidence cancelling itself out.
+  return {
+    supporting: sum(supporting),
+    contesting: sum(contesting),
+    total: sum(supporting) + sum(contesting),
+    items: counted.length,
+  };
 }
 
 /** The distinct kinds of knowledge behind a claim. Diversity of KIND, not of
@@ -116,7 +132,11 @@ export function deriveEvidenceStrength(citations: Citation[]): EvidenceStrength 
   const level: EvidenceStrengthLevel = score >= 4 ? "strong" : score >= 2 ? "moderate" : "limited";
 
   const factors: AssessmentFactor[] = [
-    { label: `${independence.supporting} independent line${independence.supporting === 1 ? "" : "s"} of evidence, from ${independence.items} item${independence.items === 1 ? "" : "s"}`, state: independence.supporting >= 2 ? "on" : "info" },
+    // Reads correctly in both directions, which is the point of separating the
+    // two counts: "1 independent observation, across 50 pieces of evidence" is a
+    // syndicated story, and "400 independent observations, across 1 piece of
+    // evidence" is a survey. Neither is visible from an item count alone.
+    { label: `${independence.supporting} independent observation${independence.supporting === 1 ? "" : "s"}, across ${independence.items} piece${independence.items === 1 ? "" : "s"} of evidence`, state: independence.supporting >= 2 ? "on" : "info" },
   ];
   if (avg !== null) factors.push({ label: `Average bearing on the claim: ${Math.round(avg * 100)}%`, state: "info" });
   factors.push(kinds.length >= 2
@@ -132,8 +152,8 @@ export function deriveEvidenceStrength(citations: Citation[]): EvidenceStrength 
 
 function strengthRationale(ind: Independence, kinds: ContributionKind[], onlyWithLimits: boolean): string {
   const lines = ind.supporting === 1
-    ? `A single line of evidence supports this claim`
-    : `${ind.supporting} independent lines of evidence support this claim`;
+    ? `A single independent observation supports this claim`
+    : `${ind.supporting} independent observations support this claim`;
   const items = ind.items === ind.supporting ? "" : `, across ${ind.items} items`;
   const kind = kinds.length >= 2
     ? `, drawing on ${kinds.length} different kinds of evidence`
@@ -265,9 +285,9 @@ function confidenceFactors(f: {
   const out: AssessmentFactor[] = [...f.strength.factors];
 
   out.push(f.heavilyContested
-    ? { label: `Evidence points both ways, with ${f.strength.independence.contesting} line${f.strength.independence.contesting === 1 ? "" : "s"} against`, state: "off" }
+    ? { label: `Evidence points both ways, with ${f.strength.independence.contesting} observation${f.strength.independence.contesting === 1 ? "" : "s"} against`, state: "off" }
     : f.contested
-      ? { label: `${f.strength.independence.contesting} line${f.strength.independence.contesting === 1 ? "" : "s"} of evidence points the other way`, state: "off" }
+      ? { label: `${f.strength.independence.contesting} independent observation${f.strength.independence.contesting === 1 ? "" : "s"} points the other way`, state: "off" }
       : { label: "No evidence found pointing the other way", state: "on" });
 
   out.push(f.disconfirmed
@@ -290,11 +310,11 @@ function confidenceRationale(f: {
 }): string {
   const parts: string[] = [];
   parts.push(f.independence.supporting === 1
-    ? "One line of evidence supports this"
-    : `${f.independence.supporting} independent lines of evidence support this`);
+    ? "One independent observation supports this"
+    : `${f.independence.supporting} independent observations support this`);
 
   if (f.heavilyContested) parts.push(`and as much evidence points the other way`);
-  else if (f.contested) parts.push(`with ${f.independence.contesting} line${f.independence.contesting === 1 ? "" : "s"} pointing the other way`);
+  else if (f.contested) parts.push(`with ${f.independence.contesting} pointing the other way`);
 
   parts.push(f.disconfirmed
     ? "after testing for evidence that would contradict it"
@@ -322,7 +342,7 @@ function whatWouldRaiseIt(f: {
   if (f.violations.some(v => v.rule === "6.1")) out.push("Evidence of a different kind, since no single way of knowing can establish a claim of this sort");
   if (f.violations.some(v => v.rule === "6.2")) out.push("Evidence admitted without limits, which this claim currently has none of");
   if (!f.disconfirmed) out.push("Testing this claim against evidence that would contradict it");
-  if (f.independence.supporting < 3) out.push("Corroboration from an independent line of evidence");
+  if (f.independence.supporting < 3) out.push("Corroboration from an independent observation");
   if (f.kinds.length < 2 && !f.violations.some(v => v.rule === "6.1")) out.push("A second kind of evidence, so the claim does not rest on one way of knowing");
   if (f.contested) out.push("Resolving, or bounding, the evidence that points the other way");
   return out;

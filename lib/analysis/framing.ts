@@ -30,9 +30,10 @@ export const DEFAULT_BEARING_FLOOR = 0.5;
  *  here except `bearing` travels from collection unchanged. */
 export type FramedItem = {
   evidenceId: string;
-  /** What kind of knowledge this item's source is contracted to supply. The only
-   *  thing the matrix consults, and the reason nothing downstream needs to know
-   *  which connector produced it. */
+  /** What kind of knowledge this item's source is contracted to supply.
+   *  INHERITED from the Source Contract (via `resolve`), never inferred here.
+   *  The only thing the matrix consults, and the reason nothing downstream needs
+   *  to know which connector produced it. */
   contribution: ContributionKind;
   /** Why it was collected. Governs ATTRIBUTION rather than admissibility, so it
    *  is carried through the frame rather than gating it (see §Role below). */
@@ -40,8 +41,12 @@ export type FramedItem = {
   /** 0 to 1: how directly this item bears on THIS need, judged upstream against
    *  the need itself. */
   bearing: number;
-  /** Independent line key. Two items sharing it are one line of evidence. */
-  line: string;
+  /** The observation unit behind this item, declared by its Source Contract.
+   *  Two items sharing it are one observation. */
+  observationKey: string;
+  /** How many independent observations this item carries, declared by its Source
+   *  Contract. One for most items, more where the item aggregates. */
+  observations: number;
   /** Carried so an exclusion can be explained concretely rather than abstractly. */
   provenance: string | null;
 };
@@ -68,8 +73,9 @@ export type EvidenceFrame = {
    *  denominator for coverage, and the count an absence claim is judged on. */
   examined: number;
   kinds: ContributionKind[];
-  /** Distinct independent lines among admitted items. */
-  lines: number;
+  /** Independent observations among admitted items, summed across distinct
+   *  observation units. Not an item count, and deliberately different from one. */
+  observations: number;
   /** How the frame is composed by role. A frame that is mostly comparative
    *  evidence cannot carry much of a direct claim about the client, and saying so
    *  before a claim is written is cheaper than discovering it at warranting. */
@@ -83,6 +89,19 @@ export type EvidenceFrame = {
 const ALL_ASSERTIONS: AssertionType[] = [
   "descriptive", "comparative", "magnitude", "temporal", "causal", "predictive", "absence",
 ];
+
+/** Independent observations across a set of items: summed over DISTINCT
+ *  observation units, never over items. The same reduction the assessment layer
+ *  applies to citations, kept identical here so a frame and the grade it later
+ *  produces cannot describe the same evidence differently. */
+export function countObservations(items: Pick<FramedItem, "observationKey" | "observations">[]): number {
+  const byUnit = new Map<string, number>();
+  for (const i of items) {
+    const size = Math.max(1, Math.floor(i.observations));
+    byUnit.set(i.observationKey, Math.max(byUnit.get(i.observationKey) ?? 0, size));
+  }
+  return [...byUnit.values()].reduce((a, b) => a + b, 0);
+}
 
 export function frameEvidence(opts: {
   needId: string;
@@ -108,14 +127,13 @@ export function frameEvidence(opts: {
   }
 
   const kinds = [...new Set(admitted.map(i => i.contribution))].sort();
-  const lines = new Set(admitted.map(i => i.line)).size;
   const roles = Object.fromEntries(
     EVIDENCE_ROLES.map(r => [r, admitted.filter(i => i.role === r).length]),
   ) as Record<EvidenceRole, number>;
 
   const frame: EvidenceFrame = {
     needId: opts.needId, admitted, excluded, examined: opts.items.length,
-    kinds, lines, roles, supportable: [],
+    kinds, observations: countObservations(admitted), roles, supportable: [],
   };
   // Derived from the same code path the real projection uses, so the promise the
   // frame makes and the projection it later produces can never disagree.
@@ -131,7 +149,8 @@ export type AdmittedForClaim = {
   evidenceId: string;
   contribution: ContributionKind;
   role: EvidenceRole;
-  line: string;
+  observationKey: string;
+  observations: number;
   bearing: number;
   admissibility: Exclude<Admissibility, "inadmissible">;
   /** The condition this item is admitted under. Survives onto the claim, so a
@@ -167,7 +186,7 @@ export function projectFor(frame: EvidenceFrame, assertion: AssertionType): Proj
     }
     admitted.push({
       evidenceId: item.evidenceId, contribution: item.contribution, role: item.role,
-      line: item.line, bearing: item.bearing,
+      observationKey: item.observationKey, observations: item.observations, bearing: item.bearing,
       admissibility: cell.verdict, constraint: cell.constraint,
     });
   }
@@ -194,7 +213,8 @@ export function toCitation(item: AdmittedForClaim, stance: CitationStance): Cita
     stance,
     admissibility: item.admissibility,
     contribution: item.contribution,
-    line: item.line,
+    observationKey: item.observationKey,
+    observations: item.observations,
     weight: item.bearing,
   };
 }
@@ -230,6 +250,6 @@ export function describeFrame(frame: EvidenceFrame): string {
   const roleParts = EVIDENCE_ROLES
     .filter(r => frame.roles[r] > 0)
     .map(r => `${frame.roles[r]} ${EVIDENCE_ROLE_LABEL[r].toLowerCase()}`);
-  const lines = `across ${frame.lines} independent line${frame.lines === 1 ? "" : "s"}`;
-  return `${frame.admitted.length} of ${frame.examined} items bear on this question, ${lines} (${roleParts.join(", ")}).`;
+  const obs = `standing on ${frame.observations} independent observation${frame.observations === 1 ? "" : "s"}`;
+  return `${frame.admitted.length} of ${frame.examined} items bear on this question, ${obs} (${roleParts.join(", ")}).`;
 }
