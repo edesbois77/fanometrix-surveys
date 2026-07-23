@@ -1348,7 +1348,7 @@ function buildMethodology(
   out.push(...creativeCaveats);
 
   out.push(
-    "The reader count on the cover counts browsers, not people: the same person opening the report on a laptop and a phone counts twice, and two colleagues sharing a machine count once. It is recorded from a random identifier that carries no personal information.",
+    "The reader count on the cover counts browsers, not people: the same person opening the report on a laptop and a phone counts twice and two colleagues sharing a machine count once. It is recorded from a random identifier that carries no personal information.",
   );
 
   out.push(
