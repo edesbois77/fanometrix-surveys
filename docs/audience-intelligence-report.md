@@ -194,6 +194,21 @@ cannot appear to have failed on delivery.
 running across a DST boundary still reports the hour the fan was holding the
 phone.
 
+**Which creative ran** is resolved the way the embed resolves it, not from
+`campaigns.creative_design` alone. A blank column means *inherit*, not *default*:
+the embed falls back to the design on the survey's `research_project_evidence`
+row (`app/api/embed/campaign/route.ts`, survey-scoped since migration 094).
+Reading the campaign column by itself named a creative that was never served,
+which put a unit no fan saw into the gallery and the wrong baseline into the
+comparison. If that inheritance changes, `fetchEffectiveCreatives` has to change
+with it.
+
+**Viewability is not in the delivery funnel.** It is measured over a shorter
+window than the campaign ran for, so a funnel headed "share of impressions
+delivered" cannot carry it without inviting the reader to divide it by the total
+and conclude the figure is wrong. It sits alongside, with its own denominator
+and start date stated.
+
 **Creative ordering** is by first observed delivery, never by `start_date`. In
 this dataset campaign #000144's `start_date` predates its own `created_at`, which
 would have inverted the baseline and the challenger and reversed every headline.
@@ -284,14 +299,6 @@ test was sequential, sharing one hour of live delivery.
 
 ## 11. Known limits, carried into the next campaign
 
-- **Campaign #000128's creative label is disputed.** `campaigns.creative_design`
-  is set to `fanometrix` (Fanometrix Premium, timer layout) for the Germany
-  campaign, and that field is not a label: `app/embed/page.tsx` reads it to
-  decide which component to serve. The market-level creative note has been
-  removed as instructed, but the gallery and both CSV exports still label
-  Germany's delivery from that field. Either the record is wrong and should be
-  corrected, or Germany did serve the timer unit. Resolving it is a data
-  decision, not a reporting one.
 - The creative test is a sequential read, not a side-by-side split. The direction
   is reliable; the exact size is indicative. Recommendation 2 in the report asks
   for a concurrent split next time, which costs no additional inventory.

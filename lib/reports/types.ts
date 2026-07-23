@@ -76,6 +76,9 @@ export type Segment = {
   /** Present when the segment ran a creative that differs from the campaign
    *  norm — the report must disclose it rather than compare silently. */
   note?: string;
+  /** For a creative segment: a clause explaining what the format is, for the
+   *  places it is named before the reader reaches the gallery. */
+  description?: string;
 };
 
 export type HourPoint = {
@@ -231,7 +234,14 @@ export type AudienceIntelligenceReport = {
   };
   /** Viewability is forward-only from the day it was instrumented; this is the
    *  window over which it can honestly be quoted. null when never instrumented. */
-  viewabilityWindow: { from: string; rate: number } | null;
+  viewabilityWindow: {
+    from: string;
+    rate: number;
+    /** Impressions delivered inside the measured window. Stating this is what
+     *  stops a reader dividing viewable by total impressions and concluding
+     *  the rate is wrong. */
+    measuredLoads: number;
+  } | null;
   highlights: Highlight[];
   decisions: Decision[];
   creatives: CreativeUsed[];

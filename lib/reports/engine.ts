@@ -24,6 +24,7 @@ import {
 import {
   fetchCampaigns,
   fetchCreativeDesigns,
+  fetchEffectiveCreatives,
   fetchEventBuckets,
   fetchFirstEventAt,
   fetchLastEventAt,
@@ -134,14 +135,17 @@ function buildCampaignMeta(
   campaigns: CampaignRow[],
   buckets: EventBucket[],
   designNames: Map<string, string>,
+  effectiveCreatives: Map<string, string | null>,
 ): CampaignMeta[] {
   return campaigns.map((c) => {
-    const slug = c.creative_design ?? "classic";
+    // The design the embed resolved, not the column on the campaign: a blank
+    // column means "inherit", not "default". See fetchEffectiveCreatives.
+    const slug = effectiveCreatives.get(c.campaign_id) ?? "classic";
     return {
       ...c,
       market: resolveMarket(c, buckets),
       creativeSlug: slug,
-      creativeLabel: designNames.get(slug) ?? (c.creative_design ? c.creative_design : "Standard Creative"),
+      creativeLabel: designNames.get(slug) ?? "Standard Creative",
     };
   });
 }
@@ -228,7 +232,8 @@ export async function buildAudienceIntelligenceReport(
 
   const buckets = eventData.buckets;
   const designNames = new Map(designs.map((d) => [d.slug, d.name]));
-  const meta = buildCampaignMeta(campaigns, buckets, designNames);
+  const effectiveCreatives = await fetchEffectiveCreatives(campaigns);
+  const meta = buildCampaignMeta(campaigns, buckets, designNames, effectiveCreatives);
   const byCampaign = new Map(meta.map((m) => [m.campaign_id, m]));
   const finalQuestion = finalQuestionEvent(buckets);
 
@@ -242,7 +247,9 @@ export async function buildAudienceIntelligenceReport(
     viewableFrom !== null
       ? (() => {
           const denom = countLoads(buckets, viewableFrom, () => true);
-          return denom > 0 ? { from: viewableFrom, rate: totalCounts.viewable / denom } : null;
+          return denom > 0
+            ? { from: viewableFrom, rate: totalCounts.viewable / denom, measuredLoads: denom }
+            : null;
         })()
       : null;
 
@@ -314,7 +321,15 @@ export async function buildAudienceIntelligenceReport(
   const creatives = buildCreativeGallery(meta, buckets, designs, finalQuestion);
 
   // ── Creative comparison ───────────────────────────────────────────────────
-  const creative = buildCreativeComparison(meta, buckets, responses, finalQuestion, viewableFrom, totalRates);
+  const creative = buildCreativeComparison(
+    meta,
+    buckets,
+    responses,
+    finalQuestion,
+    viewableFrom,
+    totalRates,
+    designs,
+  );
 
   // ── Hourly, in the audience's local time ──────────────────────────────────
   const hourly = buildHourly(buckets, byCampaign);
@@ -387,6 +402,16 @@ export async function buildAudienceIntelligenceReport(
 /** One sentence on what a format is for, keyed by the layout the embed resolves
  *  rather than by a slug, so a new design inherits the right description
  *  without anyone remembering to add it. */
+/** A clause that can be dropped into a sentence, for the places a creative is
+ *  named before the reader has reached the gallery. "Fan Invitation +107%" in a
+ *  highlight tile means nothing to someone who does not yet know it is a survey
+ *  format, and the highlights are the first thing anyone reads. */
+const LAYOUT_SHORTHAND: Record<string, string> = {
+  classic: "the standard survey format, which shows the first question straight away",
+  timer: "the branded survey format with a countdown",
+  invitation: "the survey format that invites fans to opt in before they see a question",
+};
+
 const LAYOUT_PURPOSE: Record<string, string> = {
   classic:
     "The standard unit. The first question is visible immediately, so a reader can answer without committing to anything first.",
@@ -441,6 +466,7 @@ function buildCreativeComparison(
   finalQuestion: string | null,
   viewableFrom: string | null,
   campaignRates: FunnelRates,
+  designs: CreativeDesignRow[],
 ): CreativeComparison | null {
   // A creative comparison is only honest within one market — audiences differ
   // more than creatives do. Find a market that ran more than one creative.
@@ -486,6 +512,10 @@ function buildCreativeComparison(
   );
   if (ordered.length < 2) return null;
 
+  const layouts = new Map(designs.map((d) => [d.slug, d.layout ?? "classic"]));
+  const describe = (group: CampaignMeta[]): string | undefined =>
+    LAYOUT_SHORTHAND[layouts.get(group[0]?.creativeSlug ?? "") ?? "classic"];
+
   const segmentFor = (label: string, group: CampaignMeta[]): Segment => {
     const idsInGroup = new Set(group.map((g) => g.campaign_id));
     const counts = countFunnel(buckets, finalQuestion, (b) => idsInGroup.has(b.campaignId));
@@ -501,6 +531,7 @@ function buildCreativeComparison(
         responseRate: index100(r.responseRate, campaignRates.responseRate),
       },
       sampleSize: responses.filter((x) => idsInGroup.has(x.campaign_id)).length,
+      description: describe(group),
     };
   };
 
@@ -849,7 +880,7 @@ function buildHighlights(
       out.push({
         label: "Biggest creative learning",
         value: `${creative.variant.label} +${Math.round((decisive.change ?? 0) * 100)}%`,
-        detail: `${decisive.label} improved against ${creative.baseline.label}. How the survey asked changed the outcome more than who it asked.`,
+        detail: `${creative.variant.label} is ${creative.variant.description ?? "an alternative survey format"}. Tested against ${creative.baseline.label}, it improved ${decisive.label.toLowerCase()}. How the survey asked changed the outcome more than who it asked.`,
       });
     }
   }
@@ -911,7 +942,7 @@ function buildDecisions(
       const extra = Math.round((gainPer10k * totals.loads) / 10000);
       out.push({
         headline: `Run ${creative.variant.label} everywhere`,
-        action: `Make it the default format on the next campaign rather than a variant tested in one market.`,
+        action: `${creative.variant.label} is ${creative.variant.description ?? "an alternative survey format"}. Make it the default on the next campaign rather than a variant tested in one market.`,
         evidence: `${yieldMeasure.variant.toFixed(1)} completed responses per 10,000 impressions against ${yieldMeasure.baseline.toFixed(1)}.`,
         worth: `Applied across the ${totals.loads.toLocaleString("en-GB")} impressions this campaign has already delivered, roughly ${extra.toLocaleString("en-GB")} additional completed responses from the same inventory. No extra delivery, no extra cost.`,
         confidence: yieldMeasure.confidence,

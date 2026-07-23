@@ -45,7 +45,9 @@ export function CreativeGallery({
     <div
       style={{
         display: "grid",
-        gridTemplateColumns: `repeat(auto-fit, minmax(300px, 1fr))`,
+        // The units are 300px-wide MPUs. A 300px track minus the frame padding
+        // clips them, so the track has to clear the unit plus its surround.
+        gridTemplateColumns: `repeat(auto-fit, minmax(348px, 1fr))`,
         gap: 28,
         alignItems: "start",
       }}
@@ -72,7 +74,7 @@ export function CreativeGallery({
             <div
               style={{
                 background: INK.page,
-                padding: "26px 20px",
+                padding: "26px 12px",
                 display: "flex",
                 justifyContent: "center",
                 borderBottom: `1px solid ${INK.hairline}`,

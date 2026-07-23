@@ -55,7 +55,10 @@ export function SectionHeader({
   onDark?: boolean;
 }) {
   return (
-    <header style={{ marginBottom: 40, maxWidth: 760 }}>
+    /* The title takes the full column width; only the standfirst is held to a
+       comfortable measure. Capping both meant a title one word too long broke
+       onto a second line for no reason a reader could see. */
+    <header style={{ marginBottom: 40 }}>
       <div
         style={{
           display: "flex",
@@ -111,6 +114,7 @@ export function SectionHeader({
           letterSpacing: "-0.025em",
           color: onDark ? "#FFFFFF" : INK.primary,
           margin: 0,
+          maxWidth: 940,
         }}
       >
         {title}
@@ -123,6 +127,7 @@ export function SectionHeader({
             lineHeight: 1.6,
             color: onDark ? "rgba(255,255,255,0.75)" : INK.secondary,
             margin: "18px 0 0",
+            maxWidth: 760,
           }}
         >
           {standfirst}

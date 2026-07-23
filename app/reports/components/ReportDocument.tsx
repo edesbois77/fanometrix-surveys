@@ -653,15 +653,6 @@ export function ReportDocument({ model }: { model: AudienceIntelligenceReport })
               scale="log"
               stages={[
                 { label: "Impressions delivered", value: totals.counts.loads, ratio: 1 },
-                ...(model.viewabilityWindow
-                  ? [
-                      {
-                        label: "Entered the fan's viewport",
-                        value: totals.counts.viewable,
-                        ratio: model.viewabilityWindow.rate,
-                      },
-                    ]
-                  : []),
                 { label: "Started the survey", value: totals.counts.starts, ratio: totals.rates.startRate },
               ]}
             />
@@ -702,11 +693,19 @@ export function ReportDocument({ model }: { model: AudienceIntelligenceReport })
             it is what turns inventory into research.
           </Prose>
           {model.viewabilityWindow && (
+            /* Viewability sits outside the funnel deliberately. It is measured
+               against a shorter window than the campaign ran for, so putting it
+               in a funnel headed "share of impressions delivered" invites the
+               reader to divide it by the total and conclude the figure is
+               wrong. Its own denominator, stated. */
             <Callout title="Delivery quality">
-              {/* One expression rather than a value beside a text node: JSX
-                  adjacency drops the separating space here, and "81%of" is the
-                  kind of typo a reader notices before they notice the number. */}
-              {`${pct(model.viewabilityWindow.rate, 0)} of impressions entered the fan's viewport. Your volume is reaching real screens rather than loading out of view, which is what makes every engagement rate in this report a measure of the creative rather than of the placement.`}
+              {`${pct(model.viewabilityWindow.rate, 0)} of impressions entered the fan's viewport, measured across ${int(
+                model.viewabilityWindow.measuredLoads,
+              )} impressions delivered from ${formatDate(
+                model.viewabilityWindow.from,
+              )}, the point viewable-impression tracking began. It is not a share of the full ${int(
+                totals.counts.loads,
+              )}, because the earlier impressions were never measured for it. Your volume is reaching real screens rather than loading out of view.`}
             </Callout>
           )}
         </div>

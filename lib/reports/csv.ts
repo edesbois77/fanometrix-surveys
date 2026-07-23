@@ -10,7 +10,13 @@
 // needs the join keys present even when they only take one value here.
 
 import { supabaseAdmin } from "@/lib/supabase-admin";
-import { fetchCampaigns, fetchEventBuckets, fetchResponses, fetchSurveyQuestions } from "./data";
+import {
+  fetchCampaigns,
+  fetchEffectiveCreatives,
+  fetchEventBuckets,
+  fetchResponses,
+  fetchSurveyQuestions,
+} from "./data";
 import type { PartnerReport } from "./types";
 
 function esc(value: unknown): string {
@@ -43,7 +49,9 @@ export async function buildResponsesCsv(report: PartnerReport): Promise<string> 
 
   const byCampaign = new Map(campaigns.map((c) => [c.campaign_id, c]));
 
-  const designSlugs = [...new Set(campaigns.map((c) => c.creative_design ?? "classic"))];
+  // Same inheritance the embed applies; a blank column means "inherit".
+  const effectiveCreatives = await fetchEffectiveCreatives(campaigns);
+  const designSlugs = [...new Set(campaigns.map((c) => effectiveCreatives.get(c.campaign_id) ?? "classic"))];
   const { data: designRows } = await supabaseAdmin
     .from("creative_designs")
     .select("slug, name")
@@ -83,7 +91,7 @@ export async function buildResponsesCsv(report: PartnerReport): Promise<string> 
 
   const rows = responses.map((r) => {
     const c = byCampaign.get(r.campaign_id);
-    const slug = c?.creative_design ?? "classic";
+    const slug = effectiveCreatives.get(r.campaign_id) ?? "classic";
     const answers = canonical.slice(0, 3).flatMap((q, i) => {
       const key = (["q1", "q2", "q3"] as const)[i];
       return [localisedText(q.text), answerLabel(i, r[key])];
@@ -120,7 +128,8 @@ export async function buildMetricsCsv(report: PartnerReport): Promise<string> {
   ]);
 
   const byCampaign = new Map(campaigns.map((c) => [c.campaign_id, c]));
-  const designSlugs = [...new Set(campaigns.map((c) => c.creative_design ?? "classic"))];
+  const effectiveCreatives = await fetchEffectiveCreatives(campaigns);
+  const designSlugs = [...new Set(campaigns.map((c) => effectiveCreatives.get(c.campaign_id) ?? "classic"))];
   const { data: designRows } = await supabaseAdmin
     .from("creative_designs")
     .select("slug, name")
@@ -144,7 +153,7 @@ export async function buildMetricsCsv(report: PartnerReport): Promise<string> {
   const cells = new Map<string, Cell>();
   for (const b of eventData.buckets) {
     const c = byCampaign.get(b.campaignId);
-    const slug = c?.creative_design ?? "classic";
+    const slug = effectiveCreatives.get(b.campaignId) ?? "classic";
     const market = c?.market ?? b.country ?? "";
     const key = `${b.hour}|${b.campaignId}`;
     let cell = cells.get(key);

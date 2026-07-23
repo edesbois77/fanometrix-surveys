@@ -47,6 +47,7 @@ export type CampaignRow = {
   market: string | null;
   creative_design: string | null;
   survey_id: string | null;
+  research_project_id: string | null;
   status: string;
   start_date: string | null;
   end_date: string | null;
@@ -89,7 +90,7 @@ export async function fetchCampaigns(campaignIds: string[]): Promise<CampaignRow
   const { data, error } = await supabaseAdmin
     .from("campaigns")
     .select(
-      "id, campaign_id, campaign_name, campaign_number, country_code, market, creative_design, survey_id, status, start_date, end_date",
+      "id, campaign_id, campaign_name, campaign_number, country_code, market, creative_design, survey_id, research_project_id, status, start_date, end_date",
     )
     .in("campaign_id", campaignIds)
     .is("deleted_at", null);
@@ -103,6 +104,68 @@ export async function fetchCreativeDesigns(): Promise<CreativeDesignRow[]> {
     .select("slug, name, layout, builder_state");
   if (error) return [];
   return (data ?? []) as CreativeDesignRow[];
+}
+
+/** The creative each campaign actually served.
+ *
+ *  A null `campaigns.creative_design` does NOT mean the default unit: the embed
+ *  inherits the design from the survey's research_project_evidence row when the
+ *  campaign leaves it blank (see app/api/embed/campaign/route.ts, and migration
+ *  094 for why the inheritance is survey-scoped rather than project-scoped).
+ *  Reading the campaign column alone therefore reports a creative that was
+ *  never served, which is worse than reporting none: the gallery shows a unit
+ *  no fan ever saw and the comparison names the wrong baseline.
+ *
+ *  This mirrors that resolution exactly. If the embed's inheritance ever
+ *  changes, this has to change with it, which is why it points at the route. */
+export async function fetchEffectiveCreatives(
+  campaigns: CampaignRow[],
+): Promise<Map<string, string | null>> {
+  const out = new Map<string, string | null>();
+
+  const projectIds = [...new Set(campaigns.map((c) => c.research_project_id).filter((x): x is string => !!x))];
+
+  // A campaign with no survey of its own inherits the project's.
+  const projectSurveys = new Map<string, string | null>();
+  if (projectIds.length > 0) {
+    const { data } = await supabaseAdmin
+      .from("research_projects")
+      .select("id, survey_id")
+      .in("id", projectIds);
+    for (const p of (data ?? []) as { id: string; survey_id: string | null }[]) {
+      projectSurveys.set(p.id, p.survey_id);
+    }
+  }
+
+  const { data: evidence } = projectIds.length
+    ? await supabaseAdmin
+        .from("research_project_evidence")
+        .select("research_project_id, evidence_id, creative_design")
+        .in("research_project_id", projectIds)
+        .eq("evidence_type", "survey")
+    : { data: [] };
+
+  const byKey = new Map<string, string | null>();
+  for (const e of (evidence ?? []) as {
+    research_project_id: string;
+    evidence_id: string;
+    creative_design: string | null;
+  }[]) {
+    byKey.set(`${e.research_project_id}|${e.evidence_id}`, e.creative_design);
+  }
+
+  for (const c of campaigns) {
+    if (c.creative_design) {
+      out.set(c.campaign_id, c.creative_design);
+      continue;
+    }
+    const surveyId = c.survey_id ?? (c.research_project_id ? projectSurveys.get(c.research_project_id) : null);
+    const inherited =
+      c.research_project_id && surveyId ? byKey.get(`${c.research_project_id}|${surveyId}`) ?? null : null;
+    out.set(c.campaign_id, inherited);
+  }
+
+  return out;
 }
 
 export async function fetchSurveyQuestions(surveyIds: string[]): Promise<Map<string, SurveyQuestion[]>> {
