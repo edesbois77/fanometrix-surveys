@@ -22,6 +22,7 @@ import {
   type ResearchTheme, type InformationNeed, type PlatformRecommendation, type AdvisorChallenge,
   type RecommendationState, type MethodFit, type ComplementMethod, type ChallengeAction,
 } from "@/lib/conversation-advisor";
+import { needIdFor } from "@/lib/information-needs";
 
 const MODEL = "gpt-4o";
 
@@ -125,7 +126,13 @@ const oneOfOrNull = <T extends string>(v: unknown, allowed: T[]): T | null => {
   return (allowed as string[]).includes(s) ? (s as T) : null;
 };
 
-function parseNeed(raw: unknown): InformationNeed | null {
+// The id is assigned by parseTheme, which knows the aspect a need belongs to.
+// Needs are identified rather than addressed by their text because a Finding
+// anchors to one, and a reworded question must not orphan the findings that
+// answer it (lib/information-needs.ts).
+type UnidentifiedNeed = Omit<InformationNeed, "id">;
+
+function parseNeed(raw: unknown): UnidentifiedNeed | null {
   const r = raw as Record<string, unknown> | null;
   const need = clean(r?.need);
   if (!need) return null;
@@ -136,7 +143,8 @@ function parseTheme(raw: unknown): ResearchTheme | null {
   const r = raw as Record<string, unknown> | null;
   const aspect = clean(r?.aspect);
   if (!aspect) return null;
-  const needs = (Array.isArray(r?.needs) ? r!.needs : []).map(parseNeed).filter((n): n is InformationNeed => !!n).slice(0, 4);
+  const parsed = (Array.isArray(r?.needs) ? r!.needs : []).map(parseNeed).filter((n): n is UnidentifiedNeed => !!n).slice(0, 4);
+  const needs: InformationNeed[] = parsed.map(n => ({ id: needIdFor(aspect, n.need), ...n }));
   if (!needs.length) return null;
   return { aspect, description: stripEmDash(clean(r?.description)), needs };
 }

@@ -19,11 +19,11 @@
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { IntelligenceError } from "@/lib/intelligence/types";
 import {
-  type ResearchDesign, type ProposedSearchPlan, proposedConversationSearches, isApproved,
-  collectionWindowFields,
+  type ResearchDesign, type ProposedSearchPlan, type EvidenceRequirement,
+  proposedConversationSearches, isApproved, collectionWindowFields,
 } from "@/lib/research-design";
 import type { EvidenceRole } from "@/lib/evidence-role";
-import type { InformationNeeds } from "@/lib/information-needs";
+import { withNeedIds, needIdFor, asMethodFit, type InformationNeeds } from "@/lib/information-needs";
 
 export type GeneratedSearch = { id: string; name: string; role: EvidenceRole; action: "created" | "updated" };
 export type SkippedSearch = { name: string; reason: string };
@@ -46,17 +46,28 @@ type DesignOrigin = { origin_key: string; requirement_index: number; role: Evide
 /** The Information Needs shape the classifier already consumes, built from the
  *  requirement so collected evidence is judged against the SAME needs the design
  *  stated and lands on the SAME research aspect Analysis groups by. */
-function informationNeedsFor(plan: ProposedSearchPlan, requirementText: string): InformationNeeds | null {
+function informationNeedsFor(
+  plan: ProposedSearchPlan, requirementText: string, req: EvidenceRequirement,
+): InformationNeeds | null {
   if (!plan.information_needs.length) return null;
-  return {
+  // The design already decided what conversation can do for this requirement.
+  // Hardcoding "primary" here threw that verdict away and handed the classifier
+  // an undifferentiated list, which is the mechanism behind the failure in
+  // docs/evidence-contribution.md §1.
+  const recommendation = req.evidence_strategy?.recommended_methods?.find(m => m.method === "conversation");
+  const aspect = plan.aspect ?? "General";
+  return withNeedIds({
     themes: [{
-      aspect: plan.aspect ?? "General",
+      aspect,
       description: requirementText,
       needs: plan.information_needs.map(need => ({
-        need, method_fit: "primary" as const, rationale: "Stated by the approved Evidence Strategy.",
+        id: needIdFor(aspect, need),
+        need,
+        method_fit: asMethodFit(recommendation?.fit),
+        rationale: recommendation?.rationale?.trim() || "Stated by the approved Evidence Strategy.",
       })),
     }],
-  };
+  });
 }
 
 export async function generateSearchesFromDesign(
@@ -153,7 +164,7 @@ export async function generateSearchesFromDesign(
       languages: s.languages,
       ...window,
       relevance_threshold: THRESHOLD_BY_AVAILABILITY[req.expected_availability] ?? 60,
-      information_needs: informationNeedsFor(plan, req.requirement),
+      information_needs: informationNeedsFor(plan, req.requirement, req),
       search_strategy: {
         primary_entity: s.primary_entity
           ? { term: s.primary_entity, type: req.role === "comparative" ? "Brand" : "Brand", aliases: [] }

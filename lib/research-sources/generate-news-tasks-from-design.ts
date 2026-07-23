@@ -26,7 +26,7 @@ import {
   type ResearchDesign, type EvidenceRequirement, isApproved, collectionWindowFields,
 } from "@/lib/research-design";
 import type { EvidenceRole } from "@/lib/evidence-role";
-import type { InformationNeeds } from "@/lib/information-needs";
+import { withNeedIds, needIdFor, asMethodFit, type InformationNeeds } from "@/lib/information-needs";
 import { emptyStrategy } from "@/lib/search-strategy";
 import { NEWS_PLATFORM, planNewsTasks, newsOriginKey, type SkippedNewsTask } from "@/lib/news-task";
 import { DEFAULT_NEWS_PACKS } from "@/lib/news-sources";
@@ -43,15 +43,23 @@ const THRESHOLD_BY_AVAILABILITY: Record<string, number> = { high: 60, moderate: 
  *  SAME research aspect Analysis groups by. */
 function informationNeedsFor(req: EvidenceRequirement): InformationNeeds | null {
   if (!req.information_needs.length) return null;
-  return {
+  // News gets news's verdict, not conversation's and not a hardcoded "primary".
+  // A requirement where the design judged news merely supporting must not have
+  // its articles judged as though news were the primary method for it.
+  const recommendation = req.evidence_strategy?.recommended_methods?.find(m => m.method === "news");
+  const aspect = req.aspect ?? "General";
+  return withNeedIds({
     themes: [{
-      aspect: req.aspect ?? "General",
+      aspect,
       description: req.requirement,
       needs: req.information_needs.map(need => ({
-        need, method_fit: "primary" as const, rationale: "Stated by the approved Evidence Strategy.",
+        id: needIdFor(aspect, need),
+        need,
+        method_fit: asMethodFit(recommendation?.fit),
+        rationale: recommendation?.rationale?.trim() || "Stated by the approved Evidence Strategy.",
       })),
     }],
-  };
+  });
 }
 
 /** The project's brand name — the grounded subject for direct coverage. */

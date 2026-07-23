@@ -7,6 +7,7 @@ import {
 import { deriveConfidence } from "./assessment";
 import type { ContributionKind } from "./types";
 import type { EvidenceRole } from "@/lib/evidence-role";
+import type { MethodFit } from "@/lib/information-needs";
 
 // docs/intelligence-model.md §5 FRAMING. The stage that answers "what can this
 // evidence legitimately establish for this question", rather than the question
@@ -22,6 +23,7 @@ function item(over: Partial<FramedItem> = {}): FramedItem {
     bearing: 0.8,
     observationKey: `unit-${seq}`,
     observations: 1,
+    methodFit: "primary" as MethodFit,
     provenance: null,
     ...over,
   };
@@ -84,6 +86,34 @@ test("a projection carries the condition each item is admitted under", () => {
   const p = projectFor(frameOf([item({ contribution: "interested_claim" as ContributionKind })]), "descriptive");
   assert.equal(p.admitted[0].admissibility, "admissible_with_limits");
   assert.ok(p.admitted[0].constraint?.includes("attribute"), "the constraint must survive onto the claim");
+});
+
+// ── The design's verdict on the method reaches admissibility ─────────────────
+
+test("evidence from a method the design judged unable to answer the question is excluded", () => {
+  const frame = frameOf([
+    item({ methodFit: "primary" as MethodFit }),
+    item({ methodFit: "not_suitable" as MethodFit }),
+  ]);
+  const p = projectFor(frame, "descriptive");
+  assert.equal(p.admitted.length, 1);
+  assert.equal(p.excluded[0].reason, "method_not_suitable");
+});
+
+test("a conditional method verdict downgrades evidence rather than excluding it", () => {
+  const p = projectFor(frameOf([item({ methodFit: "conditional" as MethodFit })]), "descriptive");
+  assert.equal(p.admitted[0].admissibility, "admissible_with_limits");
+  assert.ok(p.admitted[0].constraint?.includes("conditionally"));
+});
+
+test("method fit can only tighten admissibility, never loosen it", () => {
+  // A design calling a method primary must not turn evidence the matrix rules
+  // out into evidence it allows. The matrix stays the gate.
+  const frame = frameOf([item({ contribution: "unprompted_discourse" as ContributionKind, methodFit: "primary" as MethodFit })]);
+  assert.equal(projectFor(frame, "magnitude").admitted.length, 0, "conversation still cannot measure a population");
+
+  const limited = frameOf([item({ contribution: "established_knowledge" as ContributionKind, methodFit: "primary" as MethodFit })]);
+  assert.equal(projectFor(limited, "descriptive").admitted[0].admissibility, "admissible_with_limits", "with-limits stays with-limits");
 });
 
 // ── What the frame can support, before a word is written ─────────────────────

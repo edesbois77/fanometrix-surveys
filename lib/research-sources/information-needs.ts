@@ -9,7 +9,7 @@
 // this function's body changes — every consumer keeps working, and this is where
 // "resolve the APPROVED version" will be enforced.
 import { supabaseAdmin } from "@/lib/supabase-admin";
-import type { InformationNeeds } from "@/lib/information-needs";
+import { withNeedIds, type InformationNeeds } from "@/lib/information-needs";
 
 // A loose descriptor so callers name what they have, not where needs are stored.
 // searchId is the path today; projectId lands with the Research Design.
@@ -25,7 +25,10 @@ export async function resolveInformationNeeds(source: InformationNeedsSource): P
       .select("information_needs")
       .eq("id", source.searchId)
       .single<{ information_needs: InformationNeeds | null }>();
-    return data?.information_needs ?? null;
+    // Every consumer sees identified needs, so nothing downstream has to handle
+    // a need without an id. Needs written before ids existed are seeded from
+    // their text here, deterministically, so no backfill has to run first.
+    return data?.information_needs ? withNeedIds(data.information_needs) : null;
   }
   // projectId → the project's approved Research Design. Not owned there yet;
   // returning null keeps every consumer on its safe fallback until it is.

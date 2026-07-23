@@ -16,6 +16,7 @@
 // stay recomputable and testable without a database.
 import type { EvidenceRole } from "@/lib/evidence-role";
 import { EVIDENCE_ROLES, EVIDENCE_ROLE_LABEL } from "@/lib/evidence-role";
+import type { MethodFit } from "@/lib/information-needs";
 import type {
   AssertionType, ContributionKind, Admissibility, Citation, CitationStance,
 } from "@/lib/analysis/types";
@@ -47,11 +48,17 @@ export type FramedItem = {
   /** How many independent observations this item carries, declared by its Source
    *  Contract. One for most items, more where the item aggregates. */
   observations: number;
+  /** The approved Research Design's verdict on whether the METHOD that produced
+   *  this item could answer this need. Carried here rather than discarded, which
+   *  is what used to happen: the design reasoned carefully about what each method
+   *  could do, and every source was then handed the same undifferentiated list
+   *  (docs/evidence-contribution.md §1). */
+  methodFit: MethodFit;
   /** Carried so an exclusion can be explained concretely rather than abstractly. */
   provenance: string | null;
 };
 
-export type ExclusionReason = "does_not_bear" | "kind_cannot_support";
+export type ExclusionReason = "does_not_bear" | "kind_cannot_support" | "method_not_suitable";
 
 /** An excluded item, with the reason it was excluded. Never a silent drop
  *  (invariant 7): an exclusion the analyst cannot see is indistinguishable from
@@ -184,10 +191,27 @@ export function projectFor(frame: EvidenceFrame, assertion: AssertionType): Proj
       });
       continue;
     }
+    // The design's own verdict on the method, applied AFTER the matrix and only
+    // ever downwards. A design that judged a method suitable cannot make
+    // inadmissible evidence admissible: the matrix stays the gate, and method
+    // fit can only tighten what passes through it.
+    if (item.methodFit === "not_suitable") {
+      excluded.push({
+        evidenceId: item.evidenceId,
+        reason: "method_not_suitable",
+        message: "The approved Research Design judged this method unable to answer this question.",
+      });
+      continue;
+    }
+    const verdict = item.methodFit === "conditional" ? "admissible_with_limits" : cell.verdict;
+    const constraint = item.methodFit === "conditional" && cell.verdict === "admissible"
+      ? "The approved Research Design judged this method only conditionally able to answer this question."
+      : cell.constraint;
+
     admitted.push({
       evidenceId: item.evidenceId, contribution: item.contribution, role: item.role,
       observationKey: item.observationKey, observations: item.observations, bearing: item.bearing,
-      admissibility: cell.verdict, constraint: cell.constraint,
+      admissibility: verdict, constraint,
     });
   }
 
