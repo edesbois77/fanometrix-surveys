@@ -22,6 +22,7 @@ import {
 } from "@/lib/research-design";
 import { EVIDENCE_ROLE_LABEL, EVIDENCE_ROLE_DESCRIPTION, type EvidenceRole } from "@/lib/evidence-role";
 import { METHOD_FIT_LABEL, METHOD_FIT_TONE } from "@/lib/information-needs";
+import { planNewsTasks, type PlannedNewsTask } from "@/lib/news-task";
 
 const AVAILABILITY_TONE: Record<EvidenceAvailability, "success" | "info" | "warning" | "neutral"> = {
   high: "success", moderate: "info", low: "warning", none: "neutral",
@@ -38,7 +39,11 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-function RequirementCard({ req, searchCount }: { req: EvidenceRequirement; searchCount: number }) {
+function RequirementCard({ req, searchCount, newsTasks }: {
+  req: EvidenceRequirement;
+  searchCount: number;
+  newsTasks: PlannedNewsTask[];
+}) {
   const s = req.evidence_strategy;
   return (
     <Card className="p-5">
@@ -99,23 +104,76 @@ function RequirementCard({ req, searchCount }: { req: EvidenceRequirement; searc
         </ul>
       </Field>
 
+      {/* What News Coverage will actually research for this requirement. Shown
+          at the level of the topic and the Evidence Role, never as a query
+          string — the same rule the rest of this screen follows. */}
+      {newsTasks.length > 0 && (
+        <Field label="News Coverage this requirement commissions">
+          <ul className="space-y-2">
+            {newsTasks.map((t, i) => (
+              <li key={i}>
+                <div className="flex items-center gap-2">
+                  <StatusBadge tone="info" label={EVIDENCE_ROLE_LABEL[t.role]} />
+                  <span className="font-semibold" style={{ color: "var(--text)" }}>
+                    {t.anchor ?? "Sponsorship practice and audience value"}
+                  </span>
+                </div>
+                {t.why_news && (
+                  <p className="mt-0.5 text-[13px]" style={{ color: "var(--text-muted)" }}>
+                    Why News: {t.why_news}
+                  </p>
+                )}
+              </li>
+            ))}
+          </ul>
+        </Field>
+      )}
+
       {/* Coverage expectation, stated as an outcome. Deliberately no keywords. */}
-      {searchCount > 0 && (
+      {(searchCount > 0 || newsTasks.length > 0) && (
         <p className="mt-4 text-[12px]" style={{ color: "var(--text-muted)" }}>
-          On approval this creates {searchCount} conversation search{searchCount === 1 ? "" : "es"}.
+          On approval this creates{" "}
+          {[
+            searchCount > 0 ? `${searchCount} conversation search${searchCount === 1 ? "" : "es"}` : "",
+            newsTasks.length > 0 ? `${newsTasks.length} News Coverage task${newsTasks.length === 1 ? "" : "s"}` : "",
+          ].filter(Boolean).join(" and ")}.
         </p>
       )}
     </Card>
   );
 }
 
+type GenResult = { generated: { name: string; action: string }[]; skipped: { name: string; reason: string }[] };
+
+/** The created/updated/skipped report shared by both generators. Skips are shown
+ *  with their reason, never swallowed: a requirement the design declined to
+ *  research is a research decision the user needs to see. */
+function GenerationReport({ result, unit }: { result: GenResult; unit: string }) {
+  return (
+    <div className="mt-3 text-[13px]" style={{ color: "var(--text-muted)" }}>
+      {result.generated.length > 0 && (
+        <p>{result.generated.filter(g => g.action === "created").length} created,{" "}
+          {result.generated.filter(g => g.action === "updated").length} updated:{" "}
+          {result.generated.map(g => g.name).join(", ")}.</p>
+      )}
+      {result.generated.length === 0 && <p>No {unit} were created.</p>}
+      {result.skipped.length > 0 && (
+        <ul className="mt-1.5 space-y-1">
+          {result.skipped.map((sk, i) => <li key={i}>Not created, {sk.name}: {sk.reason}</li>)}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 export function EvidenceStrategyWorkspace() {
-  const { project, loading: projectLoading } = useResearchProject();
+  const { project, orgs, loading: projectLoading } = useResearchProject();
   const projectId = project?.id;
   const [design, setDesign] = useState<ResearchDesign | null>(null);
   const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState<"generate" | "approve" | "searches" | null>(null);
-  const [genResult, setGenResult] = useState<{ generated: { name: string; action: string }[]; skipped: { name: string; reason: string }[] } | null>(null);
+  const [busy, setBusy] = useState<"generate" | "approve" | "searches" | "news" | null>(null);
+  const [genResult, setGenResult] = useState<GenResult | null>(null);
+  const [newsResult, setNewsResult] = useState<GenResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -176,10 +234,28 @@ export function EvidenceStrategyWorkspace() {
     setBusy(null);
   }
 
+  async function generateNewsTasks() {
+    if (!projectId) return;
+    setBusy("news"); setError(null);
+    try {
+      const res = await fetch(`/api/research-projects/${projectId}/research-design/generate-news-tasks`, { method: "POST" });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) setError(json.error ?? "Couldn't generate the News Coverage tasks.");
+      else setNewsResult(json.data);
+    } catch { setError("Couldn't generate the News Coverage tasks."); }
+    setBusy(null);
+  }
+
   if (projectLoading || loading) return <PageLoadingState />;
 
   const searches = proposedConversationSearches(design);
   const approved = isApproved(design);
+
+  // Direct News anchors on the project's own brand, a recorded fact about the
+  // engagement. Without one, planNewsTasks skips direct coverage and says so,
+  // rather than reading a subject out of the requirement's prose.
+  const subject = project?.brand_org_id ? orgs.find(o => o.id === project.brand_org_id)?.name ?? null : null;
+  const newsPlan = planNewsTasks(design, subject);
 
   return (
     <PageContainer>
@@ -212,30 +288,33 @@ export function EvidenceStrategyWorkspace() {
               <StatusBadge tone="success" label="Strategy approved" />
               <span className="ml-2 text-[13px]" style={{ color: "var(--text-muted)" }}>
                 {design.approved_by ? `Approved by ${design.approved_by}` : "Approved"}
-                {searches.length > 0 && `, ${searches.length} conversation search${searches.length === 1 ? "" : "es"} ready to create`}.
+                {searches.length > 0 && `, ${searches.length} conversation search${searches.length === 1 ? "" : "es"} ready to create`}
+                {newsPlan.planned.length > 0 && `, ${newsPlan.planned.length} News Coverage task${newsPlan.planned.length === 1 ? "" : "s"} ready to create`}.
               </span>
-              {searches.length > 0 && (
-                <div className="mt-3">
-                  <Button onClick={generateSearches} disabled={busy !== null}>
-                    {busy === "searches" ? "Generating…" : "Generate conversation searches"}
-                  </Button>
+              {(searches.length > 0 || newsPlan.planned.length > 0) && (
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  {searches.length > 0 && (
+                    <Button onClick={generateSearches} disabled={busy !== null}>
+                      {busy === "searches" ? "Generating…" : "Generate conversation searches"}
+                    </Button>
+                  )}
+                  {newsPlan.planned.length > 0 && (
+                    <Button variant="secondary" onClick={generateNewsTasks} disabled={busy !== null}>
+                      {busy === "news" ? "Generating…" : "Generate News Coverage tasks"}
+                    </Button>
+                  )}
                 </div>
               )}
-              {genResult && (
-                <div className="mt-3 text-[13px]" style={{ color: "var(--text-muted)" }}>
-                  {genResult.generated.length > 0 && (
-                    <p>{genResult.generated.filter(g => g.action === "created").length} created,{" "}
-                      {genResult.generated.filter(g => g.action === "updated").length} updated:{" "}
-                      {genResult.generated.map(g => g.name).join(", ")}.</p>
-                  )}
-                  {genResult.skipped.length > 0 && (
-                    <ul className="mt-1.5 space-y-1">
-                      {genResult.skipped.map((sk, i) => (
-                        <li key={i}>Not created, {sk.name}: {sk.reason}</li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
+              {genResult && <GenerationReport result={genResult} unit="conversation searches" />}
+              {newsResult && <GenerationReport result={newsResult} unit="News Coverage tasks" />}
+
+              {/* Requirements where News was considered and declined. Stating it
+                  here keeps the design's own honesty visible instead of leaving
+                  a silent absence to be read as an oversight. */}
+              {!newsResult && newsPlan.skipped.length > 0 && (
+                <ul className="mt-3 space-y-1 text-[13px]" style={{ color: "var(--text-muted)" }}>
+                  {newsPlan.skipped.map((sk, i) => <li key={i}>No News Coverage for {sk.name}: {sk.reason}</li>)}
+                </ul>
               )}
             </Card>
           )}
@@ -263,7 +342,8 @@ export function EvidenceStrategyWorkspace() {
                 <div className="space-y-3">
                   {reqs.map(({ r, i }) => (
                     <RequirementCard key={i} req={r}
-                      searchCount={searches.filter(s => s.requirement_index === i).length} />
+                      searchCount={searches.filter(s => s.requirement_index === i).length}
+                      newsTasks={newsPlan.planned.filter(t => t.requirement_index === i)} />
                   ))}
                 </div>
               </section>

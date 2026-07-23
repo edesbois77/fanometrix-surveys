@@ -14,6 +14,8 @@ import { getSocialMentionStatsBySearchIds } from "@/lib/social-stats";
 import { getCollectionStatusBySearchIds } from "@/lib/collection/search-collection-status";
 import { deleteSimulatedProject } from "@/lib/simulation/delete-simulated-project";
 import { computeEffectiveStatus, type CampaignForStatus } from "@/lib/campaign-status";
+import { evidenceMedium } from "@/lib/news-task";
+import { asEvidenceRole } from "@/lib/evidence-role";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   let session;
@@ -233,9 +235,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     socialSearchEvidenceIds.length
       ? supabaseAdmin
           .from("social_searches")
-          .select("id, name, status, review_status, approved_at, approved_watermark, entity_type, research_goal, description, languages, markets, platforms, relevance_threshold, reddit_last_collected_at, social_keywords(keyword, keyword_type)")
+          .select("id, name, status, review_status, approved_at, approved_watermark, entity_type, research_goal, description, languages, markets, platforms, relevance_threshold, reddit_last_collected_at, evidence_role, search_strategy, social_keywords(keyword, keyword_type)")
           .in("id", socialSearchEvidenceIds)
-      : Promise.resolve({ data: [] as { id: string; name: string; status: string; review_status: string; approved_at: string | null; approved_watermark: string | null; entity_type: string; research_goal: string; description: string | null; languages: string[]; markets: string[]; platforms: string[]; relevance_threshold: number | null; reddit_last_collected_at: string | null; social_keywords: { keyword: string; keyword_type: string }[] }[] }),
+      : Promise.resolve({ data: [] as { id: string; name: string; status: string; review_status: string; approved_at: string | null; approved_watermark: string | null; entity_type: string; research_goal: string; description: string | null; languages: string[]; markets: string[]; platforms: string[]; relevance_threshold: number | null; reddit_last_collected_at: string | null; evidence_role: string | null; search_strategy: unknown; social_keywords: { keyword: string; keyword_type: string }[] }[] }),
     getSocialMentionStatsBySearchIds(socialSearchEvidenceIds),
     socialSearchEvidenceIds.length
       ? supabaseAdmin
@@ -247,6 +249,36 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     getCollectionStatusBySearchIds(socialSearchEvidenceIds),
   ]);
   const conversationSummaryBySearchId = new Map((conversationSummaries ?? []).map(s => [s.source_id, s]));
+
+  // News Coverage summary — the two facts a News task's card has to show that a
+  // Conversation Search's does not: WHICH PUBLISHERS it has actually reached,
+  // and HOW RECENT the coverage is. Read only for tasks whose medium is news, so
+  // a project with no News tasks does no extra work.
+  const newsSearchIds = (evidenceSocialSearches ?? [])
+    .filter(s => evidenceMedium((s as { search_strategy?: unknown }).search_strategy) === "news")
+    .map(s => s.id);
+  const newsPublishersBySearchId = new Map<string, string[]>();
+  const newsLatestPublishedBySearchId = new Map<string, string | null>();
+  if (newsSearchIds.length) {
+    const { data: newsRows } = await supabaseAdmin
+      .from("social_mentions")
+      .select("search_id, published_at, metadata")
+      .in("search_id", newsSearchIds)
+      .eq("content_kind", "article")
+      .eq("excluded", false);
+    for (const r of (newsRows ?? []) as { search_id: string; published_at: string | null; metadata: { publisher?: unknown } | null }[]) {
+      const publisher = typeof r.metadata?.publisher === "string" ? r.metadata.publisher.trim() : "";
+      if (publisher) {
+        const list = newsPublishersBySearchId.get(r.search_id) ?? [];
+        if (!list.includes(publisher)) { list.push(publisher); newsPublishersBySearchId.set(r.search_id, list); }
+      }
+      if (r.published_at) {
+        const current = newsLatestPublishedBySearchId.get(r.search_id) ?? null;
+        if (!current || r.published_at > current) newsLatestPublishedBySearchId.set(r.search_id, r.published_at);
+      }
+    }
+  }
+
   const conversationSearchById = new Map((evidenceSocialSearches ?? []).map(s => {
     const stats = mentionStatsBySearchId.get(s.id);
     const summary = conversationSummaryBySearchId.get(s.id);
@@ -255,6 +287,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     const live = collectionStatusBySearchId.get(s.id);
     return [s.id, {
       id: s.id, name: s.name, status: s.status, entity_type: s.entity_type, research_goal: s.research_goal,
+      // WHAT is being collected, and therefore how it may be read. News tasks
+      // share this record and this pipeline with Conversation Searches but are
+      // not fan conversation, so the workspace has to be able to tell them apart.
+      medium: evidenceMedium(s.search_strategy),
+      evidence_role: asEvidenceRole(s.evidence_role),
+      publishers: newsPublishersBySearchId.get(s.id) ?? [],
+      latest_published_at: newsLatestPublishedBySearchId.get(s.id) ?? null,
       review_status: s.review_status ?? "draft", approved_at: s.approved_at ?? null, approved_watermark: s.approved_watermark ?? null,
       research_question: s.description ?? "", languages: s.languages ?? [],
       relevance_threshold: s.relevance_threshold ?? 50,

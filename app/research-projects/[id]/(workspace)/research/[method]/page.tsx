@@ -10,7 +10,7 @@ import { useParams } from "next/navigation";
 import { ResearchMethodBody, type ResearchMethod } from "@/app/components/research-projects/ResearchMethodBody";
 import { PageContainer, ErrorState } from "@/app/components/workspace-ui";
 
-const VALID: ResearchMethod[] = ["survey", "conversation", "library"];
+const VALID: ResearchMethod[] = ["survey", "conversation", "news", "library"];
 
 export default function ResearchMethodPage() {
   const params = useParams();

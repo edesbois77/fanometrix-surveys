@@ -25,6 +25,17 @@ export type ActivityRow = { id: string; event_type: string; description: string;
 
 export type ConversationSearchEvidence = {
   id: string; name: string; status: string; entity_type: string; research_goal: string;
+  /** WHAT this task collects. News Coverage shares this record and the whole
+   *  collection lifecycle with a Conversation Search, but it is editorial
+   *  coverage, not fan conversation, and the workspace must never present the
+   *  two as the same evidence. Absent/"conversation" for every pre-News task. */
+  medium: "conversation" | "news";
+  /** WHY it collects: direct | comparative | strategic. */
+  evidence_role: "direct" | "comparative" | "strategic";
+  /** News tasks only: the distinct publishers reached, and the most recent
+   *  publication date. Empty for conversation searches. */
+  publishers: string[];
+  latest_published_at: string | null;
   // Evidence Validation review lifecycle (docs/evidence-validation-blueprint.md).
   review_status: "draft" | "collecting" | "pending_approval" | "approved" | "archived";
   approved_at: string | null; approved_watermark: string | null;

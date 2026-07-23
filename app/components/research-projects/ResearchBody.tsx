@@ -36,12 +36,16 @@ import { ResearchPlanPanel } from "@/app/components/research-projects/ResearchPl
 type MethodType = "survey" | "social_search" | "document";
 
 // Evidence type → the mini-workspace route slug it opens
-// (/research-projects/[id]/research/[slug]).
-const METHOD_SLUG: Record<string, string> = { survey: "survey", social_search: "conversation", document: "library" };
+// (/research-projects/[id]/research/[slug]). News Coverage keys off "news"
+// rather than an evidence type of its own: it stores as social_search evidence
+// and is separated by its MEDIUM, so the two share a record and a pipeline
+// without ever sharing a card.
+const METHOD_SLUG: Record<string, string> = { survey: "survey", social_search: "conversation", news: "news", document: "library" };
 
 const METHODS: { key: MethodType | string; label: string; description: string; available: boolean }[] = [
   { key: "survey", label: "Survey Research", description: "Structured questionnaires deployed to your audiences to measure attitudes, motivations and behaviours.", available: true },
   { key: "social_search", label: "Conversation Intelligence", description: "Analyse public conversations across markets and platforms.", available: true },
+  { key: "news", label: "News Coverage", description: "Credible editorial and industry coverage of the brand, its comparators and the category. What publishers report, kept distinct from what fans say.", available: true },
   { key: "document", label: "Research Library", description: "Attach industry reports, strategy documents and case studies already in the Research Library.", available: true },
   { key: "google_trends", label: "Google Trends", description: "Search-interest signals over time and by region.", available: false },
   { key: "crm", label: "CRM Data", description: "First-party customer relationship data.", available: false },
@@ -87,9 +91,14 @@ export function ResearchBody() {
   const orgName = (orgId: string | null) => (orgId ? orgs.find(o => o.id === orgId)?.name ?? "" : "");
 
   const surveyEvidence = project.evidence.filter(e => e.evidence_type === "survey");
-  const searchEvidence = project.evidence.filter(e => e.evidence_type === "social_search");
+  // Both media are stored as social_search evidence, so they are split by the
+  // task's medium here. A task with no medium recorded predates News and is a
+  // Conversation Search, which is what defaulting to conversation preserves.
+  const allSearchEvidence = project.evidence.filter(e => e.evidence_type === "social_search");
+  const searchEvidence = allSearchEvidence.filter(e => e.conversationSearch?.medium !== "news");
+  const newsEvidence = allSearchEvidence.filter(e => e.conversationSearch?.medium === "news");
   const documentEvidence = project.evidence.filter(e => e.evidence_type === "document");
-  const countFor = (k: string) => k === "survey" ? surveyEvidence.length : k === "social_search" ? searchEvidence.length : k === "document" ? documentEvidence.length : 0;
+  const countFor = (k: string) => k === "survey" ? surveyEvidence.length : k === "social_search" ? searchEvidence.length : k === "news" ? newsEvidence.length : k === "document" ? documentEvidence.length : 0;
 
   async function attach(evidenceType: MethodType, evidenceId: string, close: () => void, okMsg: string, errMsg: string) {
     const res = await fetch(`/api/research-projects/${projectId}/evidence`, {

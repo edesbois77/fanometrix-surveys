@@ -30,8 +30,9 @@ import {
 } from "@/app/components/workspace-ui";
 import { documentStatusMeta, isProcessing } from "@/app/components/research-projects/document-status";
 import { documentTypeLabel } from "@/lib/library-documents/constants";
+import { EVIDENCE_ROLE_LABEL } from "@/lib/evidence-role";
 
-export type ResearchMethod = "survey" | "conversation" | "library";
+export type ResearchMethod = "survey" | "conversation" | "news" | "library";
 
 type MethodConfig = {
   title: string;
@@ -73,6 +74,15 @@ const CONFIG: Record<ResearchMethod, MethodConfig> = {
     openLabel: "Edit Search →",
     emptyTitle: "No conversation searches attached yet",
   },
+  news: {
+    title: "News Coverage",
+    description: "Credible editorial and industry coverage of the brand, its comparators and the category. Every article keeps its publisher, byline, publication date and original link, and records what KIND of statement it is, so what a journalist reported is never confused with what a brand claimed or with what fans think.",
+    evidenceType: "social_search",
+    sourceType: "conversation",
+    attachLabel: "+ Attach Existing Task",
+    openLabel: "Open task →",
+    emptyTitle: "No News Coverage tasks yet",
+  },
   library: {
     title: "Research Library",
     description: "Industry reports, strategy documents and case studies from the Research Library. Manage every document attached to this research project here.",
@@ -90,6 +100,19 @@ function surveyStatusTone(s: string): { label: string; tone: Tone } {
     ready: { label: "Ready", tone: "success" },
     archived: { label: "Archived", tone: "neutral" },
     deleted: { label: "Deleted", tone: "neutral" },
+  };
+  return m[s] ?? { label: s || "—", tone: "neutral" };
+}
+
+// The Evidence Validation lifecycle, which is what a News task's card leads on:
+// approval is the gate that decides whether an article feeds Analysis at all.
+function reviewStatusTone(s: string): { label: string; tone: Tone } {
+  const m: Record<string, { label: string; tone: Tone }> = {
+    draft: { label: "Not collected", tone: "neutral" },
+    collecting: { label: "Collecting", tone: "info" },
+    pending_approval: { label: "Awaiting approval", tone: "warning" },
+    approved: { label: "Approved", tone: "success" },
+    archived: { label: "Archived", tone: "neutral" },
   };
   return m[s] ?? { label: s || "—", tone: "neutral" };
 }
@@ -127,7 +150,16 @@ export function ResearchMethodBody({ method }: { method: ResearchMethod }) {
 
   const orgBrands = orgs.filter(o => o.type === "brand");
   const orgName = (orgId: string | null) => (orgId ? orgs.find(o => o.id === orgId)?.name ?? "" : "");
-  const evidence = project.evidence.filter(e => e.evidence_type === cfg.evidenceType);
+  // News Coverage and Conversation Intelligence share an evidence type, so the
+  // medium is what separates them. Tasks created before News existed carry no
+  // medium and must keep reading as Conversation Searches.
+  const evidence = project.evidence
+    .filter(e => e.evidence_type === cfg.evidenceType)
+    .filter(e => {
+      if (cfg.evidenceType !== "social_search") return true;
+      const isNews = e.conversationSearch?.medium === "news";
+      return method === "news" ? isNews : !isNews;
+    });
 
   async function attach(evidenceId: string, okMsg: string, errMsg: string) {
     const res = await fetch(`/api/research-projects/${projectId}/evidence`, {
@@ -146,7 +178,10 @@ export function ResearchMethodBody({ method }: { method: ResearchMethod }) {
   }
 
   function openHref(item: EvidenceItem): string {
-    // All three open INSIDE the project (Research configures / organises).
+    // All open INSIDE the project (Research configures / organises). A News task
+    // is the same record as a Conversation Search, so it opens the same
+    // configuration route.
+    if (method === "news") return `/research-projects/${projectId}/research/conversation/${item.evidence_id}`;
     if (method === "conversation") return `/research-projects/${projectId}/research/conversation/${item.evidence_id}`;
     if (method === "library") return `/research-projects/${projectId}/research/library/${item.evidence_id}`;
     return `/research-projects/${projectId}/research/survey/${item.evidence_id}`;
@@ -174,6 +209,31 @@ export function ResearchMethodBody({ method }: { method: ResearchMethod }) {
             { label: "Questions", value: s.question_count },
             { label: "Languages", value: s.completed_languages.length },
             { label: "Campaigns", value: campaignCount },
+          ]}
+          onOpen={() => router.push(openHref(item))}
+          footer={<OpenAffordance label={cfg.openLabel} />}
+        />
+      );
+    }
+    if (method === "news" && item.conversationSearch) {
+      const c = item.conversationSearch;
+      const articles = c.by_kind.article ?? c.mention_count;
+      return (
+        <SourceCard
+          key={item.id}
+          type="conversation"
+          name={c.name}
+          // The topic being researched, not a query string — the same rule the
+          // Evidence Strategy screen follows.
+          subtitle={c.research_question || undefined}
+          // APPROVAL is the status that matters for News: an article only feeds
+          // Analysis once its task has been reviewed and approved.
+          status={reviewStatusTone(c.review_status)}
+          metrics={[
+            { label: "Evidence Role", value: EVIDENCE_ROLE_LABEL[c.evidence_role] },
+            { label: "Articles", value: articles.toLocaleString() },
+            { label: "Publishers", value: c.publishers.length },
+            { label: "Latest", value: c.latest_published_at ? fmtCardDate(c.latest_published_at) : "—" },
           ]}
           onOpen={() => router.push(openHref(item))}
           footer={<OpenAffordance label={cfg.openLabel} />}
@@ -269,7 +329,7 @@ export function ResearchMethodBody({ method }: { method: ResearchMethod }) {
           onAttach={surveyId => attach(surveyId, "Survey attached.", "Failed to attach survey.")}
         />
       )}
-      {attachOpen && method === "conversation" && (
+      {attachOpen && (method === "conversation" || method === "news") && (
         <AttachExistingConversationSearchModal
           excludeSearchIds={evidence.map(e => e.evidence_id)}
           isSimulated={project.research_mode === "simulated"}
