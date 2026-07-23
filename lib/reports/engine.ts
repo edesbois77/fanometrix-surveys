@@ -38,6 +38,7 @@ import {
   type SurveyQuestion,
 } from "./data";
 import { localHour, zoneForCountryCode } from "./timezones";
+import { getVisitCounts } from "./visits";
 import type {
   AudienceIntelligenceReport,
   CreativeComparison,
@@ -221,13 +222,14 @@ export async function buildAudienceIntelligenceReport(
   const ids = report.campaignIds;
   const from = report.dataFrom;
 
-  const [campaigns, designs, eventData, responses, firstEvent, lastEvent] = await Promise.all([
+  const [campaigns, designs, eventData, responses, firstEvent, lastEvent, visits] = await Promise.all([
     fetchCampaigns(ids),
     fetchCreativeDesigns(),
     fetchEventBuckets(ids, from),
     fetchResponses(ids, from),
     fetchFirstEventAt(ids, from),
     fetchLastEventAt(ids, from),
+    getVisitCounts(report.id),
   ]);
 
   const buckets = eventData.buckets;
@@ -382,6 +384,7 @@ export async function buildAudienceIntelligenceReport(
       devices,
     },
     viewabilityWindow,
+    visits,
     highlights,
     decisions: buildDecisions(markets, creative, questions, hourlyInsight, devices, totalCounts),
     creatives,
@@ -1343,6 +1346,10 @@ function buildMethodology(
   }
 
   out.push(...creativeCaveats);
+
+  out.push(
+    "The reader count on the cover counts browsers, not people: the same person opening the report on a laptop and a phone counts twice, and two colleagues sharing a machine count once. It is recorded from a random identifier that carries no personal information.",
+  );
 
   out.push(
     "Pre-launch test traffic is excluded. No other publisher's delivery, response or commercial data appears anywhere in this report and no comparison in it is drawn against a named partner.",

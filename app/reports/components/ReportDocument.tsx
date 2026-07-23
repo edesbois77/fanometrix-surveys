@@ -37,6 +37,7 @@ import {
 import { CreativeGallery } from "./CreativeGallery";
 import { DownloadBar } from "./DownloadBar";
 import { SectionNav } from "./SectionNav";
+import { VisitBeacon } from "./VisitBeacon";
 import { GOLD, INK, NAVY, SANS } from "../theme";
 
 const int = (n: number) => Math.round(n).toLocaleString("en-GB");
@@ -953,7 +954,14 @@ export function ReportDocument({ model }: { model: AudienceIntelligenceReport })
 
   return (
     <article style={{ font: SANS, color: INK.primary, background: INK.surface }}>
-      <Cover report={report} win={win} metadataItems={metadataItems} marketCount={totals.markets} />
+      <VisitBeacon orgSlug={report.orgSlug} reportSlug={report.reportSlug} />
+      <Cover
+        report={report}
+        win={win}
+        metadataItems={metadataItems}
+        marketCount={totals.markets}
+        visits={model.visits}
+      />
 
       <SectionNav
         sections={contents}
@@ -1003,11 +1011,13 @@ function Cover({
   win,
   metadataItems,
   marketCount,
+  visits,
 }: {
   report: AudienceIntelligenceReport["report"];
   win: AudienceIntelligenceReport["window"];
   metadataItems: { label: string; value: string; emphasis?: boolean }[];
   marketCount: number;
+  visits: AudienceIntelligenceReport["visits"];
 }) {
   // The standfirst is editorial where one has been written, generated where one
   // has not. It describes the report from the publisher's side of the table:
@@ -1152,6 +1162,32 @@ function Cover({
         <div style={{ marginTop: 52 }}>
           <MetadataPanel onDark items={metadataItems} />
         </div>
+
+        {visits && (
+          <div
+            style={{
+              marginTop: 18,
+              font: SANS,
+              fontSize: 13,
+              color: "rgba(255,255,255,0.55)",
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              flexWrap: "wrap",
+            }}
+          >
+            <span
+              aria-hidden
+              style={{ width: 6, height: 6, borderRadius: 999, background: GOLD, display: "inline-block" }}
+            />
+            <span>
+              {`Opened by ${int(visits.uniqueReaders)} ${visits.uniqueReaders === 1 ? "reader" : "readers"}`}
+              <span style={{ color: "rgba(255,255,255,0.35)" }}>
+                {` · ${int(visits.totalVisits)} ${visits.totalVisits === 1 ? "visit" : "visits"} in total`}
+              </span>
+            </span>
+          </div>
+        )}
       </div>
     </header>
   );

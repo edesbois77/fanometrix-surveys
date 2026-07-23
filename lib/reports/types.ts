@@ -1,5 +1,6 @@
 import type { ReportAudience } from "./narrative";
 import type { BuilderState } from "@/lib/creative-theme-builder";
+import type { VisitCounts } from "./visits";
 
 // Shapes for the Audience Intelligence Report — the reusable partner reporting
 // framework. Every completed Fanometrix research campaign can generate one of
@@ -242,6 +243,9 @@ export type AudienceIntelligenceReport = {
      *  the rate is wrong. */
     measuredLoads: number;
   } | null;
+  /** How much the report has been read. Null when it cannot be counted, which
+   *  renders as no counter rather than as a zero. */
+  visits: VisitCounts | null;
   highlights: Highlight[];
   decisions: Decision[];
   creatives: CreativeUsed[];

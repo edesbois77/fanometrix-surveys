@@ -316,7 +316,32 @@ test was sequential, sharing one hour of live delivery.
 
 ---
 
-## 12. Backward compatibility
+## 12. Readership
+
+The cover shows how much the report has been read: distinct readers, and total
+visits. It counts **browsers, not people** — the same person on a laptop and a
+phone is two readers, two colleagues sharing a machine are one — and the
+methodology section says so on the page rather than leaving the figure to imply
+more precision than it has.
+
+A random identifier in an httpOnly cookie (`fmx_reader`) carries no personal
+data and is meaningless outside `partner_report_visits`. The beacon fires from
+the browser after the password, so gate views and crawlers never count, and the
+write is a POST rather than a side effect of rendering, which a prefetch or a
+retry would fire again.
+
+Two things worth deciding rather than assuming:
+
+- **The publisher sees their own number.** It reads as engagement when the
+  figure is healthy and as indifference when it is not. Moving it behind an
+  internal-only view is a change to the narrative profile, not to the counting.
+- **Fanometrix views count too.** Every time we open a partner's report to check
+  it, we add a reader. Excluding them needs a marker on our own browsers; until
+  there is one, early numbers on a new report are mostly us.
+
+---
+
+## 13. Backward compatibility
 
 Reports are generated from live data on every request, so there is no stored
 output to migrate and an old report picks up engine improvements automatically.
@@ -337,9 +362,10 @@ is that changes to it must be additive:
   what a given report actually contains, so a report whose campaigns cannot
   support a section simply does not show it.
 
-## 13. Running it
+## 14. Running it
 
-Applied migrations: 138, 139. Optional and not yet applied: 140 (`audience`),
-141 (`subtitle`) — both degrade to defaults.
+Applied migrations: 138, 139. Optional, and degrading gracefully until applied:
+140 (`audience`), 141 (`subtitle`), 142 (`partner_report_visits`, no counter
+until it exists).
 
 Issuing a report is `scripts/issue-partner-report.ts` (section 2). No deploy.
