@@ -295,10 +295,30 @@ export async function runCollection(opts: {
   // (view/like/comment counts) in place where it changed — never re-import,
   // never re-classify. Metadata change => "updated"; unchanged => "duplicate".
   const stableMeta = (m: unknown) => { try { return JSON.stringify(m ?? null); } catch { return ""; } };
+
+  // The connector owns most of metadata, but NOT all of it: classification adds
+  // fields afterwards that the connector cannot know about (News provenance —
+  // source type, attribution, claim basis, fan evidence). Replacing metadata
+  // wholesale with the connector's fresh copy would erase them on the first
+  // re-observation, and because a re-observed item is deliberately never
+  // re-classified, they would be gone for good. It would also make every article
+  // compare as "changed" and inflate updated_count. So pipeline-added keys are
+  // carried over, and the comparison is like-for-like.
+  const PIPELINE_OWNED_META_KEYS = ["news"] as const;
+  const withPreserved = (fresh: unknown, stored: unknown): Record<string, unknown> => {
+    const f = (fresh ?? {}) as Record<string, unknown>;
+    const s = (stored ?? {}) as Record<string, unknown>;
+    const carried: Record<string, unknown> = {};
+    for (const k of PIPELINE_OWNED_META_KEYS) if (k in s) carried[k] = s[k];
+    return { ...f, ...carried };
+  };
+
   const changedMeta: { id: string; metadata: unknown }[] = [];
   const unchangedIds: string[] = [];
   for (const { id, item } of reobservedPairs) {
-    if (stableMeta(item.metadata) !== stableMeta(metaById.get(id))) changedMeta.push({ id, metadata: item.metadata });
+    const stored = metaById.get(id);
+    const merged = withPreserved(item.metadata, stored);
+    if (stableMeta(merged) !== stableMeta(stored)) changedMeta.push({ id, metadata: merged });
     else unchangedIds.push(id);
   }
   const updatedCount = changedMeta.length;
