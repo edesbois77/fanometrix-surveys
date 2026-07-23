@@ -22,6 +22,7 @@ type Row = {
   logo_url: string | null;
   version: number;
   audience?: ReportAudience;
+  subtitle?: string | null;
 };
 
 function toReport(row: Row): PartnerReport {
@@ -35,6 +36,7 @@ function toReport(row: Row): PartnerReport {
     reportTitle: row.report_title,
     campaignTitle: row.campaign_title,
     researchQuestion: row.research_question,
+    subtitle: row.subtitle ?? null,
     campaignIds: row.campaign_ids ?? [],
     dataFrom: row.data_from,
     status: row.status,
@@ -57,7 +59,7 @@ const CORE_COLUMNS =
  *  the symptom is a 404 on a report that plainly exists. Asking for the newer
  *  columns separately means the worst case is a report that renders with its
  *  defaults. */
-const OPTIONAL_COLUMNS = "audience";
+const OPTIONAL_COLUMNS = "audience, subtitle";
 
 async function selectReport(
   match: (q: ReturnType<typeof baseQuery>) => ReturnType<typeof baseQuery>,

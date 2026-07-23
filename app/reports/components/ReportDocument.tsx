@@ -954,7 +954,7 @@ export function ReportDocument({ model }: { model: AudienceIntelligenceReport })
 
   return (
     <article style={{ font: SANS, color: INK.primary, background: INK.surface }}>
-      <Cover report={report} win={win} metadataItems={metadataItems} />
+      <Cover report={report} win={win} metadataItems={metadataItems} marketCount={totals.markets} />
 
       <SectionNav
         sections={contents}
@@ -984,20 +984,38 @@ export function ReportDocument({ model }: { model: AudienceIntelligenceReport })
 
 // ── Cover ────────────────────────────────────────────────────────────────────
 
+/** Small counts read as words in running prose; past a dozen, digits are
+ *  clearer than "seventeen". */
+const NUMBER_WORDS = [
+  "zero", "one", "two", "three", "four", "five", "six",
+  "seven", "eight", "nine", "ten", "eleven", "twelve",
+];
+
+/** The fallback standfirst: the same shape a hand-written one takes, built from
+ *  what the report definitely knows. It deliberately claims nothing about the
+ *  region or the respondents that the data cannot support. */
+function coverSubtitle(report: AudienceIntelligenceReport["report"], markets: number): string {
+  const count = markets < NUMBER_WORDS.length ? NUMBER_WORDS[markets] : String(markets);
+  return `This study gathered feedback from fans across ${count} ${markets === 1 ? "market" : "markets"} to understand perceptions of ${report.brandName}'s sponsorship, while evaluating audience engagement across ${report.organisationName} inventory.`;
+}
+
 function Cover({
   report,
   win,
   metadataItems,
+  marketCount,
 }: {
   report: AudienceIntelligenceReport["report"];
   win: AudienceIntelligenceReport["window"];
   metadataItems: { label: string; value: string; emphasis?: boolean }[];
+  marketCount: number;
 }) {
-  // The subtitle describes the report from the publisher's side of the table.
-  // The client's research question belongs in the client's report: on this
+  // The standfirst is editorial where one has been written, generated where one
+  // has not. It describes the report from the publisher's side of the table:
+  // the client's research question belongs in the client's report, and on this
   // cover it would make the document read as somebody else's brief rather than
   // as intelligence about this publisher's own audience.
-  const subtitle = `Audience intelligence collected across ${report.organisationName} inventory during the ${report.campaignTitle}.`;
+  const subtitle = report.subtitle ?? coverSubtitle(report, marketCount);
 
   return (
     <header style={{ background: NAVY, color: "#FFFFFF", borderBottom: `3px solid ${GOLD}` }}>

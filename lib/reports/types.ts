@@ -17,6 +17,9 @@ export type PartnerReport = {
   reportTitle: string;
   campaignTitle: string;
   researchQuestion: string | null;
+  /** Cover standfirst. Editorial copy, because it has to be able to say things
+   *  the data does not know. Null falls back to a generated sentence. */
+  subtitle: string | null;
   campaignIds: string[];
   dataFrom: string | null;
   status: "draft" | "published" | "archived";

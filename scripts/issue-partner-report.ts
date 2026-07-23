@@ -11,7 +11,8 @@
 //     --campaign-title "FedEx UEFA Champions League Sponsorship Study" \
 //     --campaign-numbers 124,125,126,127,128,144 \
 //     --data-from 2026-07-20T00:00:00Z \
-//     --password "…"
+//     --password "…" \
+//     --subtitle "One sentence for the cover."
 //
 // Campaigns are named by their campaign number (the #000124 shown in the app),
 // which is what a human has in front of them, and resolved here to the text
@@ -123,6 +124,8 @@ async function main() {
   if (password) row.password_hash = await bcrypt.hash(password, 10);
   const logo = arg("logo-url");
   if (logo) row.logo_url = logo;
+  const subtitle = arg("subtitle");
+  if (subtitle) row.subtitle = subtitle;
 
   const { data: existing } = await db
     .from("partner_reports")
