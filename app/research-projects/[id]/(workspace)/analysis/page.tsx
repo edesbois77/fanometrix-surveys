@@ -1,13 +1,16 @@
 "use client";
 
-// Analysis homepage — the Research Intelligence workspace. Reads like a research
-// report: Executive Summary → Research Confidence → Project Key Findings →
-// Research Aspects → Researcher Notes, composed over the objects the engine
-// already produced. Analysis answers "what does it mean?" (Dashboard answers
-// "what have we collected?", Reports "how do we deliver it?"). Per-source finding
-// readers remain as drill-downs behind the evidence, not first-class pages.
-import { AnalysisWorkspace } from "@/app/components/research-projects/analysis/AnalysisWorkspace";
+// Analysis — the analyst surface. Candidate Findings the reasoning engine
+// produced, organised by Research Requirement and Information Need, led by the
+// best-supported reading with its rivals one click away. The analyst reviews
+// consultancy-quality candidate findings here, not raw AI output. Approved
+// findings flow into Reports.
+//
+// This replaces the aspect-synthesis workspace (docs/intelligence-model.md
+// supersedes the aspect model). The old readers survive as drill-downs under
+// /analysis/{survey,conversation,document} until Reports is re-pointed.
+import { FindingsBoard } from "@/app/components/research-projects/findings/FindingsBoard";
 
 export default function AnalysisPage() {
-  return <AnalysisWorkspace />;
+  return <FindingsBoard />;
 }
