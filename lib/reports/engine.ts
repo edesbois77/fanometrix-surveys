@@ -1007,27 +1007,19 @@ function buildDecisions(
     });
   }
 
-  // 4. A commercial argument the publisher can take to market, drawn from what
-  //    fans said rather than from how they behaved.
-  const q1 = questions[0];
-  if (q1 && q1.sampleSize >= MIN_REPORTABLE_SAMPLE) {
-    const top = q1.options.slice().sort((a, b) => b.share - a.share)[0];
-    if (top) {
-      out.push({
-        headline: "Take the sponsorship read to market as a sales asset",
-        action: `Your audience answered a brand-perception question directly, at a scale a panel would charge for. That is a first-party proof point about the quality of your readers and it is reusable in every sponsorship conversation you have this year.`,
-        evidence: `${Math.round(top.share * 100)}% of ${q1.sampleSize} respondents chose "${top.label}" on the sponsorship question.`,
-        worth: null,
-        confidence: "high",
-      });
-    }
-  }
+  // There is deliberately no decision here telling the publisher to take the
+  // research to market themselves. It reads as generous and it is the opposite:
+  // turning a sponsorship read into a commercial asset is the service this
+  // report is evidence for, and inviting the partner to do it without us argues
+  // against the next campaign. Every decision in this section has to be
+  // something the publisher does with their inventory, not with our work.
 
   // Daypart and device shape the next brief rather than the next decision, so
-  // they live in Recommendations. Four decisions is already the limit of what a
-  // reader will actually act on.
+  // they live in Recommendations. Four is already the limit of what a reader
+  // will actually act on.
   void hours;
   void devices;
+  void questions;
 
   return out.slice(0, 4);
 }
