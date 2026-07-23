@@ -458,29 +458,41 @@ export function AnswerBars({
 
 export function FunnelStages({
   stages,
+  scale = "linear",
 }: {
-  /** `ratioLabel` names what the ratio is a share OF. A generic "of previous
-   *  stage" is wrong the moment one stage is measured against something other
-   *  than the row above it, which is exactly what happens when viewability is
-   *  only measurable over part of the campaign. */
+  /** `ratioLabel` names what the ratio is a share OF. Every stage in one funnel
+   *  must share a denominator: a funnel whose rows are measured against
+   *  different things is four facts stacked on top of each other, not a funnel.
+   *  Where two denominators are genuinely needed, use two funnels. */
   stages: { label: string; value: number; ratio: number | null; ratioLabel?: string }[];
+  /** Delivery spans several orders of magnitude, so a linear bar makes every
+   *  stage after the first an invisible sliver. Survey stages are within one
+   *  order of each other and read correctly linear, which is preferable
+   *  wherever it is honest. */
+  scale?: "linear" | "log";
 }) {
   const max = Math.max(...stages.map((s) => s.value), 1);
+  const width = (v: number) =>
+    scale === "log"
+      ? (Math.log10(Math.max(v, 1)) / Math.log10(Math.max(max, 10))) * 100
+      : (v / max) * 100;
+
   return (
-    <div style={{ display: "grid", gap: 10 }}>
+    <div style={{ display: "grid", gap: 12 }}>
       {stages.map((s, i) => (
-        <div key={s.label} style={{ display: "grid", gridTemplateColumns: "1fr", gap: 4 }}>
+        <div key={s.label} style={{ display: "grid", gap: 5 }}>
           <div
             style={{
               display: "flex",
               justifyContent: "space-between",
+              gap: 12,
               font: FONT,
-              fontSize: 12.5,
+              fontSize: 13,
               color: INK.secondary,
             }}
           >
             <span>{s.label}</span>
-            <span style={{ display: "inline-flex", gap: 10, alignItems: "baseline" }}>
+            <span style={{ display: "inline-flex", gap: 12, alignItems: "baseline" }}>
               {s.ratio !== null && (
                 <span style={{ color: INK.tertiary, fontVariantNumeric: "tabular-nums" }}>
                   {(s.ratio * 100).toFixed(s.ratio < 0.01 ? 3 : 1)}%{s.ratioLabel ? ` ${s.ratioLabel}` : ""}
@@ -496,10 +508,7 @@ export function FunnelStages({
           <div style={{ height: 10, background: INK.hairlineSoft, borderRadius: 3, overflow: "hidden" }}>
             <div
               style={{
-                // A log scale, because the funnel spans five orders of
-                // magnitude: on a linear scale every stage after impressions is
-                // an invisible sliver and the chart says nothing.
-                width: `${(Math.log10(Math.max(s.value, 1)) / Math.log10(max)) * 100}%`,
+                width: `${width(s.value)}%`,
                 height: "100%",
                 background: DATA.funnel[Math.min(i, DATA.funnel.length - 1)],
                 borderRadius: 3,
@@ -509,9 +518,6 @@ export function FunnelStages({
           </div>
         </div>
       ))}
-      <p style={{ font: FONT, fontSize: 11, color: INK.tertiary, margin: "2px 0 0" }}>
-        Bar length is scaled logarithmically so every stage stays visible. Read the numbers, not the widths.
-      </p>
     </div>
   );
 }

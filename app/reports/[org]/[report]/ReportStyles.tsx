@@ -18,6 +18,15 @@ export function ReportStyles() {
     <style>{`
       body { background: #FFFFFF; }
 
+      /* Anchors must clear the sticky rail, or a jumped-to section header sits
+         underneath it and the reader thinks the link is broken. */
+      .report-band { scroll-margin-top: 60px; }
+      .report-nav ol::-webkit-scrollbar { display: none; }
+
+      @media (max-width: 900px) {
+        .report-nav-brand { display: none; }
+      }
+
       @media (max-width: 900px) {
         .report-two-col { grid-template-columns: minmax(0, 1fr) !important; }
         .report-band > div { padding-left: 22px !important; padding-right: 22px !important; }
@@ -33,7 +42,7 @@ export function ReportStyles() {
           print-color-adjust: exact !important;
         }
 
-        .report-no-print { display: none !important; }
+        .report-no-print, .report-nav { display: none !important; }
 
         /* Bands are the document's chapters — start each on a fresh page only
            where it earns one, and never orphan its heading. */

@@ -9,6 +9,7 @@
 // Nothing here interprets anything. Interpretation is engine.ts.
 
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import type { BuilderState } from "@/lib/creative-theme-builder";
 
 export type EventBucket = {
   /** ISO hour bucket, UTC. */
@@ -51,7 +52,15 @@ export type CampaignRow = {
   end_date: string | null;
 };
 
-export type CreativeDesignRow = { slug: string; name: string; layout: string | null };
+export type CreativeDesignRow = {
+  slug: string;
+  name: string;
+  layout: string | null;
+  /** The design's colour inputs. Carried through so the report can render the
+   *  real creative on the server-supplied data rather than fetching an
+   *  authenticated admin API from a page whose reader has no account. */
+  builder_state: BuilderState | null;
+};
 
 export type SurveyQuestion = {
   id: string;
@@ -91,7 +100,7 @@ export async function fetchCampaigns(campaignIds: string[]): Promise<CampaignRow
 export async function fetchCreativeDesigns(): Promise<CreativeDesignRow[]> {
   const { data, error } = await supabaseAdmin
     .from("creative_designs")
-    .select("slug, name, layout");
+    .select("slug, name, layout, builder_state");
   if (error) return [];
   return (data ?? []) as CreativeDesignRow[];
 }

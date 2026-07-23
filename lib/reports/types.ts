@@ -1,3 +1,6 @@
+import type { ReportAudience } from "./narrative";
+import type { BuilderState } from "@/lib/creative-theme-builder";
+
 // Shapes for the Audience Intelligence Report — the reusable partner reporting
 // framework. Every completed Fanometrix research campaign can generate one of
 // these; only the organisation, the campaign scope and the underlying data
@@ -19,6 +22,9 @@ export type PartnerReport = {
   status: "draft" | "published" | "archived";
   logoUrl: string | null;
   version: number;
+  /** Who the report is written for. Selects a narrative profile; never changes
+   *  how anything is calculated. See narrative.ts. */
+  audience: ReportAudience;
 };
 
 /** How much weight a reader may put on a stated difference.
@@ -114,6 +120,40 @@ export type NotableDifference = {
   statement: string;
 };
 
+/** A creative that actually ran, for the gallery. `slug` and `layout` are what
+ *  the embed itself resolves, so the gallery renders the same component a fan
+ *  saw rather than an artist's impression of it. */
+export type CreativeUsed = {
+  slug: string;
+  name: string;
+  layout: string;
+  /** Markets it ran in, for the caption. */
+  markets: string[];
+  loads: number;
+  completed: number;
+  /** One sentence on what this format is for. */
+  purpose: string;
+  /** The design's colour inputs, so the gallery renders the same component the
+   *  embed does. Null for a design with no builder state, which renders in the
+   *  classic layout's own styling. */
+  builderState: BuilderState | null;
+};
+
+/** A decision the report exists to support.
+ *
+ *  This is the answer to "what would I do differently tomorrow because I read
+ *  this". Every one carries the number that drives it and what acting on it is
+ *  worth, because a recommendation without either is a suggestion. */
+export type Decision = {
+  headline: string;
+  action: string;
+  evidence: string;
+  /** The quantified consequence of acting, where one can be computed honestly.
+   *  Null when it cannot, which is more useful than an invented figure. */
+  worth: string | null;
+  confidence: Confidence;
+};
+
 /** A creative measured against another creative, normalised per 10k loads. */
 export type CreativeComparison = {
   baseline: Segment;
@@ -190,6 +230,8 @@ export type AudienceIntelligenceReport = {
    *  window over which it can honestly be quoted. null when never instrumented. */
   viewabilityWindow: { from: string; rate: number } | null;
   highlights: Highlight[];
+  decisions: Decision[];
+  creatives: CreativeUsed[];
   markets: Segment[];
   hourly: HourPoint[];
   hourlyInsight: {

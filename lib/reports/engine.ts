@@ -33,12 +33,15 @@ import {
   type CampaignRow,
   type EventBucket,
   type ResponseRow,
+  type CreativeDesignRow,
   type SurveyQuestion,
 } from "./data";
 import { localHour, zoneForCountryCode } from "./timezones";
 import type {
   AudienceIntelligenceReport,
   CreativeComparison,
+  CreativeUsed,
+  Decision,
   Finding,
   FunnelCounts,
   FunnelRates,
@@ -273,30 +276,25 @@ export async function buildAudienceIntelligenceReport(
     if (!marketCreatives.has(m.market)) marketCreatives.set(m.market, new Set());
     marketCreatives.get(m.market)!.add(m.creativeLabel);
   }
-  // The creative most markets ran. A market that ran something else is compared
-  // with a disclosure rather than compared silently.
-  const creativeFrequency = new Map<string, number>();
-  for (const m of meta) creativeFrequency.set(m.creativeLabel, (creativeFrequency.get(m.creativeLabel) ?? 0) + 1);
-  const normCreative = [...creativeFrequency.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? "";
-
   const markets: Segment[] = marketNames.map((market) => {
     const inMarket = (b: EventBucket) => byCampaign.get(b.campaignId)?.market === market;
     const counts = countFunnel(buckets, finalQuestion, inMarket);
     const r = rates(counts, false);
     const sampleSize = responses.filter((x) => byCampaign.get(x.campaign_id)?.market === market).length;
-    // A market that ran something other than the campaign's standard creative
-    // cannot be read as a clean audience comparison — its engagement rates
-    // carry a creative effect as well as a market effect. That has to be
-    // disclosed on the row, not buried in the methodology, because the index
-    // chart is the thing a reader takes away.
+    // Only a genuine creative MIX is disclosed here. A single market whose
+    // creative_design differs from the campaign norm is not evidence that a
+    // different unit was served: that field can be set during campaign
+    // creation without the deployment changing, so treating it as a served
+    // difference produces a confident note about something that never
+    // happened. A market that ran two campaigns with two designs, both of
+    // which delivered impressions, is a different matter: the mix is in the
+    // delivery data, and it does affect how the index reads.
     const runCreatives = [...(marketCreatives.get(market) ?? [])];
-    const others = runCreatives.filter((c) => c !== normCreative);
     const note =
-      others.length === 0
-        ? undefined
-        : runCreatives.length === 1
-          ? `Ran ${others[0]} rather than ${normCreative}, the creative used across most markets, so this market's engagement rates carry a creative difference as well as an audience one.`
-          : `Ran ${others.join(" and ")} alongside ${normCreative}. Its index therefore reflects the creative mix as well as the audience, and is not directly comparable with markets that ran ${normCreative} alone.`;
+      runCreatives.length > 1
+        ? `Ran ${joinList(runCreatives)}. Its index reflects that mix as well as the audience, so it is not directly comparable with markets that ran a single format.`
+        : undefined;
+
     return {
       key: market,
       label: market,
@@ -311,6 +309,9 @@ export async function buildAudienceIntelligenceReport(
       note,
     };
   });
+
+  // ── The creatives that actually ran ───────────────────────────────────────
+  const creatives = buildCreativeGallery(meta, buckets, designs, finalQuestion);
 
   // ── Creative comparison ───────────────────────────────────────────────────
   const creative = buildCreativeComparison(meta, buckets, responses, finalQuestion, viewableFrom, totalRates);
@@ -367,6 +368,8 @@ export async function buildAudienceIntelligenceReport(
     },
     viewabilityWindow,
     highlights,
+    decisions: buildDecisions(markets, creative, questions, hourlyInsight, devices, totalCounts),
+    creatives,
     markets,
     hourly,
     hourlyInsight,
@@ -380,6 +383,56 @@ export async function buildAudienceIntelligenceReport(
 }
 
 // ── Creative ─────────────────────────────────────────────────────────────────
+
+/** One sentence on what a format is for, keyed by the layout the embed resolves
+ *  rather than by a slug, so a new design inherits the right description
+ *  without anyone remembering to add it. */
+const LAYOUT_PURPOSE: Record<string, string> = {
+  classic:
+    "The standard unit. The first question is visible immediately, so a reader can answer without committing to anything first.",
+  timer:
+    "A branded unit with a countdown, designed to draw attention in the feed before the reader has decided whether to engage.",
+  invitation:
+    "Opens with an invitation rather than a question. A reader chooses to take part before they see anything to answer.",
+};
+
+/** The formats that actually ran, with the volume each carried. This is what
+ *  the gallery renders, and it is derived from delivery rather than from what
+ *  was configured: a design attached to a campaign that never served does not
+ *  belong in a report about what fans saw. */
+function buildCreativeGallery(
+  meta: CampaignMeta[],
+  buckets: EventBucket[],
+  designs: CreativeDesignRow[],
+  finalQuestion: string | null,
+): CreativeUsed[] {
+  const byslug = new Map(designs.map((d) => [d.slug, d]));
+  const grouped = new Map<string, CampaignMeta[]>();
+  for (const m of meta) {
+    if (!grouped.has(m.creativeSlug)) grouped.set(m.creativeSlug, []);
+    grouped.get(m.creativeSlug)!.push(m);
+  }
+
+  const out: CreativeUsed[] = [];
+  for (const [slug, group] of grouped) {
+    const ids = new Set(group.map((g) => g.campaign_id));
+    const counts = countFunnel(buckets, finalQuestion, (b) => ids.has(b.campaignId));
+    if (counts.loads === 0) continue;
+    const design = byslug.get(slug);
+    const layout = design?.layout ?? "classic";
+    out.push({
+      slug,
+      name: group[0].creativeLabel,
+      layout,
+      markets: [...new Set(group.map((g) => g.market))].sort(),
+      loads: counts.loads,
+      completed: counts.completed,
+      purpose: LAYOUT_PURPOSE[layout] ?? "A survey unit served within the reading experience.",
+      builderState: design?.builder_state ?? null,
+    });
+  }
+  return out.sort((a, b) => b.loads - a.loads);
+}
 
 function buildCreativeComparison(
   meta: CampaignMeta[],
@@ -829,6 +882,120 @@ function buildHighlights(
   });
 
   return out;
+}
+
+// ── Decisions ────────────────────────────────────────────────────────────────
+
+/** The three or four things a reader could do differently because they read
+ *  this, each with the number behind it and what acting on it is worth.
+ *
+ *  `worth` is only ever populated when it can be computed from measured data.
+ *  A decision whose value cannot be quantified honestly says so and is framed
+ *  as a test rather than a move, which is the difference between a report that
+ *  helps someone act and one that just sounds confident. */
+function buildDecisions(
+  markets: Segment[],
+  creative: CreativeComparison | null,
+  questions: QuestionDistribution[],
+  hours: AudienceIntelligenceReport["hourlyInsight"],
+  devices: { label: string; share: number }[],
+  totals: FunnelCounts,
+): Decision[] {
+  const out: Decision[] = [];
+
+  // 1. Adopt the format that produced more research from the same inventory.
+  if (creative) {
+    const yieldMeasure = creative.measures.find((m) => m.label === "Responses per 10,000 Impressions");
+    if (yieldMeasure && !yieldMeasure.inconclusive && (yieldMeasure.change ?? 0) > 0) {
+      const gainPer10k = yieldMeasure.variant - yieldMeasure.baseline;
+      const extra = Math.round((gainPer10k * totals.loads) / 10000);
+      out.push({
+        headline: `Run ${creative.variant.label} everywhere`,
+        action: `Make it the default format on the next campaign rather than a variant tested in one market.`,
+        evidence: `${yieldMeasure.variant.toFixed(1)} completed responses per 10,000 impressions against ${yieldMeasure.baseline.toFixed(1)}.`,
+        worth: `Applied across the ${totals.loads.toLocaleString("en-GB")} impressions this campaign has already delivered, roughly ${extra.toLocaleString("en-GB")} additional completed responses from the same inventory. No extra delivery, no extra cost.`,
+        confidence: yieldMeasure.confidence,
+      });
+    }
+  }
+
+  // 2. Move volume toward the market that converts it best — or, where that
+  //    market's advantage is entangled with a creative difference, settle that
+  //    first. Recommending a budget shift on a confounded number is exactly the
+  //    kind of confident-sounding advice that loses a client's trust later.
+  const reportable = markets.filter((m) => m.sampleSize >= MIN_REPORTABLE_SAMPLE);
+  if (reportable.length >= 2) {
+    const best = reportable.reduce((a, b) => (b.rates.responseRate > a.rates.responseRate ? b : a));
+    const worst = reportable.reduce((a, b) => (b.rates.responseRate < a.rates.responseRate ? b : a));
+    if (best.key !== worst.key) {
+      if (best.note) {
+        out.push({
+          headline: `Settle whether ${best.label}'s lead is the audience or the format`,
+          action: `Run one format across every market on the next campaign. That separates the two effects in a single flight and tells you where the budget should actually go.`,
+          evidence: `${best.label} returned ${best.rates.responsesPer10k.toFixed(1)} responses per 10,000 impressions against ${worst.rates.responsesPer10k.toFixed(1)} in ${worst.label}, but it also ran more than one format.`,
+          worth: null,
+          confidence: "moderate",
+        });
+      } else {
+        const shift = Math.round(worst.counts.loads * 0.25);
+        const delta = Math.round(((best.rates.responsesPer10k - worst.rates.responsesPer10k) * shift) / 10000);
+        out.push({
+          headline: `Weight the next buy toward ${best.label}`,
+          action: `Move a quarter of ${worst.label}'s volume across.`,
+          evidence: `${best.rates.responsesPer10k.toFixed(1)} responses per 10,000 impressions against ${worst.rates.responsesPer10k.toFixed(1)}.`,
+          worth: `About ${delta.toLocaleString("en-GB")} additional completed responses from the same total delivery.`,
+          confidence: "moderate",
+        });
+      }
+    }
+  }
+
+  // 3. Buy the sample the thin markets need. Quantified in impressions, because
+  //    that is the unit the decision is actually taken in.
+  const thin = markets.filter((m) => m.sampleSize > 0 && m.sampleSize < MIN_REPORTABLE_SAMPLE);
+  if (thin.length > 0) {
+    const needed = thin.map((m) => {
+      const shortfall = MIN_REPORTABLE_SAMPLE - m.sampleSize;
+      const impressions = m.rates.responsesPer10k > 0
+        ? Math.round((shortfall / m.rates.responsesPer10k) * 10000)
+        : 0;
+      return { market: m.label, shortfall, impressions };
+    });
+    const totalImpressions = needed.reduce((a, b) => a + b.impressions, 0);
+    out.push({
+      headline: `Extend ${joinList(thin.map((m) => m.label))} to a reportable sample`,
+      action: `Extend delivery rather than adding a market. A market that cannot be reported on is inventory spent without a finding attached.`,
+      evidence: needed.map((n) => `${n.market} is ${n.shortfall} responses short`).join(", ") + ".",
+      worth: totalImpressions > 0
+        ? `About ${totalImpressions.toLocaleString("en-GB")} additional impressions at the current conversion rate, after which that market can be quoted rather than caveated.`
+        : null,
+      confidence: "moderate",
+    });
+  }
+
+  // 4. A commercial argument the publisher can take to market, drawn from what
+  //    fans said rather than from how they behaved.
+  const q1 = questions[0];
+  if (q1 && q1.sampleSize >= MIN_REPORTABLE_SAMPLE) {
+    const top = q1.options.slice().sort((a, b) => b.share - a.share)[0];
+    if (top) {
+      out.push({
+        headline: "Take the sponsorship read to market as a sales asset",
+        action: `Your audience answered a brand-perception question directly, at a scale a panel would charge for. That is a first-party proof point about the quality of your readers, and it is reusable in every sponsorship conversation you have this year.`,
+        evidence: `${Math.round(top.share * 100)}% of ${q1.sampleSize} respondents chose "${top.label}" on the sponsorship question.`,
+        worth: null,
+        confidence: "high",
+      });
+    }
+  }
+
+  // Daypart and device shape the next brief rather than the next decision, so
+  // they live in Recommendations. Four decisions is already the limit of what a
+  // reader will actually act on.
+  void hours;
+  void devices;
+
+  return out.slice(0, 4);
 }
 
 function buildFindings(

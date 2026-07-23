@@ -74,30 +74,51 @@ npx tsx scripts/issue-partner-report.ts \
 | `lib/reports/access.ts` | per-report password + signed unlock cookie |
 | `lib/reports/definition.ts` | loads a report definition |
 | `app/reports/theme.ts` | validated data palette, document chrome |
-| `app/reports/components/` | charts, document furniture, the report itself |
+| `lib/reports/narrative.ts` | who a report is for: section order, titles, standfirsts |
+| `app/reports/components/` | charts, document furniture, creative gallery, the report itself |
 | `app/reports/[org]/[report]/` | route, password gate, print stylesheet |
 | `app/api/reports/[org]/[report]/` | unlock, CSV downloads |
 | `scripts/issue-partner-report.ts` | issue or re-issue a report |
 
 ---
 
-## 3. Report flow
+## 3. Who a report is for
+
+`partner_reports.audience` selects a narrative profile (`lib/reports/narrative.ts`):
+which sections appear, in what order, and who the copy addresses. The
+measurement engine is audience-neutral and stays that way, because the numbers
+are the numbers. Only `publisher` is written; `brand`, `agency` and `internal`
+are accepted by the schema and fall back to it, deliberately unwritten rather
+than approximated. Adding one is a profile plus a value in that column, never a
+change to `engine.ts`.
+
+---
+
+## 4. Report flow
 
 0. **Cover** — Fanometrix mark, "Prepared for <organisation>" (logo when supplied, the
    name in display type when not), report title, campaign, the research question,
    an Interim/Final status badge, the metadata strip and a numbered contents list
-1. **Highlights** — what we learned together, told as outcomes before statistics
-2. **Executive Summary** — the KPI cards, each with its canonical metric definition
-3. **Audience Reach** — impression to insight, as a funnel
-4. **Engagement Trends** — four hourly charts in the audience's local time
-5. **Country Performance** — indexed against the campaign average, with disclosures
-6. **Creative Comparison** — normalised, with confidence labels and caveats
-7. **What Fans Told Us** — every answer, overall and by market
-8. **What We Learned** — confirmed findings and possible explanations, side by side and never merged
-9. **Value Delivered** — what the partnership produced, on the navy band
-10. **Recommendations** — numbered, each naming the evidence it rests on
-11. **Downloads** — Executive PDF, Raw Responses CSV, Campaign Metrics CSV
-12. **Methodology and limits** — how the numbers were produced
+The publisher order leads with insight and closes with method, because that is
+the order the reader cares about:
+
+1. **Highlights** — outcomes before statistics
+2. **Executive Summary** — the decisions this report supports, each with what acting is worth, then the KPI cards
+3. **What Fans Told Us** — every answer, overall and by market
+4. **The Creative** — the units that ran, rendered live
+5. **Creative Comparison** — normalised, with confidence labels
+6. **Country Performance** — indexed against the campaign average
+7. **Engagement Trends** — four hourly charts in the audience's local time
+8. **Audience Reach** — two funnels, one denominator each
+9. **What We Learned** — confirmed findings and possible explanations, never merged
+10. **Value Delivered** — what the partnership produced, on the navy band
+11. **Recommendations** — numbered, each naming the evidence it rests on
+12. **Downloads** — Executive PDF, Raw Responses CSV, Campaign Metrics CSV
+13. **Methodology** — how the numbers were produced, and every caveat
+
+A sticky rail keeps the whole structure one click away. Technical caveats live
+in Methodology rather than interrupting the narrative; sections that reference
+one point to it.
 
 Every section carries its number and is anchored, so the contents list on the
 cover is navigable and a reader who was forwarded one section knows where it
@@ -115,7 +136,21 @@ separate: one says how current the data is, the other says when someone asked.
 
 ---
 
-## 4. Positioning rules held in code
+## 5. The bar
+
+Every section has to earn its place against one question: *if I were the Head of
+Commercial here, what would I do differently tomorrow because I read this?*
+
+That is why the Executive Summary is a list of decisions rather than a list of
+metrics, why each decision carries what acting on it is worth in responses or
+impressions rather than an adjective, and why a decision whose value cannot be
+computed honestly says so and is framed as a test instead. It is also why
+"no clear difference" is stated as a finding in its own right: knowing which
+lever does *not* move is a decision input too.
+
+---
+
+## 6. Positioning rules held in code
 
 - **No other publisher is nameable.** The engine only ever loads the campaigns in
   the report's own `campaign_ids`. There is no code path that could read another
@@ -136,7 +171,7 @@ separate: one says how current the data is, the other says when someone asked.
 
 ---
 
-## 5. Data handling
+## 7. Data handling
 
 **Event counts** union the hourly rollup below the watermark with raw
 `survey_events` above it, exactly as `dashboard_event_counts` does. Reading only
@@ -165,11 +200,19 @@ would have inverted the baseline and the challenger and reversed every headline.
 
 ---
 
-## 6. Design
+## 8. Design
 
 Built on the workspace design system's tokens, in a print-first document
 variant: white surfaces, navy and gold as chrome, large whitespace, typography
 carrying the hierarchy.
+
+**The creative gallery** renders the production embed components, not
+screenshots. A screenshot goes stale the moment a design is edited and nobody
+notices; the real component is correct by construction. `isPreview` hard-gates
+event emission in both `ClassicSurvey` and `ThemedSurvey`, so the gallery writes
+no impressions, starts or responses, which matters because these campaigns are
+still collecting and a gallery that fired events would corrupt the figures the
+report quotes.
 
 **Charts** are hand-rolled server-rendered SVG. No chart library: the report has
 to print to PDF without re-laying out, render with JavaScript blocked, and sit
@@ -200,7 +243,7 @@ figures, and the PDF is always current with the data the page just computed.
 
 ---
 
-## 7. Security and SEO
+## 9. Security and SEO
 
 - **Per-report password**, bcrypt-hashed. Unlocking mints a signed cookie scoped
   to one report id; it is not a session and grants nothing on the platform.
@@ -215,7 +258,7 @@ figures, and the PDF is always current with the data the page just computed.
 
 ---
 
-## 8. What the first report currently says
+## 10. What the first report currently says
 
 Computed live on 2026-07-23, data through 07:53 UTC. Every figure moves until
 collection closes on 2026-07-24.
@@ -239,8 +282,16 @@ test was sequential, sharing one hour of live delivery.
 
 ---
 
-## 9. Known limits, carried into the next campaign
+## 11. Known limits, carried into the next campaign
 
+- **Campaign #000128's creative label is disputed.** `campaigns.creative_design`
+  is set to `fanometrix` (Fanometrix Premium, timer layout) for the Germany
+  campaign, and that field is not a label: `app/embed/page.tsx` reads it to
+  decide which component to serve. The market-level creative note has been
+  removed as instructed, but the gallery and both CSV exports still label
+  Germany's delivery from that field. Either the record is wrong and should be
+  corrected, or Germany did serve the timer unit. Resolving it is a data
+  decision, not a reporting one.
 - The creative test is a sequential read, not a side-by-side split. The direction
   is reliable; the exact size is indicative. Recommendation 2 in the report asks
   for a concurrent split next time, which costs no additional inventory.
@@ -258,7 +309,7 @@ test was sequential, sharing one hour of live delivery.
 
 ---
 
-## 10. To review this report
+## 12. To review this report
 
 1. Apply `supabase-migration-138.sql` in the Supabase SQL editor. It is additive
    (`CREATE TABLE IF NOT EXISTS`) and touches nothing existing.

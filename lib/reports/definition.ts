@@ -4,6 +4,7 @@
 
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import type { PartnerReport } from "./types";
+import type { ReportAudience } from "./narrative";
 
 type Row = {
   id: string;
@@ -20,6 +21,7 @@ type Row = {
   status: PartnerReport["status"];
   logo_url: string | null;
   version: number;
+  audience?: ReportAudience;
 };
 
 function toReport(row: Row): PartnerReport {
@@ -38,7 +40,38 @@ function toReport(row: Row): PartnerReport {
     status: row.status,
     logoUrl: row.logo_url,
     version: row.version ?? 1,
+    audience: row.audience ?? "publisher",
   };
+}
+
+const CORE_COLUMNS =
+  "id, org_slug, report_slug, organisation_id, organisation_name, brand_name, report_title, campaign_title, research_question, campaign_ids, data_from, status, logo_url, version";
+
+/** Columns added after the table shipped. Selected when present and defaulted
+ *  when not.
+ *
+ *  Code and schema do not land at the same instant: a deploy can precede its
+ *  migration, or a migration can be applied to one environment before another.
+ *  Naming a not-yet-added column in the select turns that ordinary skew into a
+ *  hard failure, and because the route treats a query error as "no such report"
+ *  the symptom is a 404 on a report that plainly exists. Asking for the newer
+ *  columns separately means the worst case is a report that renders with its
+ *  defaults. */
+const OPTIONAL_COLUMNS = "audience";
+
+async function selectReport(
+  match: (q: ReturnType<typeof baseQuery>) => ReturnType<typeof baseQuery>,
+): Promise<Row | null> {
+  const withOptional = await match(baseQuery(`${CORE_COLUMNS}, ${OPTIONAL_COLUMNS}`)).maybeSingle();
+  if (!withOptional.error) return (withOptional.data as unknown as Row) ?? null;
+
+  const core = await match(baseQuery(CORE_COLUMNS)).maybeSingle();
+  if (core.error || !core.data) return null;
+  return core.data as unknown as Row;
+}
+
+function baseQuery(columns: string) {
+  return supabaseAdmin.from("partner_reports").select(columns);
 }
 
 /** Resolve /reports/<org>/<report>. Returns null for an unknown or archived
@@ -48,17 +81,8 @@ export async function getPartnerReport(
   orgSlug: string,
   reportSlug: string,
 ): Promise<PartnerReport | null> {
-  const { data, error } = await supabaseAdmin
-    .from("partner_reports")
-    .select(
-      "id, org_slug, report_slug, organisation_id, organisation_name, brand_name, report_title, campaign_title, research_question, campaign_ids, data_from, status, logo_url, version",
-    )
-    .eq("org_slug", orgSlug)
-    .eq("report_slug", reportSlug)
-    .maybeSingle();
-
-  if (error || !data) return null;
-  const row = data as Row;
+  const row = await selectReport((q) => q.eq("org_slug", orgSlug).eq("report_slug", reportSlug));
+  if (!row) return null;
   if (row.status === "archived") return null;
   return toReport(row);
 }
@@ -76,13 +100,6 @@ export async function getReportPasswordHash(reportId: string): Promise<string | 
 }
 
 export async function getPartnerReportById(reportId: string): Promise<PartnerReport | null> {
-  const { data, error } = await supabaseAdmin
-    .from("partner_reports")
-    .select(
-      "id, org_slug, report_slug, organisation_id, organisation_name, brand_name, report_title, campaign_title, research_question, campaign_ids, data_from, status, logo_url, version",
-    )
-    .eq("id", reportId)
-    .maybeSingle();
-  if (error || !data) return null;
-  return toReport(data as Row);
+  const row = await selectReport((q) => q.eq("id", reportId));
+  return row ? toReport(row) : null;
 }
