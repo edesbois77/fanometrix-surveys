@@ -72,8 +72,12 @@ async function surveyItems(surveyId: string): Promise<Omit<FramedItem, "methodFi
       .slice(0, 4)
       .forEach((o, j) => {
         const resolved = resolve(SURVEY_CONTRACT, { surveyId, responses: answered });
+        const question = q.text.en ?? `Question ${i + 1}`;
         out.push({
           evidenceId: `${surveyId}#q${i}#${o.label}#${j}`,
+          // Computed here, from the real counts, never written by a model. The
+          // figure a claim may quote has to be one we calculated.
+          content: `${o.pct}% of ${answered} respondents chose "${o.label}" for "${question}".`,
           contribution: resolved.contribution,
           observationKey: resolved.observationKey,
           observations: resolved.observations,
@@ -106,6 +110,7 @@ async function documentItems(evidenceRowId: string): Promise<Omit<FramedItem, "m
 
   return entries.map(e => ({
     evidenceId: `${evidenceRowId}#${e.id}`,
+    content: e.text,
     contribution: resolved.contribution,
     observationKey: resolved.observationKey,
     observations: resolved.observations,
@@ -119,6 +124,7 @@ async function documentItems(evidenceRowId: string): Promise<Omit<FramedItem, "m
  *  depend on storage. */
 export type CollectedRow = {
   id: string;
+  content: string;
   contentKind: string | null;      // 'article' marks editorial coverage
   author: string | null;
   publisher: string | null;
@@ -172,6 +178,7 @@ export function toFramedItem(row: CollectedRow, need: FlatNeed): FramedItem | nu
     contribution: resolved.contribution,
     observationKey: resolved.observationKey,
     observations: resolved.observations,
+    content: row.content,
     role: asEvidenceRole(row.evidenceRole),
     methodFit: need.method_fit,
     bearing: row.relevanceScore,
@@ -221,7 +228,7 @@ export async function gatherFrames(projectId: string): Promise<GatherResult> {
   if (mappedSearchIds.length > 0) {
     const { data } = await supabaseAdmin
       .from("social_mentions")
-      .select("id, search_id, content_kind, author, platform, market, evidence_role, relevance_score, published_at, metadata")
+      .select("id, search_id, content, content_kind, author, platform, market, evidence_role, relevance_score, published_at, metadata")
       .in("search_id", mappedSearchIds)
       .eq("excluded", false)
       .not("relevance_score", "is", null)
@@ -232,6 +239,7 @@ export async function gatherFrames(projectId: string): Promise<GatherResult> {
       const meta = (r.metadata ?? {}) as { publisher?: unknown; syndication_key?: unknown; news?: { source_type?: unknown } };
       const row: CollectedRow = {
         id: r.id as string,
+        content: ((r.content as string | null) ?? "").trim(),
         contentKind: (r.content_kind as string | null) ?? null,
         author: (r.author as string | null) ?? null,
         publisher: typeof meta.publisher === "string" ? meta.publisher : null,

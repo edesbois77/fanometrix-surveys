@@ -31,6 +31,11 @@ export const DEFAULT_BEARING_FLOOR = 0.5;
  *  here except `bearing` travels from collection unchanged. */
 export type FramedItem = {
   evidenceId: string;
+  /** What the evidence actually says. Framing never reads it: admissibility is a
+   *  property of the source and the question, not of the words. It travels here
+   *  because Formation cannot reason without it, and because a claim's citations
+   *  must be able to show what they rest on. */
+  content: string;
   /** What kind of knowledge this item's source is contracted to supply.
    *  INHERITED from the Source Contract (via `resolve`), never inferred here.
    *  The only thing the matrix consults, and the reason nothing downstream needs
@@ -164,6 +169,8 @@ export function frameEvidence(opts: {
  *  warranting turns into a Citation once a stance is decided. */
 export type AdmittedForClaim = {
   evidenceId: string;
+  content: string;
+  provenance: string | null;
   contribution: ContributionKind;
   role: EvidenceRole;
   observationKey: string;
@@ -221,7 +228,8 @@ export function projectFor(frame: EvidenceFrame, assertion: AssertionType): Proj
       : cell.constraint;
 
     admitted.push({
-      evidenceId: item.evidenceId, contribution: item.contribution, role: item.role,
+      evidenceId: item.evidenceId, content: item.content, provenance: item.provenance,
+      contribution: item.contribution, role: item.role,
       observationKey: item.observationKey, observations: item.observations, bearing: item.bearing,
       admissibility: verdict, constraint,
     });

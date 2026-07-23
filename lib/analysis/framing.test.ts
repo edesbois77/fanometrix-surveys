@@ -18,6 +18,7 @@ function item(over: Partial<FramedItem> = {}): FramedItem {
   seq += 1;
   return {
     evidenceId: `e${seq}`,
+    content: `evidence ${seq}`,
     contribution: "unprompted_discourse" as ContributionKind,
     role: "direct" as EvidenceRole,
     bearing: 0.8,

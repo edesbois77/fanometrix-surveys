@@ -14,7 +14,7 @@ const need = (over: Partial<FlatNeed> = {}): FlatNeed => ({
 });
 
 const row = (over: Partial<CollectedRow> = {}): CollectedRow => ({
-  id: "e1", contentKind: null, author: "alice", publisher: null, syndicationKey: null,
+  id: "e1", content: "a fan said something", contentKind: null, author: "alice", publisher: null, syndicationKey: null,
   newsSourceType: null, platform: "Reddit", market: "UK", evidenceRole: "direct",
   relevanceScore: 0.8, publishedAt: null, ...over,
 });
