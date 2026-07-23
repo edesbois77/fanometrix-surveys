@@ -1,19 +1,48 @@
 # Fanometrix — Analysis Workspace Blueprint (Research Intelligence)
 
-> **Status:** **Agreed / canonical.** Decisions locked (§11) and the
-> implementation sequence locked (§10). Implementation proceeds in that order,
-> starting with the Evidence Validation gate. **Builds on the existing Intelligence
-> Findings engine — it does not redesign Analysis from first principles, and does
-> not rebuild `analyseAspectSynthesis`, `AspectSynthesisReader`, the existing
-> evidence cards, or the current finding-to-evidence links.** The engine already
-> generates evidence-backed findings,
-> groups evidence into Research Aspects, writes "Why this matters", classifies
-> relevance/confidence, links every finding to its evidence, and renders the
-> supporting-evidence cards. This blueprint **elevates and reorganises** that
-> pipeline into one merged research narrative per aspect, and fills the few real
-> gaps. Stays inside the Research Engine constitution
-> (`docs/research-engine-architecture.md`) and composes with the Evidence
-> Validation gate (`docs/evidence-validation-blueprint.md`).
+> # ⚠ SUPERSEDED. Do not build against this document.
+>
+> **Status:** **Superseded by `docs/intelligence-model.md` (Phase 2 canon).**
+> Retained for history only. Nothing here governs current work, and the
+> implementation sequence in §10 and the decisions in §11 are void.
+>
+> **Why it was superseded, and not merely amended.** Its two central claims were
+> never true of the code that shipped under it:
+>
+> - *"Analysis is the single interpretive layer, reports read it and never
+>   re-analyse."* The Executive Report never read the aspect synthesis. It
+>   interpreted per-source summaries independently, and every other report read
+>   the Executive Report. Analysis was a leaf node consumed by nothing.
+> - *"No recommendation without an approved finding behind it."* The aspect
+>   synthesis had no approval workflow at all: no edit, approve or publish path
+>   existed, and generation always wrote a draft.
+>
+> A document whose invariants the code never honoured cannot be repaired by
+> tightening it, because the reason it failed is structural rather than textual:
+> findings were positions in a jsonb array, so they could not be approved, cited
+> or superseded, and reports had nothing addressable to read.
+>
+> **What replaces it, and what survives.** `docs/intelligence-model.md` defines
+> the Finding as a warranted claim and the contracts every consumer reads it
+> under. `docs/compatibility-matrix.md` makes evidence suitability enforceable.
+> `docs/principles.md` sits above both. The **Research Aspect** is retired as an
+> organising concept: analysis is organised by Research Requirement and its
+> Information Needs.
+>
+> The instruction below not to rebuild `analyseAspectSynthesis`,
+> `AspectSynthesisReader`, the evidence cards or the finding-to-evidence links is
+> **withdrawn**. The audit that replaced it found roughly 20% of that work
+> genuinely reusable, chiefly the prompt attribution and quantification
+> discipline, the deterministic scoring helpers and the UI object library. Those
+> are being carried forward deliberately, piece by piece, rather than preserved
+> wholesale.
+>
+> ---
+>
+> *Original status, for the record:* Agreed / canonical. Decisions locked (§11)
+> and the implementation sequence locked (§10), starting with the Evidence
+> Validation gate. Built on the existing Intelligence Findings engine, elevating
+> and reorganising its pipeline into one merged research narrative per aspect.
 
 ---
 
