@@ -30,8 +30,18 @@ export async function GET(
     return new NextResponse("Unknown export type", { status: 400 });
   }
 
-  const csv =
-    type === "responses" ? await buildResponsesCsv(definition) : await buildMetricsCsv(definition);
+  let csv: string;
+  try {
+    csv = type === "responses" ? await buildResponsesCsv(definition) : await buildMetricsCsv(definition);
+  } catch (err) {
+    // A partial CSV is worse than none: it looks complete and quietly drops
+    // rows. Fail the download instead, and keep the reason in the server log.
+    console.error("[reports] export failed", type, err instanceof Error ? err.message : err);
+    return new NextResponse("This export could not be generated. Please try again.", {
+      status: 503,
+      headers: { "Cache-Control": "no-store" },
+    });
+  }
   const filename = exportFilename(definition, type === "responses" ? "responses" : "hourly-metrics", "csv");
 
   return new NextResponse(csv, {

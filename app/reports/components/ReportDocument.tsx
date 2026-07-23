@@ -113,7 +113,7 @@ export function ReportDocument({ model }: { model: AudienceIntelligenceReport })
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+          gridTemplateColumns: "repeat(auto-fit, minmax(min(280px, 100%), 1fr))",
           background: INK.surface,
           borderRadius: 12,
           overflow: "hidden",
@@ -256,7 +256,7 @@ export function ReportDocument({ model }: { model: AudienceIntelligenceReport })
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))",
+            gridTemplateColumns: "repeat(auto-fit, minmax(min(230px, 100%), 1fr))",
             gap: 16,
             marginBottom: 32,
           }}
@@ -294,7 +294,7 @@ export function ReportDocument({ model }: { model: AudienceIntelligenceReport })
           />
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 24 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(320px, 100%), 1fr))", gap: 24 }}>
           <Card>
             <MetricLabel label="Research confidence" metricId="margin_of_error" />
             <div
@@ -399,7 +399,7 @@ export function ReportDocument({ model }: { model: AudienceIntelligenceReport })
                   By market
                 </div>
                 <div
-                  style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 22 }}
+                  style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(190px, 100%), 1fr))", gap: 22 }}
                 >
                   {q.byMarket.map((m) => (
                     <div key={m.market}>
@@ -593,7 +593,7 @@ export function ReportDocument({ model }: { model: AudienceIntelligenceReport })
     "engagement-trends": (
       <>
         <Card>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(400px, 1fr))", gap: 40 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(400px, 100%), 1fr))", gap: 40 }}>
             <HourlyColumns data={hourly} valueKey="loads" label="Impressions by hour" />
             <HourlyColumns data={hourly} valueKey="starts" label="Survey starts by hour" />
             <HourlyColumns data={hourly} valueKey="completed" label="Completed responses by hour" />
@@ -610,7 +610,7 @@ export function ReportDocument({ model }: { model: AudienceIntelligenceReport })
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+            gridTemplateColumns: "repeat(auto-fit, minmax(min(240px, 100%), 1fr))",
             gap: 16,
             marginTop: 28,
           }}
@@ -646,7 +646,7 @@ export function ReportDocument({ model }: { model: AudienceIntelligenceReport })
 
     "audience-reach": (
       <>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(340px, 1fr))", gap: 28 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(340px, 100%), 1fr))", gap: 28 }}>
           <Card>
             <FunnelHeading title="Delivery" denominator="Every stage as a share of impressions delivered" />
             <FunnelStages
@@ -682,7 +682,7 @@ export function ReportDocument({ model }: { model: AudienceIntelligenceReport })
           style={{
             marginTop: 32,
             display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
+            gridTemplateColumns: "repeat(auto-fit, minmax(min(320px, 100%), 1fr))",
             gap: 28,
           }}
         >
@@ -714,7 +714,7 @@ export function ReportDocument({ model }: { model: AudienceIntelligenceReport })
 
     "what-we-learned": (
       <>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(340px, 1fr))", gap: 32 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(340px, 100%), 1fr))", gap: 32 }}>
           <div>
             <ListHeading
               title="Confirmed findings"
@@ -805,7 +805,7 @@ export function ReportDocument({ model }: { model: AudienceIntelligenceReport })
     ),
 
     "value-delivered": (
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 32 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(260px, 100%), 1fr))", gap: 32 }}>
         {model.valueDelivered.points.map((p) => (
           <div key={p.label} style={{ borderTop: `2px solid ${GOLD}`, paddingTop: 22, breakInside: "avoid" }}>
             <div
@@ -1017,7 +1017,10 @@ function Cover({
   const subtitle = report.subtitle ?? coverSubtitle(report, marketCount);
 
   return (
-    <header style={{ background: NAVY, color: "#FFFFFF", borderBottom: `3px solid ${GOLD}` }}>
+    <header
+      className="report-cover"
+      style={{ background: NAVY, color: "#FFFFFF", borderBottom: `3px solid ${GOLD}` }}
+    >
       <div style={{ maxWidth: 1080, margin: "0 auto", padding: "64px 40px 60px" }}>
         <div
           style={{

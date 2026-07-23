@@ -44,6 +44,7 @@ export function SectionNav({
           alignItems: "center",
           gap: 20,
           height: 52,
+          minWidth: 0,
         }}
       >
         <span
@@ -77,6 +78,9 @@ export function SectionNav({
             scrollbarWidth: "none",
             alignItems: "center",
             height: "100%",
+            // Without this the rail's intrinsic width wins over the flex
+            // container and the whole document grows to fit twelve items.
+            minWidth: 0,
           }}
         >
           {sections.map((s, i) => (

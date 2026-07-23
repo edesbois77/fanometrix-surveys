@@ -37,7 +37,7 @@ export function DownloadBar({ orgSlug, reportSlug }: { orgSlug: string; reportSl
   return (
     <div
       className="report-no-print"
-      style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 20 }}
+      style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(280px, 100%), 1fr))", gap: 20 }}
     >
       {ITEMS.map((item) => {
         const href =

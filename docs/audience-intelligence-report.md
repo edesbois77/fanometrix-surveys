@@ -5,7 +5,7 @@ generate one of these for the publisher partner whose audience carried it.
 
 First instance: **LiveScore, FedEx UEFA Champions League Sponsorship Study**.
 
-Status: **built, not deployed**. Awaiting review.
+Status: **in production**.
 
 ---
 
@@ -316,10 +316,30 @@ test was sequential, sharing one hour of live delivery.
 
 ---
 
-## 12. To review this report
+## 12. Backward compatibility
 
-1. Apply `supabase-migration-138.sql` in the Supabase SQL editor. It is additive
-   (`CREATE TABLE IF NOT EXISTS`) and touches nothing existing.
-2. Run the `issue-partner-report.ts` command in section 2 with a password of your
-   choosing.
-3. `npm run dev`, then open `/reports/livescore/fedex-phase-1`.
+Reports are generated from live data on every request, so there is no stored
+output to migrate and an old report picks up engine improvements automatically.
+The compatibility surface is therefore the `partner_reports` row, and the rule
+is that changes to it must be additive:
+
+- **New columns go in `OPTIONAL_COLUMNS`** (`lib/reports/definition.ts`) with a
+  default applied in `toReport`. The read tries the full column list, and falls
+  back to the core list if the database does not have the new column yet. A
+  deploy that precedes its migration therefore renders with defaults rather than
+  404ing, and a report issued before the column existed keeps working after it.
+- **Migrations are `ADD COLUMN IF NOT EXISTS`**, never a rewrite of an applied
+  one: 138 shipped and was extended, which is why 139, 140 and 141 exist as
+  separate files. `CREATE TABLE IF NOT EXISTS` is a no-op on a database that
+  already has the table, so a column added to 138 after it ran never arrives.
+- **New sections are added to a narrative profile and return null when they have
+  no content.** The order, the numbering and the contents rail all derive from
+  what a given report actually contains, so a report whose campaigns cannot
+  support a section simply does not show it.
+
+## 13. Running it
+
+Applied migrations: 138, 139. Optional and not yet applied: 140 (`audience`),
+141 (`subtitle`) — both degrade to defaults.
+
+Issuing a report is `scripts/issue-partner-report.ts` (section 2). No deploy.

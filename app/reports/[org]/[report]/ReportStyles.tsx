@@ -18,6 +18,11 @@ export function ReportStyles() {
     <style>{`
       body { background: #FFFFFF; }
 
+      /* A report is read on phones. Nothing may scroll the page sideways: wide
+         content (tables, charts) scrolls inside its own container instead. */
+      html, body { overflow-x: hidden; max-width: 100%; }
+      .report-band, .report-band > div { max-width: 100%; }
+
       /* Anchors must clear the sticky rail, or a jumped-to section header sits
          underneath it and the reader thinks the link is broken. */
       .report-band { scroll-margin-top: 60px; }
@@ -29,7 +34,9 @@ export function ReportStyles() {
 
       @media (max-width: 900px) {
         .report-two-col { grid-template-columns: minmax(0, 1fr) !important; }
-        .report-band > div { padding-left: 22px !important; padding-right: 22px !important; }
+        .report-band > div,
+        .report-cover > div,
+        .report-nav > div { padding-left: 22px !important; padding-right: 22px !important; }
       }
 
       @media print {

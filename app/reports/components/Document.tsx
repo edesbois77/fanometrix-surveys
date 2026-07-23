@@ -233,7 +233,7 @@ export function Table({
   caption?: string;
 }) {
   return (
-    <div style={{ overflowX: "auto" }}>
+    <div style={{ overflowX: "auto", minWidth: 0, maxWidth: "100%" }}>
       <table
         style={{
           width: "100%",
@@ -383,7 +383,7 @@ export function MetadataPanel({
     <div
       style={{
         display: "grid",
-        gridTemplateColumns: `repeat(auto-fit, minmax(${compact ? 150 : 168}px, 1fr))`,
+        gridTemplateColumns: `repeat(auto-fit, minmax(min(${compact ? 150 : 168}px, 100%), 1fr))`,
         gap: 0,
         border: `1px solid ${line}`,
         borderRadius: 10,

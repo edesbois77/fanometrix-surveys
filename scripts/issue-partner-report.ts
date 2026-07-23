@@ -4,13 +4,13 @@
 // one partner_reports row and prints the URL and password to hand over.
 //
 //   npx tsx scripts/issue-partner-report.ts \
-//     --org-slug livescore \
-//     --report-slug fedex-phase-1 \
-//     --organisation "LiveScore" \
-//     --brand "FedEx" \
-//     --campaign-title "FedEx UEFA Champions League Sponsorship Study" \
-//     --campaign-numbers 124,125,126,127,128,144 \
-//     --data-from 2026-07-20T00:00:00Z \
+//     --org-slug <publisher-slug> \
+//     --report-slug <report-slug> \
+//     --organisation "<Publisher Name>" \
+//     --brand "<Brand Name>" \
+//     --campaign-title "<Study Name>" \
+//     --campaign-numbers 124,125,126 \
+//     --data-from <iso-timestamp> \
 //     --password "…" \
 //     --subtitle "One sentence for the cover."
 //

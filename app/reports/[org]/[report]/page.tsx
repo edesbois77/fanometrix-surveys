@@ -9,14 +9,17 @@
 // CSV downloads too, where meta tags cannot reach), and /reports is disallowed
 // in robots.txt. It appears in no sitemap.
 
+import { Suspense } from "react";
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 import { getPartnerReport } from "@/lib/reports/definition";
+import type { PartnerReport } from "@/lib/reports/types";
 import { isUnlocked, reportCookieName } from "@/lib/reports/access";
 import { buildAudienceIntelligenceReport } from "@/lib/reports/engine";
 import { ReportDocument } from "@/app/reports/components/ReportDocument";
 import { PasswordGate } from "./PasswordGate";
+import { ReportShell } from "./ReportStates";
 import { ReportStyles } from "./ReportStyles";
 
 // Always computed fresh: the report states a "data through" time, so a cached
@@ -48,7 +51,7 @@ export async function generateMetadata({
   const { org, report } = await params;
   const definition = await getPartnerReport(org, report);
   return {
-    // The title is intentionally generic until the reader is past the gate.
+    // The title stays generic until the reader is past the gate.
     title: definition ? `${definition.reportTitle} · Fanometrix` : "Fanometrix",
     robots: NO_INDEX,
   };
@@ -60,6 +63,13 @@ export default async function PartnerReportPage({
   params: Promise<{ org: string; report: string }>;
 }) {
   const { org, report } = await params;
+
+  // Resolved before this component returns any JSX, and therefore before a
+  // single byte of the response is committed. A route-level loading.tsx would
+  // read better here but costs the status code: it opens a streaming boundary
+  // immediately, the 200 goes out, and every wrong link then answers "fine"
+  // to caches, link checkers and monitoring. The lookup is one indexed row, so
+  // waiting for it is cheap; the expensive part streams below.
   const definition = await getPartnerReport(org, report);
   if (!definition) notFound();
 
@@ -83,12 +93,26 @@ export default async function PartnerReportPage({
     );
   }
 
-  const model = await buildAudienceIntelligenceReport(definition);
-
   return (
     <>
       <ReportStyles />
-      <ReportDocument model={model} />
+      <Suspense
+        fallback={
+          <ReportShell title="Preparing your report" spinner>
+            Every figure is being calculated from live campaign data. This takes a moment.
+          </ReportShell>
+        }
+      >
+        <ReportBody definition={definition} />
+      </Suspense>
     </>
   );
+}
+
+/** The whole report, behind the Suspense boundary. Building it reads several
+ *  million events, so it is the part worth streaming; everything above it
+ *  resolves in a single query. */
+async function ReportBody({ definition }: { definition: PartnerReport }) {
+  const model = await buildAudienceIntelligenceReport(definition);
+  return <ReportDocument model={model} />;
 }

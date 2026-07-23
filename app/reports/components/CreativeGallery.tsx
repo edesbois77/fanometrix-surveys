@@ -47,7 +47,7 @@ export function CreativeGallery({
         display: "grid",
         // The units are 300px-wide MPUs. A 300px track minus the frame padding
         // clips them, so the track has to clear the unit plus its surround.
-        gridTemplateColumns: `repeat(auto-fit, minmax(348px, 1fr))`,
+        gridTemplateColumns: `repeat(auto-fit, minmax(min(348px, 100%), 1fr))`,
         gap: 28,
         alignItems: "start",
       }}

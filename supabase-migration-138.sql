@@ -30,7 +30,7 @@ CREATE TABLE IF NOT EXISTS partner_reports (
 
   -- What it is called.
   report_title      text        NOT NULL DEFAULT 'Fanometrix Audience Intelligence Report',
-  campaign_title    text        NOT NULL,   -- e.g. 'FedEx UEFA Champions League Sponsorship Study'
+  campaign_title    text        NOT NULL,   -- the study's name, as the partner knows it
   research_question text,                   -- shown under the campaign title when set
 
   -- The partner's mark for the cover. Optional: the cover sets the organisation
