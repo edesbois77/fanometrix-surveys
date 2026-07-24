@@ -14,13 +14,16 @@ import { SOURCE_KIND_LABEL, SOURCE_KIND_ORDER, CONVERSATION_KINDS, type SourceKi
 type KindCounts = { candidate: number; approved: number; set_aside: number; total: number };
 type BoardData = { findings: unknown[]; byKind: Record<string, KindCounts>; approvedTotal: number };
 type SurveyPop = { surveyId: string; name: string; responses: number; campaigns: number; bySurveyId: number };
+type DiagSurvey = {
+  surveyId: string; name: string;
+  attributedReal: number; attributedDemo: number;
+  campaigns: number; campaignIds: string[];
+  under: { total: number; real: number; demo: number; nullSurveyId: number; otherSurveyId: number };
+};
 type Diag = {
   projectSurveyId: string | null;
   researchMode: string | null;
-  surveys: { id: string; name: string; is_simulated: boolean }[];
-  campaigns: { campaign_id: string; name: string | null; survey_id: string | null; responses: number }[];
-  responsesUnderCampaignsBySurveyId: Record<string, number>;
-  totalResponsesUnderCampaigns: number;
+  surveys: DiagSurvey[];
 };
 
 // Which review page a source kind is reviewed on.
@@ -181,24 +184,19 @@ export function FindingsOverview() {
               {diagOpen ? "Hide attribution details" : "Show attribution details (where responses live)"}
             </button>
             {diagOpen && diag && (
-              <div className="mt-2 text-[11px]" style={{ color: "var(--text-secondary)" }}>
-                <p>Project default survey_id: <code>{diag.projectSurveyId ?? "null"}</code> · mode: {diag.researchMode ?? "—"}</p>
-                <p className="mt-1.5 font-semibold" style={{ color: "var(--text-tertiary)" }}>Surveys attached ({diag.surveys.length}):</p>
-                <ul className="ml-2">{diag.surveys.map(s => <li key={s.id}><code>{s.id.slice(0, 8)}…</code> {s.name}{s.is_simulated ? " (simulated)" : ""}</li>)}</ul>
-                <p className="mt-1.5 font-semibold" style={{ color: "var(--text-tertiary)" }}>Project campaigns ({diag.campaigns.length}) — responses each & the survey_id they carry:</p>
-                <div className="ml-2 overflow-x-auto">
-                  <table className="text-[11px]"><tbody>
-                    {diag.campaigns.map(c => (
-                      <tr key={c.campaign_id}>
-                        <td className="pr-3">{c.name ?? c.campaign_id}</td>
-                        <td className="pr-3 font-bold" style={{ color: "var(--text-primary)" }}>{c.responses.toLocaleString()}</td>
-                        <td style={{ color: "var(--text-tertiary)" }}>survey_id: <code>{c.survey_id ? c.survey_id.slice(0, 8) + "…" : "null"}</code></td>
-                      </tr>
-                    ))}
-                  </tbody></table>
-                </div>
-                <p className="mt-1.5 font-semibold" style={{ color: "var(--text-tertiary)" }}>Responses under project campaigns, by survey_id ({diag.totalResponsesUnderCampaigns.toLocaleString()} total):</p>
-                <ul className="ml-2">{Object.entries(diag.responsesUnderCampaignsBySurveyId).map(([k, v]) => <li key={k}>{k}: <span className="font-bold" style={{ color: "var(--text-primary)" }}>{v.toLocaleString()}</span></li>)}</ul>
+              <div className="mt-2 text-[11px] space-y-3" style={{ color: "var(--text-secondary)" }}>
+                <p>Project default survey_id: <code>{diag.projectSurveyId ? diag.projectSurveyId.slice(0, 8) + "…" : "null"}</code> · mode: {diag.researchMode ?? "—"}</p>
+                {diag.surveys.map(s => (
+                  <div key={s.surveyId} className="p-2 rounded-lg" style={{ background: "var(--surface-sunken)", border: "1px solid var(--border-subtle)" }}>
+                    <p className="font-semibold" style={{ color: "var(--text-primary)" }}>{s.name} <code style={{ color: "var(--text-tertiary)" }}>{s.surveyId.slice(0, 8)}…</code></p>
+                    <ul className="ml-1 mt-1 space-y-0.5">
+                      <li>Directly attributed (survey_id = this): <b style={{ color: "var(--text-primary)" }}>{s.attributedReal}</b> real, {s.attributedDemo} demo</li>
+                      <li>Came via <b style={{ color: "var(--text-primary)" }}>{s.campaigns}</b> campaign{s.campaigns === 1 ? "" : "s"}</li>
+                      <li>Everything under those same campaigns: <b style={{ color: "var(--text-primary)" }}>{s.under.total}</b> total ({s.under.real} real, {s.under.demo} demo)</li>
+                      <li style={{ color: s.under.nullSurveyId > 0 ? "#8A4B33" : undefined }}>…of which <b>{s.under.nullSurveyId}</b> carry survey_id = null, {s.under.otherSurveyId} carry a different survey_id</li>
+                    </ul>
+                  </div>
+                ))}
               </div>
             )}
           </div>

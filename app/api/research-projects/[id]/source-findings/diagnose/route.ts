@@ -1,18 +1,41 @@
-// Attribution diagnostic: shows EXACTLY where a project's survey responses live,
-// so we can attribute them to the right survey instead of guessing. It answers:
-// how many responses sit under each of the project's campaigns, what survey_id
-// (if any) those campaigns carry, and how the response rows split by survey_id.
-// Read-only.
+// Attribution diagnostic, response-centric. The project has NO campaigns linked
+// by research_project_id, yet responses exist — so we find each survey's campaigns
+// THROUGH its own responses' campaign_id, then look at everything else sitting
+// under those same campaigns. This reveals whether the missing responses are (a)
+// under the same campaigns but carrying survey_id = null, or (b) is_demo = true
+// rows the real-mode filter drops. Read-only.
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth-server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
-async function countResponses(filter: (q: ReturnType<typeof baseQuery>) => ReturnType<typeof baseQuery>): Promise<number> {
-  const { count } = await filter(baseQuery());
-  return count ?? 0;
-}
-function baseQuery() {
-  return supabaseAdmin.from("responses").select("id", { count: "exact", head: true });
+type Row = { campaign_id: string | null; survey_id: string | null; is_demo: boolean };
+
+async function surveyDiag(surveyId: string, name: string) {
+  // Every response DIRECTLY attributed to this survey (both is_demo values).
+  const { data: attr } = await supabaseAdmin
+    .from("responses").select("campaign_id, survey_id, is_demo").eq("survey_id", surveyId).limit(50000);
+  const attributed = (attr ?? []) as Row[];
+  const attributedReal = attributed.filter(r => !r.is_demo).length;
+  const attributedDemo = attributed.filter(r => r.is_demo).length;
+
+  const campaignIds = [...new Set(attributed.map(r => r.campaign_id).filter((c): c is string => !!c))];
+
+  // Everything under those same campaigns, whatever its survey_id / is_demo.
+  let under = { total: 0, real: 0, demo: 0, nullSurveyId: 0, otherSurveyId: 0 };
+  if (campaignIds.length) {
+    const { data: crows } = await supabaseAdmin
+      .from("responses").select("campaign_id, survey_id, is_demo").in("campaign_id", campaignIds).limit(100000);
+    const rows = (crows ?? []) as Row[];
+    under = {
+      total: rows.length,
+      real: rows.filter(r => !r.is_demo).length,
+      demo: rows.filter(r => r.is_demo).length,
+      nullSurveyId: rows.filter(r => r.survey_id == null).length,
+      otherSurveyId: rows.filter(r => r.survey_id != null && r.survey_id !== surveyId).length,
+    };
+  }
+
+  return { surveyId, name, attributedReal, attributedDemo, campaigns: campaignIds.length, campaignIds: campaignIds.slice(0, 10), under };
 }
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -21,47 +44,21 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   const { data: proj } = await supabaseAdmin
     .from("research_projects").select("survey_id, research_mode").eq("id", projectId).maybeSingle();
-  const projectSurveyId = (proj?.survey_id as string | null) ?? null;
 
   const { data: links } = await supabaseAdmin
     .from("research_project_evidence").select("evidence_id").eq("research_project_id", projectId).eq("evidence_type", "survey");
   const surveyIds = (links ?? []).map(l => l.evidence_id as string);
   const { data: surveys } = surveyIds.length
-    ? await supabaseAdmin.from("surveys").select("id, name, is_simulated").in("id", surveyIds)
-    : { data: [] as { id: string; name: string; is_simulated: boolean }[] };
+    ? await supabaseAdmin.from("surveys").select("id, name").in("id", surveyIds)
+    : { data: [] as { id: string; name: string }[] };
 
-  const { data: campaignRows } = await supabaseAdmin
-    .from("campaigns").select("campaign_id, survey_id, name").eq("research_project_id", projectId).is("deleted_at", null);
-  const campaigns = (campaignRows ?? []) as { campaign_id: string; survey_id: string | null; name: string | null }[];
-  const campaignSlugs = campaigns.map(c => c.campaign_id).filter(Boolean);
-
-  // Per-campaign response counts (both is_demo values, to reveal everything).
-  const campaignDetail = await Promise.all(campaigns.map(async c => ({
-    campaign_id: c.campaign_id,
-    name: c.name,
-    survey_id: c.survey_id,
-    responses: await countResponses(q => q.eq("campaign_id", c.campaign_id)),
-  })));
-
-  // Split of responses under the project's campaigns by survey_id value.
-  const bySurveyId: Record<string, number> = {};
-  if (campaignSlugs.length) {
-    for (const s of (surveys ?? [])) {
-      bySurveyId[s.name] = await countResponses(q => q.in("campaign_id", campaignSlugs).eq("survey_id", s.id));
-    }
-    bySurveyId["(survey_id is null)"] = await countResponses(q => q.in("campaign_id", campaignSlugs).is("survey_id", null));
-  }
-
-  const totalUnderCampaigns = campaignSlugs.length ? await countResponses(q => q.in("campaign_id", campaignSlugs)) : 0;
+  const perSurvey = await Promise.all((surveys ?? []).map(s => surveyDiag(s.id, s.name)));
 
   return NextResponse.json({
     data: {
-      projectSurveyId,
+      projectSurveyId: (proj?.survey_id as string | null) ?? null,
       researchMode: proj?.research_mode ?? null,
-      surveys: (surveys ?? []).map(s => ({ id: s.id, name: s.name, is_simulated: s.is_simulated })),
-      campaigns: campaignDetail,
-      responsesUnderCampaignsBySurveyId: bySurveyId,
-      totalResponsesUnderCampaigns: totalUnderCampaigns,
+      surveys: perSurvey,
     },
   });
 }
