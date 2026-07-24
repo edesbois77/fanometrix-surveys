@@ -62,9 +62,10 @@ export function ProjectShell() {
   // (or the base redirect) resolves to Overview.
   const rest = pathname.startsWith(base) ? pathname.slice(base.length) : "";
   const areaSeg = rest.split("/").filter(Boolean)[0] ?? "overview";
-  const activeKey = ["research", "execution", "dashboard", "analysis", "outputs", "conclusion"].includes(areaSeg)
-    ? areaSeg
-    : "overview";
+  // Matched against the route AREAS themselves, never a hand-kept list — a new
+  // area (Findings, Evidence Strategy, …) then highlights correctly instead of
+  // falling through to Overview by omission.
+  const activeKey = AREAS.find(a => a.kind === "route" && a.segment === areaSeg)?.key ?? "overview";
 
   const stages = project ? computeLifecycleStages(project) : [];
   const stageState = (key: string): StageState | undefined => stages.find(s => s.key === key)?.state;

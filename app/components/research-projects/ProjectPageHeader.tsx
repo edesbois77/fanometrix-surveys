@@ -38,9 +38,11 @@ function Sep() {
 // Area segment → breadcrumb label. Overview is implicit (always the second
 // crumb); everything else appends as the current, third crumb.
 const AREA_LABEL: Record<string, string> = {
+  design: "Evidence Strategy",
   research: "Research",
   execution: "Execution",
   dashboard: "Dashboard",
+  findings: "Findings",
   analysis: "Analysis",
   outputs: "Reports",
   conclusion: "Conclusions",
