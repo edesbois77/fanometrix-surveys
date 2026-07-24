@@ -13,6 +13,7 @@ import { SOURCE_KIND_LABEL, SOURCE_KIND_ORDER, CONVERSATION_KINDS, type SourceKi
 
 type KindCounts = { candidate: number; approved: number; set_aside: number; total: number };
 type BoardData = { findings: unknown[]; byKind: Record<string, KindCounts>; approvedTotal: number };
+type SurveyPop = { surveyId: string; name: string; responses: number; campaigns: number; bySurveyId: number };
 
 // Which review page a source kind is reviewed on.
 function pageFor(kind: SourceKind): "survey" | "conversation" | "document" {
@@ -48,6 +49,8 @@ export function FindingsOverview() {
   const [data, setData] = useState<BoardData | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [extracting, setExtracting] = useState(false);
+  const [summary, setSummary] = useState<string | null>(null);
+  const [populations, setPopulations] = useState<SurveyPop[] | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -55,17 +58,32 @@ export function FindingsOverview() {
     const res = await fetch(`/api/research-projects/${projectId}/source-findings`).then(r => (r.ok ? r.json() : null)).catch(() => null);
     setData(res?.data ?? { findings: [], byKind: {}, approvedTotal: 0 });
     setLoaded(true);
+    return (res?.data ?? { findings: [], byKind: {}, approvedTotal: 0 }) as BoardData;
   }, [projectId]);
 
-  useEffect(() => { load(); return () => { if (pollRef.current) clearTimeout(pollRef.current); }; }, [load]);
+  const loadPopulations = useCallback(async () => {
+    const res = await fetch(`/api/research-projects/${projectId}/source-findings/populations`).then(r => (r.ok ? r.json() : null)).catch(() => null);
+    setPopulations((res?.data?.surveys ?? []) as SurveyPop[]);
+  }, [projectId]);
+
+  useEffect(() => { load(); loadPopulations(); return () => { if (pollRef.current) clearTimeout(pollRef.current); }; }, [load, loadPopulations]);
 
   const pollAfterExtract = useCallback((remaining: number) => {
-    if (remaining <= 0) { setExtracting(false); return; }
+    if (remaining <= 0) {
+      // Done: refresh the diagnostic and post a top-line summary of what changed.
+      setExtracting(false);
+      Promise.all([load(), loadPopulations()]).then(([d]) => {
+        const total = Object.values(d.byKind).reduce((n, c) => n + c.total, 0);
+        setSummary(`Extraction complete — ${total} finding${total === 1 ? "" : "s"} across ${Object.keys(d.byKind).length} source${Object.keys(d.byKind).length === 1 ? "" : "s"}.`);
+      });
+      return;
+    }
     pollRef.current = setTimeout(async () => { await load(); pollAfterExtract(remaining - 1); }, 2500);
-  }, [load]);
+  }, [load, loadPopulations]);
 
   async function extract() {
     setExtracting(true);
+    setSummary(null);
     try {
       const res = await fetch(`/api/research-projects/${projectId}/source-findings/extract`, { method: "POST" });
       const json = await res.json().catch(() => ({}));
@@ -73,7 +91,7 @@ export function FindingsOverview() {
       const { enqueued = 0, units = 0 } = json.data ?? {};
       setToast(enqueued > 0 ? `Re-extracting ${enqueued} source${enqueued === 1 ? "" : "s"}…` : `Extraction already running for ${units} source${units === 1 ? "" : "s"}…`);
       await load();
-      pollAfterExtract(8);
+      pollAfterExtract(10);
     } catch { setToast("Could not start extraction."); setExtracting(false); }
   }
 
@@ -103,7 +121,45 @@ export function FindingsOverview() {
             {extracting ? "Extracting…" : hasFindings ? "Re-extract findings" : "Extract findings"}
           </Button>
         </div>
+
+        {extracting && (
+          <div className="mt-3">
+            <div className="h-1.5 w-full rounded-full overflow-hidden" style={{ background: "var(--surface-sunken)" }}>
+              <div style={{ height: "100%", width: "40%", borderRadius: 9999, background: "var(--accent-gold)", animation: "fx-indeterminate 1.2s ease-in-out infinite" }} />
+            </div>
+            <style>{`@keyframes fx-indeterminate { 0% { margin-left: -40%; } 100% { margin-left: 100%; } }`}</style>
+            <p className="text-[11px] mt-1.5" style={{ color: "var(--text-tertiary)" }}>Extracting findings from every source… this usually takes under a minute. The counts below update as each source completes.</p>
+          </div>
+        )}
+        {!extracting && summary && (
+          <div className="mt-3 flex items-center gap-2 text-xs" style={{ color: "#2F7D55" }}>
+            <Icon.check size={13} strokeWidth={2.5} /> {summary}
+          </div>
+        )}
       </Card>
+
+      {populations && populations.length > 0 && (
+        <Card padding="md">
+          <div className="flex items-center gap-2 mb-1">
+            <Icon.layers size={14} strokeWidth={2} />
+            <p className="text-xs font-bold uppercase tracking-[0.06em]" style={{ color: "var(--text-secondary)" }}>Survey responses counted</p>
+          </div>
+          <p className="text-[11px] mb-2" style={{ color: "var(--text-tertiary)" }}>
+            The responses each survey&apos;s findings are computed from, counted by campaign membership (the same way the project total is), not the raw survey_id.
+          </p>
+          <ul className="divide-y" style={{ borderColor: "var(--border-subtle)" }}>
+            {populations.map(p => (
+              <li key={p.surveyId} className="flex items-center justify-between gap-3 py-2 text-sm">
+                <span className="font-medium min-w-0 truncate" style={{ color: "var(--text-primary)" }}>{p.name}</span>
+                <span className="text-xs flex-shrink-0" style={{ color: "var(--text-tertiary)" }}>
+                  <span className="font-bold" style={{ color: "var(--text-primary)" }}>{p.responses.toLocaleString()}</span> responses
+                  {p.responses !== p.bySurveyId && ` · ${p.bySurveyId.toLocaleString()} directly attributed, +${p.campaigns} campaign${p.campaigns === 1 ? "" : "s"}`}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
 
       {hasFindings && (
         <>
