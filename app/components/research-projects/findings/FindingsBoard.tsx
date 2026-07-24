@@ -15,12 +15,14 @@ import {
 } from "@/app/components/workspace-ui";
 import { FindingCard } from "./FindingCard";
 import { effectiveConfidence, type NeedGroup, type RunStatus } from "./finding-view";
+import type { EvidenceLedger } from "@/lib/analysis/ledger";
 
 type RunView = {
   id: string; status: RunStatus;
   candidates_written: number; needs_reasoned: number;
   coverage: { level?: string; statement?: string } | null;
   unexamined: { need: string }[]; error: string | null;
+  evidence_consumption?: EvidenceLedger | null;
 } | null;
 
 type BoardData = { run: RunView; needs: NeedGroup[] };
@@ -38,6 +40,76 @@ function groupByRequirement(needs: NeedGroup[]): RequirementGroup[] {
     byReq.set(n.requirement, g);
   }
   return [...byReq.values()];
+}
+
+// The Evidence Consumption Report — proof of exactly what reached reasoning, and
+// what did not and why. Collapsed by default: it is a diagnostic the analyst
+// opens to answer "did Analysis actually read my documents", not part of the
+// finding read. Every figure is computed by gather before the model runs.
+function EvidenceConsumptionPanel({ ledger }: { ledger: EvidenceLedger }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <Card padding="md">
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center justify-between gap-3 text-left"
+      >
+        <div className="flex items-center gap-2">
+          <Icon.layers size={15} strokeWidth={2} />
+          <div>
+            <Eyebrow>Evidence consumed</Eyebrow>
+            <p className="text-sm mt-0.5" style={{ color: "var(--text-secondary)" }}>
+              <span className="font-bold" style={{ color: "var(--text-primary)" }}>{ledger.totalSupplied}</span> evidence objects supplied to reasoning across {ledger.sources.length} sources.
+            </p>
+          </div>
+        </div>
+        <span className="text-xs flex-shrink-0" style={{ color: "var(--text-tertiary)" }}>{open ? "Hide" : "Show"}</span>
+      </button>
+
+      {open && (
+        <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+          {ledger.sources.map(source => (
+            <div key={source.key} className="p-3 rounded-lg" style={{ background: "var(--surface-sunken)", border: "1px solid var(--border-subtle)" }}>
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs font-bold uppercase tracking-[0.06em]" style={{ color: "var(--text-secondary)" }}>{source.label}</p>
+                <span className="text-[11px] font-semibold" style={{ color: source.supplied > 0 ? "#3F5D42" : "var(--text-disabled)" }}>{source.supplied} supplied</span>
+              </div>
+              <ul className="mt-2 space-y-1">
+                {source.lines.map((l, i) => (
+                  <li key={i} className="flex items-center justify-between gap-2 text-xs" style={{ color: "var(--text-secondary)" }}>
+                    <span>{l.label}</span>
+                    <span className="font-semibold tabular-nums" style={{ color: "var(--text-primary)" }}>{l.count.toLocaleString()}</span>
+                  </li>
+                ))}
+              </ul>
+              {source.exclusions.length > 0 && (
+                <ul className="mt-2.5 pt-2.5 space-y-1" style={{ borderTop: "1px solid var(--border-subtle)" }}>
+                  {source.exclusions.map((e, i) => (
+                    <li key={i} className="flex items-start justify-between gap-2 text-[11px]" style={{ color: "#8A4B33" }}>
+                      <span>{e.reason}</span>
+                      <span className="font-semibold tabular-nums flex-shrink-0">{e.count.toLocaleString()}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          ))}
+          {ledger.notes.length > 0 && (
+            <div className="md:col-span-2">
+              <ul className="space-y-1">
+                {ledger.notes.map((n, i) => (
+                  <li key={i} className="text-[11px] flex items-start gap-1.5" style={{ color: "var(--text-tertiary)" }}>
+                    <span className="mt-1 w-1 h-1 rounded-full flex-shrink-0" style={{ background: "var(--accent-gold)" }} aria-hidden />{n}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
+    </Card>
+  );
 }
 
 function CoverageBar({ needs }: { needs: NeedGroup[] }) {
@@ -189,6 +261,8 @@ export function FindingsBoard() {
                 </div>
               </Card>
             )}
+
+            {run?.evidence_consumption && <EvidenceConsumptionPanel ledger={run.evidence_consumption} />}
 
             {requirements.map((req, ri) => (
               <section key={ri} className="space-y-3">

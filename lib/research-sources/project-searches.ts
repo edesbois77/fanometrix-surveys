@@ -37,6 +37,92 @@ export async function getApprovedProjectSocialSearchIds(projectId: string): Prom
   return (data ?? []).map(r => r.id as string);
 }
 
+/** The settled review states whose evidence Analysis always consumes. 'archived'
+ *  counts because archiving freezes collection but PRESERVES a prior approval
+ *  (lib/evidence-review.ts). 'pending_approval' is NOT here: it is eligible only
+ *  conditionally — see isAnalysisEligible. */
+export const SETTLED_ELIGIBLE_REVIEW_STATES = ["approved", "archived"] as const;
+
+/** Just the fields the eligibility rule reads, so it can be decided as a pure
+ *  function and unit-tested without a database. */
+export type SearchReviewSnapshot = { reviewStatus: string; approvedAt: string | null };
+
+/**
+ * Whether Analysis is entitled to consume a conversation/news search's evidence:
+ * "Approved + awaiting re-approval".
+ *
+ *   - approved / archived            → yes, a settled approval.
+ *   - pending_approval, approved once → yes. Every collection run that adds new
+ *       evidence reverts an approved search to pending_approval (the delta-review
+ *       loop). approveSearch stamps approved_at; submitForApproval leaves it in
+ *       place, so a non-null approved_at is the durable proof the search cleared
+ *       the bar at least once. It must not silently vanish from Analysis merely
+ *       because a later run wants a re-look.
+ *   - pending_approval, never approved → NO. This is a first submission awaiting
+ *       its first review; it is not trusted yet.
+ *   - draft / collecting             → NO. Never reviewed.
+ *
+ * Excluded searches are not dropped: gather.ts names each in the Evidence
+ * Consumption Report (see ineligibleReason) so the exclusion is visible.
+ */
+export function isAnalysisEligible({ reviewStatus, approvedAt }: SearchReviewSnapshot): boolean {
+  if ((SETTLED_ELIGIBLE_REVIEW_STATES as readonly string[]).includes(reviewStatus)) return true;
+  if (reviewStatus === "pending_approval") return approvedAt != null;
+  return false;
+}
+
+/** The plainly-stated reason a not-eligible search was held back, for the Evidence
+ *  Consumption Report. Null when the search IS eligible. Two distinct reasons,
+ *  because they call for opposite responses: "review it" vs "it will re-appear on
+ *  its own once approved". */
+export function ineligibleReason(snap: SearchReviewSnapshot): string | null {
+  if (isAnalysisEligible(snap)) return null;
+  if (snap.reviewStatus === "pending_approval") return "Submitted for approval but not yet approved";
+  return "Not yet reviewed for Analysis (draft or collecting)";
+}
+
+export type ProjectSearchState = {
+  id: string;
+  name: string;
+  reviewStatus: string;
+  /** True once the search has ever been approved (approved_at is set), even if a
+   *  later collection run reverted it to pending_approval. */
+  previouslyApproved: boolean;
+  /** Whether Analysis will consume this search's evidence, per isAnalysisEligible. */
+  eligible: boolean;
+  /** When not eligible, the reason for the Evidence Consumption Report; else null. */
+  ineligibleReason: string | null;
+};
+
+/**
+ * Every conversation/news search attached to the project, WITH its review state
+ * and whether Analysis is entitled to consume it. gather.ts uses this to both
+ * gather eligible evidence and report the excluded searches with a reason, so
+ * nothing disappears silently.
+ */
+export async function getProjectSearchStates(projectId: string): Promise<ProjectSearchState[]> {
+  const ids = await getProjectSocialSearchIds(projectId);
+  if (ids.length === 0) return [];
+  const { data } = await supabaseAdmin
+    .from("social_searches")
+    .select("id, name, review_status, approved_at")
+    .in("id", ids);
+  return (data ?? []).map(s => {
+    const snap: SearchReviewSnapshot = {
+      reviewStatus: (s.review_status as string | null) ?? "draft",
+      approvedAt: (s.approved_at as string | null) ?? null,
+    };
+    return {
+      id: s.id as string,
+      name: (s.name as string | null) ?? "Untitled search",
+      reviewStatus: snap.reviewStatus,
+      previouslyApproved: snap.approvedAt != null,
+      eligible: isAnalysisEligible(snap),
+      ineligibleReason: ineligibleReason(snap),
+    };
+  });
+}
+
 /**
  * The Research Question a conversation search's evidence is judged against —
  * the project's research_question, found via the evidence link. Used as the

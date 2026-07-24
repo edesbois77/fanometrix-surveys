@@ -16,6 +16,7 @@ export type AnalysisRun = {
   coverage: Record<string, unknown> | null;
   unexamined: unknown[];
   unmapped: unknown[];
+  evidence_consumption: Record<string, unknown> | null;
   model: string | null;
   requested_by: string | null;
   error: string | null;

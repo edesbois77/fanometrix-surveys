@@ -70,6 +70,7 @@ async function run(ctx: JobContext): Promise<void> {
       coverage: reasoning.coverage,
       unexamined: reasoning.unexamined,
       unmapped: reasoning.unmapped,
+      evidence_consumption: reasoning.consumption,
     })
     .eq("id", runId);
 

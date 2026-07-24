@@ -7,6 +7,7 @@
 // not visible in one of the stages, it does not exist. It never persists, so the
 // route decides storage, and it never approves, so a person decides truth.
 import { gatherFrames } from "@/lib/analysis/gather";
+import type { EvidenceLedger } from "@/lib/analysis/ledger";
 import { formPropositions } from "@/lib/analysis/formation";
 import { disconfirm } from "@/lib/analysis/disconfirmation";
 import { toCandidate, type CandidateResult } from "@/lib/analysis/candidate";
@@ -39,6 +40,9 @@ export type ReasoningRun = {
   unexamined: { needId: string; need: string }[];
   /** Sources the design could not assign to any question. */
   unmapped: { evidenceType: string; evidenceId: string; reason: string }[];
+  /** The Evidence Consumption Report: exactly what reached reasoning. Built by
+   *  gather before any proposition is formed, and carried through unchanged. */
+  consumption: EvidenceLedger;
 };
 
 async function pool<T, R>(items: T[], n: number, fn: (t: T) => Promise<R>): Promise<R[]> {
@@ -51,7 +55,7 @@ async function pool<T, R>(items: T[], n: number, fn: (t: T) => Promise<R>): Prom
 }
 
 export async function reasonOverProject(projectId: string): Promise<ReasoningRun> {
-  const { gathered, unmapped } = await gatherFrames(projectId);
+  const { gathered, unmapped, consumption } = await gatherFrames(projectId);
 
   const results = await pool(gathered, CONCURRENCY, async ({ need, frame }) => {
     const proposed = await formPropositions({
@@ -90,5 +94,5 @@ export async function reasonOverProject(projectId: string): Promise<ReasoningRun
     ]),
   );
 
-  return { projectId, results, needs, coverage: rollUpCoverage(needCoverage), unexamined, unmapped };
+  return { projectId, results, needs, coverage: rollUpCoverage(needCoverage), unexamined, unmapped, consumption };
 }

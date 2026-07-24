@@ -1,0 +1,69 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { surveyObservations, type SurveyResponseRow } from "./survey-observations";
+import type { LocalisedQuestion } from "@/lib/survey-locale";
+
+// A one-question survey whose options carry stable numeric ids, the shape
+// `responses` stores against q1/q2/q3.
+const q = (text: string, options: { id: number; text: string }[]): LocalisedQuestion => ({
+  // Only the fields survey-observations reads; the real type carries more.
+  text: { en: text },
+  options: options.map(o => ({ id: o.id, text: { en: o.text } })),
+} as unknown as LocalisedQuestion);
+
+const QUESTION = q("How do fans perceive it?", [
+  { id: 1, text: "Strong fit" },
+  { id: 2, text: "Relevant but unclear" },
+  { id: 3, text: "Never noticed" },
+]);
+
+/** n rows all answering q1 with the given option id, in a market/segment. */
+function rows(spec: { q1: number; country?: string; fan_segment?: string; n: number }[]): SurveyResponseRow[] {
+  const out: SurveyResponseRow[] = [];
+  for (const s of spec) {
+    for (let i = 0; i < s.n; i++) {
+      out.push({ q1: String(s.q1), q2: null, q3: null, country: s.country ?? null, fan_segment: s.fan_segment ?? null });
+    }
+  }
+  return out;
+}
+
+test("every option is reported, including a minority below the old 15% floor", () => {
+  // 80 fit / 15 unclear / 5 never noticed = 100 → 5% is a minority the crude
+  // gatherer used to erase.
+  const responses = rows([
+    { q1: 1, n: 80 }, { q1: 2, n: 15 }, { q1: 3, n: 5 },
+  ]);
+  const obs = surveyObservations({ surveyName: "Perception", questions: [QUESTION], responses });
+  const text = obs.map(o => o.content).join("\n");
+
+  assert.match(text, /80% of 100 respondents chose "Strong fit"/);
+  assert.match(text, /15% of 100 respondents chose "Relevant but unclear"/);
+  // The 5% option survives AND is flagged as a notable minority.
+  assert.match(text, /5% of 100 respondents chose "Never noticed" .*\(a notable minority\)/);
+});
+
+test("a market that diverges from the whole is reported as a contrast", () => {
+  // Overall "Never noticed" ~ 5%. In DE it is 60% — a genuine market difference.
+  const responses = rows([
+    { q1: 1, country: "GB", n: 80 },
+    { q1: 2, country: "GB", n: 15 },
+    { q1: 3, country: "GB", n: 5 },
+    { q1: 3, country: "DE", n: 30 },
+    { q1: 1, country: "DE", n: 20 },
+  ]);
+  const obs = surveyObservations({ surveyName: "Perception", questions: [QUESTION], responses });
+  const de = obs.find(o => o.provenance.includes("DE"));
+  assert.ok(de, "a DE market divergence observation should exist");
+  assert.match(de!.content, /Among DE respondents \(n=50\)/);
+  assert.match(de!.content, /versus .*overall/);
+});
+
+test("a market too small to read is not reported as a difference", () => {
+  const responses = rows([
+    { q1: 1, country: "GB", n: 90 },
+    { q1: 3, country: "XX", n: 3 }, // below MIN_SUBGROUP
+  ]);
+  const obs = surveyObservations({ surveyName: "Perception", questions: [QUESTION], responses });
+  assert.equal(obs.some(o => o.provenance.includes("XX")), false);
+});
