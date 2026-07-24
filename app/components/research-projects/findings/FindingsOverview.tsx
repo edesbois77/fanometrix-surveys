@@ -68,10 +68,13 @@ export function FindingsOverview() {
     setExtracting(true);
     try {
       const res = await fetch(`/api/research-projects/${projectId}/source-findings/extract`, { method: "POST" });
+      const json = await res.json().catch(() => ({}));
       if (!res.ok) { setToast("Could not start extraction."); setExtracting(false); return; }
+      const { enqueued = 0, units = 0 } = json.data ?? {};
+      setToast(enqueued > 0 ? `Re-extracting ${enqueued} source${enqueued === 1 ? "" : "s"}…` : `Extraction already running for ${units} source${units === 1 ? "" : "s"}…`);
       await load();
       pollAfterExtract(8);
-    } catch { setExtracting(false); }
+    } catch { setToast("Could not start extraction."); setExtracting(false); }
   }
 
   if (loading && !project) return <PageLoadingState />;

@@ -10,6 +10,60 @@ import { conversationObservations, type Mention } from "@/lib/analysis/source-fi
 import type { SourceFindingDraft, EvidenceStrength } from "@/lib/analysis/source-findings/types";
 import type { LocalisedQuestion } from "@/lib/survey-locale";
 
+/** The response population for a survey, counted the way the PLATFORM counts it —
+ *  by campaign membership — not by the fragile `responses.survey_id`.
+ *
+ *  Campaign-embed responses were historically stored with `survey_id = NULL` (the
+ *  embed identifies the survey by campaign slug), so a `survey_id = evidence_id`
+ *  query sees only the fully-attributed subset and undercounts — which is why
+ *  every question read the same 196 instead of the true, declining per-question
+ *  counts. The project total avoids this by counting on `campaign_id`
+ *  (vw_campaign_stats), and so must this: gather the project's campaigns whose
+ *  effective survey (campaign.survey_id, else the project's survey_id) is this
+ *  evidence survey, and read every response under them, unioned with any rows
+ *  directly attributed to the survey. Deduped by response id. */
+async function surveyResponses(surveyId: string, projectId: string, isSimulated: boolean): Promise<SurveyResponseRow[]> {
+  const { data: project } = await supabaseAdmin
+    .from("research_projects").select("survey_id").eq("id", projectId).maybeSingle();
+  const projectSurveyId = (project?.survey_id as string | null) ?? null;
+
+  const { data: campaigns } = await supabaseAdmin
+    .from("campaigns").select("campaign_id, survey_id")
+    .eq("research_project_id", projectId)
+    .is("deleted_at", null);
+  const campaignSlugs = (campaigns ?? [])
+    .filter(c => (((c.survey_id as string | null) ?? projectSurveyId) === surveyId))
+    .map(c => c.campaign_id as string)
+    .filter(Boolean);
+
+  const seen = new Set<string>();
+  const out: SurveyResponseRow[] = [];
+  const take = (rows: Record<string, unknown>[] | null) => {
+    for (const r of rows ?? []) {
+      const id = r.id as string;
+      if (seen.has(id)) continue;
+      seen.add(id);
+      out.push({
+        q1: (r.q1 as string | null) ?? null, q2: (r.q2 as string | null) ?? null, q3: (r.q3 as string | null) ?? null,
+        country: (r.country as string | null) ?? null, fan_segment: (r.fan_segment as string | null) ?? null,
+      });
+    }
+  };
+
+  const cols = "id, q1, q2, q3, country, fan_segment";
+  // Directly-attributed rows (non-campaign embeds, and backfilled campaign rows).
+  const { data: bySurvey } = await supabaseAdmin
+    .from("responses").select(cols).eq("survey_id", surveyId).eq("is_demo", isSimulated).limit(50000);
+  take(bySurvey as Record<string, unknown>[] | null);
+  // Campaign-attributed rows, whatever their survey_id (incl. NULL).
+  if (campaignSlugs.length > 0) {
+    const { data: byCampaign } = await supabaseAdmin
+      .from("responses").select(cols).in("campaign_id", campaignSlugs).eq("is_demo", isSimulated).limit(50000);
+    take(byCampaign as Record<string, unknown>[] | null);
+  }
+  return out;
+}
+
 /** Survey findings from the full computed distributions (minorities, market and
  *  segment differences included) — the same lib/analysis/survey-observations.ts
  *  the intake layer uses, so nothing meaningful is dropped. Evidence is counted
@@ -17,15 +71,12 @@ import type { LocalisedQuestion } from "@/lib/survey-locale";
  *  that produced it, never a generic completed-survey total, and a respondent who
  *  answered one question but not another still counts toward the one they
  *  answered. The per-question reliability floor lives in survey-observations. */
-export async function extractSurveyFindings(surveyId: string): Promise<SourceFindingDraft[]> {
+export async function extractSurveyFindings(surveyId: string, projectId: string): Promise<SourceFindingDraft[]> {
   const { data: survey } = await supabaseAdmin
     .from("surveys").select("name, questions, is_simulated").eq("id", surveyId).maybeSingle();
   if (!survey) return [];
 
-  const { data: rows } = await supabaseAdmin
-    .from("responses").select("q1, q2, q3, country, fan_segment")
-    .eq("survey_id", surveyId).eq("is_demo", survey.is_simulated);
-  const responses = (rows ?? []) as SurveyResponseRow[];
+  const responses = await surveyResponses(surveyId, projectId, survey.is_simulated as boolean);
   if (responses.length === 0) return [];
 
   const questions = ((survey.questions ?? []) as LocalisedQuestion[]).slice(0, 3);
