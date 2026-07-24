@@ -28,7 +28,7 @@ async function run(ctx: JobContext): Promise<void> {
   const { persistSourceFindings } = await import("@/lib/analysis/source-findings/store");
 
   const drafts =
-    unit === "survey"   ? await extractSurveyFindings(ref, projectId)
+    unit === "survey"   ? await extractSurveyFindings(ref)
     : unit === "document" ? await extractDocumentFindings(ref)
     : unit === "search"   ? await extractConversationFindings(ref)
     : (() => { throw new PermanentJobError(`Unknown extract unit '${unit}'`); })();

@@ -1,52 +1,37 @@
-// The true response population for a survey — counted the way the PLATFORM's own
-// project total counts it (by campaign membership), not by the fragile
-// `responses.survey_id`.
+// The response population for a survey — the SAME population the report engine
+// counts (lib/reports/data.ts fetchResponses), which is where the validated
+// per-question counts (e.g. 652 / 317 / 274) come from.
 //
-// Campaign-embed responses were historically stored with `survey_id = NULL` (the
-// embed identifies the survey by campaign slug), so a `survey_id = evidence_id`
-// query sees only the fully-attributed subset and undercounts — which is why
-// every question read the same 196 instead of the true, declining per-question
-// counts. This resolves the campaigns that deploy the survey and reads every
-// response under them, unioned with rows directly attributed to the survey,
-// deduped by response id.
+// A survey's responses are every row under its campaigns, where its campaigns are
+// `campaigns.survey_id = surveyId` (soft-deleted included, exactly as the report
+// does). The rows are NOT filtered by `responses.survey_id` (historical campaign
+// rows never got it backfilled) and NOT filtered by `is_demo` — mirroring the
+// report engine precisely, so the Findings denominator matches what the report
+// shows. Directly-attributed rows are unioned in as a safety net for preview /
+// non-campaign embeds. Deduped by response id, paginated to clear the row cap.
 //
-// Campaigns are matched THREE ways, because the project→campaign→survey links are
-// not all reliably populated in historical data:
-//   1. campaigns whose own `survey_id` IS this survey (whatever their project link);
-//   2. campaigns under this project that inherit it (survey_id NULL) WHEN this
-//      survey is the project's default survey;
-//   3. rows whose `responses.survey_id` already equals this survey.
+// The per-question denominator itself is computed downstream in
+// survey-observations.ts and is already correct; this only decides WHICH rows it
+// counts over.
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import type { SurveyResponseRow } from "@/lib/analysis/survey-observations";
 
-/** The campaign slugs that deploy this survey. Exported so a diagnostic can show
- *  how the population was resolved. */
-export async function campaignsForSurvey(surveyId: string, projectId: string): Promise<string[]> {
-  const { data: project } = await supabaseAdmin
-    .from("research_projects").select("survey_id").eq("id", projectId).maybeSingle();
-  const projectSurveyId = (project?.survey_id as string | null) ?? null;
+const PAGE = 1000;
+const RESPONSE_COLS = "id, q1, q2, q3, country, fan_segment";
 
-  const slugs = new Set<string>();
-
-  // 1. Campaigns explicitly for this survey, regardless of their project link.
-  const { data: explicit } = await supabaseAdmin
-    .from("campaigns").select("campaign_id").eq("survey_id", surveyId).is("deleted_at", null);
-  for (const c of explicit ?? []) { const s = c.campaign_id as string | null; if (s) slugs.add(s); }
-
-  // 2. Campaigns under this project that inherit the survey (survey_id NULL), but
-  //    only when THIS survey is the one they'd inherit (the project default).
-  if (projectSurveyId && projectSurveyId === surveyId) {
-    const { data: inherited } = await supabaseAdmin
-      .from("campaigns").select("campaign_id").eq("research_project_id", projectId).is("survey_id", null).is("deleted_at", null);
-    for (const c of inherited ?? []) { const s = c.campaign_id as string | null; if (s) slugs.add(s); }
-  }
-
-  return [...slugs];
+/** The campaign slugs that deploy this survey — campaigns.survey_id = surveyId,
+ *  the same mapping the survey→campaigns view uses. No deleted_at filter: a
+ *  soft-deleted campaign still holds real responses and the report still counts
+ *  them. */
+export async function campaignsForSurvey(surveyId: string): Promise<string[]> {
+  const { data } = await supabaseAdmin
+    .from("campaigns").select("campaign_id").eq("survey_id", surveyId);
+  return [...new Set((data ?? []).map(c => c.campaign_id as string).filter(Boolean))];
 }
 
 /** Every response to this survey, deduped by id. */
-export async function surveyResponseRows(surveyId: string, projectId: string, isSimulated: boolean): Promise<SurveyResponseRow[]> {
-  const slugs = await campaignsForSurvey(surveyId, projectId);
+export async function surveyResponseRows(surveyId: string): Promise<SurveyResponseRow[]> {
+  const slugs = await campaignsForSurvey(surveyId);
 
   const seen = new Set<string>();
   const out: SurveyResponseRow[] = [];
@@ -62,15 +47,27 @@ export async function surveyResponseRows(surveyId: string, projectId: string, is
     }
   };
 
-  const cols = "id, q1, q2, q3, country, fan_segment";
-  const { data: bySurvey } = await supabaseAdmin
-    .from("responses").select(cols).eq("survey_id", surveyId).eq("is_demo", isSimulated).limit(50000);
-  take(bySurvey as Record<string, unknown>[] | null);
+  // Every response under the survey's campaigns — the report population. Paged,
+  // like the report engine, so a survey larger than the row cap is not truncated.
   if (slugs.length > 0) {
-    const { data: byCampaign } = await supabaseAdmin
-      .from("responses").select(cols).in("campaign_id", slugs).eq("is_demo", isSimulated).limit(50000);
-    take(byCampaign as Record<string, unknown>[] | null);
+    for (let from = 0; ; from += PAGE) {
+      const { data } = await supabaseAdmin
+        .from("responses").select(RESPONSE_COLS)
+        .in("campaign_id", slugs)
+        .order("id")
+        .range(from, from + PAGE - 1);
+      const rows = (data ?? []) as Record<string, unknown>[];
+      take(rows);
+      if (rows.length < PAGE) break;
+    }
   }
+
+  // Safety net: rows attributed straight to the survey with no campaign (preview
+  // / direct embeds). Overlap with the above is deduped by id.
+  const { data: direct } = await supabaseAdmin
+    .from("responses").select(RESPONSE_COLS).eq("survey_id", surveyId).limit(50000);
+  take(direct as Record<string, unknown>[] | null);
+
   return out;
 }
 
@@ -83,16 +80,15 @@ export type SurveyPopulation = {
   bySurveyId: number;
 };
 
-export async function surveyPopulation(surveyId: string, projectId: string): Promise<SurveyPopulation | null> {
+export async function surveyPopulation(surveyId: string): Promise<SurveyPopulation | null> {
   const { data: survey } = await supabaseAdmin
-    .from("surveys").select("name, is_simulated").eq("id", surveyId).maybeSingle();
+    .from("surveys").select("name").eq("id", surveyId).maybeSingle();
   if (!survey) return null;
-  const slugs = await campaignsForSurvey(surveyId, projectId);
-  const rows = await surveyResponseRows(surveyId, projectId, survey.is_simulated as boolean);
+  const slugs = await campaignsForSurvey(surveyId);
+  const rows = await surveyResponseRows(surveyId);
 
   const { count: bySurveyId } = await supabaseAdmin
-    .from("responses").select("id", { count: "exact", head: true })
-    .eq("survey_id", surveyId).eq("is_demo", survey.is_simulated);
+    .from("responses").select("id", { count: "exact", head: true }).eq("survey_id", surveyId);
 
   return {
     surveyId,

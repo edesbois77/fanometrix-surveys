@@ -19,7 +19,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     .eq("evidence_type", "survey");
 
   const surveys = await Promise.all(
-    (links ?? []).map(l => surveyPopulation(l.evidence_id as string, projectId)),
+    (links ?? []).map(l => surveyPopulation(l.evidence_id as string)),
   );
 
   return NextResponse.json({ data: { surveys: surveys.filter(Boolean) } });

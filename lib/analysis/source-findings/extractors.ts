@@ -18,12 +18,12 @@ import type { LocalisedQuestion } from "@/lib/survey-locale";
  *  that produced it, never a generic completed-survey total, and a respondent who
  *  answered one question but not another still counts toward the one they
  *  answered. The per-question reliability floor lives in survey-observations. */
-export async function extractSurveyFindings(surveyId: string, projectId: string): Promise<SourceFindingDraft[]> {
+export async function extractSurveyFindings(surveyId: string): Promise<SourceFindingDraft[]> {
   const { data: survey } = await supabaseAdmin
-    .from("surveys").select("name, questions, is_simulated").eq("id", surveyId).maybeSingle();
+    .from("surveys").select("name, questions").eq("id", surveyId).maybeSingle();
   if (!survey) return [];
 
-  const responses = await surveyResponseRows(surveyId, projectId, survey.is_simulated as boolean);
+  const responses = await surveyResponseRows(surveyId);
   if (responses.length === 0) return [];
 
   const questions = ((survey.questions ?? []) as LocalisedQuestion[]).slice(0, 3);
