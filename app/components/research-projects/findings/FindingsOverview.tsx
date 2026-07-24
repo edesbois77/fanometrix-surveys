@@ -14,6 +14,14 @@ import { SOURCE_KIND_LABEL, SOURCE_KIND_ORDER, CONVERSATION_KINDS, type SourceKi
 type KindCounts = { candidate: number; approved: number; set_aside: number; total: number };
 type BoardData = { findings: unknown[]; byKind: Record<string, KindCounts>; approvedTotal: number };
 type SurveyPop = { surveyId: string; name: string; responses: number; campaigns: number; bySurveyId: number };
+type Diag = {
+  projectSurveyId: string | null;
+  researchMode: string | null;
+  surveys: { id: string; name: string; is_simulated: boolean }[];
+  campaigns: { campaign_id: string; name: string | null; survey_id: string | null; responses: number }[];
+  responsesUnderCampaignsBySurveyId: Record<string, number>;
+  totalResponsesUnderCampaigns: number;
+};
 
 // Which review page a source kind is reviewed on.
 function pageFor(kind: SourceKind): "survey" | "conversation" | "document" {
@@ -51,6 +59,8 @@ export function FindingsOverview() {
   const [extracting, setExtracting] = useState(false);
   const [summary, setSummary] = useState<string | null>(null);
   const [populations, setPopulations] = useState<SurveyPop[] | null>(null);
+  const [diag, setDiag] = useState<Diag | null>(null);
+  const [diagOpen, setDiagOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -64,6 +74,12 @@ export function FindingsOverview() {
   const loadPopulations = useCallback(async () => {
     const res = await fetch(`/api/research-projects/${projectId}/source-findings/populations`).then(r => (r.ok ? r.json() : null)).catch(() => null);
     setPopulations((res?.data?.surveys ?? []) as SurveyPop[]);
+  }, [projectId]);
+
+  const loadDiag = useCallback(async () => {
+    const res = await fetch(`/api/research-projects/${projectId}/source-findings/diagnose`).then(r => (r.ok ? r.json() : null)).catch(() => null);
+    setDiag((res?.data ?? null) as Diag | null);
+    setDiagOpen(true);
   }, [projectId]);
 
   useEffect(() => { load(); loadPopulations(); return () => { if (pollRef.current) clearTimeout(pollRef.current); }; }, [load, loadPopulations]);
@@ -158,6 +174,34 @@ export function FindingsOverview() {
               </li>
             ))}
           </ul>
+
+          <div className="mt-2.5 pt-2.5" style={{ borderTop: "1px solid var(--border-subtle)" }}>
+            <button type="button" onClick={() => (diagOpen ? setDiagOpen(false) : loadDiag())}
+              className="text-[11px] font-semibold hover:underline" style={{ color: "var(--accent-ink)" }}>
+              {diagOpen ? "Hide attribution details" : "Show attribution details (where responses live)"}
+            </button>
+            {diagOpen && diag && (
+              <div className="mt-2 text-[11px]" style={{ color: "var(--text-secondary)" }}>
+                <p>Project default survey_id: <code>{diag.projectSurveyId ?? "null"}</code> · mode: {diag.researchMode ?? "—"}</p>
+                <p className="mt-1.5 font-semibold" style={{ color: "var(--text-tertiary)" }}>Surveys attached ({diag.surveys.length}):</p>
+                <ul className="ml-2">{diag.surveys.map(s => <li key={s.id}><code>{s.id.slice(0, 8)}…</code> {s.name}{s.is_simulated ? " (simulated)" : ""}</li>)}</ul>
+                <p className="mt-1.5 font-semibold" style={{ color: "var(--text-tertiary)" }}>Project campaigns ({diag.campaigns.length}) — responses each & the survey_id they carry:</p>
+                <div className="ml-2 overflow-x-auto">
+                  <table className="text-[11px]"><tbody>
+                    {diag.campaigns.map(c => (
+                      <tr key={c.campaign_id}>
+                        <td className="pr-3">{c.name ?? c.campaign_id}</td>
+                        <td className="pr-3 font-bold" style={{ color: "var(--text-primary)" }}>{c.responses.toLocaleString()}</td>
+                        <td style={{ color: "var(--text-tertiary)" }}>survey_id: <code>{c.survey_id ? c.survey_id.slice(0, 8) + "…" : "null"}</code></td>
+                      </tr>
+                    ))}
+                  </tbody></table>
+                </div>
+                <p className="mt-1.5 font-semibold" style={{ color: "var(--text-tertiary)" }}>Responses under project campaigns, by survey_id ({diag.totalResponsesUnderCampaigns.toLocaleString()} total):</p>
+                <ul className="ml-2">{Object.entries(diag.responsesUnderCampaignsBySurveyId).map(([k, v]) => <li key={k}>{k}: <span className="font-bold" style={{ color: "var(--text-primary)" }}>{v.toLocaleString()}</span></li>)}</ul>
+              </div>
+            )}
+          </div>
         </Card>
       )}
 
