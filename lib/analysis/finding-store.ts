@@ -300,6 +300,10 @@ export async function listFindings(projectId: string, opts?: {
   let q = supabaseAdmin
     .from("findings").select("*")
     .eq("research_project_id", projectId)
+    // The reasoning board and every downstream consumer read the ANALYSIS layer.
+    // Source findings (finding_layer='source') live on their own board and reach
+    // the analysis only once approved and re-gathered (gather-findings.ts).
+    .eq("finding_layer", "analysis")
     .in("status", opts?.status ?? ["candidate", "in_review", "approved"])
     .order("need_id", { ascending: true })
     .order("rank", { ascending: true });

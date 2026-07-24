@@ -16,6 +16,9 @@ import {
 import { FindingCard } from "./FindingCard";
 import { effectiveConfidence, type NeedGroup, type RunStatus } from "./finding-view";
 import type { EvidenceLedger } from "@/lib/analysis/ledger";
+import { SOURCE_KIND_ORDER } from "@/lib/analysis/source-findings/types";
+
+type ApprovedSummary = { byKind: Record<string, { approved: number }>; approvedTotal: number };
 
 type RunView = {
   id: string; status: RunStatus;
@@ -112,6 +115,64 @@ function EvidenceConsumptionPanel({ ledger }: { ledger: EvidenceLedger }) {
   );
 }
 
+// What the final Analysis will consume: approved findings only. Shown before the
+// run so the approved counts are explicit, and the run is gated on the total
+// being non-zero (there is nothing to synthesise from an empty set). Counts are
+// rolled up to the three families the analysis reasons over — the fine-grained
+// News/YouTube/Bluesky split lives on the Findings board.
+function approvedByFamily(approved: ApprovedSummary): { survey: number; conversation: number; document: number } {
+  let survey = 0, conversation = 0, document = 0;
+  for (const k of SOURCE_KIND_ORDER) {
+    const n = approved.byKind[k]?.approved ?? 0;
+    if (k === "survey") survey += n;
+    else if (k === "document") document += n;
+    else conversation += n; // news, youtube, bluesky, reddit, conversation
+  }
+  return { survey, conversation, document };
+}
+
+function ApprovedInputPanel({ projectId, approved }: { projectId: string; approved: ApprovedSummary }) {
+  const empty = approved.approvedTotal === 0;
+  const fam = approvedByFamily(approved);
+  const lines: { label: string; count: number }[] = [
+    { label: "Survey findings approved", count: fam.survey },
+    { label: "Conversation findings approved", count: fam.conversation },
+    { label: "Research Library findings approved", count: fam.document },
+  ];
+  return (
+    <Card padding="md">
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div className="min-w-0">
+          <Eyebrow>Analysis input</Eyebrow>
+          {empty ? (
+            <p className="text-sm mt-1" style={{ color: "var(--text-secondary)" }}>
+              No approved findings yet. Approve findings in{" "}
+              <Link href={`/research-projects/${projectId}/findings`} className="font-semibold hover:underline" style={{ color: "var(--accent-ink)" }}>Findings →</Link>{" "}before running the analysis.
+            </p>
+          ) : (
+            <>
+              <p className="text-sm mt-1" style={{ color: "var(--text-secondary)" }}>This analysis consumes only approved findings:</p>
+              <ul className="mt-2 space-y-1">
+                {lines.map(l => (
+                  <li key={l.label} className="flex items-center gap-2 text-sm" style={{ color: "var(--text-secondary)" }}>
+                    <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: "var(--accent-gold)" }} aria-hidden />
+                    {l.label}: <span className="font-bold" style={{ color: "var(--text-primary)" }}>{l.count}</span>
+                  </li>
+                ))}
+                <li className="flex items-center gap-2 text-sm pt-1 mt-1" style={{ color: "var(--text-primary)", borderTop: "1px solid var(--border-subtle)" }}>
+                  <span className="w-1.5 h-1.5" aria-hidden />
+                  Total approved findings: <span className="font-bold">{approved.approvedTotal}</span>
+                </li>
+              </ul>
+            </>
+          )}
+        </div>
+        <Button href={`/research-projects/${projectId}/findings`} variant="ghost" size="sm">Review findings →</Button>
+      </div>
+    </Card>
+  );
+}
+
 function CoverageBar({ needs }: { needs: NeedGroup[] }) {
   const total = needs.length;
   const approved = needs.filter(n => n.candidate?.status === "approved").length;
@@ -133,7 +194,20 @@ export function FindingsBoard() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [approved, setApproved] = useState<ApprovedSummary | null>(null);
   const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // The approved source findings that will feed this analysis. The run consumes
+  // ONLY these, so the button is gated on there being at least one.
+  useEffect(() => {
+    if (!projectId) return;
+    let cancelled = false;
+    fetch(`/api/research-projects/${projectId}/source-findings`)
+      .then(r => (r.ok ? r.json() : null))
+      .then(j => { if (!cancelled) setApproved(j?.data ? { byKind: j.data.byKind, approvedTotal: j.data.approvedTotal } : { byKind: {}, approvedTotal: 0 }); })
+      .catch(() => { if (!cancelled) setApproved({ byKind: {}, approvedTotal: 0 }); });
+    return () => { cancelled = true; };
+  }, [projectId]);
 
   const load = useCallback(async (): Promise<RunStatus | undefined> => {
     const res = await fetch(`/api/research-projects/${projectId}/findings`).then(r => (r.ok ? r.json() : null)).catch(() => null);
@@ -209,11 +283,13 @@ export function FindingsBoard() {
           title="Analysis"
           description="Candidate findings the evidence supports, for you to review. Every claim leads with the judgement, shows the evidence behind it, and states plainly where it is weak or unresolved."
           primaryAction={
-            <Button variant="primary" onClick={runAnalysis} disabled={starting || isRunning}>
-              {isRunning ? "Analysing…" : starting ? "Starting…" : hasFindings ? "Re-run analysis" : "Run analysis"}
+            <Button variant="primary" onClick={runAnalysis} disabled={starting || isRunning || (approved?.approvedTotal ?? 0) === 0}>
+              {isRunning ? "Analysing…" : starting ? "Starting…" : hasFindings ? "Re-run analysis" : "Analyse approved findings"}
             </Button>
           }
         />
+
+        {approved && <ApprovedInputPanel projectId={projectId} approved={approved} />}
 
         {isRunning && (
           <Card padding="md">

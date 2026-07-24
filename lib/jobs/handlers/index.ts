@@ -4,3 +4,4 @@
 import "@/lib/jobs/handlers/document-process";
 import "@/lib/jobs/handlers/event-rollup";
 import "@/lib/jobs/handlers/analysis-run";
+import "@/lib/jobs/handlers/source-findings-extract";

@@ -6,7 +6,7 @@
 // single model call, and this file adds no judgement of its own: if a rule is
 // not visible in one of the stages, it does not exist. It never persists, so the
 // route decides storage, and it never approves, so a person decides truth.
-import { gatherFrames } from "@/lib/analysis/gather";
+import { gatherApprovedFindings } from "@/lib/analysis/gather-findings";
 import type { EvidenceLedger } from "@/lib/analysis/ledger";
 import { formPropositions } from "@/lib/analysis/formation";
 import { disconfirm } from "@/lib/analysis/disconfirmation";
@@ -55,7 +55,11 @@ async function pool<T, R>(items: T[], n: number, fn: (t: T) => Promise<R>): Prom
 }
 
 export async function reasonOverProject(projectId: string): Promise<ReasoningRun> {
-  const { gathered, unmapped, consumption } = await gatherFrames(projectId);
+  // The final Analysis reasons over APPROVED source findings only (the Project
+  // Findings architecture), which keeps each need's frame small and the whole run
+  // well inside the model timeout. Raw multi-source evidence now feeds the
+  // per-source extraction stage, not this one.
+  const { gathered, unmapped, consumption } = await gatherApprovedFindings(projectId);
 
   const results = await pool(gathered, CONCURRENCY, async ({ need, frame }) => {
     const proposed = await formPropositions({
