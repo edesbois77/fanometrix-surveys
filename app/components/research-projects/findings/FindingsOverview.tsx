@@ -27,6 +27,7 @@ type SourceStage = {
   awaitingApproval: number; awaitingExtraction: number; awaitingReview: number; approved: number;
   blockingReason: string | null;
   nextAction: { label: string; href: string } | null;
+  approvalItems?: { id: string; name: string; count: number }[];
 };
 
 // The three families the Analysis reasons over. A family is "ready" once it has
@@ -53,7 +54,11 @@ function Tile({ label, value, tone }: { label: string; value: number; tone?: str
 
 // One source's pipeline: the five stages, the blocking reason, and the next
 // action — so a source with evidence is never a silent "no findings yet".
-function StageRow({ s }: { s: SourceStage }) {
+function StageRow({ s, onApprove, approving }: {
+  s: SourceStage;
+  onApprove: (ids: string[]) => void;
+  approving: string | null;
+}) {
   const stages: { value: string; label: string; tone?: string }[] = [
     { value: s.evidenceCollected.toLocaleString(), label: `${s.evidenceUnit} collected` },
     { value: s.awaitingApproval.toLocaleString(), label: "awaiting approval", tone: s.awaitingApproval > 0 ? "#8A4B33" : undefined },
@@ -81,11 +86,36 @@ function StageRow({ s }: { s: SourceStage }) {
           <span>{s.blockingReason}</span>
         </div>
       )}
+
+      {/* Direct approval — the pipeline never names "awaiting approval" without a
+          way to act on it, here on the same card. */}
+      {s.approvalItems && s.approvalItems.length > 0 && (
+        <div className="mt-2 space-y-1.5">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[11px] font-semibold" style={{ color: "var(--text-secondary)" }}>Approve to include in Findings:</span>
+            <Button size="sm" variant="primary" disabled={approving !== null} onClick={() => onApprove(s.approvalItems!.map(i => i.id))}>
+              {approving === "all" ? "Approving…" : `Approve all (${s.approvalItems.length})`}
+            </Button>
+          </div>
+          {s.approvalItems.map(item => (
+            <div key={item.id} className="flex items-center justify-between gap-2 p-2 rounded-lg" style={{ background: "var(--surface-sunken)", border: "1px solid var(--border-subtle)" }}>
+              <span className="text-xs min-w-0 truncate" style={{ color: "var(--text-secondary)" }}>{item.name} · {item.count.toLocaleString()} mentions</span>
+              <Button size="sm" variant="ghost" disabled={approving !== null} onClick={() => onApprove([item.id])}>
+                {approving === item.id ? "Approving…" : "Approve"}
+              </Button>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
 
-function PipelineCard({ sources }: { sources: SourceStage[] }) {
+function PipelineCard({ sources, onApprove, approving }: {
+  sources: SourceStage[];
+  onApprove: (ids: string[]) => void;
+  approving: string | null;
+}) {
   return (
     <Card padding="md">
       <div className="flex items-center gap-2 mb-1">
@@ -96,7 +126,7 @@ function PipelineCard({ sources }: { sources: SourceStage[] }) {
         Where each source&apos;s evidence is, and — if nothing has reached Findings or Analysis — exactly why, with the next step to unblock it.
       </p>
       <div className="space-y-2.5">
-        {sources.map(s => <StageRow key={s.key} s={s} />)}
+        {sources.map(s => <StageRow key={s.key} s={s} onApprove={onApprove} approving={approving} />)}
       </div>
     </Card>
   );
@@ -110,6 +140,7 @@ export function FindingsOverview() {
   const [summary, setSummary] = useState<string | null>(null);
   const [pop, setPop] = useState<PopStats | null>(null);
   const [pipeline, setPipeline] = useState<SourceStage[] | null>(null);
+  const [approving, setApproving] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -129,6 +160,25 @@ export function FindingsOverview() {
     const res = await fetch(`/api/research-projects/${projectId}/source-findings/pipeline`).then(r => (r.ok ? r.json() : null)).catch(() => null);
     setPipeline((res?.data?.sources ?? null) as SourceStage[] | null);
   }, [projectId]);
+
+  // Approve one or more conversation searches directly from the pipeline, then
+  // refresh so the source moves from "awaiting approval" to "awaiting extraction".
+  const approveSearches = useCallback(async (ids: string[]) => {
+    if (ids.length === 0) return;
+    setApproving(ids.length === 1 ? ids[0] : "all");
+    try {
+      let ok = 0;
+      for (const id of ids) {
+        const res = await fetch(`/api/social/searches/${id}/review`, {
+          method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "approve" }),
+        });
+        if (res.ok) ok++;
+        else { const j = await res.json().catch(() => ({})); setToast(j.error ?? "Could not approve a search."); }
+      }
+      if (ok > 0) setToast(`Approved ${ok} search${ok === 1 ? "" : "es"}. Re-extract findings to generate them.`);
+      await loadPipeline();
+    } finally { setApproving(null); }
+  }, [loadPipeline]);
 
   useEffect(() => { load(); loadPopulations(); loadPipeline(); return () => { if (pollRef.current) clearTimeout(pollRef.current); }; }, [load, loadPopulations, loadPipeline]);
 
@@ -252,7 +302,7 @@ export function FindingsOverview() {
 
       {/* The evidence pipeline — always shown, so a source with evidence never
           silently reads "no findings yet". */}
-      {pipeline && pipeline.length > 0 && <PipelineCard sources={pipeline} />}
+      {pipeline && pipeline.length > 0 && <PipelineCard sources={pipeline} onApprove={approveSearches} approving={approving} />}
 
       {hasFindings && (
         <>

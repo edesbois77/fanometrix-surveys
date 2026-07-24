@@ -24,6 +24,9 @@ export type SourceStage = {
   blockingReason: string | null;
   /** Where to go next to unblock. */
   nextAction: { label: string; href: string } | null;
+  /** Searches awaiting approval, each directly approvable from the pipeline
+   *  (conversation only). Empty/absent for other sources. */
+  approvalItems?: { id: string; name: string; count: number }[];
 };
 
 const plural = (n: number, one: string, many = one + "s") => `${n} ${n === 1 ? one : many}`;
@@ -87,6 +90,15 @@ async function conversationStage(projectId: string, base: string, k: Roll): Prom
 
   const awaitingApproval = ineligibleIds.length
     ? await count("social_mentions", q => q.in("search_id", ineligibleIds).eq("excluded", false)) : 0;
+
+  // Each awaiting-approval search, with its evidence count, so it can be approved
+  // directly from the pipeline (never "awaiting approval" with no way to act).
+  const approvalItems = await Promise.all(
+    states.filter(s => !s.eligible).map(async s => ({
+      id: s.id, name: s.name,
+      count: await count("social_mentions", q => q.eq("search_id", s.id).eq("excluded", false)),
+    })),
+  );
   const eligibleMentions = eligibleIds.length
     ? await count("social_mentions", q => q.in("search_id", eligibleIds).eq("excluded", false)) : 0;
   const collected = awaitingApproval + eligibleMentions;
@@ -127,7 +139,7 @@ async function conversationStage(projectId: string, base: string, k: Roll): Prom
     key: "conversation", label: "Conversation Intelligence",
     evidenceCollected: collected, evidenceUnit: "mentions",
     awaitingApproval, awaitingExtraction, awaitingReview: k.candidate, approved: k.approved,
-    blockingReason, nextAction,
+    blockingReason, nextAction, approvalItems,
   };
 }
 
