@@ -88,23 +88,25 @@ function StageRow({ s, onApprove, approving }: {
       )}
 
       {/* Direct approval — the pipeline never names "awaiting approval" without a
-          way to act on it, here on the same card. */}
+          way to act on it, here on the same card. No navigation to Execution. */}
       {s.approvalItems && s.approvalItems.length > 0 && (
-        <div className="mt-2 space-y-1.5">
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-[11px] font-semibold" style={{ color: "var(--text-secondary)" }}>Approve to include in Findings:</span>
+        <div className="mt-2 p-2.5 rounded-lg" style={{ background: "var(--surface-sunken)", border: "1px solid var(--border-subtle)" }}>
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <span className="text-xs font-semibold min-w-0" style={{ color: "var(--text-primary)" }}>Approve these searches to include their evidence in Findings</span>
             <Button size="sm" variant="primary" disabled={approving !== null} onClick={() => onApprove(s.approvalItems!.map(i => i.id))}>
-              {approving === "all" ? "Approving…" : `Approve all (${s.approvalItems.length})`}
+              {approving === "all" ? "Approving…" : `Approve all ${s.approvalItems.length} searches`}
             </Button>
           </div>
-          {s.approvalItems.map(item => (
-            <div key={item.id} className="flex items-center justify-between gap-2 p-2 rounded-lg" style={{ background: "var(--surface-sunken)", border: "1px solid var(--border-subtle)" }}>
-              <span className="text-xs min-w-0 truncate" style={{ color: "var(--text-secondary)" }}>{item.name} · {item.count.toLocaleString()} mentions</span>
-              <Button size="sm" variant="ghost" disabled={approving !== null} onClick={() => onApprove([item.id])}>
-                {approving === item.id ? "Approving…" : "Approve"}
-              </Button>
-            </div>
-          ))}
+          <div className="mt-2 space-y-1">
+            {s.approvalItems.map(item => (
+              <div key={item.id} className="flex items-center justify-between gap-2 py-1">
+                <span className="text-xs min-w-0 truncate" style={{ color: "var(--text-secondary)" }}>{item.name} · {item.count.toLocaleString()} mentions</span>
+                <Button size="sm" variant="ghost" disabled={approving !== null} onClick={() => onApprove([item.id])}>
+                  {approving === item.id ? "Approving…" : "Approve"}
+                </Button>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>

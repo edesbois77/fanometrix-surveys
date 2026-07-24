@@ -122,7 +122,7 @@ async function conversationStage(projectId: string, base: string, k: Roll): Prom
     if (k.candidate > 0) nextAction = { label: "Review conversation findings", href: `${base}/findings/conversation` };
   } else if (eligibleIds.length === 0 && ineligibleIds.length > 0) {
     blockingReason = `${plural(ineligibleIds.length, "search", "searches")} awaiting approval · ${plural(awaitingApproval, "mention")} withheld.`;
-    nextAction = { label: "Approve searches in Execution", href: `${base}/execution` };
+    // No nextAction link: approval happens inline via approvalItems, right here.
   } else if (eligibleWithNeeds === 0 && eligibleMissingNeeds > 0) {
     blockingReason = `${plural(eligibleMissingNeeds, "search", "searches")} missing Information Needs.`;
     nextAction = { label: "Add Information Needs in Research", href: `${base}/research` };
