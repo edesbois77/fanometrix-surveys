@@ -9,7 +9,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useResearchProject } from "@/app/components/research-projects/ProjectProvider";
 import { Card, Button, Icon, PageLoadingState, ErrorState } from "@/app/components/workspace-ui";
-import { SOURCE_KIND_LABEL, SOURCE_KIND_ORDER, CONVERSATION_KINDS, type SourceKind } from "@/lib/analysis/source-findings/types";
+import { SOURCE_KIND_ORDER, CONVERSATION_KINDS, type SourceKind } from "@/lib/analysis/source-findings/types";
 
 type KindCounts = { candidate: number; approved: number; set_aside: number; total: number };
 type BoardData = { findings: unknown[]; byKind: Record<string, KindCounts>; approvedTotal: number };
@@ -21,13 +21,13 @@ type PopStats = {
   completedTotal: number;
   surveys: { surveyId: string; name: string; completed: number }[];
 };
-
-// Which review page a source kind is reviewed on.
-function pageFor(kind: SourceKind): "survey" | "conversation" | "document" {
-  if (kind === "survey") return "survey";
-  if (kind === "document") return "document";
-  return "conversation";
-}
+type SourceStage = {
+  key: string; label: string;
+  evidenceCollected: number; evidenceUnit: string;
+  awaitingApproval: number; awaitingExtraction: number; awaitingReview: number; approved: number;
+  blockingReason: string | null;
+  nextAction: { label: string; href: string } | null;
+};
 
 // The three families the Analysis reasons over. A family is "ready" once it has
 // at least one approved finding.
@@ -51,6 +51,57 @@ function Tile({ label, value, tone }: { label: string; value: number; tone?: str
   );
 }
 
+// One source's pipeline: the five stages, the blocking reason, and the next
+// action — so a source with evidence is never a silent "no findings yet".
+function StageRow({ s }: { s: SourceStage }) {
+  const stages: { value: string; label: string; tone?: string }[] = [
+    { value: s.evidenceCollected.toLocaleString(), label: `${s.evidenceUnit} collected` },
+    { value: s.awaitingApproval.toLocaleString(), label: "awaiting approval", tone: s.awaitingApproval > 0 ? "#8A4B33" : undefined },
+    { value: s.awaitingExtraction.toLocaleString(), label: "awaiting extraction" },
+    { value: s.awaitingReview.toLocaleString(), label: "awaiting review", tone: s.awaitingReview > 0 ? "#C79A3E" : undefined },
+    { value: s.approved.toLocaleString(), label: "approved", tone: s.approved > 0 ? "#2F7D55" : undefined },
+  ];
+  return (
+    <div className="p-3 rounded-xl" style={{ border: "1px solid var(--border-subtle)", background: "var(--surface)" }}>
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <p className="text-sm font-bold" style={{ color: "var(--text-primary)" }}>{s.label}</p>
+        {s.nextAction && <Button href={s.nextAction.href} size="sm" variant="secondary">{s.nextAction.label} →</Button>}
+      </div>
+      <div className="mt-2 grid grid-cols-3 sm:grid-cols-5 gap-1.5">
+        {stages.map((st, i) => (
+          <div key={i} className="text-center p-1.5 rounded-lg" style={{ background: "var(--surface-sunken)", border: "1px solid var(--border-subtle)" }}>
+            <p className="text-sm font-bold tabular-nums" style={{ color: st.tone ?? "var(--text-primary)" }}>{st.value}</p>
+            <p className="text-[9px] leading-tight mt-0.5" style={{ color: "var(--text-tertiary)" }}>{st.label}</p>
+          </div>
+        ))}
+      </div>
+      {s.blockingReason && (
+        <div className="mt-2 flex items-start gap-1.5 p-2 rounded-lg text-[11px]" style={{ background: "var(--surface-sunken)", color: "#8A4B33" }}>
+          <span className="flex-shrink-0 mt-px"><Icon.alert size={12} /></span>
+          <span>{s.blockingReason}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PipelineCard({ sources }: { sources: SourceStage[] }) {
+  return (
+    <Card padding="md">
+      <div className="flex items-center gap-2 mb-1">
+        <Icon.layers size={14} strokeWidth={2} />
+        <p className="text-xs font-bold uppercase tracking-[0.06em]" style={{ color: "var(--text-secondary)" }}>Evidence pipeline</p>
+      </div>
+      <p className="text-[11px] mb-2.5" style={{ color: "var(--text-tertiary)" }}>
+        Where each source&apos;s evidence is, and — if nothing has reached Findings or Analysis — exactly why, with the next step to unblock it.
+      </p>
+      <div className="space-y-2.5">
+        {sources.map(s => <StageRow key={s.key} s={s} />)}
+      </div>
+    </Card>
+  );
+}
+
 export function FindingsOverview() {
   const { projectId, project, loading, error } = useResearchProject();
   const [data, setData] = useState<BoardData | null>(null);
@@ -58,6 +109,7 @@ export function FindingsOverview() {
   const [extracting, setExtracting] = useState(false);
   const [summary, setSummary] = useState<string | null>(null);
   const [pop, setPop] = useState<PopStats | null>(null);
+  const [pipeline, setPipeline] = useState<SourceStage[] | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -73,20 +125,25 @@ export function FindingsOverview() {
     setPop((res?.data ?? null) as PopStats | null);
   }, [projectId]);
 
-  useEffect(() => { load(); loadPopulations(); return () => { if (pollRef.current) clearTimeout(pollRef.current); }; }, [load, loadPopulations]);
+  const loadPipeline = useCallback(async () => {
+    const res = await fetch(`/api/research-projects/${projectId}/source-findings/pipeline`).then(r => (r.ok ? r.json() : null)).catch(() => null);
+    setPipeline((res?.data?.sources ?? null) as SourceStage[] | null);
+  }, [projectId]);
+
+  useEffect(() => { load(); loadPopulations(); loadPipeline(); return () => { if (pollRef.current) clearTimeout(pollRef.current); }; }, [load, loadPopulations, loadPipeline]);
 
   const pollAfterExtract = useCallback((remaining: number) => {
     if (remaining <= 0) {
       // Done: refresh the diagnostic and post a top-line summary of what changed.
       setExtracting(false);
-      Promise.all([load(), loadPopulations()]).then(([d]) => {
+      Promise.all([load(), loadPopulations(), loadPipeline()]).then(([d]) => {
         const total = Object.values(d.byKind).reduce((n, c) => n + c.total, 0);
         setSummary(`Extraction complete — ${total} finding${total === 1 ? "" : "s"} across ${Object.keys(d.byKind).length} source${Object.keys(d.byKind).length === 1 ? "" : "s"}.`);
       });
       return;
     }
     pollRef.current = setTimeout(async () => { await load(); pollAfterExtract(remaining - 1); }, 2500);
-  }, [load, loadPopulations]);
+  }, [load, loadPopulations, loadPipeline]);
 
   async function extract() {
     setExtracting(true);
@@ -193,6 +250,10 @@ export function FindingsOverview() {
         </Card>
       )}
 
+      {/* The evidence pipeline — always shown, so a source with evidence never
+          silently reads "no findings yet". */}
+      {pipeline && pipeline.length > 0 && <PipelineCard sources={pipeline} />}
+
       {hasFindings && (
         <>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -243,30 +304,6 @@ export function FindingsOverview() {
                   <Button variant="primary" size="sm" disabled>Analyse approved findings →</Button>
                 </div>
               )}
-            </div>
-          </Card>
-
-          <Card padding="md">
-            <div className="flex items-center gap-2 mb-1">
-              <Icon.layers size={14} strokeWidth={2} />
-              <p className="text-xs font-bold uppercase tracking-[0.06em]" style={{ color: "var(--text-secondary)" }}>Findings by source</p>
-            </div>
-            <div className="mt-2 divide-y" style={{ borderColor: "var(--border-subtle)" }}>
-              {kinds.map(k => {
-                const c = byKind[k]!;
-                return (
-                  <Link key={k} href={`/research-projects/${projectId}/findings/${pageFor(k)}`}
-                    className="flex items-center justify-between gap-3 py-2.5 group">
-                    <span className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>{SOURCE_KIND_LABEL[k]}</span>
-                    <span className="flex items-center gap-3 text-xs" style={{ color: "var(--text-tertiary)" }}>
-                      <span><span className="font-bold" style={{ color: "#2F7D55" }}>{c.approved}</span> approved</span>
-                      <span><span className="font-bold" style={{ color: "#C79A3E" }}>{c.candidate}</span> to review</span>
-                      <span>{c.set_aside} set aside</span>
-                      <span className="group-hover:underline" style={{ color: "var(--accent-ink)" }}>Review →</span>
-                    </span>
-                  </Link>
-                );
-              })}
             </div>
           </Card>
 
