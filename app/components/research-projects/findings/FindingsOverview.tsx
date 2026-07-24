@@ -14,13 +14,16 @@ import { SOURCE_KIND_LABEL, SOURCE_KIND_ORDER, CONVERSATION_KINDS, type SourceKi
 type KindCounts = { candidate: number; approved: number; set_aside: number; total: number };
 type BoardData = { findings: unknown[]; byKind: Record<string, KindCounts>; approvedTotal: number };
 type SurveyPop = { surveyId: string; name: string; responses: number; campaigns: number; bySurveyId: number };
+type PerQ = { total: number; q1: number; q2: number; q3: number };
 type DiagSurvey = {
   surveyId: string; name: string;
-  attributedReal: number; attributedDemo: number;
-  campaigns: number; campaignIds: string[];
-  under: { total: number; real: number; demo: number; nullSurveyId: number; otherSurveyId: number };
+  extractor: PerQ;
+  campaignsBySurveyId: number;
+  campaignsViaResponses: number;
+  full: (PerQ & { campaigns: number; real: number; demo: number; nullSurveyId: number }) | null;
 };
 type Diag = {
+  diagnosticVersion: string;
   projectSurveyId: string | null;
   researchMode: string | null;
   surveys: DiagSurvey[];
@@ -185,16 +188,22 @@ export function FindingsOverview() {
             </button>
             {diagOpen && diag && (
               <div className="mt-2 text-[11px] space-y-3" style={{ color: "var(--text-secondary)" }}>
-                <p>Project default survey_id: <code>{diag.projectSurveyId ? diag.projectSurveyId.slice(0, 8) + "…" : "null"}</code> · mode: {diag.researchMode ?? "—"}</p>
+                <p>Deployed diagnostic: <code style={{ color: "#2F7D55" }}>{diag.diagnosticVersion}</code> · project default survey_id: <code>{diag.projectSurveyId ? diag.projectSurveyId.slice(0, 8) + "…" : "null"}</code> · mode: {diag.researchMode ?? "—"}</p>
                 {diag.surveys.map(s => (
                   <div key={s.surveyId} className="p-2 rounded-lg" style={{ background: "var(--surface-sunken)", border: "1px solid var(--border-subtle)" }}>
                     <p className="font-semibold" style={{ color: "var(--text-primary)" }}>{s.name} <code style={{ color: "var(--text-tertiary)" }}>{s.surveyId.slice(0, 8)}…</code></p>
-                    <ul className="ml-1 mt-1 space-y-0.5">
-                      <li>Directly attributed (survey_id = this): <b style={{ color: "var(--text-primary)" }}>{s.attributedReal}</b> real, {s.attributedDemo} demo</li>
-                      <li>Came via <b style={{ color: "var(--text-primary)" }}>{s.campaigns}</b> campaign{s.campaigns === 1 ? "" : "s"}</li>
-                      <li>Everything under those same campaigns: <b style={{ color: "var(--text-primary)" }}>{s.under.total}</b> total ({s.under.real} real, {s.under.demo} demo)</li>
-                      <li style={{ color: s.under.nullSurveyId > 0 ? "#8A4B33" : undefined }}>…of which <b>{s.under.nullSurveyId}</b> carry survey_id = null, {s.under.otherSurveyId} carry a different survey_id</li>
+                    <p className="mt-1 font-semibold" style={{ color: "var(--accent-ink)" }}>What the EXTRACTOR reads (the denominators Findings uses):</p>
+                    <ul className="ml-2">
+                      <li>Rows fetched: <b style={{ color: "var(--text-primary)" }}>{s.extractor.total}</b> · Q1 answered: <b style={{ color: "var(--text-primary)" }}>{s.extractor.q1}</b> · Q2: <b style={{ color: "var(--text-primary)" }}>{s.extractor.q2}</b> · Q3: <b style={{ color: "var(--text-primary)" }}>{s.extractor.q3}</b></li>
                     </ul>
+                    <p className="mt-1.5">Campaigns via <code>campaigns.survey_id</code>: <b style={{ color: s.campaignsBySurveyId === 0 ? "#8A4B33" : "var(--text-primary)" }}>{s.campaignsBySurveyId}</b> · via the survey&apos;s responses: <b style={{ color: "var(--text-primary)" }}>{s.campaignsViaResponses}</b></p>
+                    <p className="mt-1.5 font-semibold" style={{ color: "var(--text-tertiary)" }}>FULL population under those campaigns (the report dataset):</p>
+                    {s.full ? (
+                      <ul className="ml-2">
+                        <li>Total: <b style={{ color: "var(--text-primary)" }}>{s.full.total}</b> ({s.full.real} real, {s.full.demo} demo, {s.full.nullSurveyId} with survey_id=null)</li>
+                        <li>Q1 answered: <b style={{ color: "#2F7D55" }}>{s.full.q1}</b> · Q2: <b style={{ color: "#2F7D55" }}>{s.full.q2}</b> · Q3: <b style={{ color: "#2F7D55" }}>{s.full.q3}</b></li>
+                      </ul>
+                    ) : <p className="ml-2" style={{ color: "#8A4B33" }}>No campaigns found via responses — the 652 population is not reachable from this survey by any campaign link.</p>}
                   </div>
                 ))}
               </div>
