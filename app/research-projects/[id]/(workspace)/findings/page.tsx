@@ -1,8 +1,6 @@
-// The Source Findings stage: Evidence → Source Findings → Approval → Analysis.
-// The analyst reviews and approves per-source findings here; only approved
-// findings feed the cross-source Analysis.
-import { SourceFindingsBoard } from "@/app/components/research-projects/findings/SourceFindingsBoard";
+// Findings · Overview — where the findings stand, and where extraction is run.
+import { FindingsOverview } from "@/app/components/research-projects/findings/FindingsOverview";
 
-export default function FindingsPage() {
-  return <SourceFindingsBoard />;
+export default function FindingsOverviewPage() {
+  return <FindingsOverview />;
 }

@@ -22,11 +22,29 @@ export type SurveyResponseRow = {
   fan_segment: string | null;
 };
 
-/** One survey observation, ready to become a FramedItem. The observation unit is
- *  still the completed response and the dedup key is still the instrument, so
- *  every one of these draws on the SAME pool of respondents (source-contract.ts):
- *  richer evidence, not double-counted evidence. */
-export type SurveyObservation = { content: string; provenance: string };
+/** One survey observation, ready to become a FramedItem.
+ *
+ *  Evidence is measured PER QUESTION, never per completed survey: `validResponses`
+ *  is how many people gave a valid answer to THIS question, and `scope` states it
+ *  in words. A respondent who answered Q1 but not Q3 counts toward Q1 and not Q3,
+ *  so every valid answer is preserved and nothing is diluted by a generic
+ *  completed-survey total. */
+export type SurveyObservation = {
+  content: string;
+  provenance: string;
+  /** Valid answers to the question behind this observation (or the subgroup, for
+   *  a market/segment cross-tab). */
+  validResponses: number;
+  /** Audience/market scope in words, referencing the question-level count. */
+  scope: string;
+};
+
+/** A question must carry at least this many VALID answers (people who actually
+ *  answered THIS question, not the survey as a whole) before a finding reads as
+ *  reliable. Applied per question, so a well-answered Q1 is not held back by a
+ *  sparsely-answered Q3, and a sparse question is not passed off on the strength
+ *  of the others. */
+const MIN_QUESTION_RESPONSES = 50;
 
 /** A market or segment must carry at least this many responses before a
  *  cross-tab off it reads as anything but noise. */
@@ -113,7 +131,9 @@ export function surveyObservations(opts: {
     const key = QUESTION_KEYS[i];
     const questionText = question.text.en ?? `Question ${i + 1}`;
     const overall = distribution(opts.responses, question, key);
-    if (overall.answered === 0) return;
+    // Judged on THIS question's valid answers, not the survey's completed count.
+    if (overall.answered < MIN_QUESTION_RESPONSES) return;
+    const questionScope = `${questionText} — ${overall.answered} valid responses`;
 
     // Every option, minorities included, ranked. This IS the distribution: the
     // long tail the 15% floor used to erase is exactly where a "meaningful
@@ -122,8 +142,10 @@ export function surveyObservations(opts: {
     for (const [label, pct] of ranked) {
       const minorityNote = pct > 0 && pct < 15 ? " (a notable minority)" : "";
       out.push({
-        content: `${pct}% of ${overall.answered} respondents chose "${label}" for "${questionText}"${minorityNote}.`,
+        content: `${pct}% of the ${overall.answered} respondents who answered "${questionText}" chose "${label}"${minorityNote}.`,
         provenance: questionText,
+        validResponses: overall.answered,
+        scope: questionScope,
       });
     }
 
@@ -134,8 +156,10 @@ export function surveyObservations(opts: {
       const div = widestDivergence(overall, sub);
       if (!div) continue;
       out.push({
-        content: `Among ${market.label} respondents (n=${sub.answered}), "${div.label}" was chosen by ${div.subPct}% for "${questionText}", versus ${div.overallPct}% overall, the widest gap in this market.`,
+        content: `Among the ${sub.answered} ${market.label} respondents who answered "${questionText}", "${div.label}" was chosen by ${div.subPct}%, versus ${div.overallPct}% across all ${overall.answered} answers, the widest gap in this market.`,
         provenance: `${opts.surveyName} · ${market.label}`,
+        validResponses: sub.answered,
+        scope: `${market.label} · ${questionText} (${sub.answered} valid responses)`,
       });
     }
   });
@@ -146,14 +170,16 @@ export function surveyObservations(opts: {
   if (lead) {
     const leadText = lead.text.en ?? "Question 1";
     const overall = distribution(opts.responses, lead, "q1");
-    if (overall.answered > 0) {
+    if (overall.answered >= MIN_QUESTION_RESPONSES) {
       for (const segment of topGroups(opts.responses, "fan_segment", MAX_SEGMENTS)) {
         const sub = distribution(segment.rows, lead, "q1");
         const div = widestDivergence(overall, sub);
         if (!div) continue;
         out.push({
-          content: `Among ${segment.label} fans (n=${sub.answered}), "${div.label}" was chosen by ${div.subPct}% for "${leadText}", versus ${div.overallPct}% overall.`,
+          content: `Among the ${sub.answered} ${segment.label} fans who answered "${leadText}", "${div.label}" was chosen by ${div.subPct}%, versus ${div.overallPct}% across all ${overall.answered} answers.`,
           provenance: `${opts.surveyName} · ${segment.label}`,
+          validResponses: sub.answered,
+          scope: `${segment.label} · ${leadText} (${sub.answered} valid responses)`,
         });
       }
     }

@@ -30,6 +30,11 @@ export const SOURCE_KIND_LABEL: Record<SourceKind, string> = {
 /** Display order on the board. */
 export const SOURCE_KIND_ORDER: SourceKind[] = ["survey", "document", "news", "youtube", "bluesky", "reddit", "conversation"];
 
+/** The conversation family — News, YouTube, Bluesky and the rest arrive through
+ *  one connector and share the "Conversation Findings" page, grouped by platform
+ *  within it. */
+export const CONVERSATION_KINDS: SourceKind[] = ["news", "youtube", "bluesky", "reddit", "conversation"];
+
 export type EvidenceStrength = "strong" | "moderate" | "limited";
 
 /** One candidate finding a source produced, before it is stored. */

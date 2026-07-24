@@ -1,19 +1,14 @@
 "use client";
 
-// The Source Findings board — "what did each source find?", grouped by source,
-// for the analyst to select and approve in bulk. It is the stage BEFORE the
-// cross-source Analysis: only findings approved here feed the final synthesis.
-//
-// Leads with the finding in plain English; the evidence and scope sit underneath.
-// No confidence arithmetic or reasoning vocabulary here — that belongs to the
-// Analysis board, which reasons over what this board approves.
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+// One source page of the Findings section (Survey / Conversation / Research
+// Library). It renders the findings for a given set of source kinds, grouped by
+// source, with individual + select-all selection, bulk approve / set aside, and
+// structured + free-text feedback. The section furniture (page header, sub-nav)
+// is owned by the Findings layout; this renders only its body.
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useResearchProject } from "@/app/components/research-projects/ProjectProvider";
-import {
-  PageContainer, WorkspaceHeader, Card, Button, Icon, StatusBadge, Eyebrow,
-  PageLoadingState, ErrorState, EmptyState,
-} from "@/app/components/workspace-ui";
+import { Card, Button, Icon, StatusBadge, PageLoadingState, ErrorState, EmptyState } from "@/app/components/workspace-ui";
 import { SOURCE_KIND_LABEL, SOURCE_KIND_ORDER, type SourceKind } from "@/lib/analysis/source-findings/types";
 
 type SourceFinding = {
@@ -73,7 +68,6 @@ function FindingRow({ f, selected, onToggle, onApprove, onSetAside, busy }: {
             <StatusBadge label={status.label} tone={status.tone} dot />
           </div>
 
-          {/* Source (the specific instance this finding came from). */}
           {f.sourceLabel && (
             <p className="mt-1.5 text-[11px] flex items-center gap-1.5" style={{ color: "var(--text-tertiary)" }}>
               <Icon.layers size={11} strokeWidth={2} />
@@ -92,7 +86,6 @@ function FindingRow({ f, selected, onToggle, onApprove, onSetAside, busy }: {
           </div>
           {open && <EvidenceList evidence={f.evidence} />}
 
-          {/* Per-card actions, alongside the bulk controls in the group header. */}
           <div className="flex items-center gap-2 mt-2.5 pt-2.5" style={{ borderTop: "1px solid var(--border-subtle)" }}>
             <Button size="sm" variant="ghost" disabled={busy || f.status === "approved"} onClick={onApprove}>Approve</Button>
             <Button size="sm" variant="ghost" disabled={busy || f.status === "set_aside"} onClick={onSetAside}>Set aside…</Button>
@@ -103,16 +96,16 @@ function FindingRow({ f, selected, onToggle, onApprove, onSetAside, busy }: {
   );
 }
 
-export function SourceFindingsBoard() {
+export function SourceFindingsSection({ kinds }: { kinds: SourceKind[] }) {
   const { projectId, project, loading, error } = useResearchProject();
   const [data, setData] = useState<BoardData | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
-  const [extracting, setExtracting] = useState(false);
   const [feedbackFor, setFeedbackFor] = useState<string[] | null>(null);
   const [toast, setToast] = useState<string | null>(null);
-  const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const kindSet = useMemo(() => new Set<string>(kinds), [kinds]);
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/research-projects/${projectId}/source-findings`).then(r => (r.ok ? r.json() : null)).catch(() => null);
@@ -120,24 +113,7 @@ export function SourceFindingsBoard() {
     setLoaded(true);
   }, [projectId]);
 
-  useEffect(() => { load(); return () => { if (pollRef.current) clearTimeout(pollRef.current); }; }, [load]);
-
-  // After an extract, poll a few times so freshly-written findings appear as the
-  // per-source jobs complete.
-  const pollAfterExtract = useCallback((remaining: number) => {
-    if (remaining <= 0) { setExtracting(false); return; }
-    pollRef.current = setTimeout(async () => { await load(); pollAfterExtract(remaining - 1); }, 2500);
-  }, [load]);
-
-  async function extract() {
-    setExtracting(true);
-    try {
-      const res = await fetch(`/api/research-projects/${projectId}/source-findings/extract`, { method: "POST" });
-      if (!res.ok) { setToast("Could not start extraction."); setExtracting(false); return; }
-      await load();
-      pollAfterExtract(8);
-    } catch { setExtracting(false); }
-  }
+  useEffect(() => { load(); }, [load]);
 
   const bulk = useCallback(async (action: "approve" | "set_aside", ids: string[], feedback?: { feedbackClass: string; note: string }) => {
     if (ids.length === 0) return;
@@ -157,105 +133,77 @@ export function SourceFindingsBoard() {
 
   const groups = useMemo(() => {
     const byKind = new Map<string, SourceFinding[]>();
-    for (const f of data?.findings ?? []) byKind.set(f.sourceKind, [...(byKind.get(f.sourceKind) ?? []), f]);
+    for (const f of data?.findings ?? []) {
+      if (!kindSet.has(f.sourceKind)) continue;
+      byKind.set(f.sourceKind, [...(byKind.get(f.sourceKind) ?? []), f]);
+    }
     return SOURCE_KIND_ORDER.filter(k => byKind.has(k)).map(k => ({ kind: k as SourceKind, findings: byKind.get(k)! }));
-  }, [data]);
+  }, [data, kindSet]);
 
   const toggle = (id: string) => setSelected(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const selectedInGroup = (findings: SourceFinding[]) => findings.filter(f => selected.has(f.id)).map(f => f.id);
 
-  if (loading && !project) return <PageContainer><PageLoadingState /></PageContainer>;
-  if (error || !project) return <PageContainer><ErrorState title="Research project not found" description={error || "We couldn't load this project."} /></PageContainer>;
+  if (loading && !project) return <PageLoadingState />;
+  if (error || !project) return <ErrorState title="Research project not found" description={error || "We couldn't load this project."} />;
+  if (!loaded) return <PageLoadingState />;
 
-  const hasFindings = (data?.findings.length ?? 0) > 0;
+  const hasAny = groups.length > 0;
 
   return (
     <>
-      <PageContainer>
-        <WorkspaceHeader
-          title="Findings"
-          description="What each evidence source found, for you to review and approve. Approve the findings that hold; set the rest aside with a reason. Only approved findings feed the cross-source Analysis."
-          primaryAction={
-            <Button variant={hasFindings ? "secondary" : "primary"} onClick={extract} disabled={extracting}>
-              {extracting ? "Extracting…" : hasFindings ? "Re-extract findings" : "Extract findings"}
-            </Button>
-          }
-        />
-
-        {!loaded ? (
-          <PageLoadingState />
-        ) : !hasFindings ? (
-          <EmptyState icon="✦" title={extracting ? "Extracting…" : "No findings yet"}
-            description={extracting ? "Findings will appear here per source as extraction completes."
-              : "Extract findings to turn this project's approved evidence into clear, factual findings under each source, ready for your review."}
-            action={!extracting ? <Button variant="primary" onClick={extract}>Extract findings</Button> : undefined} />
-        ) : (
-          <>
-            <Card padding="md">
-              <div className="flex items-center justify-between gap-3 flex-wrap">
-                <div>
-                  <Eyebrow>Approved so far</Eyebrow>
-                  <p className="text-sm mt-1" style={{ color: "var(--text-secondary)" }}>
-                    <span className="font-bold" style={{ color: "var(--text-primary)" }}>{data?.approvedTotal ?? 0}</span> findings approved across {groups.length} sources. These are the only input to the final Analysis.
-                  </p>
-                </div>
-                <Button href={`/research-projects/${projectId}/analysis`} variant="ghost" size="sm">Go to Analysis →</Button>
-              </div>
-            </Card>
-
-            {groups.map(({ kind, findings }) => {
-              const inGroup = selectedInGroup(findings);
-              const allSelected = inGroup.length === findings.length && findings.length > 0;
-              const counts = data?.byKind[kind];
-              return (
-                <section key={kind} className="space-y-2.5">
-                  <div className="flex items-center justify-between gap-3 flex-wrap pt-2">
-                    <div className="flex items-center gap-2">
-                      <input type="checkbox" checked={allSelected} onChange={() => setSelected(s => {
-                        const n = new Set(s); const ids = findings.map(f => f.id);
-                        if (allSelected) ids.forEach(i => n.delete(i)); else ids.forEach(i => n.add(i));
-                        return n;
-                      })} className="w-4 h-4 accent-[var(--accent-gold)]" aria-label={`Select all ${SOURCE_KIND_LABEL[kind]}`} />
-                      <h2 className="text-base font-bold" style={{ color: "var(--text-primary)" }}>{SOURCE_KIND_LABEL[kind]}</h2>
-                      {counts && <span className="text-xs" style={{ color: "var(--text-tertiary)" }}>{counts.approved} approved · {counts.candidate} to review</span>}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Button size="sm" variant="primary" disabled={busy || inGroup.length === 0} onClick={() => bulk("approve", inGroup)}>Approve selected ({inGroup.length})</Button>
-                      <Button size="sm" variant="secondary" disabled={busy || inGroup.length === 0} onClick={() => setFeedbackFor(inGroup)}>Set aside</Button>
-                    </div>
+      {!hasAny ? (
+        <EmptyState icon="✦" title="No findings for this source yet"
+          description="Extract findings from the Findings overview, then return here to review and approve them."
+          action={<Button href={`/research-projects/${projectId}/findings`} variant="secondary">Go to Findings overview →</Button>} />
+      ) : (
+        <>
+          {groups.map(({ kind, findings }) => {
+            const inGroup = selectedInGroup(findings);
+            const allSelected = inGroup.length === findings.length && findings.length > 0;
+            const counts = data?.byKind[kind];
+            return (
+              <section key={kind} className="space-y-2.5">
+                <div className="flex items-center justify-between gap-3 flex-wrap pt-2">
+                  <div className="flex items-center gap-2">
+                    <input type="checkbox" checked={allSelected} onChange={() => setSelected(s => {
+                      const n = new Set(s); const ids = findings.map(f => f.id);
+                      if (allSelected) ids.forEach(i => n.delete(i)); else ids.forEach(i => n.add(i));
+                      return n;
+                    })} className="w-4 h-4 accent-[var(--accent-gold)]" aria-label={`Select all ${SOURCE_KIND_LABEL[kind]}`} />
+                    <h2 className="text-base font-bold" style={{ color: "var(--text-primary)" }}>{SOURCE_KIND_LABEL[kind]}</h2>
+                    {counts && <span className="text-xs" style={{ color: "var(--text-tertiary)" }}>{counts.approved} approved · {counts.candidate} to review</span>}
                   </div>
-                  {findings.map(f => (
-                    <FindingRow key={f.id} f={f} selected={selected.has(f.id)} onToggle={() => toggle(f.id)}
-                      busy={busy}
-                      onApprove={() => bulk("approve", [f.id])}
-                      onSetAside={() => setFeedbackFor([f.id])} />
-                  ))}
-                </section>
-              );
-            })}
+                  <div className="flex items-center gap-2">
+                    <Button size="sm" variant="primary" disabled={busy || inGroup.length === 0} onClick={() => bulk("approve", inGroup)}>Approve selected ({inGroup.length})</Button>
+                    <Button size="sm" variant="secondary" disabled={busy || inGroup.length === 0} onClick={() => setFeedbackFor(inGroup)}>Set aside</Button>
+                  </div>
+                </div>
+                {findings.map(f => (
+                  <FindingRow key={f.id} f={f} selected={selected.has(f.id)} onToggle={() => toggle(f.id)}
+                    busy={busy}
+                    onApprove={() => bulk("approve", [f.id])}
+                    onSetAside={() => setFeedbackFor([f.id])} />
+                ))}
+              </section>
+            );
+          })}
 
-            <p className="text-xs px-1" style={{ color: "var(--text-tertiary)" }}>
-              Approved findings feed the cross-source{" "}
-              <Link href={`/research-projects/${projectId}/analysis`} className="font-semibold hover:underline" style={{ color: "var(--accent-ink)" }}>Analysis →</Link>
-            </p>
-          </>
-        )}
-      </PageContainer>
+          <p className="text-xs px-1" style={{ color: "var(--text-tertiary)" }}>
+            Approved findings feed the cross-source{" "}
+            <Link href={`/research-projects/${projectId}/analysis`} className="font-semibold hover:underline" style={{ color: "var(--accent-ink)" }}>Analysis →</Link>
+          </p>
+        </>
+      )}
 
       {feedbackFor && (
-        <FeedbackModal
-          count={feedbackFor.length}
-          onCancel={() => setFeedbackFor(null)}
-          onSubmit={(feedbackClass, note) => { const ids = feedbackFor; setFeedbackFor(null); bulk("set_aside", ids, { feedbackClass, note }); }}
-        />
+        <FeedbackModal count={feedbackFor.length} onCancel={() => setFeedbackFor(null)}
+          onSubmit={(feedbackClass, note) => { const ids = feedbackFor; setFeedbackFor(null); bulk("set_aside", ids, { feedbackClass, note }); }} />
       )}
 
       {toast && (
         <div className="fixed bottom-6 right-6 z-50 px-4 py-2.5 rounded-xl shadow-lg text-sm font-medium"
           style={{ background: "var(--text-primary)", color: "var(--surface)" }}
-          onAnimationEnd={() => setTimeout(() => setToast(null), 2500)}>
-          {toast}
-        </div>
+          onAnimationEnd={() => setTimeout(() => setToast(null), 2500)}>{toast}</div>
       )}
     </>
   );

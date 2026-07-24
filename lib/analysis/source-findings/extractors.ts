@@ -10,11 +10,13 @@ import { conversationObservations, type Mention } from "@/lib/analysis/source-fi
 import type { SourceFindingDraft, EvidenceStrength } from "@/lib/analysis/source-findings/types";
 import type { LocalisedQuestion } from "@/lib/survey-locale";
 
-const MIN_SURVEY_RESPONSES = 50;
-
 /** Survey findings from the full computed distributions (minorities, market and
  *  segment differences included) — the same lib/analysis/survey-observations.ts
- *  the intake layer uses, so nothing meaningful is dropped. */
+ *  the intake layer uses, so nothing meaningful is dropped. Evidence is counted
+ *  PER QUESTION: each finding carries the number of valid answers to the question
+ *  that produced it, never a generic completed-survey total, and a respondent who
+ *  answered one question but not another still counts toward the one they
+ *  answered. The per-question reliability floor lives in survey-observations. */
 export async function extractSurveyFindings(surveyId: string): Promise<SourceFindingDraft[]> {
   const { data: survey } = await supabaseAdmin
     .from("surveys").select("name, questions, is_simulated").eq("id", surveyId).maybeSingle();
@@ -24,19 +26,18 @@ export async function extractSurveyFindings(surveyId: string): Promise<SourceFin
     .from("responses").select("q1, q2, q3, country, fan_segment")
     .eq("survey_id", surveyId).eq("is_demo", survey.is_simulated);
   const responses = (rows ?? []) as SurveyResponseRow[];
-  if (responses.length < MIN_SURVEY_RESPONSES) return [];
+  if (responses.length === 0) return [];
 
   const questions = ((survey.questions ?? []) as LocalisedQuestion[]).slice(0, 3);
   const name = survey.name as string;
-  const scope = `Survey respondents (n=${responses.length})`;
 
   return surveyObservations({ surveyName: name, questions, responses }).map(o => ({
     sourceKind: "survey" as const,
     sourceRef: surveyId,
     sourceLabel: name,
     statement: o.content,
-    scope,
-    evidenceStrength: "moderate" as EvidenceStrength,
+    scope: o.scope,
+    evidenceStrength: (o.validResponses >= 100 ? "moderate" : "limited") as EvidenceStrength,
     citations: [{ snippet: o.content, provenance: o.provenance }],
   }));
 }

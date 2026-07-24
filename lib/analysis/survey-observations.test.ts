@@ -37,10 +37,14 @@ test("every option is reported, including a minority below the old 15% floor", (
   const obs = surveyObservations({ surveyName: "Perception", questions: [QUESTION], responses });
   const text = obs.map(o => o.content).join("\n");
 
-  assert.match(text, /80% of 100 respondents chose "Strong fit"/);
-  assert.match(text, /15% of 100 respondents chose "Relevant but unclear"/);
+  // Question-level valid-response count (100 answered this question), not a
+  // completed-survey total.
+  assert.match(text, /80% of the 100 respondents who answered .* chose "Strong fit"/);
+  assert.match(text, /15% of the 100 respondents who answered .* chose "Relevant but unclear"/);
   // The 5% option survives AND is flagged as a notable minority.
-  assert.match(text, /5% of 100 respondents chose "Never noticed" .*\(a notable minority\)/);
+  assert.match(text, /5% of the 100 respondents who answered .* chose "Never noticed" \(a notable minority\)/);
+  // Scope references the question's valid-response count.
+  assert.ok(obs.every(o => o.validResponses === 100 && /valid responses/.test(o.scope)));
 });
 
 test("a market that diverges from the whole is reported as a contrast", () => {
@@ -55,8 +59,9 @@ test("a market that diverges from the whole is reported as a contrast", () => {
   const obs = surveyObservations({ surveyName: "Perception", questions: [QUESTION], responses });
   const de = obs.find(o => o.provenance.includes("DE"));
   assert.ok(de, "a DE market divergence observation should exist");
-  assert.match(de!.content, /Among DE respondents \(n=50\)/);
-  assert.match(de!.content, /versus .*overall/);
+  assert.match(de!.content, /Among the 50 DE respondents who answered/);
+  assert.match(de!.content, /across all 150 answers/);
+  assert.equal(de!.validResponses, 50);
 });
 
 test("a market too small to read is not reported as a difference", () => {
