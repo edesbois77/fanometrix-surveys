@@ -32,7 +32,7 @@ const FEEDBACK_OPTIONS: { value: string; label: string }[] = [
 
 const STRENGTH_TONE: Record<string, "success" | "info" | "neutral"> = { strong: "success", moderate: "info", limited: "neutral" };
 const STATUS_META: Record<string, { label: string; tone: "success" | "neutral" | "warning" }> = {
-  candidate: { label: "Candidate", tone: "neutral" },
+  candidate: { label: "Awaiting review", tone: "neutral" },
   in_review: { label: "In review", tone: "neutral" },
   approved: { label: "Approved", tone: "success" },
   set_aside: { label: "Set aside", tone: "warning" },
@@ -58,14 +58,18 @@ function FindingRow({ f, selected, onToggle, onApprove, onSetAside, busy }: {
 }) {
   const [open, setOpen] = useState(false);
   const status = STATUS_META[f.status] ?? STATUS_META.candidate;
+  // Only surface evidence that says something the statement doesn't. A survey
+  // finding's citation is the statement itself, so it would just repeat the card.
+  const usefulEvidence = f.evidence.filter(e => (e.snippet ?? "").trim() !== f.statement.trim());
   return (
     <div className="p-3 rounded-xl" style={{ background: "var(--surface)", border: `1px solid ${selected ? "var(--accent-gold)" : "var(--border-subtle)"}` }}>
       <div className="flex items-start gap-3">
         <input type="checkbox" checked={selected} onChange={onToggle} className="mt-1 flex-shrink-0 w-4 h-4 accent-[var(--accent-gold)]" aria-label="Select finding" />
         <div className="min-w-0 flex-1">
-          <div className="flex items-start justify-between gap-3 flex-wrap">
-            <p className="text-sm leading-relaxed min-w-0" style={{ color: "var(--text-primary)" }}>{f.statement}</p>
-            <StatusBadge label={status.label} tone={status.tone} dot />
+          {/* Statement wraps in its own column; the status pill stays pinned top-right. */}
+          <div className="flex items-start gap-3">
+            <p className="text-sm leading-relaxed flex-1 min-w-0" style={{ color: "var(--text-primary)" }}>{f.statement}</p>
+            <span className="flex-shrink-0"><StatusBadge label={status.label} tone={status.tone} dot /></span>
           </div>
 
           {f.sourceLabel && (
@@ -78,13 +82,13 @@ function FindingRow({ f, selected, onToggle, onApprove, onSetAside, busy }: {
           <div className="flex items-center gap-2 mt-2 flex-wrap text-[11px]" style={{ color: "var(--text-tertiary)" }}>
             {f.scope && <span>{f.scope}</span>}
             {f.evidenceStrength && <StatusBadge label={`${f.evidenceStrength} evidence`} tone={STRENGTH_TONE[f.evidenceStrength] ?? "neutral"} />}
-            {f.evidence.length > 0 && (
+            {usefulEvidence.length > 0 && (
               <button type="button" onClick={() => setOpen(o => !o)} className="font-semibold hover:underline" style={{ color: "var(--accent-ink)" }}>
-                {open ? "Hide evidence" : `Show evidence (${f.evidence.length})`}
+                {open ? "Hide evidence" : `Show evidence (${usefulEvidence.length})`}
               </button>
             )}
           </div>
-          {open && <EvidenceList evidence={f.evidence} />}
+          {open && <EvidenceList evidence={usefulEvidence} />}
 
           <div className="flex items-center gap-2 mt-2.5 pt-2.5" style={{ borderTop: "1px solid var(--border-subtle)" }}>
             <Button size="sm" variant="ghost" disabled={busy || f.status === "approved"} onClick={onApprove}>Approve</Button>
