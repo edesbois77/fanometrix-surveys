@@ -642,6 +642,29 @@ export function ThemedSurvey(props: ThemedSurveyProps) {
     }).catch(() => {/* non-fatal */});
   }
 
+  // Persist each answer the moment it is chosen — the Fanometrix evidence
+  // principle: an answer given is a valid data point, kept even if the respondent
+  // abandons before completing. Runs alongside /api/submit (which still writes the
+  // completed response); non-fatal and skipped in preview.
+  function sendAnswer(questionIndex: number, answerValue: string) {
+    if (props.isPreview) return;
+    fetch("/api/answer", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      keepalive: true,
+      body: JSON.stringify({
+        session_id:     props.sessionId,
+        campaign_id:    props.campaignId || null,
+        survey_id:      props.surveyId   || null,
+        question_index: questionIndex,
+        answer_value:   answerValue,
+        country:        props.country    || null,
+        fan_segment:    props.segment    || null,
+        market:         props.market     || null,
+      }),
+    }).catch(() => {/* non-fatal */});
+  }
+
   // SURVEY_RENDER = a load / impression. Fires once on mount (this component only
   // mounts when questions are ready), regardless of viewport — so it counts every
   // ad load, consistently with ClassicSurvey. Viewability = SURVEY_VISIBLE ÷
@@ -732,6 +755,10 @@ export function ThemedSurvey(props: ThemedSurveyProps) {
 
     const newAnswers = { ...answers, [q.id]: option.id };
     setAnswers(newAnswers);
+
+    // Persist this answer immediately (before advancing), so a later abandonment
+    // never discards it. step = the question index (0/1/2).
+    sendAnswer(step, String(option.id));
 
     // SURVEY_START: first answer
     if (!hasStarted.current) {

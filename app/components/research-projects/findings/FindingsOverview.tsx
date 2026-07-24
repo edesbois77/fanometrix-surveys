@@ -15,8 +15,10 @@ type KindCounts = { candidate: number; approved: number; set_aside: number; tota
 type BoardData = { findings: unknown[]; byKind: Record<string, KindCounts>; approvedTotal: number };
 type PopStats = {
   campaigns: number;
-  completed: { total: number; q1: number; q2: number; q3: number };
+  usingAnswerStore: boolean;
+  findings: { total: number; q1: number; q2: number; q3: number };
   reach: { q1: number; q2: number; q3: number };
+  completedTotal: number;
   surveys: { surveyId: string; name: string; completed: number }[];
 };
 
@@ -143,7 +145,7 @@ export function FindingsOverview() {
         )}
       </Card>
 
-      {pop && (pop.completed.total > 0 || pop.reach.q1 > 0) && (
+      {pop && (pop.completedTotal > 0 || pop.reach.q1 > 0) && (
         <Card padding="md">
           <div className="flex items-center gap-2 mb-1">
             <Icon.layers size={14} strokeWidth={2} />
@@ -161,9 +163,19 @@ export function FindingsOverview() {
             ))}
           </div>
           <div className="mt-2.5 pt-2.5 text-[11px]" style={{ borderTop: "1px solid var(--border-subtle)", color: "var(--text-tertiary)" }}>
-            <p>
-              Findings are currently computed from the <span className="font-bold" style={{ color: "var(--text-primary)" }}>{pop.completed.total.toLocaleString()}</span> completed responses — the only respondents whose option choices were recorded. Partial-respondent choices are captured going forward (answer-persistence change), after which each question&apos;s findings will use everyone who answered it.
-            </p>
+            {pop.usingAnswerStore ? (
+              <p>
+                <span style={{ color: "#2F7D55" }}>✓</span> Findings count each question from every answer given:
+                {" "}Q1 <span className="font-bold" style={{ color: "var(--text-primary)" }}>{pop.findings.q1.toLocaleString()}</span> ·
+                {" "}Q2 <span className="font-bold" style={{ color: "var(--text-primary)" }}>{pop.findings.q2.toLocaleString()}</span> ·
+                {" "}Q3 <span className="font-bold" style={{ color: "var(--text-primary)" }}>{pop.findings.q3.toLocaleString()}</span>.
+                Completion metrics still use the {pop.completedTotal.toLocaleString()} completed responses.
+              </p>
+            ) : (
+              <p>
+                Findings are computed from the <span className="font-bold" style={{ color: "var(--text-primary)" }}>{pop.completedTotal.toLocaleString()}</span> completed responses — the only respondents whose option choices were recorded for these historical campaigns. New responses now persist every answer as it is given, so future findings use everyone who answered each question.
+              </p>
+            )}
             {pop.surveys.length > 0 && (
               <ul className="mt-1.5 space-y-0.5">
                 {pop.surveys.map(s => (

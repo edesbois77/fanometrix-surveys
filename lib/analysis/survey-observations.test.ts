@@ -64,6 +64,36 @@ test("a market that diverges from the whole is reported as a contrast", () => {
   assert.equal(de!.validResponses, 50);
 });
 
+test("each question's denominator is its OWN valid-answer count, not a shared total (652/317/274 funnel)", () => {
+  const q1 = q("How do fans perceive it?", [{ id: 1, text: "Strong fit" }, { id: 2, text: "Unclear" }]);
+  const q2 = q("What should sponsors offer?", [{ id: 1, text: "Experiences" }, { id: 2, text: "Access" }]);
+  const q3 = q("FedEx as a sponsor?", [{ id: 1, text: "Natural fit" }, { id: 2, text: "Noticed" }]);
+
+  // A partial-completion funnel: 652 answered Q1, 317 reached Q2, 274 completed Q3.
+  const responses: SurveyResponseRow[] = [];
+  for (let i = 0; i < 652; i++) {
+    responses.push({
+      q1: String((i % 2) + 1),                 // all 652 answered Q1
+      q2: i < 317 ? String((i % 2) + 1) : null, // 317 answered Q2
+      q3: i < 274 ? String((i % 2) + 1) : null, // 274 answered Q3
+      country: null, fan_segment: null,
+    });
+  }
+
+  const obs = surveyObservations({ surveyName: "FedEx", questions: [q1, q2, q3], responses });
+  const forQ = (text: string) => obs.filter(o => o.provenance === text);
+
+  // Each question's option findings quote its own denominator, independently.
+  assert.ok(forQ("How do fans perceive it?").every(o => o.validResponses === 652), "Q1 denominator must be 652");
+  assert.ok(forQ("What should sponsors offer?").every(o => o.validResponses === 317), "Q2 denominator must be 317");
+  assert.ok(forQ("FedEx as a sponsor?").every(o => o.validResponses === 274), "Q3 denominator must be 274");
+
+  const text = obs.map(o => o.content).join("\n");
+  assert.match(text, /of the 652 respondents who answered "How do fans perceive it\?"/);
+  assert.match(text, /of the 317 respondents who answered "What should sponsors offer\?"/);
+  assert.match(text, /of the 274 respondents who answered "FedEx as a sponsor\?"/);
+});
+
 test("a market too small to read is not reported as a difference", () => {
   const responses = rows([
     { q1: 1, country: "GB", n: 90 },

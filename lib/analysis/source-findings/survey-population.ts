@@ -28,18 +28,40 @@ export async function projectDeploymentCampaigns(projectId: string): Promise<str
   return [...new Set((data ?? []).map(c => c.campaign_id as string).filter(Boolean))];
 }
 
-/** Every response under the project's survey-deployment campaigns — partials
- *  included, unfiltered by survey_id / is_demo / completion. Paginated so a large
- *  survey is never truncated. Deduped by response id. */
-export async function projectSurveyResponseRows(projectId: string): Promise<SurveyResponseRow[]> {
-  const slugs = await projectDeploymentCampaigns(projectId);
-  if (slugs.length === 0) return [];
+/** One row per respondent reconstructed from the per-answer store — EVERY answer
+ *  given, partials included, from the moment it was selected (migration 147).
+ *  This is the going-forward Findings population: a respondent who answered Q1
+ *  and stopped is one row with q1 set and q2/q3 null. */
+async function answerStoreRows(campaignSlugs: string[]): Promise<SurveyResponseRow[]> {
+  const bySession = new Map<string, SurveyResponseRow>();
+  for (let from = 0; ; from += PAGE) {
+    const { data } = await supabaseAdmin
+      .from("response_answers").select("session_id, question_index, answer_value, country, fan_segment")
+      .in("campaign_id", campaignSlugs).order("session_id").range(from, from + PAGE - 1);
+    const rows = (data ?? []) as Record<string, unknown>[];
+    for (const r of rows) {
+      const sid = r.session_id as string;
+      const row = bySession.get(sid) ?? { q1: null, q2: null, q3: null, country: null, fan_segment: null };
+      const value = (r.answer_value as string | null) ?? null;
+      const qi = r.question_index as number;
+      if (qi === 0) row.q1 = value; else if (qi === 1) row.q2 = value; else if (qi === 2) row.q3 = value;
+      if (!row.country && r.country) row.country = r.country as string;
+      if (!row.fan_segment && r.fan_segment) row.fan_segment = r.fan_segment as string;
+      bySession.set(sid, row);
+    }
+    if (rows.length < PAGE) break;
+  }
+  return [...bySession.values()];
+}
 
+/** Completed responses under the deployment campaigns — the historical fallback
+ *  for surveys collected before the per-answer store existed. Deduped by id. */
+async function completedResponseRows(campaignSlugs: string[]): Promise<SurveyResponseRow[]> {
   const seen = new Set<string>();
   const out: SurveyResponseRow[] = [];
   for (let from = 0; ; from += PAGE) {
     const { data } = await supabaseAdmin
-      .from("responses").select(COLS).in("campaign_id", slugs).order("id").range(from, from + PAGE - 1);
+      .from("responses").select(COLS).in("campaign_id", campaignSlugs).order("id").range(from, from + PAGE - 1);
     const rows = (data ?? []) as Record<string, unknown>[];
     for (const r of rows) {
       const id = r.id as string;
@@ -53,6 +75,19 @@ export async function projectSurveyResponseRows(projectId: string): Promise<Surv
     if (rows.length < PAGE) break;
   }
   return out;
+}
+
+/** The Findings population for a project's surveys. Prefers the per-answer store
+ *  (every answer given, partials included) where it has data; falls back to
+ *  completed responses for historical surveys with no per-answer data. Each
+ *  question is then counted independently downstream, so a partial-completion
+ *  funnel is reflected exactly. */
+export async function projectSurveyResponseRows(projectId: string): Promise<SurveyResponseRow[]> {
+  const slugs = await projectDeploymentCampaigns(projectId);
+  if (slugs.length === 0) return [];
+  const fromAnswers = await answerStoreRows(slugs);
+  if (fromAnswers.length > 0) return fromAnswers;
+  return completedResponseRows(slugs);
 }
 
 const validAnswer = (v: string | null) => v != null && v !== "";
@@ -81,30 +116,37 @@ async function questionReach(campaignSlugs: string[]): Promise<{ q1: number; q2:
   return { q1, q2, q3 };
 }
 
-/** For the Findings panel: the completed-response population findings are
- *  computed from, the honest question reach for context, and each attached
- *  survey's completed count. */
+/** For the Findings panel. */
 export type SurveyPopulationStats = {
   campaigns: number;
-  /** The population findings are actually computed from — completed responses,
-   *  the only respondents whose option choices are recorded. */
-  completed: { total: number; q1: number; q2: number; q3: number };
-  /** How many answered each question, partials included (survey_events funnel).
-   *  Context only — no option-level detail for partials yet. */
+  /** True once the per-answer store has data — findings then use every answer
+   *  given; false for historical surveys, where findings use completed responses. */
+  usingAnswerStore: boolean;
+  /** The per-question denominators findings ACTUALLY use (from the source above). */
+  findings: { total: number; q1: number; q2: number; q3: number };
+  /** How many answered each question, partials included (survey_events funnel). */
   reach: { q1: number; q2: number; q3: number };
+  /** Completed responses (the completion metric — unchanged, from `responses`). */
+  completedTotal: number;
   surveys: { surveyId: string; name: string; completed: number }[];
 };
 
 export async function surveyPopulationStats(projectId: string): Promise<SurveyPopulationStats> {
   const campaigns = await projectDeploymentCampaigns(projectId);
   const rows = await projectSurveyResponseRows(projectId);
-  const completed = {
+  const findings = {
     total: rows.length,
     q1: rows.filter(r => validAnswer(r.q1)).length,
     q2: rows.filter(r => validAnswer(r.q2)).length,
     q3: rows.filter(r => validAnswer(r.q3)).length,
   };
   const reach = await questionReach(campaigns);
+
+  const [{ count: answerCount }, { count: completedCount }] = await Promise.all([
+    supabaseAdmin.from("response_answers").select("id", { count: "exact", head: true }).in("campaign_id", campaigns.length ? campaigns : ["__none__"]),
+    supabaseAdmin.from("responses").select("id", { count: "exact", head: true }).in("campaign_id", campaigns.length ? campaigns : ["__none__"]),
+  ]);
+  const usingAnswerStore = (answerCount ?? 0) > 0;
 
   const { data: links } = await supabaseAdmin
     .from("research_project_evidence").select("evidence_id").eq("research_project_id", projectId).eq("evidence_type", "survey");
@@ -119,5 +161,5 @@ export async function surveyPopulationStats(projectId: string): Promise<SurveyPo
     return { surveyId: s.id, name: (s.name as string | null) ?? "Survey", completed: count ?? 0 };
   }));
 
-  return { campaigns: campaigns.length, completed, reach, surveys: perSurvey };
+  return { campaigns: campaigns.length, usingAnswerStore, findings, reach, completedTotal: completedCount ?? 0, surveys: perSurvey };
 }

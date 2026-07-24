@@ -433,6 +433,29 @@ export function ClassicSurvey(props: ClassicSurveyProps) {
     }).catch(() => {/* non-fatal */});
   }, [isPreview, sessionId, publisher, placement, placementId, creativeId, country]);
 
+  // Persist each answer the moment it is chosen — the Fanometrix evidence
+  // principle: an answer given is a valid data point, kept even if the respondent
+  // abandons before completing. Runs alongside /api/submit; non-fatal, skipped in
+  // preview.
+  const sendAnswer = useCallback((questionIndex: number, answerValue: string) => {
+    if (isPreview) return;
+    fetch("/api/answer", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      keepalive: true,
+      body: JSON.stringify({
+        session_id:     sessionId,
+        campaign_id:    campaignId   || null,
+        survey_id:      surveyId     || null,
+        question_index: questionIndex,
+        answer_value:   answerValue,
+        country:        country      || null,
+        fan_segment:    segment      || null,
+        market:         market       || null,
+      }),
+    }).catch(() => {/* non-fatal */});
+  }, [isPreview, sessionId, campaignId, surveyId, country, segment, market]);
+
   // SURVEY_VISIBLE: fire once when the survey genuinely enters the viewport.
   // Distinct from SURVEY_RENDER (data-load): this is the "became visible to the
   // respondent" moment and is the start of Avg Time to First Interaction. Its
@@ -481,6 +504,10 @@ export function ClassicSurvey(props: ClassicSurveyProps) {
     const newAnswers = { ...answers, [q.id]: optId };
     setAnswers(newAnswers);
     setAdvancing(true);
+
+    // Persist this answer immediately (before advancing), so a later abandonment
+    // never discards it. step = the question index (0/1/2).
+    sendAnswer(step, String(optId));
 
     // SURVEY_START: first answer ever
     if (!hasStarted.current) {
