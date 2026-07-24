@@ -155,10 +155,10 @@ export function FindingsOverview() {
             How many people answered each question, partial respondents included (from the survey event stream, across the project&apos;s {pop.campaigns} deployment campaign{pop.campaigns === 1 ? "" : "s"}).
           </p>
           <div className="grid grid-cols-3 gap-2">
-            {([["Q1", pop.reach.q1], ["Q2", pop.reach.q2], ["Q3", pop.reach.q3]] as [string, number][]).map(([lbl, v]) => (
+            {([["Q1", "answered", pop.reach.q1], ["Q2", "answered", pop.reach.q2], ["Q3", "completed", pop.reach.q3]] as [string, string, number][]).map(([lbl, verb, v]) => (
               <div key={lbl} className="p-2.5 rounded-lg text-center" style={{ background: "var(--surface-sunken)", border: "1px solid var(--border-subtle)" }}>
                 <p className="text-xl font-bold tabular-nums" style={{ color: "var(--text-primary)" }}>{v.toLocaleString()}</p>
-                <p className="text-[10px] mt-0.5" style={{ color: "var(--text-tertiary)" }}>answered {lbl}</p>
+                <p className="text-[10px] mt-0.5" style={{ color: "var(--text-tertiary)" }}>{lbl} {verb}</p>
               </div>
             ))}
           </div>
@@ -172,9 +172,12 @@ export function FindingsOverview() {
                 Completion metrics still use the {pop.completedTotal.toLocaleString()} completed responses.
               </p>
             ) : (
-              <p>
-                Findings are computed from the <span className="font-bold" style={{ color: "var(--text-primary)" }}>{pop.completedTotal.toLocaleString()}</span> completed responses — the only respondents whose option choices were recorded for these historical campaigns. New responses now persist every answer as it is given, so future findings use everyone who answered each question.
-              </p>
+              <div className="flex items-start gap-2 p-2.5 rounded-lg" style={{ background: "var(--surface)", border: "1px solid var(--border-subtle)" }}>
+                <span className="flex-shrink-0 mt-0.5" style={{ color: "#C79A3E" }}><Icon.alert size={13} /></span>
+                <p style={{ color: "var(--text-secondary)" }}>
+                  Findings are based on <span className="font-bold" style={{ color: "var(--text-primary)" }}>{pop.completedTotal.toLocaleString()}</span> completed responses. Partial-response option choices were not retained for surveys collected before per-answer persistence was introduced. Historical findings therefore use completed responses only, while question reach is shown separately (above). New responses now persist every answer as it is given.
+                </p>
+              </div>
             )}
             {pop.surveys.length > 0 && (
               <ul className="mt-1.5 space-y-0.5">
