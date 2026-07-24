@@ -15,7 +15,8 @@ type KindCounts = { candidate: number; approved: number; set_aside: number; tota
 type BoardData = { findings: unknown[]; byKind: Record<string, KindCounts>; approvedTotal: number };
 type PopStats = {
   campaigns: number;
-  project: { total: number; q1: number; q2: number; q3: number };
+  completed: { total: number; q1: number; q2: number; q3: number };
+  reach: { q1: number; q2: number; q3: number };
   surveys: { surveyId: string; name: string; completed: number }[];
 };
 
@@ -142,33 +143,38 @@ export function FindingsOverview() {
         )}
       </Card>
 
-      {pop && pop.project.total > 0 && (
+      {pop && (pop.completed.total > 0 || pop.reach.q1 > 0) && (
         <Card padding="md">
           <div className="flex items-center gap-2 mb-1">
             <Icon.layers size={14} strokeWidth={2} />
-            <p className="text-xs font-bold uppercase tracking-[0.06em]" style={{ color: "var(--text-secondary)" }}>Survey responses counted — per question</p>
+            <p className="text-xs font-bold uppercase tracking-[0.06em]" style={{ color: "var(--text-secondary)" }}>Question reach</p>
           </div>
           <p className="text-[11px] mb-2.5" style={{ color: "var(--text-tertiary)" }}>
-            Each question&apos;s findings use everyone who answered THAT question, counted directly from every response under the project&apos;s {pop.campaigns} deployment campaign{pop.campaigns === 1 ? "" : "s"} (partial responses included) — never a completed-survey total or a report figure.
+            How many people answered each question, partial respondents included (from the survey event stream, across the project&apos;s {pop.campaigns} deployment campaign{pop.campaigns === 1 ? "" : "s"}).
           </p>
           <div className="grid grid-cols-3 gap-2">
-            {([["Q1", pop.project.q1], ["Q2", pop.project.q2], ["Q3", pop.project.q3]] as [string, number][]).map(([lbl, v]) => (
+            {([["Q1", pop.reach.q1], ["Q2", pop.reach.q2], ["Q3", pop.reach.q3]] as [string, number][]).map(([lbl, v]) => (
               <div key={lbl} className="p-2.5 rounded-lg text-center" style={{ background: "var(--surface-sunken)", border: "1px solid var(--border-subtle)" }}>
                 <p className="text-xl font-bold tabular-nums" style={{ color: "var(--text-primary)" }}>{v.toLocaleString()}</p>
-                <p className="text-[10px] mt-0.5" style={{ color: "var(--text-tertiary)" }}>{lbl} respondents</p>
+                <p className="text-[10px] mt-0.5" style={{ color: "var(--text-tertiary)" }}>answered {lbl}</p>
               </div>
             ))}
           </div>
-          {pop.surveys.length > 0 && (
-            <ul className="mt-2.5 pt-2.5 space-y-1" style={{ borderTop: "1px solid var(--border-subtle)" }}>
-              {pop.surveys.map(s => (
-                <li key={s.surveyId} className="flex items-center justify-between gap-3 text-[11px]" style={{ color: "var(--text-tertiary)" }}>
-                  <span className="min-w-0 truncate">{s.name}</span>
-                  <span className="flex-shrink-0"><span className="font-semibold" style={{ color: "var(--text-secondary)" }}>{s.completed.toLocaleString()}</span> completed responses</span>
-                </li>
-              ))}
-            </ul>
-          )}
+          <div className="mt-2.5 pt-2.5 text-[11px]" style={{ borderTop: "1px solid var(--border-subtle)", color: "var(--text-tertiary)" }}>
+            <p>
+              Findings are currently computed from the <span className="font-bold" style={{ color: "var(--text-primary)" }}>{pop.completed.total.toLocaleString()}</span> completed responses — the only respondents whose option choices were recorded. Partial-respondent choices are captured going forward (answer-persistence change), after which each question&apos;s findings will use everyone who answered it.
+            </p>
+            {pop.surveys.length > 0 && (
+              <ul className="mt-1.5 space-y-0.5">
+                {pop.surveys.map(s => (
+                  <li key={s.surveyId} className="flex items-center justify-between gap-3">
+                    <span className="min-w-0 truncate">{s.name}</span>
+                    <span className="flex-shrink-0"><span className="font-semibold" style={{ color: "var(--text-secondary)" }}>{s.completed.toLocaleString()}</span> completed</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </Card>
       )}
 

@@ -57,24 +57,54 @@ export async function projectSurveyResponseRows(projectId: string): Promise<Surv
 
 const validAnswer = (v: string | null) => v != null && v !== "";
 
-/** Question-level population counts for the Findings panel: the project totals
- *  (the denominators findings actually use) plus each attached survey's completed
- *  count for context. */
+/** How many distinct respondents ANSWERED each question — the funnel, from the
+ *  event stream (survey_events), scoped to the project's deployment campaigns.
+ *  This includes people who answered a question and then abandoned, so it is the
+ *  honest "question reach", larger than the completed-response count.
+ *
+ *  Q1 = SURVEY_START (fires on the first answer), Q2 = QUESTION_3_REACHED (fires
+ *  when Q2 is answered and Q3 is reached), Q3 = SURVEY_COMPLETED (equals the
+ *  completed responses, the cross-check). Option-level choices for partials are
+ *  NOT recorded yet, so this is a reach COUNT, not a distribution — findings are
+ *  still computed from completed responses until the answer-persistence change. */
+async function questionReach(campaignSlugs: string[]): Promise<{ q1: number; q2: number; q3: number }> {
+  if (campaignSlugs.length === 0) return { q1: 0, q2: 0, q3: 0 };
+  const count = async (eventType: string) => {
+    const { count } = await supabaseAdmin
+      .from("survey_events").select("id", { count: "exact", head: true })
+      .in("campaign_id", campaignSlugs).eq("event_type", eventType);
+    return count ?? 0;
+  };
+  const [q1, q2, q3] = await Promise.all([
+    count("SURVEY_START"), count("QUESTION_3_REACHED"), count("SURVEY_COMPLETED"),
+  ]);
+  return { q1, q2, q3 };
+}
+
+/** For the Findings panel: the completed-response population findings are
+ *  computed from, the honest question reach for context, and each attached
+ *  survey's completed count. */
 export type SurveyPopulationStats = {
   campaigns: number;
-  project: { total: number; q1: number; q2: number; q3: number };
+  /** The population findings are actually computed from — completed responses,
+   *  the only respondents whose option choices are recorded. */
+  completed: { total: number; q1: number; q2: number; q3: number };
+  /** How many answered each question, partials included (survey_events funnel).
+   *  Context only — no option-level detail for partials yet. */
+  reach: { q1: number; q2: number; q3: number };
   surveys: { surveyId: string; name: string; completed: number }[];
 };
 
 export async function surveyPopulationStats(projectId: string): Promise<SurveyPopulationStats> {
   const campaigns = await projectDeploymentCampaigns(projectId);
   const rows = await projectSurveyResponseRows(projectId);
-  const project = {
+  const completed = {
     total: rows.length,
     q1: rows.filter(r => validAnswer(r.q1)).length,
     q2: rows.filter(r => validAnswer(r.q2)).length,
     q3: rows.filter(r => validAnswer(r.q3)).length,
   };
+  const reach = await questionReach(campaigns);
 
   const { data: links } = await supabaseAdmin
     .from("research_project_evidence").select("evidence_id").eq("research_project_id", projectId).eq("evidence_type", "survey");
@@ -89,5 +119,5 @@ export async function surveyPopulationStats(projectId: string): Promise<SurveyPo
     return { surveyId: s.id, name: (s.name as string | null) ?? "Survey", completed: count ?? 0 };
   }));
 
-  return { campaigns: campaigns.length, project, surveys: perSurvey };
+  return { campaigns: campaigns.length, completed, reach, surveys: perSurvey };
 }
