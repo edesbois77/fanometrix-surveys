@@ -23,12 +23,14 @@ async function run(ctx: JobContext): Promise<void> {
   // Lazy-import the extraction stack so merely registering this handler never
   // loads it. Any failure to load or run is a normal job error.
   const {
-    extractSurveyFindings, extractDocumentFindings, extractConversationFindings,
+    extractProjectSurveyFindings, extractDocumentFindings, extractConversationFindings,
   } = await import("@/lib/analysis/source-findings/extractors");
   const { persistSourceFindings } = await import("@/lib/analysis/source-findings/store");
 
+  // The survey unit is PROJECT-scoped: its population is the project's deployment
+  // responses, so `ref` is the projectId.
   const drafts =
-    unit === "survey"   ? await extractSurveyFindings(ref)
+    unit === "survey"   ? await extractProjectSurveyFindings(ref)
     : unit === "document" ? await extractDocumentFindings(ref)
     : unit === "search"   ? await extractConversationFindings(ref)
     : (() => { throw new PermanentJobError(`Unknown extract unit '${unit}'`); })();

@@ -1,42 +1,47 @@
-// The response population for a survey — the SAME population the report engine
-// counts (lib/reports/data.ts fetchResponses), which is where the validated
-// per-question counts (e.g. 652 / 317 / 274) come from.
+// The response population for a project's survey findings, derived DIRECTLY from
+// raw campaign response rows — never from a report or presentation layer.
 //
-// A survey's responses are every row under its campaigns, where its campaigns are
-// `campaigns.survey_id = surveyId` (soft-deleted included, exactly as the report
-// does). The rows are NOT filtered by `responses.survey_id` (historical campaign
-// rows never got it backfilled) and NOT filtered by `is_demo` — mirroring the
-// report engine precisely, so the Findings denominator matches what the report
-// shows. Directly-attributed rows are unioned in as a safety net for preview /
-// non-campaign embeds. Deduped by response id, paginated to clear the row cap.
+// A project's survey deployments are its campaigns (`campaigns.research_project_id
+// = projectId`), INCLUDING soft-deleted ones — they keep the link and all their
+// responses. This is the exact enumeration the dashboard's /api/responses uses,
+// and the only one that reaches the partial responses (answered Q1, not Q2/Q3)
+// whose `responses.survey_id` is null. The population is NOT filtered by
+// survey_id, is_demo, or completion status.
 //
-// The per-question denominator itself is computed downstream in
-// survey-observations.ts and is already correct; this only decides WHICH rows it
-// counts over.
+// Evidence is then counted PER QUESTION downstream (survey-observations.ts):
+// Q1 findings count every row with a valid Q1 answer, Q2 every valid Q2, Q3 every
+// valid Q3 — so a partial-completion funnel (e.g. 652 / 317 / 274) is reflected
+// exactly. There is deliberately no single survey denominator.
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import type { SurveyResponseRow } from "@/lib/analysis/survey-observations";
 
 const PAGE = 1000;
-const RESPONSE_COLS = "id, q1, q2, q3, country, fan_segment";
+const COLS = "id, q1, q2, q3, country, fan_segment";
 
-/** The campaign slugs that deploy this survey — campaigns.survey_id = surveyId,
- *  the same mapping the survey→campaigns view uses. No deleted_at filter: a
- *  soft-deleted campaign still holds real responses and the report still counts
- *  them. */
-export async function campaignsForSurvey(surveyId: string): Promise<string[]> {
+/** The project's survey-deployment campaign slugs. `research_project_id` is the
+ *  link every project deployment carries (generate-deployments sets it); no
+ *  `deleted_at` filter, because a soft-deleted deployment keeps its link and its
+ *  response rows, and its partials live nowhere else. */
+export async function projectDeploymentCampaigns(projectId: string): Promise<string[]> {
   const { data } = await supabaseAdmin
-    .from("campaigns").select("campaign_id").eq("survey_id", surveyId);
+    .from("campaigns").select("campaign_id").eq("research_project_id", projectId);
   return [...new Set((data ?? []).map(c => c.campaign_id as string).filter(Boolean))];
 }
 
-/** Every response to this survey, deduped by id. */
-export async function surveyResponseRows(surveyId: string): Promise<SurveyResponseRow[]> {
-  const slugs = await campaignsForSurvey(surveyId);
+/** Every response under the project's survey-deployment campaigns — partials
+ *  included, unfiltered by survey_id / is_demo / completion. Paginated so a large
+ *  survey is never truncated. Deduped by response id. */
+export async function projectSurveyResponseRows(projectId: string): Promise<SurveyResponseRow[]> {
+  const slugs = await projectDeploymentCampaigns(projectId);
+  if (slugs.length === 0) return [];
 
   const seen = new Set<string>();
   const out: SurveyResponseRow[] = [];
-  const take = (rows: Record<string, unknown>[] | null) => {
-    for (const r of rows ?? []) {
+  for (let from = 0; ; from += PAGE) {
+    const { data } = await supabaseAdmin
+      .from("responses").select(COLS).in("campaign_id", slugs).order("id").range(from, from + PAGE - 1);
+    const rows = (data ?? []) as Record<string, unknown>[];
+    for (const r of rows) {
       const id = r.id as string;
       if (seen.has(id)) continue;
       seen.add(id);
@@ -45,56 +50,44 @@ export async function surveyResponseRows(surveyId: string): Promise<SurveyRespon
         country: (r.country as string | null) ?? null, fan_segment: (r.fan_segment as string | null) ?? null,
       });
     }
-  };
-
-  // Every response under the survey's campaigns — the report population. Paged,
-  // like the report engine, so a survey larger than the row cap is not truncated.
-  if (slugs.length > 0) {
-    for (let from = 0; ; from += PAGE) {
-      const { data } = await supabaseAdmin
-        .from("responses").select(RESPONSE_COLS)
-        .in("campaign_id", slugs)
-        .order("id")
-        .range(from, from + PAGE - 1);
-      const rows = (data ?? []) as Record<string, unknown>[];
-      take(rows);
-      if (rows.length < PAGE) break;
-    }
+    if (rows.length < PAGE) break;
   }
-
-  // Safety net: rows attributed straight to the survey with no campaign (preview
-  // / direct embeds). Overlap with the above is deduped by id.
-  const { data: direct } = await supabaseAdmin
-    .from("responses").select(RESPONSE_COLS).eq("survey_id", surveyId).limit(50000);
-  take(direct as Record<string, unknown>[] | null);
-
   return out;
 }
 
-/** How the population resolved, for the Findings diagnostic. */
-export type SurveyPopulation = {
-  surveyId: string;
-  name: string;
-  responses: number;
+const validAnswer = (v: string | null) => v != null && v !== "";
+
+/** Question-level population counts for the Findings panel: the project totals
+ *  (the denominators findings actually use) plus each attached survey's completed
+ *  count for context. */
+export type SurveyPopulationStats = {
   campaigns: number;
-  bySurveyId: number;
+  project: { total: number; q1: number; q2: number; q3: number };
+  surveys: { surveyId: string; name: string; completed: number }[];
 };
 
-export async function surveyPopulation(surveyId: string): Promise<SurveyPopulation | null> {
-  const { data: survey } = await supabaseAdmin
-    .from("surveys").select("name").eq("id", surveyId).maybeSingle();
-  if (!survey) return null;
-  const slugs = await campaignsForSurvey(surveyId);
-  const rows = await surveyResponseRows(surveyId);
-
-  const { count: bySurveyId } = await supabaseAdmin
-    .from("responses").select("id", { count: "exact", head: true }).eq("survey_id", surveyId);
-
-  return {
-    surveyId,
-    name: (survey.name as string | null) ?? "Survey",
-    responses: rows.length,
-    campaigns: slugs.length,
-    bySurveyId: bySurveyId ?? 0,
+export async function surveyPopulationStats(projectId: string): Promise<SurveyPopulationStats> {
+  const campaigns = await projectDeploymentCampaigns(projectId);
+  const rows = await projectSurveyResponseRows(projectId);
+  const project = {
+    total: rows.length,
+    q1: rows.filter(r => validAnswer(r.q1)).length,
+    q2: rows.filter(r => validAnswer(r.q2)).length,
+    q3: rows.filter(r => validAnswer(r.q3)).length,
   };
+
+  const { data: links } = await supabaseAdmin
+    .from("research_project_evidence").select("evidence_id").eq("research_project_id", projectId).eq("evidence_type", "survey");
+  const surveyIds = (links ?? []).map(l => l.evidence_id as string);
+  const { data: surveys } = surveyIds.length
+    ? await supabaseAdmin.from("surveys").select("id, name").in("id", surveyIds)
+    : { data: [] as { id: string; name: string }[] };
+
+  const perSurvey = await Promise.all((surveys ?? []).map(async s => {
+    const { count } = await supabaseAdmin
+      .from("responses").select("id", { count: "exact", head: true }).eq("survey_id", s.id);
+    return { surveyId: s.id, name: (s.name as string | null) ?? "Survey", completed: count ?? 0 };
+  }));
+
+  return { campaigns: campaigns.length, project, surveys: perSurvey };
 }

@@ -6,24 +6,32 @@
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { getCurrentAnalysis } from "@/lib/library-documents/analysis-store";
 import { surveyObservations } from "@/lib/analysis/survey-observations";
-import { surveyResponseRows } from "@/lib/analysis/source-findings/survey-population";
+import { projectSurveyResponseRows } from "@/lib/analysis/source-findings/survey-population";
 import { conversationObservations, type Mention } from "@/lib/analysis/source-findings/conversation-observations";
 import type { SourceFindingDraft, EvidenceStrength } from "@/lib/analysis/source-findings/types";
 import type { LocalisedQuestion } from "@/lib/survey-locale";
 
-/** Survey findings from the full computed distributions (minorities, market and
- *  segment differences included) — the same lib/analysis/survey-observations.ts
- *  the intake layer uses, so nothing meaningful is dropped. Evidence is counted
- *  PER QUESTION: each finding carries the number of valid answers to the question
- *  that produced it, never a generic completed-survey total, and a respondent who
- *  answered one question but not another still counts toward the one they
- *  answered. The per-question reliability floor lives in survey-observations. */
-export async function extractSurveyFindings(surveyId: string): Promise<SourceFindingDraft[]> {
+/** Survey findings for a PROJECT, counted per question from the raw response rows
+ *  of the project's survey-deployment campaigns (partials included) — never a
+ *  completed-survey total and never a report figure. There is no single survey
+ *  denominator: Q1 findings count every valid Q1 answer, Q2 every valid Q2, Q3
+ *  every valid Q3 (survey-observations.ts computes each independently), so a
+ *  652 / 317 / 274 funnel is reflected exactly.
+ *
+ *  Project-scoped because the deployment population is project-scoped (its
+ *  survey_id-null partials cannot be attributed to one survey version). Question
+ *  labels come from the project's default survey. */
+export async function extractProjectSurveyFindings(projectId: string): Promise<SourceFindingDraft[]> {
+  const { data: project } = await supabaseAdmin
+    .from("research_projects").select("survey_id").eq("id", projectId).maybeSingle();
+  const surveyId = (project?.survey_id as string | null) ?? null;
+  if (!surveyId) return [];
+
   const { data: survey } = await supabaseAdmin
     .from("surveys").select("name, questions").eq("id", surveyId).maybeSingle();
   if (!survey) return [];
 
-  const responses = await surveyResponseRows(surveyId);
+  const responses = await projectSurveyResponseRows(projectId);
   if (responses.length === 0) return [];
 
   const questions = ((survey.questions ?? []) as LocalisedQuestion[]).slice(0, 3);
@@ -31,7 +39,8 @@ export async function extractSurveyFindings(surveyId: string): Promise<SourceFin
 
   return surveyObservations({ surveyName: name, questions, responses }).map(o => ({
     sourceKind: "survey" as const,
-    sourceRef: surveyId,
+    // One survey source per project (the deployment population).
+    sourceRef: projectId,
     sourceLabel: name,
     statement: o.content,
     scope: o.scope,

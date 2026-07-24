@@ -23,9 +23,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     .eq("research_project_id", projectId)
     .in("evidence_type", ["survey", "document"]);
 
+  const links = (attached ?? []) as { evidence_type: string; evidence_id: string }[];
   const units: { unit: SourceExtractUnit; ref: string }[] = [];
-  for (const link of (attached ?? []) as { evidence_type: string; evidence_id: string }[]) {
-    units.push({ unit: link.evidence_type === "survey" ? "survey" : "document", ref: link.evidence_id });
+
+  // ONE project-scoped survey job: its population is the project's deployment
+  // responses (partials included), counted per question — not one job per survey
+  // evidence, because there is no single per-survey denominator. ref = projectId.
+  if (links.some(l => l.evidence_type === "survey")) {
+    units.push({ unit: "survey", ref: projectId });
+  }
+  // Documents remain per-document.
+  for (const link of links.filter(l => l.evidence_type === "document")) {
+    units.push({ unit: "document", ref: link.evidence_id });
   }
   for (const s of (await getProjectSearchStates(projectId)).filter(s => s.eligible)) {
     units.push({ unit: "search", ref: s.id });

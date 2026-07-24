@@ -13,20 +13,10 @@ import { SOURCE_KIND_LABEL, SOURCE_KIND_ORDER, CONVERSATION_KINDS, type SourceKi
 
 type KindCounts = { candidate: number; approved: number; set_aside: number; total: number };
 type BoardData = { findings: unknown[]; byKind: Record<string, KindCounts>; approvedTotal: number };
-type SurveyPop = { surveyId: string; name: string; responses: number; campaigns: number; bySurveyId: number };
-type PerQ = { total: number; q1: number; q2: number; q3: number };
-type DiagSurvey = {
-  surveyId: string; name: string;
-  extractor: PerQ;
-  campaignsBySurveyId: number;
-  campaignsViaResponses: number;
-  full: (PerQ & { campaigns: number; real: number; demo: number; nullSurveyId: number }) | null;
-};
-type Diag = {
-  diagnosticVersion: string;
-  projectSurveyId: string | null;
-  researchMode: string | null;
-  surveys: DiagSurvey[];
+type PopStats = {
+  campaigns: number;
+  project: { total: number; q1: number; q2: number; q3: number };
+  surveys: { surveyId: string; name: string; completed: number }[];
 };
 
 // Which review page a source kind is reviewed on.
@@ -64,9 +54,7 @@ export function FindingsOverview() {
   const [loaded, setLoaded] = useState(false);
   const [extracting, setExtracting] = useState(false);
   const [summary, setSummary] = useState<string | null>(null);
-  const [populations, setPopulations] = useState<SurveyPop[] | null>(null);
-  const [diag, setDiag] = useState<Diag | null>(null);
-  const [diagOpen, setDiagOpen] = useState(false);
+  const [pop, setPop] = useState<PopStats | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -79,13 +67,7 @@ export function FindingsOverview() {
 
   const loadPopulations = useCallback(async () => {
     const res = await fetch(`/api/research-projects/${projectId}/source-findings/populations`).then(r => (r.ok ? r.json() : null)).catch(() => null);
-    setPopulations((res?.data?.surveys ?? []) as SurveyPop[]);
-  }, [projectId]);
-
-  const loadDiag = useCallback(async () => {
-    const res = await fetch(`/api/research-projects/${projectId}/source-findings/diagnose`).then(r => (r.ok ? r.json() : null)).catch(() => null);
-    setDiag((res?.data ?? null) as Diag | null);
-    setDiagOpen(true);
+    setPop((res?.data ?? null) as PopStats | null);
   }, [projectId]);
 
   useEffect(() => { load(); loadPopulations(); return () => { if (pollRef.current) clearTimeout(pollRef.current); }; }, [load, loadPopulations]);
@@ -160,55 +142,33 @@ export function FindingsOverview() {
         )}
       </Card>
 
-      {populations && populations.length > 0 && (
+      {pop && pop.project.total > 0 && (
         <Card padding="md">
           <div className="flex items-center gap-2 mb-1">
             <Icon.layers size={14} strokeWidth={2} />
-            <p className="text-xs font-bold uppercase tracking-[0.06em]" style={{ color: "var(--text-secondary)" }}>Survey responses counted</p>
+            <p className="text-xs font-bold uppercase tracking-[0.06em]" style={{ color: "var(--text-secondary)" }}>Survey responses counted — per question</p>
           </div>
-          <p className="text-[11px] mb-2" style={{ color: "var(--text-tertiary)" }}>
-            The responses each survey&apos;s findings are computed from, counted by campaign membership (the same way the project total is), not the raw survey_id.
+          <p className="text-[11px] mb-2.5" style={{ color: "var(--text-tertiary)" }}>
+            Each question&apos;s findings use everyone who answered THAT question, counted directly from every response under the project&apos;s {pop.campaigns} deployment campaign{pop.campaigns === 1 ? "" : "s"} (partial responses included) — never a completed-survey total or a report figure.
           </p>
-          <ul className="divide-y" style={{ borderColor: "var(--border-subtle)" }}>
-            {populations.map(p => (
-              <li key={p.surveyId} className="flex items-center justify-between gap-3 py-2 text-sm">
-                <span className="font-medium min-w-0 truncate" style={{ color: "var(--text-primary)" }}>{p.name}</span>
-                <span className="text-xs flex-shrink-0" style={{ color: "var(--text-tertiary)" }}>
-                  <span className="font-bold" style={{ color: "var(--text-primary)" }}>{p.responses.toLocaleString()}</span> responses
-                  {p.responses !== p.bySurveyId && ` · ${p.bySurveyId.toLocaleString()} directly attributed, +${p.campaigns} campaign${p.campaigns === 1 ? "" : "s"}`}
-                </span>
-              </li>
-            ))}
-          </ul>
-
-          <div className="mt-2.5 pt-2.5" style={{ borderTop: "1px solid var(--border-subtle)" }}>
-            <button type="button" onClick={() => (diagOpen ? setDiagOpen(false) : loadDiag())}
-              className="text-[11px] font-semibold hover:underline" style={{ color: "var(--accent-ink)" }}>
-              {diagOpen ? "Hide attribution details" : "Show attribution details (where responses live)"}
-            </button>
-            {diagOpen && diag && (
-              <div className="mt-2 text-[11px] space-y-3" style={{ color: "var(--text-secondary)" }}>
-                <p>Deployed diagnostic: <code style={{ color: "#2F7D55" }}>{diag.diagnosticVersion}</code> · project default survey_id: <code>{diag.projectSurveyId ? diag.projectSurveyId.slice(0, 8) + "…" : "null"}</code> · mode: {diag.researchMode ?? "—"}</p>
-                {diag.surveys.map(s => (
-                  <div key={s.surveyId} className="p-2 rounded-lg" style={{ background: "var(--surface-sunken)", border: "1px solid var(--border-subtle)" }}>
-                    <p className="font-semibold" style={{ color: "var(--text-primary)" }}>{s.name} <code style={{ color: "var(--text-tertiary)" }}>{s.surveyId.slice(0, 8)}…</code></p>
-                    <p className="mt-1 font-semibold" style={{ color: "var(--accent-ink)" }}>What the EXTRACTOR reads (the denominators Findings uses):</p>
-                    <ul className="ml-2">
-                      <li>Rows fetched: <b style={{ color: "var(--text-primary)" }}>{s.extractor.total}</b> · Q1 answered: <b style={{ color: "var(--text-primary)" }}>{s.extractor.q1}</b> · Q2: <b style={{ color: "var(--text-primary)" }}>{s.extractor.q2}</b> · Q3: <b style={{ color: "var(--text-primary)" }}>{s.extractor.q3}</b></li>
-                    </ul>
-                    <p className="mt-1.5">Campaigns via <code>campaigns.survey_id</code>: <b style={{ color: s.campaignsBySurveyId === 0 ? "#8A4B33" : "var(--text-primary)" }}>{s.campaignsBySurveyId}</b> · via the survey&apos;s responses: <b style={{ color: "var(--text-primary)" }}>{s.campaignsViaResponses}</b></p>
-                    <p className="mt-1.5 font-semibold" style={{ color: "var(--text-tertiary)" }}>FULL population under those campaigns (the report dataset):</p>
-                    {s.full ? (
-                      <ul className="ml-2">
-                        <li>Total: <b style={{ color: "var(--text-primary)" }}>{s.full.total}</b> ({s.full.real} real, {s.full.demo} demo, {s.full.nullSurveyId} with survey_id=null)</li>
-                        <li>Q1 answered: <b style={{ color: "#2F7D55" }}>{s.full.q1}</b> · Q2: <b style={{ color: "#2F7D55" }}>{s.full.q2}</b> · Q3: <b style={{ color: "#2F7D55" }}>{s.full.q3}</b></li>
-                      </ul>
-                    ) : <p className="ml-2" style={{ color: "#8A4B33" }}>No campaigns found via responses — the 652 population is not reachable from this survey by any campaign link.</p>}
-                  </div>
-                ))}
+          <div className="grid grid-cols-3 gap-2">
+            {([["Q1", pop.project.q1], ["Q2", pop.project.q2], ["Q3", pop.project.q3]] as [string, number][]).map(([lbl, v]) => (
+              <div key={lbl} className="p-2.5 rounded-lg text-center" style={{ background: "var(--surface-sunken)", border: "1px solid var(--border-subtle)" }}>
+                <p className="text-xl font-bold tabular-nums" style={{ color: "var(--text-primary)" }}>{v.toLocaleString()}</p>
+                <p className="text-[10px] mt-0.5" style={{ color: "var(--text-tertiary)" }}>{lbl} respondents</p>
               </div>
-            )}
+            ))}
           </div>
+          {pop.surveys.length > 0 && (
+            <ul className="mt-2.5 pt-2.5 space-y-1" style={{ borderTop: "1px solid var(--border-subtle)" }}>
+              {pop.surveys.map(s => (
+                <li key={s.surveyId} className="flex items-center justify-between gap-3 text-[11px]" style={{ color: "var(--text-tertiary)" }}>
+                  <span className="min-w-0 truncate">{s.name}</span>
+                  <span className="flex-shrink-0"><span className="font-semibold" style={{ color: "var(--text-secondary)" }}>{s.completed.toLocaleString()}</span> completed responses</span>
+                </li>
+              ))}
+            </ul>
+          )}
         </Card>
       )}
 
