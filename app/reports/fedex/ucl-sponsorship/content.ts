@@ -246,7 +246,7 @@ export const fedexUclReport: ReportConfig = {
           id: "q1",
           number: "Q1",
           displayTitle: "1. FedEx has earned credibility",
-          title: "FedEx as a Champions League sponsor?",
+          title: "FedEx as a Champions League sponsor",
           n: 274,
           options: [
             { label: "Strong natural fit", count: 92, pct: 34, highlight: true },
