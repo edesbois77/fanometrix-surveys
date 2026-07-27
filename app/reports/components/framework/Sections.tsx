@@ -426,8 +426,10 @@ export function FindingsLadder({ section }: { section: FindingsLadderSection }) 
       <style>{`
         .fx-ladder-row{ grid-template-columns: 34px 1fr; }
         @media (min-width:760px){ .fx-ladder-row{ grid-template-columns: 44px 1fr auto; } }
-        .fx-evi{ text-decoration: none; cursor: pointer; transition: color .2s ease, border-color .2s ease, background .2s ease; }
-        .fx-evi:hover{ color: #9A7B3C; border-color: rgba(215,184,122,0.6); background: #FBF3E1; }
+        .fx-evi{ text-decoration: none; cursor: pointer; transition: color .2s ease, border-color .2s ease, background .2s ease, transform .2s cubic-bezier(0.16,1,0.3,1), box-shadow .2s ease; }
+        .fx-evi:hover{ color: #9A7B3C; border-color: rgba(215,184,122,0.6); background: #FBF3E1; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(11,25,41,0.07); }
+        .fx-evi:active{ transform: translateY(0); box-shadow: none; }
+        @media (prefers-reduced-motion: reduce){ .fx-evi:hover{ transform: none; } }
       `}</style>
     </SectionBand>
   );
