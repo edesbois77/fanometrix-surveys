@@ -1,5 +1,84 @@
 @import "tailwindcss";
 
+/* ── Publisher FAQ accordion (/for-publishers) ─────────────────────────────── */
+/* Native <details> for accessibility + a subtle reveal. Revert: delete this    */
+/* block and the .pp-faq markup in app/for-publishers/page.tsx.                 */
+.pp-faq summary { list-style: none; }
+.pp-faq summary::-webkit-details-marker { display: none; }
+.pp-faq-icon svg { transition: transform 0.25s ease; }
+.pp-faq[open] .pp-faq-icon { background: #0B1929; border-color: #0B1929; color: #D7B87A; }
+.pp-faq[open] .pp-faq-icon svg { transform: rotate(45deg); }
+@keyframes pp-faq-in {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.pp-faq[open] .pp-faq-panel { animation: pp-faq-in 0.32s ease; }
+@media (prefers-reduced-motion: reduce) {
+  .pp-faq-icon svg { transition: none; }
+  .pp-faq[open] .pp-faq-panel { animation: none; }
+}
+
+/* ── Publisher Partnership landing page (/for-publishers) ──────────────────── */
+/* Scoped .pp-* helpers for the intelligence-pathway hero + section visuals.    */
+/* All motion is decorative and disabled under prefers-reduced-motion so the    */
+/* page reads identically with animation off. Revert: delete this block and the */
+/* .pp-* class names in app/for-publishers/page.tsx.                            */
+
+/* Hero intelligence pathway: a soft gold band flows DOWN the connecting spine,
+   reinforcing "intelligence flowing through the platform" without moving
+   discrete shapes that compete with the headline. The band is an overlay on a
+   faint static rail. */
+@keyframes pp-flow-down {
+  0%   { background-position: 50% -120%; }
+  100% { background-position: 50% 220%; }
+}
+.pp-flowline {
+  background-image: linear-gradient(to bottom, transparent 0%, rgba(215,184,122,0.9) 50%, transparent 100%);
+  background-size: 100% 55%;
+  background-repeat: no-repeat;
+  animation: pp-flow-down 3.6s cubic-bezier(0.5, 0, 0.5, 1) infinite;
+}
+
+/* Flywheel ring: a dashed gold ring turning slowly = continuous intelligence. */
+@keyframes pp-ring-spin { to { stroke-dashoffset: -1000; } }
+.pp-ring {
+  stroke-dasharray: 3 11;
+  animation: pp-ring-spin 40s linear infinite;
+}
+
+/* Gentle draw-in of a connecting path (network + pathway lines). */
+@keyframes pp-line-draw {
+  from { stroke-dashoffset: var(--pp-dash, 400); }
+  to   { stroke-dashoffset: 0; }
+}
+.pp-draw {
+  stroke-dasharray: var(--pp-dash, 400);
+  animation: pp-line-draw 2.4s ease-out forwards;
+}
+
+/* Benchmark funnel steps: full width on mobile (long labels need the room),
+   tapered to a decreasing width from the `sm` breakpoint up where there is
+   space for the funnel shape to read. Width comes from the inline --w var. */
+.pp-funnel-step { width: 100%; }
+@media (min-width: 640px) {
+  .pp-funnel-step { width: var(--w, 100%); }
+}
+
+/* Slow, barely-there breathing for the central benchmark node. */
+@keyframes pp-node-breathe {
+  0%, 100% { opacity: 0.55; }
+  50%      { opacity: 1; }
+}
+.pp-breathe { animation: pp-node-breathe 3.8s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  /* All pathway motion is decorative — freeze to a clean static end state. */
+  .pp-flowline { animation: none; background-image: linear-gradient(to bottom, transparent, rgba(215,184,122,0.5), transparent); background-size: 100% 100%; }
+  .pp-ring     { animation: none; }
+  .pp-draw     { animation: none; stroke-dashoffset: 0; }
+  .pp-breathe  { animation: none; opacity: 0.9; }
+}
+
 /* ── Page entrance animations (public homepage) ───────────────────────────── */
 /* Hero elements: animate on load. About section: animate on scroll.           */
 /* Revert: remove these blocks and the corresponding class names in page.tsx.  */

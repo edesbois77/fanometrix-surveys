@@ -30,11 +30,12 @@ const SELECT_CLASS = "w-full px-4 py-3 rounded-xl border border-gray-200 text-sm
 function RequestAccessForm() {
   const searchParams = useSearchParams();
   const fromPublisher = searchParams.get("from") === "publisher";
+  const demoIntent = searchParams.get("intent") === "demo";
 
   const [form, setForm] = useState({
     name: "", email: "", organisation: "",
     role: fromPublisher ? PUBLISHER_ROLE : "",
-    message: "",
+    message: demoIntent ? "Demo request: I'd like to see how Fanometrix works." : "",
     audience_size: "", ad_server: "",
   });
   const [markets, setMarkets] = useState<string[]>([]);

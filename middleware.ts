@@ -182,6 +182,12 @@ export async function middleware(req: NextRequest) {
     return res;
   }
 
+  // Personalised publisher pages (/for-publishers/<slug>) are public, like the
+  // canonical /for-publishers marketing page.
+  if (pathname.startsWith("/for-publishers/")) {
+    return NextResponse.next();
+  }
+
   // Public pages — only special-case /login to redirect logged-in users
   if (PUBLIC_PATHS.has(pathname)) {
     if (pathname === "/login") {
