@@ -27,15 +27,30 @@ test("open start or open end is always valid", () => {
   assert.ok(isValidEffectiveInterval({ effectiveFrom: "2024-01-01", effectiveTo: null }));
   assert.ok(isValidEffectiveInterval({ effectiveFrom: null, effectiveTo: null }));
 });
-test("end on or after start is valid; reversed is invalid", () => {
-  assert.ok(isValidEffectiveInterval({ effectiveFrom: "2024-01-01", effectiveTo: "2024-01-01" }));
+test("half-open: end strictly after start is valid; reversed and zero-length are invalid", () => {
   assert.ok(isValidEffectiveInterval({ effectiveFrom: "2023-01-01", effectiveTo: "2024-01-01" }));
-  assert.equal(isValidEffectiveInterval({ effectiveFrom: "2024-01-01", effectiveTo: "2023-01-01" }), false);
+  assert.equal(isValidEffectiveInterval({ effectiveFrom: "2024-01-01", effectiveTo: "2024-01-01" }), false); // zero-length [d,d)
+  assert.equal(isValidEffectiveInterval({ effectiveFrom: "2024-01-01", effectiveTo: "2023-01-01" }), false); // reversed
 });
-test("applicability respects bounds; open bounds are unbounded", () => {
+test("applicability is from-inclusive, to-exclusive; open bounds are unbounded", () => {
   assert.ok(isApplicableOn({ effectiveFrom: "2020-01-01", effectiveTo: null }, "2026-08-03"));
   assert.equal(isApplicableOn({ effectiveFrom: "2027-01-01", effectiveTo: null }, "2026-08-03"), false);
-  assert.equal(isApplicableOn({ effectiveFrom: null, effectiveTo: "2020-01-01" }, "2026-08-03"), false);
+  // effectiveFrom = D is applicable on D (inclusive start)
+  assert.ok(isApplicableOn({ effectiveFrom: "2026-08-03", effectiveTo: null }, "2026-08-03"));
+  // effectiveTo = D is NOT applicable on D (exclusive end)
+  assert.equal(isApplicableOn({ effectiveFrom: null, effectiveTo: "2026-08-03" }, "2026-08-03"), false);
+});
+test("transition boundary has no overlap: retired [.,D) and replacement [D,.) — exactly one applies on D", () => {
+  const D = "2026-08-04";
+  const retired = { effectiveFrom: null, effectiveTo: D };   // former, closed at D (exclusive)
+  const current = { effectiveFrom: D, effectiveTo: null };   // replacement, opens at D (inclusive)
+  const appliesOnD = [retired, current].filter((i) => isApplicableOn(i, D));
+  assert.equal(appliesOnD.length, 1);
+  assert.equal(appliesOnD[0], current);
+  // and the day before D, only the retired fact applies
+  const dayBefore = "2026-08-03";
+  assert.ok(isApplicableOn(retired, dayBefore));
+  assert.equal(isApplicableOn(current, dayBefore), false);
 });
 
 // ── Unit containment ─────────────────────────────────────────────────────────────

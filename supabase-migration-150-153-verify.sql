@@ -130,7 +130,22 @@ BEGIN
     RAISE EXCEPTION 'FAIL: Agency is not the current classification';
   END IF;
 
-  RAISE NOTICE 'PASS: brand→agency retired Brand as history, Agency current, single current assignment, type is driver';
+  -- Half-open transition boundary: on the transition date CURRENT_DATE, exactly one
+  -- organisation_category fact is applicable (from-inclusive, to-exclusive) — no overlap.
+  SELECT count(*) INTO cur_count FROM classification_assignments a
+    JOIN classification_categories c ON c.id=a.category_id AND c.scheme_id=scheme
+    WHERE a.subject_id=org AND a.deleted_at IS NULL
+      AND (a.effective_from IS NULL OR a.effective_from <= CURRENT_DATE)
+      AND (a.effective_to   IS NULL OR CURRENT_DATE < a.effective_to);
+  IF cur_count <> 1 THEN RAISE EXCEPTION 'FAIL: transition-date overlap — % facts applicable today', cur_count; END IF;
+  -- retired Brand (effective_to = CURRENT_DATE, exclusive) is NOT applicable today
+  IF EXISTS (SELECT 1 FROM classification_assignments
+      WHERE subject_id=org AND category_id=brand_cat AND deleted_at IS NULL
+        AND (effective_to IS NULL OR CURRENT_DATE < effective_to)) THEN
+    RAISE EXCEPTION 'FAIL: retired Brand still applicable on transition date (overlap)';
+  END IF;
+
+  RAISE NOTICE 'PASS: brand→agency — Brand retired as history, Agency current, single current, no transition-date overlap, type-driven';
 END $$;
 ROLLBACK;
 
@@ -240,10 +255,21 @@ BEGIN
       VALUES (org,'organisation','__bad__',DATE '2024-01-01',DATE '2023-01-01');
     RAISE EXCEPTION 'FAIL: reversed interval accepted';
   EXCEPTION WHEN check_violation THEN RAISE NOTICE 'PASS: reversed effective interval rejected'; END;
+  -- zero-length [d,d) rejected (half-open convention: end must be strictly after start)
+  BEGIN
+    INSERT INTO organisation_names (subject_id,subject_kind,value,effective_from,effective_to)
+      VALUES (org,'organisation','__zero__',DATE '2024-01-01',DATE '2024-01-01');
+    RAISE EXCEPTION 'FAIL: zero-length interval accepted';
+  EXCEPTION WHEN check_violation THEN RAISE NOTICE 'PASS: zero-length [d,d) interval rejected'; END;
   -- open-ended interval allowed
   INSERT INTO organisation_names (subject_id,subject_kind,value,effective_from,effective_to)
     VALUES (org,'organisation','__open__',DATE '2024-01-01',NULL);
-  RAISE NOTICE 'PASS: open-ended interval allowed';
+  -- adjacent half-open intervals [a,b)+[b,c) are both valid and non-overlapping
+  INSERT INTO organisation_names (subject_id,subject_kind,value,effective_from,effective_to)
+    VALUES (org,'organisation','__adj1__',DATE '2023-01-01',DATE '2024-01-01');
+  INSERT INTO organisation_names (subject_id,subject_kind,value,effective_from,effective_to)
+    VALUES (org,'organisation','__adj2__',DATE '2024-01-01',DATE '2025-01-01');
+  RAISE NOTICE 'PASS: open-ended + adjacent half-open intervals allowed';
 END $$;
 ROLLBACK;
 

@@ -42,17 +42,22 @@ CREATE TABLE IF NOT EXISTS organisation_names (
   script         text,       -- optional ISO 15924 code (e.g. 'Latn')
   -- The single display/primary name that projects down to the legacy column.
   is_primary     boolean     NOT NULL DEFAULT false,
-  -- Effective Applicability (reusable pattern): represented-world validity. NULL
-  -- start = open/unknown start; NULL end = open/still-applicable. Dates, not system time.
+  -- Effective Applicability (reusable pattern): represented-world validity, expressed
+  -- as a HALF-OPEN interval [effective_from, effective_to) — effective_from is
+  -- INCLUSIVE, effective_to is EXCLUSIVE. NULL start = open/unknown start; NULL end =
+  -- open/still-applicable. So a fact with effective_to = D is NOT applicable on D, and a
+  -- replacement with effective_from = D IS applicable on D (deterministic, no overlap).
+  -- Dates, not system time. Applicable-on(d): (from IS NULL OR from <= d) AND (to IS NULL OR d < to).
   effective_from date,
   effective_to   date,
   created_at     timestamptz NOT NULL DEFAULT now(),   -- system time, NOT applicability
   updated_at     timestamptz NOT NULL DEFAULT now(),   -- system time, NOT applicability
   deleted_at     timestamptz,
   deleted_by     text,
-  -- Interval integrity: an end may not precede a start (open ends allowed).
+  -- Interval integrity (half-open): when both bounds are set the end must be strictly
+  -- after the start — no zero-length [d,d) intervals (open ends allowed).
   CONSTRAINT organisation_names_effective_order
-    CHECK (effective_to IS NULL OR effective_from IS NULL OR effective_to >= effective_from),
+    CHECK (effective_to IS NULL OR effective_from IS NULL OR effective_to > effective_from),
   -- Composite subject FK (kind-checked): the subject must exist AND be of this kind.
   CONSTRAINT organisation_names_subject_fk
     FOREIGN KEY (subject_id, subject_kind) REFERENCES organisation_subjects (subject_id, subject_kind)

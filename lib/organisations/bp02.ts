@@ -18,20 +18,24 @@ export function isEligibleFactSubjectKind(kind: string): kind is FactSubjectKind
 }
 
 // ── Effective Applicability ─────────────────────────────────────────────────────
-// Represented-world dates. NULL = open. Mirrors the *_effective_order CHECKs.
+// Represented-world dates as a HALF-OPEN interval [effectiveFrom, effectiveTo):
+// effectiveFrom is INCLUSIVE, effectiveTo is EXCLUSIVE. NULL = open bound. So a fact
+// with effectiveTo = D is NOT applicable on D, and a replacement with effectiveFrom = D
+// IS applicable on D — the transition boundary is deterministic and non-overlapping.
+// Mirrors the *_effective_order CHECKs (effective_to > effective_from; no zero-length).
 export type EffectiveInterval = { effectiveFrom: string | null; effectiveTo: string | null };
 
 export function isValidEffectiveInterval({ effectiveFrom, effectiveTo }: EffectiveInterval): boolean {
   if (effectiveFrom === null || effectiveTo === null) return true; // open start or end
-  return effectiveTo >= effectiveFrom; // ISO yyyy-mm-dd compares correctly as strings
+  return effectiveTo > effectiveFrom; // strict: no zero-length [d,d). ISO dates compare as strings
 }
 
-/** True when the interval is applicable on `on` (default today), i.e. currently/
- *  historically/future-applicable relative to that date. Open bounds are unbounded. */
+/** True when the half-open interval is applicable on date `on`: from-inclusive,
+ *  to-exclusive. Open bounds are unbounded. */
 export function isApplicableOn(interval: EffectiveInterval, on: string): boolean {
   if (!isValidEffectiveInterval(interval)) return false;
-  if (interval.effectiveFrom !== null && on < interval.effectiveFrom) return false;
-  if (interval.effectiveTo !== null && on > interval.effectiveTo) return false;
+  if (interval.effectiveFrom !== null && on < interval.effectiveFrom) return false; // before inclusive start
+  if (interval.effectiveTo !== null && on >= interval.effectiveTo) return false;    // on/after exclusive end
   return true;
 }
 

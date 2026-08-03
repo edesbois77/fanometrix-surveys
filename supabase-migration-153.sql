@@ -33,6 +33,15 @@
 -- (effective_to) rather than deleting it, keeping one CURRENT assignment. See the mirror
 -- trigger and the uq_classification_assignment_current index below.
 --
+-- INTERVAL CONVENTION (control Tier 2 remediation, temporal boundary): BP-02 Effective
+-- Applicability is a HALF-OPEN interval [effective_from, effective_to) — from inclusive,
+-- to exclusive; effective_to IS NULL = open/current. Retiring the former category with
+-- effective_to = CURRENT_DATE and starting the replacement with effective_from =
+-- CURRENT_DATE is therefore non-overlapping and deterministic: on the transition date the
+-- former is NOT applicable and only the replacement is. Zero-length [d,d) intervals are
+-- disallowed (CHECK uses effective_to > effective_from); a same-day supersession is a
+-- correction (soft-deleted), not empty history.
+--
 -- Additive, non-destructive, reversible, idempotent. Safe to run more than once.
 
 CREATE TABLE IF NOT EXISTS classification_schemes (
@@ -64,14 +73,16 @@ CREATE TABLE IF NOT EXISTS classification_assignments (
   subject_id     uuid        NOT NULL,
   subject_kind   text        NOT NULL CHECK (subject_kind IN ('organisation', 'organisation_unit')),
   category_id    uuid        NOT NULL REFERENCES classification_categories (id),
+  -- Half-open [effective_from, effective_to): from inclusive, to exclusive. See 151.
   effective_from date,
   effective_to   date,
   created_at     timestamptz NOT NULL DEFAULT now(),
   updated_at     timestamptz NOT NULL DEFAULT now(),
   deleted_at     timestamptz,
   deleted_by     text,
+  -- Interval integrity (half-open): end strictly after start when both set; no [d,d).
   CONSTRAINT classification_assignments_effective_order
-    CHECK (effective_to IS NULL OR effective_from IS NULL OR effective_to >= effective_from),
+    CHECK (effective_to IS NULL OR effective_from IS NULL OR effective_to > effective_from),
   CONSTRAINT classification_assignments_subject_fk
     FOREIGN KEY (subject_id, subject_kind) REFERENCES organisation_subjects (subject_id, subject_kind)
 );
@@ -162,13 +173,27 @@ BEGIN
   IF new_cat IS NULL THEN RETURN NEW; END IF;
 
   -- Retire (do NOT delete) any CURRENT organisation_category membership that is not the
-  -- new category: close its Effective Applicability so it is retained as history.
+  -- new category and was applicable BEFORE today: close its half-open interval at
+  -- CURRENT_DATE so it stays as history (not applicable on/after today) and does not
+  -- overlap the replacement that begins today. effective_from NULL = open/earlier start.
   UPDATE classification_assignments a
     SET effective_to = CURRENT_DATE
     FROM classification_categories c
     WHERE a.subject_id = NEW.id AND a.category_id = c.id AND c.scheme_id = scheme
       AND a.category_id <> new_cat
-      AND a.deleted_at IS NULL AND a.effective_to IS NULL;
+      AND a.deleted_at IS NULL AND a.effective_to IS NULL
+      AND (a.effective_from IS NULL OR a.effective_from < CURRENT_DATE);
+
+  -- A membership that STARTED today and is superseded today was never applicable for any
+  -- day (a zero-length [d,d) interval, disallowed by the half-open convention): treat it
+  -- as a correction and soft-delete it rather than record empty history.
+  UPDATE classification_assignments a
+    SET deleted_at = now(), deleted_by = 'system:type_mirror'
+    FROM classification_categories c
+    WHERE a.subject_id = NEW.id AND a.category_id = c.id AND c.scheme_id = scheme
+      AND a.category_id <> new_cat
+      AND a.deleted_at IS NULL AND a.effective_to IS NULL
+      AND a.effective_from = CURRENT_DATE;
 
   -- Ensure exactly one CURRENT assignment for the new category (re-establishing a
   -- previously retired category creates a fresh current fact; existing history is kept).

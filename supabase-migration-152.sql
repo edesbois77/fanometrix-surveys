@@ -33,14 +33,16 @@ CREATE TABLE IF NOT EXISTS organisation_identifiers (
   -- Optional further context: the issuing authority and/or a finer namespace.
   authority      text,
   namespace      text,
+  -- Half-open [effective_from, effective_to): from inclusive, to exclusive. See 151.
   effective_from date,
   effective_to   date,
   created_at     timestamptz NOT NULL DEFAULT now(),   -- system time, NOT applicability
   updated_at     timestamptz NOT NULL DEFAULT now(),   -- system time, NOT applicability
   deleted_at     timestamptz,
   deleted_by     text,
+  -- Interval integrity (half-open): end strictly after start when both set; no [d,d).
   CONSTRAINT organisation_identifiers_effective_order
-    CHECK (effective_to IS NULL OR effective_from IS NULL OR effective_to >= effective_from),
+    CHECK (effective_to IS NULL OR effective_from IS NULL OR effective_to > effective_from),
   CONSTRAINT organisation_identifiers_subject_fk
     FOREIGN KEY (subject_id, subject_kind) REFERENCES organisation_subjects (subject_id, subject_kind)
 );
