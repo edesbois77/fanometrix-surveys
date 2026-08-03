@@ -78,6 +78,18 @@ export function validateContainment(
   return { ok: true };
 }
 
+/** Cross-Organisation Unit movement is not defined in BP-02: an existing Unit's
+ *  containing organisation is immutable. Mirrors the guard added to
+ *  organisation_units_containment_guard (migration 150). */
+export function validateUnitOrganisationImmutable(
+  oldOrganisationId: string,
+  newOrganisationId: string
+): ContainmentCheck {
+  return oldOrganisationId === newOrganisationId
+    ? { ok: true }
+    : { ok: false, reason: "a unit's organisation_id cannot be changed (cross-organisation movement is not defined in BP-02)" };
+}
+
 // ── Primary Name selection ──────────────────────────────────────────────────────
 // The primary display name is the one projected to the legacy organisations.name /
 // organisation_units.name. Mirrors the uq_organisation_names_one_primary invariant.

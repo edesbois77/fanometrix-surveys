@@ -19,12 +19,19 @@
 --     trigger). Richer schemes (e.g. an Agency Specialism scheme) are canonical-only
 --     and added later via the admin surface with no migration.
 --
---   * 'internal' is DELIBERATELY NOT mapped. Evidence (2 rows: the platform-operating
---     org "The Football Collective", whose user is an admin, and "PlayStation", a real
---     brand parked under internal) shows 'internal' is a platform/operational marker,
---     not a real-world Organisation Category peer of Brand/Agency/Publisher. Mapping it
---     would require an unsupported semantic assumption, so per §11 that part is stopped
---     and reported (see Phase A report §P). organisations.type='internal' is untouched.
+--   * 'internal' is DELIBERATELY NOT mapped (control-resolved; no Internal category is
+--     created). It is a platform/operational marker, not a real-world category peer of
+--     Brand/Agency/Publisher. organisations.type='internal' is preserved untouched for
+--     compatibility. "The Football Collective" (platform operator) may remain without an
+--     organisation_category assignment. "PlayStation" is evidentially a Brand but is NOT
+--     silently corrected here — it is recorded as an explicit legacy-data correction item
+--     for separate controlled treatment (see Phase A report §O/§P). This migration makes
+--     no type/classification change for either internal organisation.
+--
+-- HISTORY PRESERVATION (control Tier 2 remediation A): a genuine legacy type change
+-- retires the superseded organisation_category fact via Effective Applicability
+-- (effective_to) rather than deleting it, keeping one CURRENT assignment. See the mirror
+-- trigger and the uq_classification_assignment_current index below.
 --
 -- Additive, non-destructive, reversible, idempotent. Safe to run more than once.
 
@@ -70,9 +77,13 @@ CREATE TABLE IF NOT EXISTS classification_assignments (
 );
 CREATE INDEX IF NOT EXISTS idx_classification_assignments_subject  ON classification_assignments (subject_id);
 CREATE INDEX IF NOT EXISTS idx_classification_assignments_category ON classification_assignments (category_id);
--- One live membership per (subject, category); re-adding a removed one is allowed.
-CREATE UNIQUE INDEX IF NOT EXISTS uq_classification_assignment_live
-  ON classification_assignments (subject_id, category_id) WHERE deleted_at IS NULL;
+-- At most one CURRENT membership per (subject, category). "Current" = not soft-deleted
+-- AND not retired (open effective_to). Retired rows (effective_to set) are excluded, so
+-- the same category may be held historically many times and legitimately re-established
+-- later — while a genuine type change retires the prior fact instead of deleting it.
+CREATE UNIQUE INDEX IF NOT EXISTS uq_classification_assignment_current
+  ON classification_assignments (subject_id, category_id)
+  WHERE deleted_at IS NULL AND effective_to IS NULL;
 
 -- updated_at maintenance for all three.
 CREATE OR REPLACE FUNCTION set_classification_updated_at()
@@ -134,6 +145,10 @@ WHERE o.type IN ('brand', 'agency', 'publisher')
     WHERE a.subject_id = o.id AND a.category_id = c.id AND a.deleted_at IS NULL);
 
 -- ── Live one-way mirror: organisations.type → organisation_category assignment ──
+-- A genuine legacy type change RETIRES the superseded canonical Classification fact
+-- (sets effective_to) and keeps it as history — it is never physically deleted — while
+-- maintaining exactly one CURRENT organisation_category assignment. organisations.type
+-- remains the compatibility driver.
 CREATE OR REPLACE FUNCTION sync_org_category_assignment()
 RETURNS trigger AS $$
 DECLARE scheme uuid; new_cat uuid;
@@ -145,17 +160,24 @@ BEGIN
   SELECT id INTO scheme FROM classification_schemes WHERE key = 'organisation_category';
   SELECT id INTO new_cat FROM classification_categories WHERE scheme_id = scheme AND key = NEW.type;
   IF new_cat IS NULL THEN RETURN NEW; END IF;
-  -- Retire any superseded organisation_category membership for this subject, then
-  -- ensure the matching one exists (single current commercial category).
-  DELETE FROM classification_assignments a
-    USING classification_categories c
-    WHERE a.subject_id = NEW.id AND a.category_id = c.id
-      AND c.scheme_id = scheme AND a.category_id <> new_cat;
-  INSERT INTO classification_assignments (subject_id, subject_kind, category_id)
-  SELECT NEW.id, 'organisation', new_cat
+
+  -- Retire (do NOT delete) any CURRENT organisation_category membership that is not the
+  -- new category: close its Effective Applicability so it is retained as history.
+  UPDATE classification_assignments a
+    SET effective_to = CURRENT_DATE
+    FROM classification_categories c
+    WHERE a.subject_id = NEW.id AND a.category_id = c.id AND c.scheme_id = scheme
+      AND a.category_id <> new_cat
+      AND a.deleted_at IS NULL AND a.effective_to IS NULL;
+
+  -- Ensure exactly one CURRENT assignment for the new category (re-establishing a
+  -- previously retired category creates a fresh current fact; existing history is kept).
+  INSERT INTO classification_assignments (subject_id, subject_kind, category_id, effective_from)
+  SELECT NEW.id, 'organisation', new_cat, CURRENT_DATE
   WHERE NOT EXISTS (
     SELECT 1 FROM classification_assignments a
-    WHERE a.subject_id = NEW.id AND a.category_id = new_cat AND a.deleted_at IS NULL);
+    WHERE a.subject_id = NEW.id AND a.category_id = new_cat
+      AND a.deleted_at IS NULL AND a.effective_to IS NULL);
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;

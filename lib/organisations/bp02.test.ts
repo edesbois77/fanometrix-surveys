@@ -6,6 +6,7 @@ import {
   isApplicableOn,
   ancestorsOf,
   validateContainment,
+  validateUnitOrganisationImmutable,
   selectPrimaryName,
   type UnitNode,
   type NameFact,
@@ -76,6 +77,13 @@ test("ancestry walk lists the chain to the root and terminates on corrupt cycles
   );
   // must not hang
   assert.ok(ancestorsOf(corrupt, "P").length <= 2);
+});
+
+test("a unit's organisation is immutable; same-org 'change' is a no-op pass", () => {
+  assert.deepEqual(validateUnitOrganisationImmutable("org1", "org1"), { ok: true });
+  const r = validateUnitOrganisationImmutable("org1", "org2");
+  assert.equal(r.ok, false);
+  assert.match((r as { reason: string }).reason, /cross-organisation movement/);
 });
 
 // ── Primary name selection ──────────────────────────────────────────────────────

@@ -79,7 +79,58 @@ BEGIN
       IF SQLERRM LIKE 'FAIL:%' THEN RAISE; END IF;
       RAISE NOTICE 'PASS: cross-organisation nesting rejected';
     END;
+
+    -- cross-organisation MOVEMENT of an existing unit rejected (control remediation B)
+    BEGIN
+      UPDATE organisation_units SET organisation_id=org2 WHERE id=root;
+      RAISE EXCEPTION 'FAIL: cross-organisation unit movement accepted';
+    EXCEPTION WHEN others THEN
+      IF SQLERRM LIKE 'FAIL:%' THEN RAISE; END IF;
+      RAISE NOTICE 'PASS: cross-organisation unit movement rejected';
+    END;
   END IF;
+END $$;
+ROLLBACK;
+
+-- ── A(remediation). Classification history preserved on type change (rolled back) ─
+BEGIN;
+DO $$
+DECLARE org uuid; scheme uuid; brand_cat uuid; agency_cat uuid; cur_count int;
+BEGIN
+  SELECT id INTO org FROM organisations WHERE type='brand' AND deleted_at IS NULL LIMIT 1;
+  SELECT id INTO scheme FROM classification_schemes WHERE key='organisation_category';
+  SELECT id INTO brand_cat  FROM classification_categories WHERE scheme_id=scheme AND key='brand';
+  SELECT id INTO agency_cat FROM classification_categories WHERE scheme_id=scheme AND key='agency';
+
+  IF NOT EXISTS (SELECT 1 FROM classification_assignments
+      WHERE subject_id=org AND category_id=brand_cat AND deleted_at IS NULL AND effective_to IS NULL) THEN
+    RAISE EXCEPTION 'FAIL: precondition — no current Brand assignment for %', org;
+  END IF;
+
+  -- legacy type is the driver
+  UPDATE organisations SET type='agency' WHERE id=org;
+
+  -- former Brand retained as HISTORY (retired via effective_to, NOT deleted)
+  IF NOT EXISTS (SELECT 1 FROM classification_assignments
+      WHERE subject_id=org AND category_id=brand_cat AND deleted_at IS NULL AND effective_to IS NOT NULL) THEN
+    RAISE EXCEPTION 'FAIL: former Brand classification not retained as history';
+  END IF;
+  IF EXISTS (SELECT 1 FROM classification_assignments
+      WHERE subject_id=org AND category_id=brand_cat AND deleted_at IS NOT NULL) THEN
+    RAISE EXCEPTION 'FAIL: former Brand classification was deleted rather than retired';
+  END IF;
+
+  -- Agency is now the single CURRENT classification, and only one current exists
+  SELECT count(*) INTO cur_count FROM classification_assignments a
+    JOIN classification_categories c ON c.id=a.category_id AND c.scheme_id=scheme
+    WHERE a.subject_id=org AND a.deleted_at IS NULL AND a.effective_to IS NULL;
+  IF cur_count <> 1 THEN RAISE EXCEPTION 'FAIL: expected one current assignment, got %', cur_count; END IF;
+  IF NOT EXISTS (SELECT 1 FROM classification_assignments
+      WHERE subject_id=org AND category_id=agency_cat AND deleted_at IS NULL AND effective_to IS NULL) THEN
+    RAISE EXCEPTION 'FAIL: Agency is not the current classification';
+  END IF;
+
+  RAISE NOTICE 'PASS: brand→agency retired Brand as history, Agency current, single current assignment, type is driver';
 END $$;
 ROLLBACK;
 

@@ -26,7 +26,9 @@ CREATE TABLE IF NOT EXISTS organisation_units (
   -- are defined — see the guard trigger and the BP-02 brief §7 stop condition).
   organisation_id uuid        NOT NULL REFERENCES organisations (id),
   -- Optional constitutive nesting beneath another Unit in the SAME organisation.
-  -- NULL => root Unit directly within the organisation.
+  -- NULL => root Unit directly within the organisation. organisation_id itself is
+  -- immutable after creation (enforced by the guard trigger) — BP-02 does not define
+  -- cross-Organisation Unit movement/persistence (ORG-003 did not authorise it).
   parent_unit_id  uuid        REFERENCES organisation_units (id),
   -- Display/compatibility projection of the Unit's current primary canonical Name
   -- (canonical Name facts arrive in migration 151, which also seeds this). Kept
@@ -93,6 +95,7 @@ END $$;
 
 -- ── Constitutive-containment integrity (BP-02 §7) ───────────────────────────────
 -- Enforces, on insert and on any re-parenting:
+--   * an existing Unit's organisation_id cannot change (no cross-org movement);
 --   * parent (when set) exists and is not soft-deleted;
 --   * parent belongs to the SAME organisation (no cross-org nesting);
 --   * no circular ancestry (a Unit cannot be its own ancestor).
@@ -101,6 +104,13 @@ CREATE OR REPLACE FUNCTION organisation_units_containment_guard()
 RETURNS trigger AS $$
 DECLARE parent_org uuid; walker uuid; hops int := 0;
 BEGIN
+  -- Cross-Organisation movement is not defined in BP-02: once a Unit exists, the
+  -- containing organisation_id is immutable through ordinary update. Reorganisation
+  -- WITHIN the same organisation via parent_unit_id remains allowed (below).
+  IF TG_OP = 'UPDATE' AND NEW.organisation_id IS DISTINCT FROM OLD.organisation_id THEN
+    RAISE EXCEPTION 'unit %: containing organisation_id cannot be changed (cross-organisation movement is not defined in BP-02)', NEW.id;
+  END IF;
+
   IF NEW.parent_unit_id IS NOT NULL THEN
     SELECT organisation_id INTO parent_org
       FROM organisation_units WHERE id = NEW.parent_unit_id AND deleted_at IS NULL;
