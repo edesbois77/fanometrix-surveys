@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
+import Link from "next/link";
 import { AdminShell } from "@/app/components/AdminShell";
 
 type OrgType = "publisher" | "agency" | "brand" | "internal";
@@ -85,6 +86,7 @@ export default function OrganisationsPage() {
     setLoading(false);
   }, []);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- idiomatic memoized loader
   useEffect(() => { load(); }, [load]);
 
   function openCreate() {
@@ -248,7 +250,9 @@ export default function OrganisationsPage() {
               <tbody>
                 {filtered.map(o => (
                   <tr key={o.id} className="border-b border-gray-50 last:border-b-0">
-                    <td className="px-5 py-3 font-medium text-gray-800">{o.name}</td>
+                    <td className="px-5 py-3 font-medium text-gray-800">
+                      <Link href={`/organisations/${o.id}`} className="hover:text-[#8a6d2f] hover:underline">{o.name}</Link>
+                    </td>
                     <td className="px-5 py-3">
                       <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${TYPE_COLOURS[o.type]}`}>
                         {TYPE_LABELS[o.type]}
