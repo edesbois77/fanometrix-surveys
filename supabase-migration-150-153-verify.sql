@@ -55,17 +55,23 @@ BEGIN
   INSERT INTO organisation_units (organisation_id, parent_unit_id, name) VALUES (org, root, '__child__') RETURNING id INTO child;
   RAISE NOTICE 'PASS: root+nested units created and registered as organisation_unit';
 
-  -- self-parenting rejected (CHECK)
+  -- self-parenting rejected. NOTE: the BEFORE-UPDATE containment guard fires before the
+  -- CHECK constraint, and a self-parent is a length-0 cycle, so in production the guard
+  -- raises P0001 (raise_exception) — NOT check_violation. Accept the guard's
+  -- raise_exception, with the CHECK as a backstop; re-raise our own FAIL assertion.
   BEGIN
     UPDATE organisation_units SET parent_unit_id=child WHERE id=child;
     RAISE EXCEPTION 'FAIL: self-parenting accepted';
-  EXCEPTION WHEN check_violation THEN RAISE NOTICE 'PASS: self-parenting rejected'; END;
+  EXCEPTION WHEN raise_exception OR check_violation THEN
+    IF SQLERRM LIKE 'FAIL:%' THEN RAISE; END IF;
+    RAISE NOTICE 'PASS: self-parenting rejected';
+  END;
 
   -- circular containment rejected (trigger): make root a child of its own descendant
   BEGIN
     UPDATE organisation_units SET parent_unit_id=child WHERE id=root;
     RAISE EXCEPTION 'FAIL: circular containment accepted';
-  EXCEPTION WHEN others THEN
+  EXCEPTION WHEN raise_exception THEN
     IF SQLERRM LIKE 'FAIL:%' THEN RAISE; END IF;
     RAISE NOTICE 'PASS: circular containment rejected';
   END;
@@ -75,7 +81,7 @@ BEGIN
     BEGIN
       INSERT INTO organisation_units (organisation_id, parent_unit_id, name) VALUES (org2, root, '__xorg__');
       RAISE EXCEPTION 'FAIL: cross-organisation nesting accepted';
-    EXCEPTION WHEN others THEN
+    EXCEPTION WHEN raise_exception THEN
       IF SQLERRM LIKE 'FAIL:%' THEN RAISE; END IF;
       RAISE NOTICE 'PASS: cross-organisation nesting rejected';
     END;
@@ -84,7 +90,7 @@ BEGIN
     BEGIN
       UPDATE organisation_units SET organisation_id=org2 WHERE id=root;
       RAISE EXCEPTION 'FAIL: cross-organisation unit movement accepted';
-    EXCEPTION WHEN others THEN
+    EXCEPTION WHEN raise_exception THEN
       IF SQLERRM LIKE 'FAIL:%' THEN RAISE; END IF;
       RAISE NOTICE 'PASS: cross-organisation unit movement rejected';
     END;
@@ -237,7 +243,7 @@ BEGIN
   BEGIN
     DELETE FROM classification_schemes WHERE key='organisation_category';
     RAISE EXCEPTION 'FAIL: system scheme deleted';
-  EXCEPTION WHEN others THEN
+  EXCEPTION WHEN raise_exception THEN
     IF SQLERRM LIKE 'FAIL:%' THEN RAISE; END IF;
     RAISE NOTICE 'PASS: system scheme protected from deletion';
   END;
