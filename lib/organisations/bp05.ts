@@ -9,15 +9,20 @@ import { deriveTemporalState, type TemporalState } from "./bp03";
 export { isValidEffectiveInterval, isApplicableOn, deriveTemporalState };
 export type { EffectiveInterval, TemporalState };
 
-// Holder actor kinds admissible NOW: the IC-01 organisational subjects that are
-// already-established, referenceable actors (R07 FR-002; AMEND-03 §11). Externally-governed
-// actors (Person, etc.) are the PRESERVED holder dependency - not admissible until that
-// architecture exists (R07-BE-01; BP-04 external holder-subject dependency). R07 does NOT
-// determine holder eligibility (BE-01) and does NOT create Person/Actor architecture.
-export const AUTHORITY_HOLDER_KINDS = ["organisation", "organisation_unit", "organisational_office"] as const;
-export type AuthorityHolderKind = (typeof AUTHORITY_HOLDER_KINDS)[number];
-export function isAuthorityHolderKind(kind: string): kind is AuthorityHolderKind {
-  return (AUTHORITY_HOLDER_KINDS as readonly string[]).includes(kind);
+// Holder eligibility is an EXTERNALLY GOVERNED dependency (R07 FR-002; AMEND-03 §11; BE-01):
+// R07 must NOT determine whether an actor is eligible, and existing IC-01 subjecthood is NOT
+// evidence of holder eligibility (control determination J-1). There is therefore NO statically
+// admissible holder kind in code. Which holder subject kinds are eligible is governed by the
+// database registry `authority_eligible_holder_kinds`, which is CURRENTLY EMPTY - so no holder
+// is eligible and actual Authority instances are unavailable (preserved dependency, exactly as
+// BP-04 office-holding). Eligible holder kinds are admitted additively (by admitting a kind under
+// an architecture that establishes its eligibility) without redesigning Authority.
+export function isAdmittedHolderKind(kind: string, admittedKinds: readonly string[]): boolean {
+  return admittedKinds.includes(kind);
+}
+/** With no admitted eligible holder kinds, Authority instances are unavailable. */
+export function anyHolderKindAdmitted(admittedKinds: readonly string[]): boolean {
+  return admittedKinds.length > 0;
 }
 
 // Material constraint kinds (AMEND-03 §3; R07 FR-011).

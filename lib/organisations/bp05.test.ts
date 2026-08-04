@@ -1,16 +1,24 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  isAuthorityHolderKind, isAuthorityConstraintType, isAuthorityBasisKind, isInternalBasisKind,
+  isAdmittedHolderKind, anyHolderKindAdmitted, isAuthorityConstraintType, isAuthorityBasisKind, isInternalBasisKind,
   evaluateConstraintDimension, authorityTemporalState, authorityAppliesOn,
 } from "./bp05";
 
-// ── Holder kinds (IC-01 actors admitted; external preserved; eligibility not decided) ──
-test("IC-01 subjects are admissible Authority holders; a Person/external actor kind is not (preserved)", () => {
-  assert.ok(isAuthorityHolderKind("organisation"));
-  assert.ok(isAuthorityHolderKind("organisation_unit"));
-  assert.ok(isAuthorityHolderKind("organisational_office"));
-  assert.equal(isAuthorityHolderKind("person"), false); // external actor holder is a preserved dependency
+// ── Holder eligibility is externally governed; NO kind admitted now (preserved, J-1) ──
+test("no holder kind is eligible while the admitted set is empty (Authority instances unavailable)", () => {
+  const admitted: string[] = []; // authority_eligible_holder_kinds is empty in production
+  assert.equal(anyHolderKindAdmitted(admitted), false);
+  // Existing IC-01 subjecthood is NOT eligibility (control J-1): none are admitted merely for existing.
+  for (const k of ["organisation", "organisation_unit", "organisational_office", "person"]) {
+    assert.equal(isAdmittedHolderKind(k, admitted), false);
+  }
+});
+test("once a kind is admitted under an eligibility architecture, it is recognised (additive evolvability)", () => {
+  const admitted = ["some_governed_eligible_actor"]; // hypothetical future admission
+  assert.ok(anyHolderKindAdmitted(admitted));
+  assert.ok(isAdmittedHolderKind("some_governed_eligible_actor", admitted));
+  assert.equal(isAdmittedHolderKind("organisation", admitted), false);
 });
 
 test("constraint types and basis kinds are the governed sets", () => {
