@@ -385,3 +385,15 @@ body {
   .fx-indeterminate { animation: none; left: 0; width: 100% !important; opacity: 0.5; }
   .fx-pulse { animation: none; }
 }
+
+/* ── WWC 2027 publisher campaign page (/for-publishers/womens-world-cup-research) */
+/* Hero photographic background gently fades in on load. Reduced-motion safe.    */
+@keyframes wwc-hero-fade { from { opacity: 0; } to { opacity: 1; } }
+.wwc-hero-fade { opacity: 0; animation: wwc-hero-fade 1.5s ease-out 0.05s forwards; }
+/* Dark FAQ variant (navy chapter): reuse the shared .pp-faq behaviour but flip  */
+/* the toggle-icon colours so the control stays visible against navy.            */
+.pp-faq.is-dark .pp-faq-icon { border-color: rgba(255,255,255,0.24); color: rgba(255,255,255,0.72); }
+.pp-faq.is-dark[open] .pp-faq-icon { background: #D7B87A; border-color: #D7B87A; color: #0B1929; }
+@media (prefers-reduced-motion: reduce) {
+  .wwc-hero-fade { animation: none; opacity: 1; }
+}
