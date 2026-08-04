@@ -9,7 +9,7 @@ const GOLD = "#D7B87A";
 const NAVY = "#0B1929";
 const INP = "w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A]";
 
-type Tab = "overview" | "units" | "names" | "identifiers" | "classifications";
+type Tab = "overview" | "units" | "names" | "identifiers" | "classifications" | "identity" | "relationships";
 type Org = { id: string; name: string; type: string; status: string; created_at: string; deleted_at: string | null };
 type Unit = { id: string; organisation_id: string; parent_unit_id: string | null; name: string; deleted_at: string | null };
 type Name = { id: string; value: string; name_form: string; language: string | null; script: string | null; is_primary: boolean; effective_from: string | null; effective_to: string | null };
@@ -44,7 +44,7 @@ export default function OrganisationDetailPage() {
   // eslint-disable-next-line react-hooks/set-state-in-effect -- idiomatic memoized loader
   useEffect(() => { loadOrg(); }, [loadOrg]);
 
-  const TABS: Tab[] = ["overview", "units", "names", "identifiers", "classifications"];
+  const TABS: Tab[] = ["overview", "units", "names", "identifiers", "classifications", "identity", "relationships"];
 
   return (
     <AdminShell>
@@ -70,6 +70,8 @@ export default function OrganisationDetailPage() {
         {tab === "names" && <NamesTab orgId={id} show={show} />}
         {tab === "identifiers" && <IdentifiersTab orgId={id} show={show} />}
         {tab === "classifications" && <ClassificationsTab orgId={id} show={show} />}
+        {tab === "identity" && <IdentityTab orgId={id} show={show} />}
+        {tab === "relationships" && <RelationshipsTab orgId={id} show={show} />}
       </div>
       <Toast t={toast} />
     </AdminShell>
@@ -409,6 +411,197 @@ function ClassificationsTab({ orgId, show }: { orgId: string; show: (m: string, 
           ))}
         </ul>
         <p className="text-xs text-gray-400 mt-3">New categories (e.g. &quot;Sports Marketing Agency&quot;) are added by row configuration — no database migration.</p>
+      </Card>
+    </>
+  );
+}
+
+// ── Organisational Identity (BP-03 / IC-05) ──────────────────────────────────────
+type Identity = { id: string; label: string; descriptor: string | null; effective_from: string | null; effective_to: string | null };
+
+function IdentityTab({ orgId, show }: { orgId: string; show: (m: string, ok?: boolean) => void }) {
+  const [items, setItems] = useState<Identity[]>([]);
+  const [adding, setAdding] = useState(false);
+  const [form, setForm] = useState({ label: "", descriptor: "", effectiveFrom: "", effectiveTo: "" });
+  const load = useCallback(async () => { const r = await fetch(`/api/organisations/${orgId}/identities`); if (r.ok) setItems((await r.json()).data); }, [orgId]);
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- idiomatic memoized loader
+  useEffect(() => { load(); }, [load]);
+
+  async function add() {
+    const res = await fetch(`/api/organisations/${orgId}/identities`, { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ label: form.label, descriptor: form.descriptor || null, effectiveFrom: form.effectiveFrom || null, effectiveTo: form.effectiveTo || null }) });
+    const j = await res.json(); if (!res.ok) { show(j.error ?? "Failed.", false); return; }
+    setAdding(false); setForm({ label: "", descriptor: "", effectiveFrom: "", effectiveTo: "" }); show("Identity created."); load();
+  }
+  async function correct(i: Identity) {
+    const label = prompt("Correct this identity's label in place (no history):", i.label);
+    if (!label || label === i.label) return;
+    const res = await fetch(`/api/organisations/identities/${i.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ label }) });
+    const j = await res.json(); if (!res.ok) { show(j.error ?? "Failed.", false); return; } show("Identity corrected."); load();
+  }
+  async function cease(i: Identity) {
+    if (!confirm(`Cease identity "${i.label}" (records a represented-world end)?`)) return;
+    const res = await fetch(`/api/organisations/identities/${i.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ cease: true }) });
+    const j = await res.json(); if (!res.ok) { show(j.error ?? "Failed.", false); return; } show("Identity ceased."); load();
+  }
+  async function retire(i: Identity) {
+    if (!confirm(`Retire (remove as erroneous) identity "${i.label}"?`)) return;
+    const res = await fetch(`/api/organisations/identities/${i.id}`, { method: "DELETE" });
+    const j = await res.json(); if (!res.ok) { show(j.error ?? "Failed.", false); return; } show("Identity retired."); load();
+  }
+
+  return (
+    <Card>
+      <div className="flex justify-between items-center mb-3">
+        <h3 className="font-semibold text-gray-800">Organisational Identities</h3>
+        <AddButton onClick={() => setAdding(a => !a)} label="+ Add identity" />
+      </div>
+      {adding && (
+        <div className="bg-gray-50 rounded-lg p-3 mb-3 space-y-2">
+          <input className={INP} placeholder="Identity label (the identity's own recognised descriptor — not a Name)" value={form.label} onChange={e => setForm(f => ({ ...f, label: e.target.value }))} />
+          <input className={INP} placeholder="Descriptor (optional)" value={form.descriptor} onChange={e => setForm(f => ({ ...f, descriptor: e.target.value }))} />
+          <div className="flex gap-2">
+            <input className={INP} type="date" value={form.effectiveFrom} onChange={e => setForm(f => ({ ...f, effectiveFrom: e.target.value }))} />
+            <input className={INP} type="date" value={form.effectiveTo} onChange={e => setForm(f => ({ ...f, effectiveTo: e.target.value }))} />
+          </div>
+          <button onClick={add} className="text-sm font-semibold px-3 py-1.5 rounded-lg" style={{ background: GOLD, color: NAVY }}>Save identity</button>
+        </div>
+      )}
+      {items.length === 0 ? <p className="text-sm text-gray-400">No identities. An organisation may have none, one, or several.</p> : (
+        <ul className="divide-y divide-gray-50">
+          {items.map(i => (
+            <li key={i.id} className="py-2 flex items-center justify-between">
+              <span className="text-sm text-gray-800">{i.label}
+                {i.descriptor && <span className="text-gray-400"> — {i.descriptor}</span>}
+                <span className="ml-2 text-xs text-gray-400">{applic(i.effective_from, i.effective_to)}</span>
+              </span>
+              <span className="flex gap-3">
+                <button onClick={() => correct(i)} className="text-xs text-gray-500 hover:text-gray-800">Correct</button>
+                <button onClick={() => cease(i)} className="text-xs text-amber-600 hover:text-amber-800">Cease</button>
+                <button onClick={() => retire(i)} className="text-xs text-red-400 hover:text-red-600">Retire</button>
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+      <p className="text-xs text-gray-400 mt-3">An Organisational Identity is distinct from the Organisation and from its Names, Identifiers and Classifications. Correct edits in place; Cease records a represented-world end (kept as history).</p>
+    </Card>
+  );
+}
+
+// ── Relationships (BP-03 / IC-07) ────────────────────────────────────────────────
+type RType = { id: string; key: string; label: string; directionality: string; is_system: boolean };
+type RPart = { id: string; subject_id: string; subject_kind: string; participant_role: string | null };
+type Rel = { id: string; descriptor: string | null; effective_from: string | null; effective_to: string | null; type: { label: string }; participants: RPart[] };
+type OrgLite = { id: string; name: string };
+
+function RelationshipsTab({ orgId, show }: { orgId: string; show: (m: string, ok?: boolean) => void }) {
+  const [rels, setRels] = useState<Rel[]>([]);
+  const [types, setTypes] = useState<RType[]>([]);
+  const [orgs, setOrgs] = useState<OrgLite[]>([]);
+  const [adding, setAdding] = useState(false);
+  const [typeId, setTypeId] = useState("");
+  const [parts, setParts] = useState<{ subjectId: string; role: string }[]>([]);
+
+  const load = useCallback(async () => {
+    const [r, t, o] = await Promise.all([
+      fetch(`/api/organisations/${orgId}/relationships`), fetch(`/api/organisations/relationship-types`), fetch(`/api/organisations`),
+    ]);
+    if (r.ok) setRels((await r.json()).data);
+    if (t.ok) setTypes((await t.json()).data);
+    if (o.ok) setOrgs(((await o.json()).data as OrgLite[]));
+  }, [orgId]);
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- idiomatic memoized loader
+  useEffect(() => { load(); }, [load]);
+
+  function openAdd() {
+    setTypeId(types[0]?.id ?? "");
+    setParts([{ subjectId: orgId, role: "" }, { subjectId: "", role: "" }]);  // this org + one other, ≥2
+    setAdding(true);
+  }
+  async function create() {
+    const participants = parts.filter(p => p.subjectId).map(p => ({ subjectId: p.subjectId, subjectKind: "organisation", role: p.role || null }));
+    const res = await fetch(`/api/organisations/${orgId}/relationships`, { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ typeId, participants }) });
+    const j = await res.json(); if (!res.ok) { show(j.error ?? "Failed.", false); return; }
+    setAdding(false); show("Relationship created."); load();
+  }
+  async function cease(r: Rel) {
+    if (!confirm("Cease this relationship (records a represented-world end)?")) return;
+    const res = await fetch(`/api/organisations/relationships/${r.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ cease: true }) });
+    const j = await res.json(); if (!res.ok) { show(j.error ?? "Failed.", false); return; } show("Relationship ceased."); load();
+  }
+  async function retire(r: Rel) {
+    if (!confirm("Retire (remove as erroneous) this relationship?")) return;
+    const res = await fetch(`/api/organisations/relationships/${r.id}`, { method: "DELETE" });
+    const j = await res.json(); if (!res.ok) { show(j.error ?? "Failed.", false); return; } show("Relationship retired."); load();
+  }
+  async function newType() {
+    const label = prompt("New relationship type label:"); if (!label) return;
+    const key = prompt("Type key (lower_snake_case):"); if (!key) return;
+    const directionality = prompt("Directionality (directed / symmetric):", "directed") || "directed";
+    const res = await fetch(`/api/organisations/relationship-types`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ key, label, directionality }) });
+    const j = await res.json(); if (!res.ok) { show(j.error ?? "Failed.", false); return; } show("Type created."); load();
+  }
+  const orgName = (id: string) => orgs.find(o => o.id === id)?.name ?? id.slice(0, 8);
+
+  return (
+    <>
+      <Card>
+        <div className="flex justify-between items-center mb-3">
+          <h3 className="font-semibold text-gray-800">Relationships</h3>
+          <AddButton onClick={openAdd} label="+ New relationship" />
+        </div>
+        {adding && (
+          <div className="bg-gray-50 rounded-lg p-3 mb-3 space-y-2">
+            <select className={INP} value={typeId} onChange={e => setTypeId(e.target.value)}>
+              {types.map(t => <option key={t.id} value={t.id}>{t.label} ({t.directionality})</option>)}
+            </select>
+            {parts.map((p, i) => (
+              <div key={i} className="flex gap-2">
+                <select className={INP} value={p.subjectId} onChange={e => setParts(ps => ps.map((x, j) => j === i ? { ...x, subjectId: e.target.value } : x))}>
+                  <option value="">Choose organisation…</option>
+                  {orgs.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
+                </select>
+                <input className={INP + " max-w-[160px]"} placeholder="role/capacity" value={p.role} onChange={e => setParts(ps => ps.map((x, j) => j === i ? { ...x, role: e.target.value } : x))} />
+              </div>
+            ))}
+            <div className="flex justify-between">
+              <button onClick={() => setParts(ps => [...ps, { subjectId: "", role: "" }])} className="text-xs text-[#8a6d2f] font-medium">+ Add participant</button>
+              <button onClick={create} className="text-sm font-semibold px-3 py-1.5 rounded-lg" style={{ background: GOLD, color: NAVY }}>Create relationship</button>
+            </div>
+          </div>
+        )}
+        {rels.length === 0 ? <p className="text-sm text-gray-400">No relationships.</p> : (
+          <ul className="divide-y divide-gray-50">
+            {rels.map(r => (
+              <li key={r.id} className="py-2 flex items-start justify-between">
+                <span className="text-sm text-gray-800">
+                  <strong>{r.type.label}</strong> <span className="text-xs text-gray-400">{applic(r.effective_from, r.effective_to)}</span>
+                  <div className="text-xs text-gray-500 mt-0.5">{r.participants.map(p => `${orgName(p.subject_id)}${p.participant_role ? ` (${p.participant_role})` : ""}`).join(" · ")}</div>
+                </span>
+                <span className="flex gap-3 flex-shrink-0">
+                  <button onClick={() => cease(r)} className="text-xs text-amber-600 hover:text-amber-800">Cease</button>
+                  <button onClick={() => retire(r)} className="text-xs text-red-400 hover:text-red-600">Retire</button>
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+        <p className="text-xs text-gray-400 mt-3">A relationship associates two or more subjects with an established meaning. It grants no platform access, and is not Unit containment.</p>
+      </Card>
+
+      <Card>
+        <div className="flex justify-between items-center mb-3">
+          <h3 className="font-semibold text-gray-800">Relationship types</h3>
+          <AddButton onClick={newType} label="+ New type" />
+        </div>
+        <ul className="divide-y divide-gray-50">
+          {types.map(t => (
+            <li key={t.id} className="py-2 text-sm text-gray-800">{t.label} <span className="text-xs text-gray-400 font-mono">{t.key} · {t.directionality}</span>{t.is_system && <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">SYSTEM</span>}</li>
+          ))}
+        </ul>
+        <p className="text-xs text-gray-400 mt-3">Membership and predecessor/successor lineage are system types. New types are added by configuration — no migration.</p>
       </Card>
     </>
   );
