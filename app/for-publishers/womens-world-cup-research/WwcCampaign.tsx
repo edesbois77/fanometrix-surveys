@@ -35,11 +35,10 @@ const REGISTER_HREF = "#register";
 // Single source of truth for the registration deadline — update here only.
 const REGISTRATION_DEADLINE = "10 August 2026";
 
-// Final photographic hero creative is supplied separately. Point this at the
-// asset (e.g. "/wwc-hero.jpg") when it arrives; until then a styled atmospheric
-// placeholder renders in its place. Everything else (gradient, fade, crop) is
-// already wired, so no other change is needed on swap-in.
-const HERO_IMAGE_SRC = "";
+// Photographic hero creative. Empty string falls back to the styled atmospheric
+// placeholder; the gradient, fade-in and responsive crop are wired either way,
+// so swapping the asset is a one-line change.
+const HERO_IMAGE_SRC = "/fanometrixhero.jpg";
 
 // ─── Thin-line icon family (benefit cards only) ──────────────────────────────
 const ICONS: Record<string, React.ReactNode> = {
