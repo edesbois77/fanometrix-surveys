@@ -208,6 +208,9 @@ ROLLBACK;
 
 -- Predecessor/successor LINEAGE between two distinct subjects; duplicate participant rejected;
 -- temporal overlap of distinct relationships allowed (FR-026/029/030/031).
+-- NOTE: create BOTH relationships and ALL their participants while the deferred >=2 constraint
+-- is still deferred, then force SET CONSTRAINTS ALL IMMEDIATE ONCE, after everything is populated.
+-- (Forcing it earlier would reject the second bare relationship insert before its participants.)
 BEGIN;
 DO $$
 DECLARE org1 uuid; org2 uuid; t uuid; rel uuid; rel2 uuid;
@@ -216,23 +219,27 @@ BEGIN
   SELECT id INTO org2 FROM organisations WHERE deleted_at IS NULL AND id<>org1 LIMIT 1;
   SELECT id INTO t FROM relationship_types WHERE key='lineage_predecessor_successor';
 
+  -- First lineage relationship + its two participants (>=2 constraint still deferred).
   INSERT INTO organisation_relationships (type_id, effective_from) VALUES (t, DATE '2020-01-01') RETURNING id INTO rel;
   INSERT INTO organisation_relationship_participants (relationship_id, subject_id, subject_kind, participant_role)
     VALUES (rel, org1, 'organisation', 'predecessor'), (rel, org2, 'organisation', 'successor');
+
+  -- Second, temporally overlapping lineage relationship + its two participants (still deferred).
+  INSERT INTO organisation_relationships (type_id, effective_from) VALUES (t, DATE '2019-01-01') RETURNING id INTO rel2;
+  INSERT INTO organisation_relationship_participants (relationship_id, subject_id, subject_kind, participant_role)
+    VALUES (rel2, org1, 'organisation', 'predecessor'), (rel2, org2, 'organisation', 'successor');
+
+  -- Both relationships are fully populated: force the deferred >=2 check once, for all rows.
   SET CONSTRAINTS ALL IMMEDIATE;
   RAISE NOTICE 'PASS: directed lineage (predecessor/successor) created between distinct subjects (FR-029/030)';
+  RAISE NOTICE 'PASS: distinct overlapping relationships coexist, overlap is not duplication (FR-026/031)';
 
+  -- Duplicate participant (same subject + role) rejected by the immediate UNIQUE constraint.
   BEGIN
     INSERT INTO organisation_relationship_participants (relationship_id, subject_id, subject_kind, participant_role)
       VALUES (rel, org1, 'organisation', 'predecessor');
     RAISE EXCEPTION 'FAIL: duplicate participant accepted';
   EXCEPTION WHEN unique_violation THEN RAISE NOTICE 'PASS: duplicate participant rejected'; END;
-
-  INSERT INTO organisation_relationships (type_id, effective_from) VALUES (t, DATE '2019-01-01') RETURNING id INTO rel2;
-  INSERT INTO organisation_relationship_participants (relationship_id, subject_id, subject_kind, participant_role)
-    VALUES (rel2, org1, 'organisation', 'predecessor'), (rel2, org2, 'organisation', 'successor');
-  SET CONSTRAINTS ALL IMMEDIATE;
-  RAISE NOTICE 'PASS: distinct overlapping relationships coexist, overlap is not duplication (FR-026/031)';
 END $$;
 ROLLBACK;
 
