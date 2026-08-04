@@ -33,7 +33,7 @@ const BORDER_2 = "#EEF0F3";
 
 const REGISTER_HREF = "#register";
 // Single source of truth for the registration deadline — update here only.
-const REGISTRATION_DEADLINE = "10 August 2026";
+const REGISTRATION_DEADLINE = "14 August 2026";
 
 // Photographic hero creative. Empty string falls back to the styled atmospheric
 // placeholder; the gradient, fade-in and responsive crop are wired either way,
@@ -309,15 +309,15 @@ function MpuPreview() {
 const SEQUENCE = ["Qualifier", "Gender", "Age", "Q1", "Q2", "Q3", "Thank You"];
 function SevenFrameFlow() {
   return (
-    <div className="flex flex-wrap items-center gap-x-2 gap-y-2">
+    <div className="flex items-center gap-1 overflow-x-auto no-scrollbar -mx-1 px-1 pb-1">
       {SEQUENCE.map((label, i) => (
-        <span key={label} className="inline-flex items-center gap-2">
-          <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5" style={{ border: `1px solid ${BORDER}`, background: "#fff" }}>
-            <span className="font-bold fx-tabular-nums" style={{ fontSize: 11, color: GOLD_INK }}>{String(i + 1).padStart(2, "0")}</span>
-            <span className="font-semibold" style={{ fontSize: 12.5, color: INK }}>{label}</span>
+        <span key={label} className="inline-flex items-center gap-1 shrink-0">
+          <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1.5 shrink-0" style={{ border: `1px solid ${BORDER}`, background: "#fff" }}>
+            <span className="font-bold fx-tabular-nums" style={{ fontSize: 10.5, color: GOLD_INK }}>{String(i + 1).padStart(2, "0")}</span>
+            <span className="font-semibold whitespace-nowrap" style={{ fontSize: 12, color: INK }}>{label}</span>
           </span>
           {i < SEQUENCE.length - 1 && (
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={FAINT} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={FAINT} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0" aria-hidden><path d="M5 12h14M13 6l6 6-6 6" /></svg>
           )}
         </span>
       ))}
@@ -503,7 +503,7 @@ function RegistrationForm() {
 
 // ─── Content data ─────────────────────────────────────────────────────────────
 const STEPS = [
-  { n: "01", title: "Join the Initiative", body: "Complete the short registration form." },
+  { n: "01", title: "Join the Initiative", body: <>Complete the short registration form <a href="#register" className="font-semibold underline underline-offset-2 transition-opacity hover:opacity-70" style={{ color: GOLD_INK }}>at the bottom of this page</a>.</> },
   { n: "02", title: "Receive Your Survey Package", body: "We'll provide your survey, creative assets and everything you need to get live." },
   { n: "03", title: "Launch & Monitor", body: "Run the campaign and monitor responses through your live dashboard." },
   { n: "04", title: "Receive Your Results", body: "Get your audience data, early access to the report and Official Research Partner recognition." },
@@ -563,7 +563,7 @@ export function WwcCampaign() {
                   <span className="pp-breathe absolute inline-flex h-full w-full rounded-full opacity-70" style={{ background: GOLD }} />
                   <span className="relative inline-flex h-2 w-2 rounded-full" style={{ background: GOLD }} />
                 </span>
-                <span className="text-[13.5px] font-semibold" style={{ color: GOLD }}>Publisher registrations close {REGISTRATION_DEADLINE}.</span>
+                <span className="text-[13.5px] font-semibold" style={{ color: GOLD }}>Publisher registrations close {REGISTRATION_DEADLINE} (end of day).</span>
               </p>
             </div>
           </div>
@@ -597,7 +597,7 @@ export function WwcCampaign() {
 
             {/* four equal, minimal steps — the number is the primary visual device */}
             <ol className="relative grid gap-5 sm:grid-cols-2 lg:grid-cols-4 items-stretch">
-              <span aria-hidden className="hidden lg:block absolute left-[12.5%] right-[12.5%]" style={{ top: 46, height: 2, background: "linear-gradient(90deg, rgba(215,184,122,0.28), rgba(215,184,122,0.8))" }} />
+              <span aria-hidden className="hidden lg:block absolute left-[12.5%] right-[12.5%]" style={{ top: "50%", transform: "translateY(-50%)", height: 2, background: "linear-gradient(90deg, rgba(215,184,122,0.28), rgba(215,184,122,0.8))" }} />
               {STEPS.map((s, i) => (
                 <li key={s.n} className="scroll-fade-up relative flex flex-col rounded-2xl bg-white p-7 transition-all duration-300 hover:-translate-y-1.5 hover:shadow-[0_20px_44px_-16px_rgba(16,24,40,0.14)]" style={{ border: `1px solid ${BORDER}`, transitionDelay: `${0.06 * i}s` }}>
                   <span className="font-bold tracking-tight fx-tabular-nums mb-5" style={{ fontSize: 40, lineHeight: 1, color: i === STEPS.length - 1 ? GOLD_INK : NAVY, letterSpacing: "-0.03em" }}>{s.n}</span>
@@ -613,7 +613,7 @@ export function WwcCampaign() {
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={GOLD_INK} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M20 6L9 17l-5-5" /></svg>
               </span>
               <p className="leading-[1.6]" style={{ fontSize: 16, color: "#6B5320" }}>
-                <strong className="font-bold" style={{ color: GOLD_INK }}>Simple to implement.</strong> Your survey is supplied as a hosted iframe and scheduled through your ad server just like a standard 300 × 250 campaign. No bespoke development required.
+                <strong className="font-bold" style={{ color: GOLD_INK }}>Simple to implement.</strong> Your survey is supplied as a hosted iframe and scheduled through your ad server just like a standard 300 × 250 campaign. No bespoke development required. <a href="#the-survey" className="font-semibold underline underline-offset-2 transition-opacity hover:opacity-70" style={{ color: GOLD_INK }}>See creative example below</a>.
               </p>
             </div>
           </div>
@@ -624,9 +624,12 @@ export function WwcCampaign() {
           <div className="max-w-[1240px] mx-auto">
             <div className="mb-[clamp(44px,5.5vw,68px)] max-w-[720px]">
               <Eyebrow>The Benefits</Eyebrow>
-              <h2 className="scroll-fade-up font-bold tracking-tight text-balance" style={{ fontSize: "clamp(31px,4.4vw,52px)", lineHeight: 1.07, letterSpacing: "-0.025em", color: INK, transitionDelay: "0.05s" }}>
+              <h2 className="scroll-fade-up font-bold tracking-tight mb-5 text-balance" style={{ fontSize: "clamp(31px,4.4vw,52px)", lineHeight: 1.07, letterSpacing: "-0.025em", color: INK, transitionDelay: "0.05s" }}>
                 What You&apos;ll Receive
               </h2>
+              <p className="scroll-fade-up leading-[1.7]" style={{ fontSize: 19, color: GREY, transitionDelay: "0.1s" }}>
+                Taking part gives your business real value in return, from exclusive audience insight and zero-party data to early access and recognition as an Official Research Partner.
+              </p>
             </div>
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
               {BENEFITS.map((b, i) => (
@@ -665,11 +668,9 @@ export function WwcCampaign() {
                   className={`scroll-fade-up pt-8 ${i % 2 === 1 ? "border-l pl-6" : ""} lg:border-l lg:first:border-l-0 lg:pl-8`}
                   style={{ borderColor: "rgba(255,255,255,0.12)", transitionDelay: `${0.06 * i}s` }}
                 >
-                  <div className="flex items-baseline gap-2 mb-2">
-                    <span className="font-bold tracking-tight" style={{ fontSize: "clamp(34px,4.4vw,52px)", lineHeight: 1, color: GOLD, letterSpacing: "-0.02em" }}>{s.big}</span>
-                    <span className="font-semibold text-white" style={{ fontSize: "clamp(15px,1.6vw,18px)" }}>{s.unit}</span>
-                  </div>
-                  <p className="font-semibold uppercase tracking-[0.08em]" style={{ fontSize: 12, color: "rgba(255,255,255,0.6)" }}>{s.sub}</p>
+                  <p className="font-semibold mb-2.5" style={{ fontSize: "clamp(15px,1.6vw,18px)", color: "#fff" }}>{s.unit}</p>
+                  <span className="block font-bold tracking-tight" style={{ fontSize: "clamp(36px,4.6vw,56px)", lineHeight: 1, color: GOLD, letterSpacing: "-0.02em" }}>{s.big}</span>
+                  <p className="font-semibold uppercase tracking-[0.08em] mt-3" style={{ fontSize: 11.5, color: "rgba(255,255,255,0.55)" }}>{s.sub}</p>
                 </div>
               ))}
             </div>
@@ -681,13 +682,16 @@ export function WwcCampaign() {
         </section>
 
         {/* ═══════════════ 6 — See What You'll Run ═══════════════ */}
-        <section className="px-5 sm:px-10 py-[clamp(84px,10vw,140px)]" style={{ background: BG_SOFT }}>
+        <section id="the-survey" className="scroll-mt-24 px-5 sm:px-10 py-[clamp(84px,10vw,140px)]" style={{ background: BG_SOFT }}>
           <div className="max-w-[1240px] mx-auto">
             <div className="mb-[clamp(44px,5.5vw,68px)] max-w-[720px]">
               <Eyebrow>The Survey</Eyebrow>
-              <h2 className="scroll-fade-up font-bold tracking-tight text-balance" style={{ fontSize: "clamp(31px,4.4vw,52px)", lineHeight: 1.07, letterSpacing: "-0.025em", color: INK, transitionDelay: "0.05s" }}>
+              <h2 className="scroll-fade-up font-bold tracking-tight mb-5 text-balance" style={{ fontSize: "clamp(31px,4.4vw,52px)", lineHeight: 1.07, letterSpacing: "-0.025em", color: INK, transitionDelay: "0.05s" }}>
                 See What You&apos;ll Run
               </h2>
+              <p className="scroll-fade-up leading-[1.7]" style={{ fontSize: 19, color: GREY, transitionDelay: "0.1s" }}>
+                A single, lightweight creative, and exactly what your audience experiences from first tap to thank-you.
+              </p>
             </div>
 
             {/* left: real clickable 300×250 MPU · right: the mechanics */}
@@ -810,7 +814,7 @@ export function WwcCampaign() {
         <section id="register" className="scroll-mt-24 relative overflow-hidden px-5 sm:px-10 py-[clamp(84px,10vw,140px)]" style={{ background: NAVY }}>
           <span aria-hidden className="absolute inset-x-0 top-0 h-px" style={{ background: "linear-gradient(90deg, transparent, rgba(215,184,122,0.28), transparent)" }} />
           <GeoTexture opacity={0.45} />
-          <div className="relative max-w-[1080px] mx-auto grid lg:grid-cols-[1fr_1fr] gap-12 lg:gap-16 items-center">
+          <div className="relative max-w-[1080px] mx-auto grid lg:grid-cols-[1fr_1fr] gap-12 lg:gap-16 items-start">
             <div>
               <Eyebrow onDark>Register Your Interest</Eyebrow>
               <h2 className="scroll-fade-up font-bold tracking-tight text-white mb-6 text-balance" style={{ fontSize: "clamp(31px,4.4vw,52px)", lineHeight: 1.05, letterSpacing: "-0.025em", transitionDelay: "0.05s" }}>
@@ -822,7 +826,7 @@ export function WwcCampaign() {
               <div className="scroll-fade-up flex items-start gap-3 rounded-xl px-5 py-4" style={{ background: "rgba(215,184,122,0.1)", border: "1px solid rgba(215,184,122,0.28)", transitionDelay: "0.14s" }}>
                 <span className="mt-0.5 shrink-0"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={GOLD} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M12 3a9 9 0 100 18 9 9 0 000-18zm0 4v5l3.5 2" /></svg></span>
                 <p className="leading-[1.6]" style={{ fontSize: 14.5, color: "rgba(255,255,255,0.85)" }}>
-                  Please register your interest by <strong style={{ color: GOLD }}>{REGISTRATION_DEADLINE}</strong> so we can finalise participating publishers and prepare your survey package.
+                  Please register your interest by <strong style={{ color: GOLD }}>{REGISTRATION_DEADLINE}</strong> (end of day) so we can finalise participating publishers and prepare your survey package.
                 </p>
               </div>
             </div>
