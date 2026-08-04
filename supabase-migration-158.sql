@@ -6,7 +6,7 @@
 -- its holder participant (FR-018) references an actor governed by an EXTERNAL holder-subject
 -- architecture that does not exist in Fanometrix and is out of BP-04's admitted scope
 -- (see the Phase A report: external holder-subject dependency; universal Person model excluded
--- by the BP-04 brief §6). No office-holding relationship, no holder, no Authority is created here.
+-- by the BP-04 brief -6). No office-holding relationship, no holder, no Authority is created here.
 --
 -- GOVERNED BASIS (verbatim R06 FRs):
 --   FR-001 Office is an independently distinguishable subject, distinct from the Organisation,
