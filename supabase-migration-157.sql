@@ -1,4 +1,4 @@
--- Migration 157 — ORG-004 BP-03 Tier 2 fix: harden migration-155 trigger functions
+-- Migration 157 - ORG-004 BP-03 Tier 2 fix: harden migration-155 trigger functions
 -- against an empty/restricted search_path
 --
 -- PROPOSED, NOT YET APPLIED. Submitted for control review.
@@ -17,19 +17,19 @@
 --   references to public objects and (b) a pinned SET search_path = '', so they resolve
 --   correctly regardless of the caller's search_path. This is a Tier 2 implementation
 --   correction: it changes NO table, column, constraint, trigger definition, index, seed,
---   permission or governed R03/R05 semantic — only the three function bodies. The >=2
+--   permission or governed R03/R05 semantic - only the three function bodies. The >=2
 --   participant constraint is preserved unchanged (still enforced by the same trigger,
 --   now robust). Migration 156 is untouched (its SECURITY INVOKER / EXECUTE grants /
 --   search_path='' are correct and remain).
 --
 -- FUNCTIONS CHANGED (all introduced by migration 155):
---   1. enforce_min_relationship_participants()  — the actual defect: unqualified table refs.
---   2. set_relationship_updated_at()            — hardened posture (was safe: only pg_catalog).
---   3. protect_system_relationship_type()       — hardened posture (was safe: no object refs).
+--   1. enforce_min_relationship_participants()  - the actual defect: unqualified table refs.
+--   2. set_relationship_updated_at()            - hardened posture (was safe: only pg_catalog).
+--   3. protect_system_relationship_type()       - hardened posture (was safe: no object refs).
 --
 -- Additive, idempotent (CREATE OR REPLACE), reversible. Safe to run more than once.
 
--- 1) The defective one — now schema-qualified + pinned search_path.
+-- 1) The defective one - now schema-qualified + pinned search_path.
 CREATE OR REPLACE FUNCTION public.enforce_min_relationship_participants()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -51,7 +51,7 @@ BEGIN
 END;
 $$;
 
--- 2) updated_at maintenance — pin search_path; qualify the built-in for good measure.
+-- 2) updated_at maintenance - pin search_path; qualify the built-in for good measure.
 CREATE OR REPLACE FUNCTION public.set_relationship_updated_at()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -60,7 +60,7 @@ AS $$
 BEGIN NEW.updated_at = pg_catalog.now(); RETURN NEW; END;
 $$;
 
--- 3) system-type deletion protection — pin search_path (no object references).
+-- 3) system-type deletion protection - pin search_path (no object references).
 CREATE OR REPLACE FUNCTION public.protect_system_relationship_type()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -73,11 +73,11 @@ END;
 $$;
 
 -- The existing triggers (migration 155) already point at these functions by name; replacing
--- the function bodies is sufficient — no trigger is dropped or recreated.
+-- the function bodies is sufficient - no trigger is dropped or recreated.
 
 NOTIFY pgrst, 'reload schema';
 
--- ── Rollback / reversal ──────────────────────────────────────────────────────────
+-- -- Rollback / reversal ----------------------------------------------------------
 -- Restores the exact migration-155 bodies (unqualified, no pinned search_path). NOTE: this
 -- reintroduces the search_path defect and is provided only for completeness.
 --
