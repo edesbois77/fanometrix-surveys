@@ -9,7 +9,7 @@ const GOLD = "#D7B87A";
 const NAVY = "#0B1929";
 const INP = "w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A]";
 
-type Tab = "overview" | "units" | "names" | "identifiers" | "classifications" | "identity" | "relationships";
+type Tab = "overview" | "units" | "names" | "identifiers" | "classifications" | "identity" | "relationships" | "offices";
 type Org = { id: string; name: string; type: string; status: string; created_at: string; deleted_at: string | null };
 type Unit = { id: string; organisation_id: string; parent_unit_id: string | null; name: string; deleted_at: string | null };
 type Name = { id: string; value: string; name_form: string; language: string | null; script: string | null; is_primary: boolean; effective_from: string | null; effective_to: string | null };
@@ -44,7 +44,7 @@ export default function OrganisationDetailPage() {
   // eslint-disable-next-line react-hooks/set-state-in-effect -- idiomatic memoized loader
   useEffect(() => { loadOrg(); }, [loadOrg]);
 
-  const TABS: Tab[] = ["overview", "units", "names", "identifiers", "classifications", "identity", "relationships"];
+  const TABS: Tab[] = ["overview", "units", "names", "identifiers", "classifications", "identity", "relationships", "offices"];
 
   return (
     <AdminShell>
@@ -72,6 +72,7 @@ export default function OrganisationDetailPage() {
         {tab === "classifications" && <ClassificationsTab orgId={id} show={show} />}
         {tab === "identity" && <IdentityTab orgId={id} show={show} />}
         {tab === "relationships" && <RelationshipsTab orgId={id} show={show} />}
+        {tab === "offices" && <OfficesTab orgId={id} show={show} />}
       </div>
       <Toast t={toast} />
     </AdminShell>
@@ -604,5 +605,98 @@ function RelationshipsTab({ orgId, show }: { orgId: string; show: (m: string, ok
         <p className="text-xs text-gray-400 mt-3">Membership and predecessor/successor lineage are system types. New types are added by configuration — no migration.</p>
       </Card>
     </>
+  );
+}
+
+// ── Organisational Offices (BP-04 / IC-08) ───────────────────────────────────────
+type OfficeAttachment = { id: string; governing_organisation_id: string; organisation_unit_id: string | null; effective_from: string | null; effective_to: string | null };
+type Office = { id: string; title: string; effective_from: string | null; effective_to: string | null; attachments: OfficeAttachment[] };
+type UnitLite = { id: string; name: string };
+
+function OfficesTab({ orgId, show }: { orgId: string; show: (m: string, ok?: boolean) => void }) {
+  const [offices, setOffices] = useState<Office[]>([]);
+  const [units, setUnits] = useState<UnitLite[]>([]);
+  const [adding, setAdding] = useState(false);
+  const [form, setForm] = useState({ title: "", unitId: "", effectiveFrom: "", effectiveTo: "" });
+
+  const load = useCallback(async () => {
+    const [o, u] = await Promise.all([fetch(`/api/organisations/${orgId}/offices`), fetch(`/api/organisations/${orgId}/units`)]);
+    if (o.ok) setOffices((await o.json()).data);
+    if (u.ok) setUnits((await u.json()).data);
+  }, [orgId]);
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- idiomatic memoized loader
+  useEffect(() => { load(); }, [load]);
+
+  const unitName = (id: string | null) => id ? (units.find(u => u.id === id)?.name ?? id.slice(0, 8)) : null;
+
+  async function add() {
+    const res = await fetch(`/api/organisations/${orgId}/offices`, { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title: form.title, organisationUnitId: form.unitId || null, effectiveFrom: form.effectiveFrom || null, effectiveTo: form.effectiveTo || null }) });
+    const j = await res.json(); if (!res.ok) { show(j.error ?? "Failed.", false); return; }
+    setAdding(false); setForm({ title: "", unitId: "", effectiveFrom: "", effectiveTo: "" }); show("Office created and attached."); load();
+  }
+  async function cease(o: Office) {
+    if (!confirm(`Cease office "${o.title}" (represented-world end)?`)) return;
+    const res = await fetch(`/api/organisations/offices/${o.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ cease: true }) });
+    const j = await res.json(); if (!res.ok) { show(j.error ?? "Failed.", false); return; } show("Office ceased."); load();
+  }
+  async function retire(o: Office) {
+    if (!confirm(`Retire (remove as erroneous) office "${o.title}"?`)) return;
+    const res = await fetch(`/api/organisations/offices/${o.id}`, { method: "DELETE" });
+    const j = await res.json(); if (!res.ok) { show(j.error ?? "Failed.", false); return; } show("Office retired."); load();
+  }
+  async function addName(o: Office) {
+    const value = prompt(`Add a canonical Name to office "${o.title}" (FR-002):`);
+    if (!value) return;
+    const res = await fetch(`/api/organisations/${orgId}/names`, { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ subjectId: o.id, subjectKind: "organisational_office", value }) });
+    const j = await res.json(); if (!res.ok) { show(j.error ?? "Failed.", false); return; } show("Office name added."); }
+
+  return (
+    <Card>
+      <div className="flex justify-between items-center mb-3">
+        <h3 className="font-semibold text-gray-800">Organisational Offices</h3>
+        <AddButton onClick={() => setAdding(a => !a)} label="+ Add office" />
+      </div>
+      {adding && (
+        <div className="bg-gray-50 rounded-lg p-3 mb-3 space-y-2">
+          <input className={INP} placeholder="Office title (e.g. Chair of the Board)" value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} />
+          <select className={INP} value={form.unitId} onChange={e => setForm(f => ({ ...f, unitId: e.target.value }))}>
+            <option value="">Attach directly to this organisation</option>
+            {units.map(u => <option key={u.id} value={u.id}>via unit: {u.name}</option>)}
+          </select>
+          <div className="flex gap-2">
+            <input className={INP} type="date" value={form.effectiveFrom} onChange={e => setForm(f => ({ ...f, effectiveFrom: e.target.value }))} />
+            <input className={INP} type="date" value={form.effectiveTo} onChange={e => setForm(f => ({ ...f, effectiveTo: e.target.value }))} />
+          </div>
+          <button onClick={add} className="text-sm font-semibold px-3 py-1.5 rounded-lg" style={{ background: GOLD, color: NAVY }}>Create office</button>
+        </div>
+      )}
+      {offices.length === 0 ? <p className="text-sm text-gray-400">No offices governed by this organisation.</p> : (
+        <ul className="divide-y divide-gray-50">
+          {offices.map(o => {
+            const att = o.attachments[0];
+            return (
+              <li key={o.id} className="py-2 flex items-start justify-between">
+                <span className="text-sm text-gray-800">
+                  {o.title}
+                  <span className="ml-2 text-xs text-gray-400">{applic(o.effective_from, o.effective_to)}</span>
+                  <div className="text-xs text-gray-500 mt-0.5">
+                    {att ? (att.organisation_unit_id ? `via unit: ${unitName(att.organisation_unit_id)}` : "attached directly to this organisation") : "no attachment"}
+                    {o.attachments.length > 1 && <span className="text-gray-300"> · {o.attachments.length} attachment periods</span>}
+                  </div>
+                </span>
+                <span className="flex gap-3 flex-shrink-0">
+                  <button onClick={() => addName(o)} className="text-xs text-gray-500 hover:text-gray-800">Name</button>
+                  <button onClick={() => cease(o)} className="text-xs text-amber-600 hover:text-amber-800">Cease</button>
+                  <button onClick={() => retire(o)} className="text-xs text-red-400 hover:text-red-600">Retire</button>
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      <p className="text-xs text-gray-400 mt-3">An Office is a first-class subject with exactly one governing organisation at each applicable point (FR-010). It can carry canonical Names/Identifiers/Classifications and participate in ordinary Relationships. Office-holding is a governed mechanism, but actual holdings remain unavailable while the external holder-subject dependency is preserved.</p>
+    </Card>
   );
 }

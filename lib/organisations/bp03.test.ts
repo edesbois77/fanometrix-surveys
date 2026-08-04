@@ -13,8 +13,9 @@ test("organisation and organisation_unit are eligible relationship participants"
   assert.ok(isRelationshipParticipantKind("organisation"));
   assert.ok(isRelationshipParticipantKind("organisation_unit"));
 });
-test("organisational_office is NOT an eligible participant kind in BP-03", () => {
-  assert.equal(isRelationshipParticipantKind("organisational_office"), false);
+test("organisational_office IS an eligible participant kind since BP-04 (F-3); a bogus kind is not", () => {
+  assert.ok(isRelationshipParticipantKind("organisational_office"));
+  assert.equal(isRelationshipParticipantKind("person"), false);
 });
 
 // ── Temporal state derivation (half-open; derived, not stored) ───────────────────
@@ -33,7 +34,7 @@ test("a relationship needs at least two participants", () => {
   assert.ok(validateParticipants([p("A"), p("B")]).ok);
 });
 test("participants must be eligible subject kinds", () => {
-  const r = validateParticipants([p("A"), { subjectId: "B", subjectKind: "organisational_office" }]);
+  const r = validateParticipants([p("A"), { subjectId: "B", subjectKind: "person" }]);
   assert.equal(r.ok, false);
   assert.match((r as { reason: string }).reason, /not eligible/);
 });

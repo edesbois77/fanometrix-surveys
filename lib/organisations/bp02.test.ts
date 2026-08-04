@@ -17,8 +17,9 @@ test("organisation and organisation_unit are eligible fact subjects", () => {
   assert.ok(isEligibleFactSubjectKind("organisation"));
   assert.ok(isEligibleFactSubjectKind("organisation_unit"));
 });
-test("organisational_office is NOT an eligible fact subject in BP-02", () => {
-  assert.equal(isEligibleFactSubjectKind("organisational_office"), false);
+test("organisational_office IS an eligible fact subject since BP-04 (F-3); a bogus kind is not", () => {
+  assert.ok(isEligibleFactSubjectKind("organisational_office"));
+  assert.equal(isEligibleFactSubjectKind("person"), false);
 });
 
 // ── Effective Applicability intervals ───────────────────────────────────────────

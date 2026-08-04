@@ -10,12 +10,13 @@ export { isValidEffectiveInterval, isApplicableOn };
 export type { EffectiveInterval };
 
 // ── Relationship participant subject kinds (R05 FR-008..011) ─────────────────────
-// Organisation and Organisation Unit are the eligible subjects implemented in BP-03.
-// 'organisational_office' is NOT included: Office is BP-04. The substrate references
-// organisation_subjects, so BP-04 can admit office participation additively (relax the
-// CHECK) without reshaping — but no office participation is possible now (no office
-// subjects exist, and the kind is not permitted here).
-export const RELATIONSHIP_PARTICIPANT_KINDS = ["organisation", "organisation_unit"] as const;
+// Eligible subjects for a Relationship participant. Organisation and Organisation Unit
+// came with BP-03; 'organisational_office' was admitted additively in BP-04 (control
+// determination F-3; migration 159 widened the participants subject_kind CHECK) so an
+// Office can participate in ordinary Relationships (R06 FR-011/FR-017). This mirrors that
+// DB widening at the service layer. (Actual office-holding instances remain blocked by the
+// migration-160 guard until the external holder-subject dependency is resolved.)
+export const RELATIONSHIP_PARTICIPANT_KINDS = ["organisation", "organisation_unit", "organisational_office"] as const;
 export type RelationshipParticipantKind = (typeof RELATIONSHIP_PARTICIPANT_KINDS)[number];
 
 export function isRelationshipParticipantKind(kind: string): kind is RelationshipParticipantKind {

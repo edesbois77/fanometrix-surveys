@@ -8,9 +8,11 @@
 // cover the logic without a database. The database remains the authority; this is
 // defence-in-depth and pre-flight validation, never a replacement for the SQL.
 
-// The subject kinds a BP-02 fact (Name / Identifier / Classification) may attach
-// to. 'organisational_office' is intentionally excluded — Office is BP-04.
-export const ELIGIBLE_FACT_SUBJECT_KINDS = ["organisation", "organisation_unit"] as const;
+// The subject kinds a BP-02 fact (Name / Identifier / Classification) may attach to.
+// 'organisational_office' was admitted additively in BP-04 (control determination F-3;
+// migration 159 widened the DB subject_kind CHECKs) so an Office can be the subject of
+// canonical facts (R06 FR-002). This mirrors that DB widening at the service layer.
+export const ELIGIBLE_FACT_SUBJECT_KINDS = ["organisation", "organisation_unit", "organisational_office"] as const;
 export type FactSubjectKind = (typeof ELIGIBLE_FACT_SUBJECT_KINDS)[number];
 
 export function isEligibleFactSubjectKind(kind: string): kind is FactSubjectKind {
