@@ -4,6 +4,20 @@ import { requireUser } from "@/lib/auth-server";
 
 const ORG_TYPES = ["publisher", "agency", "brand", "internal"] as const;
 
+// Single organisation (admin detail view). Additive — the list GET on
+// /api/organisations is unchanged and still open to all authenticated roles.
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  try { await requireUser(req, ["admin"]); } catch (err) { return err as Response; }
+  const { id } = await params;
+  const { data, error } = await supabaseAdmin
+    .from("organisations")
+    .select("id, name, type, status, created_at, updated_at, deleted_at")
+    .eq("id", id)
+    .single();
+  if (error || !data) return NextResponse.json({ error: "Organisation not found." }, { status: 404 });
+  return NextResponse.json({ data });
+}
+
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     await requireUser(req, ["admin"]);
