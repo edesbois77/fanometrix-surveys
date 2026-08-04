@@ -1,16 +1,16 @@
--- ██ ORG-004 BP-03 PRODUCTION VERIFICATION — VERIFICATION ONLY, NOT A MIGRATION ██
+-- === ORG-004 BP-03 PRODUCTION VERIFICATION - VERIFICATION ONLY, NOT A MIGRATION ===
 --
 -- Covers migrations 154, 155, 156 and the approved BP-03 acceptance + bounded-exclusion
--- requirements. SAFE FOR PRODUCTION: every write/probe test is wrapped in BEGIN … ROLLBACK
+-- requirements. SAFE FOR PRODUCTION: every write/probe test is wrapped in BEGIN ... ROLLBACK
 -- and leaves NO data behind. Read-only sections return result rows; write sections print
 -- PASS/FAIL via RAISE NOTICE. Negative tests catch the ACTUAL SQLSTATE raised by the
 -- specific guard (P0001 raise_exception for trigger/protection guards; check_violation for
 -- CHECKs; foreign_key_violation for FKs; unique_violation for uniques). A genuine unexpected
 -- error still aborts. Run the whole file; read the NOTICEs and the result rows.
 
--- ════════════════════════════════════════════════════════════════════════════════
--- SECTION 0 — BP-01 / BP-02 regression + Organisation data preservation (read-only)
--- ════════════════════════════════════════════════════════════════════════════════
+-- ================================================================================
+-- SECTION 0 - BP-01 / BP-02 regression + Organisation data preservation (read-only)
+-- ================================================================================
 -- Expect: organisations 84, organisation-kind subjects 84, primary Names 84, name
 -- projection mismatches 0, current organisation_category assignments 82. Internal orgs 2.
 SELECT
@@ -25,15 +25,15 @@ SELECT
   (SELECT count(*) FROM classification_assignments WHERE effective_to IS NULL AND deleted_at IS NULL) AS current_assignments, -- expect 82
   (SELECT count(*) FROM organisations WHERE type='internal')                                  AS internal_orgs;            -- expect 2
 
--- Any Organisation missing its subject row (expect 0 rows) — BP-01 invariant intact.
+-- Any Organisation missing its subject row (expect 0 rows) - BP-01 invariant intact.
 SELECT o.id FROM organisations o
   LEFT JOIN organisation_subjects s ON s.subject_id=o.id AND s.subject_kind='organisation'
   WHERE s.subject_id IS NULL;
 
--- ════════════════════════════════════════════════════════════════════════════════
--- SECTION 1 — BP-03 structure, scope and Migration 156 authorisation (read-only)
--- ════════════════════════════════════════════════════════════════════════════════
--- All four BP-03 objects exist (expect 4 rows, all non-null).
+-- ================================================================================
+-- SECTION 1 - BP-03 structure, scope and Migration 156 authorisation (read-only)
+-- ================================================================================
+-- All four BP-03 objects exist (expect 4 columns, all non-null).
 SELECT to_regclass('public.organisation_identities')                 AS identities,
        to_regclass('public.relationship_types')                      AS rel_types,
        to_regclass('public.organisation_relationships')              AS relationships,
@@ -53,11 +53,10 @@ SELECT table_name, column_name FROM information_schema.columns
     AND column_name IN ('status','state','lifecycle','history','confidence','evidence','provenance',
                         'acceptance','legal_identity','registration','authority','permission');
 
--- Migration 156 RPC exists (expect 1 row).
+-- Migration 156 RPC exists (expect 1 row). prosecdef must be FALSE (SECURITY INVOKER).
 SELECT p.proname, pg_get_function_identity_arguments(p.oid) AS args, p.prosecdef AS security_definer
   FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
   WHERE n.nspname='public' AND p.proname='create_organisation_relationship';
--- prosecdef must be FALSE (SECURITY INVOKER).
 
 -- AUTHORISATION: the RPC is server-only. Expect anon=false, authenticated=false, service_role=true.
 SELECT
@@ -65,8 +64,8 @@ SELECT
   has_function_privilege('authenticated', 'public.create_organisation_relationship(uuid,text,date,date,jsonb)', 'EXECUTE') AS authenticated_execute,
   has_function_privilege('service_role',  'public.create_organisation_relationship(uuid,text,date,date,jsonb)', 'EXECUTE') AS service_role_execute;
 
--- RELATIONSHIPS GRANT NO PERMISSIONS: the three relationship tables have RLS on and ONLY a
--- deny-anon policy (no permissive grant policy). Expect each rowsecurity=true, one *_no_anon policy.
+-- RELATIONSHIPS GRANT NO PERMISSIONS: the relationship/identity tables have RLS on and ONLY a
+-- deny-anon policy (no permissive grant policy). Expect each rls_enabled=true, one *_no_anon policy.
 SELECT c.relname, c.relrowsecurity AS rls_enabled,
        (SELECT count(*) FROM pg_policies pol WHERE pol.tablename=c.relname) AS policy_count,
        (SELECT string_agg(pol.policyname, ', ') FROM pg_policies pol WHERE pol.tablename=c.relname) AS policies
@@ -83,9 +82,9 @@ SELECT
   (SELECT count(*) FROM information_schema.columns WHERE table_name='organisation_relationships'
      AND column_name IN ('parent_unit_id','organisation_id','contains'))                   AS relationship_containment_columns; -- expect 0
 
--- ════════════════════════════════════════════════════════════════════════════════
--- SECTION 2 — R03 Organisational Identity (rolled back)
--- ════════════════════════════════════════════════════════════════════════════════
+-- ================================================================================
+-- SECTION 2 - R03 Organisational Identity (rolled back)
+-- ================================================================================
 BEGIN;
 DO $$
 DECLARE org uuid; id1 uuid; id2 uuid;
@@ -100,7 +99,7 @@ BEGIN
   END IF;
   RAISE NOTICE 'PASS: identity created; multiple identities per organisation allowed (FR-001/004)';
 
-  -- CORRECTION in place — same row, no fabricated history (FR-015/016)
+  -- CORRECTION in place, same row, no fabricated history (FR-015/016)
   UPDATE organisation_identities SET label='__identity_A_corrected__' WHERE id=id1;
   RAISE NOTICE 'PASS: identity correction is in place (FR-015/016)';
 
@@ -129,7 +128,7 @@ BEGIN
   SELECT id INTO org FROM organisations WHERE deleted_at IS NULL LIMIT 1;
   INSERT INTO organisation_identities (organisation_id, label) VALUES (org, '__id_indep__');
   SELECT count(*) INTO before FROM organisation_identities WHERE organisation_id=org;
-  UPDATE organisations SET name = name || ' (edited)' WHERE id=org;   -- legacy name edit → canonical Name correction
+  UPDATE organisations SET name = name || ' (edited)' WHERE id=org;   -- legacy name edit, canonical Name correction
   IF (SELECT count(*) FROM organisation_identities WHERE organisation_id=org) <> before THEN
     RAISE EXCEPTION 'FAIL: a Name change altered Identity rows';
   END IF;
@@ -137,10 +136,10 @@ BEGIN
 END $$;
 ROLLBACK;
 
--- ════════════════════════════════════════════════════════════════════════════════
--- SECTION 3 — R05 Relationship types, facts, participants (rolled back)
--- ════════════════════════════════════════════════════════════════════════════════
--- Valid membership relationship with two participants (deferred ≥2 forced immediate).
+-- ================================================================================
+-- SECTION 3 - R05 Relationship types, facts, participants (rolled back)
+-- ================================================================================
+-- Valid membership relationship with two participants (deferred >=2 forced immediate).
 BEGIN;
 DO $$
 DECLARE org1 uuid; org2 uuid; t uuid; rel uuid;
@@ -156,7 +155,7 @@ BEGIN
 END $$;
 ROLLBACK;
 
--- Negative: <2 participants rejected (deferred trigger, forced immediate).
+-- Negative: fewer than two participants rejected (deferred trigger, forced immediate).
 BEGIN;
 DO $$
 DECLARE org1 uuid; t uuid; rel uuid;
@@ -171,12 +170,12 @@ BEGIN
     RAISE EXCEPTION 'FAIL: relationship with one participant accepted';
   EXCEPTION WHEN raise_exception THEN
     IF SQLERRM LIKE 'FAIL:%' THEN RAISE; END IF;
-    RAISE NOTICE 'PASS: relationship with fewer than two participants rejected (≥2 invariant)';
+    RAISE NOTICE 'PASS: relationship with fewer than two participants rejected (>=2 invariant)';
   END;
 END $$;
 ROLLBACK;
 
--- Negative: participant on a non-existent subject rejected (composite FK — subject integrity).
+-- Negative: participant on a non-existent subject rejected (composite FK, subject integrity).
 BEGIN;
 DO $$
 DECLARE t uuid; rel uuid;
@@ -203,7 +202,7 @@ BEGIN
     INSERT INTO organisation_relationship_participants (relationship_id, subject_id, subject_kind)
       VALUES (rel, org1, 'organisational_office');
     RAISE EXCEPTION 'FAIL: office-kind participant accepted';
-  EXCEPTION WHEN check_violation THEN RAISE NOTICE 'PASS: office-kind participant rejected — Office excluded (BP-04)'; END;
+  EXCEPTION WHEN check_violation THEN RAISE NOTICE 'PASS: office-kind participant rejected, Office excluded (BP-04)'; END;
 END $$;
 ROLLBACK;
 
@@ -233,7 +232,7 @@ BEGIN
   INSERT INTO organisation_relationship_participants (relationship_id, subject_id, subject_kind, participant_role)
     VALUES (rel2, org1, 'organisation', 'predecessor'), (rel2, org2, 'organisation', 'successor');
   SET CONSTRAINTS ALL IMMEDIATE;
-  RAISE NOTICE 'PASS: distinct overlapping relationships coexist — overlap is not duplication (FR-026/031)';
+  RAISE NOTICE 'PASS: distinct overlapping relationships coexist, overlap is not duplication (FR-026/031)';
 END $$;
 ROLLBACK;
 
@@ -270,9 +269,9 @@ BEGIN
 END $$;
 ROLLBACK;
 
--- ════════════════════════════════════════════════════════════════════════════════
--- SECTION 4 — Migration 156 atomic RPC (rolled back)
--- ════════════════════════════════════════════════════════════════════════════════
+-- ================================================================================
+-- SECTION 4 - Migration 156 atomic RPC (rolled back)
+-- ================================================================================
 -- Successful atomic creation (relationship + 2 participants in one call).
 BEGIN;
 DO $$
@@ -291,7 +290,7 @@ BEGIN
 END $$;
 ROLLBACK;
 
--- Complete rollback when <2 participants (no orphan relationship row).
+-- Complete rollback when fewer than two participants (no orphan relationship row).
 BEGIN;
 DO $$
 DECLARE org1 uuid; t uuid; before int; after int;
@@ -309,7 +308,7 @@ BEGIN
   END;
   SELECT count(*) INTO after FROM organisation_relationships;
   IF after <> before THEN RAISE EXCEPTION 'FAIL: relationship persisted after failed RPC (no atomic rollback)'; END IF;
-  RAISE NOTICE 'PASS: failed RPC (<2) left NO relationship row — complete rollback';
+  RAISE NOTICE 'PASS: failed RPC (<2) left NO relationship row, complete rollback';
 END $$;
 ROLLBACK;
 
@@ -329,11 +328,11 @@ BEGIN
   EXCEPTION WHEN foreign_key_violation THEN RAISE NOTICE 'PASS: RPC rejected non-existent subject (FK)'; END;
   SELECT count(*) INTO after FROM organisation_relationships;
   IF after <> before THEN RAISE EXCEPTION 'FAIL: relationship persisted after FK failure'; END IF;
-  RAISE NOTICE 'PASS: failed RPC (bad subject) left NO relationship row — complete rollback';
+  RAISE NOTICE 'PASS: failed RPC (bad subject) left NO relationship row, complete rollback';
 END $$;
 ROLLBACK;
 
--- Complete rollback when the participant kind is ineligible (office — BP-04).
+-- Complete rollback when the participant kind is ineligible (office, BP-04).
 BEGIN;
 DO $$
 DECLARE org1 uuid; org2 uuid; t uuid; before int; after int;
@@ -351,13 +350,13 @@ BEGIN
   EXCEPTION WHEN check_violation THEN RAISE NOTICE 'PASS: RPC rejected office-kind participant (Office is BP-04)'; END;
   SELECT count(*) INTO after FROM organisation_relationships;
   IF after <> before THEN RAISE EXCEPTION 'FAIL: relationship persisted after CHECK failure'; END IF;
-  RAISE NOTICE 'PASS: failed RPC (office kind) left NO relationship row — complete rollback';
+  RAISE NOTICE 'PASS: failed RPC (office kind) left NO relationship row, complete rollback';
 END $$;
 ROLLBACK;
 
--- ════════════════════════════════════════════════════════════════════════════════
--- SECTION 5 — Final data-preservation confirmation (read-only)
--- ════════════════════════════════════════════════════════════════════════════════
+-- ================================================================================
+-- SECTION 5 - Final data-preservation confirmation (read-only)
+-- ================================================================================
 -- BP-03 fact tables hold ONLY the seeded types and no stray data from this run (all rolled back).
 -- Expect: identities 0, relationships 0, participants 0, relationship_types 2, and the two
 -- internal organisations still type='internal' (PlayStation legacy item unchanged).
