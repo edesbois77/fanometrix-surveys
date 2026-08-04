@@ -297,6 +297,33 @@ BEGIN
 END $$;
 ROLLBACK;
 
+-- MIGRATION 157 PROOF: the RPC (search_path='') REACHES and SATISFIES the deferred >=2
+-- constraint. A single-participant call must raise the >=2 message (P0001 raise_exception)
+-- from enforce_min_relationship_participants() running under empty search_path -- NOT 42P01
+-- (undefined_table), which would mean the search-path defect persists.
+BEGIN;
+DO $$
+DECLARE org1 uuid; t uuid;
+BEGIN
+  SELECT id INTO org1 FROM organisations WHERE deleted_at IS NULL LIMIT 1;
+  SELECT id INTO t FROM relationship_types WHERE key='membership';
+  BEGIN
+    PERFORM create_organisation_relationship(t, '__rpc_reach__', NULL, NULL,
+      jsonb_build_array(jsonb_build_object('subjectId', org1::text,'subjectKind','organisation','role','member')));
+    RAISE EXCEPTION 'FAIL: RPC did not reject a single-participant relationship';
+  EXCEPTION
+    WHEN undefined_table THEN
+      RAISE EXCEPTION 'FAIL: search_path defect persists - enforce_min_relationship_participants() could not resolve its tables (42P01)';
+    WHEN raise_exception THEN
+      IF SQLERRM LIKE 'FAIL:%' THEN RAISE; END IF;
+      IF position('at least two participants' IN SQLERRM) = 0 THEN
+        RAISE EXCEPTION 'FAIL: unexpected raise_exception from RPC: %', SQLERRM;
+      END IF;
+      RAISE NOTICE 'PASS: RPC reached and satisfied the deferred >=2 constraint under search_path='''' (%)', SQLERRM;
+  END;
+END $$;
+ROLLBACK;
+
 -- Complete rollback when fewer than two participants (no orphan relationship row).
 BEGIN;
 DO $$
