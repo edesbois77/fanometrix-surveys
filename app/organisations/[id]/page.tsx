@@ -9,7 +9,7 @@ const GOLD = "#D7B87A";
 const NAVY = "#0B1929";
 const INP = "w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A]";
 
-type Tab = "overview" | "units" | "names" | "identifiers" | "classifications" | "identity" | "relationships" | "offices";
+type Tab = "overview" | "units" | "names" | "identifiers" | "classifications" | "identity" | "relationships" | "offices" | "authorities";
 type Org = { id: string; name: string; type: string; status: string; created_at: string; deleted_at: string | null };
 type Unit = { id: string; organisation_id: string; parent_unit_id: string | null; name: string; deleted_at: string | null };
 type Name = { id: string; value: string; name_form: string; language: string | null; script: string | null; is_primary: boolean; effective_from: string | null; effective_to: string | null };
@@ -44,7 +44,7 @@ export default function OrganisationDetailPage() {
   // eslint-disable-next-line react-hooks/set-state-in-effect -- idiomatic memoized loader
   useEffect(() => { loadOrg(); }, [loadOrg]);
 
-  const TABS: Tab[] = ["overview", "units", "names", "identifiers", "classifications", "identity", "relationships", "offices"];
+  const TABS: Tab[] = ["overview", "units", "names", "identifiers", "classifications", "identity", "relationships", "offices", "authorities"];
 
   return (
     <AdminShell>
@@ -73,6 +73,7 @@ export default function OrganisationDetailPage() {
         {tab === "identity" && <IdentityTab orgId={id} show={show} />}
         {tab === "relationships" && <RelationshipsTab orgId={id} show={show} />}
         {tab === "offices" && <OfficesTab orgId={id} show={show} />}
+        {tab === "authorities" && <AuthoritiesTab orgId={id} show={show} />}
       </div>
       <Toast t={toast} />
     </AdminShell>
@@ -697,6 +698,106 @@ function OfficesTab({ orgId, show }: { orgId: string; show: (m: string, ok?: boo
         </ul>
       )}
       <p className="text-xs text-gray-400 mt-3">An Office is a first-class subject with exactly one governing organisation at each applicable point (FR-010). It can carry canonical Names/Identifiers/Classifications and participate in ordinary Relationships. Office-holding is a governed mechanism, but actual holdings remain unavailable while the external holder-subject dependency is preserved.</p>
+    </Card>
+  );
+}
+
+// ── Organisational Authority (BP-05 / IC-09) ─────────────────────────────────────
+type AuthConstraint = { id: string; constraint_type: string; descriptor: string };
+type AuthBasis = { id: string; basis_kind: string; basis_office_id: string | null; basis_relationship_id: string | null; basis_external_ref: string | null; note: string | null };
+type Authority = { id: string; holder_subject_id: string; holder_subject_kind: string; organisation_unit_id: string | null; scope: string; effective_from: string | null; effective_to: string | null; constraints: AuthConstraint[]; bases: AuthBasis[] };
+
+function AuthoritiesTab({ orgId, show }: { orgId: string; show: (m: string, ok?: boolean) => void }) {
+  const [auths, setAuths] = useState<Authority[]>([]);
+  const [holderKinds, setHolderKinds] = useState<string[]>([]);
+  const [units, setUnits] = useState<UnitLite[]>([]);
+  const [adding, setAdding] = useState(false);
+  const [form, setForm] = useState({ holderKind: "", holderId: "", unitId: "", scope: "", effectiveFrom: "", effectiveTo: "" });
+
+  const load = useCallback(async () => {
+    const [a, u] = await Promise.all([fetch(`/api/organisations/${orgId}/authorities`), fetch(`/api/organisations/${orgId}/units`)]);
+    if (a.ok) { const j = await a.json(); setAuths(j.data); setHolderKinds(j.admittedHolderKinds ?? []); }
+    if (u.ok) setUnits((await u.json()).data);
+  }, [orgId]);
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- idiomatic memoized loader
+  useEffect(() => { load(); }, [load]);
+
+  const available = holderKinds.length > 0;
+  const unitName = (id: string | null) => id ? (units.find(u => u.id === id)?.name ?? id.slice(0, 8)) : null;
+
+  async function add() {
+    const res = await fetch(`/api/organisations/${orgId}/authorities`, { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ holderSubjectKind: form.holderKind, holderSubjectId: form.holderId, organisationUnitId: form.unitId || null, scope: form.scope, effectiveFrom: form.effectiveFrom || null, effectiveTo: form.effectiveTo || null }) });
+    const j = await res.json(); if (!res.ok) { show(j.error ?? "Failed.", false); return; }
+    setAdding(false); setForm({ holderKind: "", holderId: "", unitId: "", scope: "", effectiveFrom: "", effectiveTo: "" }); show("Authority recorded."); load();
+  }
+  async function cease(a: Authority) {
+    if (!confirm(`Cease this authority (represented-world end)?`)) return;
+    const res = await fetch(`/api/organisations/authorities/${a.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ cease: true }) });
+    const j = await res.json(); if (!res.ok) { show(j.error ?? "Failed.", false); return; } show("Authority ceased."); load();
+  }
+  async function retire(a: Authority) {
+    if (!confirm(`Retire (remove as erroneous) this authority?`)) return;
+    const res = await fetch(`/api/organisations/authorities/${a.id}`, { method: "DELETE" });
+    const j = await res.json(); if (!res.ok) { show(j.error ?? "Failed.", false); return; } show("Authority retired."); load();
+  }
+
+  return (
+    <Card>
+      <div className="flex justify-between items-center mb-3">
+        <h3 className="font-semibold text-gray-800">Organisational Authority</h3>
+        {available && <AddButton onClick={() => setAdding(a => !a)} label="+ Record authority" />}
+      </div>
+
+      {!available && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-3 text-sm text-amber-800">
+          <span className="font-semibold">Authority instances are unavailable.</span> The Organisational Authority mechanism is established, but no eligible holder kind is admitted. Holder eligibility is an externally governed dependency: an actor becomes an eligible Authority holder only when its kind is admitted under an architecture that establishes that eligibility. Existing subjecthood (organisation, unit, office) does not itself make a subject an eligible holder. Until an eligible holder kind is admitted, no Authority can be recorded.
+        </div>
+      )}
+
+      {adding && available && (
+        <div className="bg-gray-50 rounded-lg p-3 mb-3 space-y-2">
+          <select className={INP} value={form.holderKind} onChange={e => setForm(f => ({ ...f, holderKind: e.target.value }))}>
+            <option value="">Select an eligible holder kind…</option>
+            {holderKinds.map(k => <option key={k} value={k}>{k}</option>)}
+          </select>
+          <input className={INP} placeholder="Holder subject id (an already-established eligible actor)" value={form.holderId} onChange={e => setForm(f => ({ ...f, holderId: e.target.value }))} />
+          <input className={INP} placeholder="Scope (the established class of action/matter/domain)" value={form.scope} onChange={e => setForm(f => ({ ...f, scope: e.target.value }))} />
+          <select className={INP} value={form.unitId} onChange={e => setForm(f => ({ ...f, unitId: e.target.value }))}>
+            <option value="">Principal: this organisation (no unit context)</option>
+            {units.map(u => <option key={u.id} value={u.id}>structural context: {u.name}</option>)}
+          </select>
+          <div className="flex gap-2">
+            <input className={INP} type="date" value={form.effectiveFrom} onChange={e => setForm(f => ({ ...f, effectiveFrom: e.target.value }))} />
+            <input className={INP} type="date" value={form.effectiveTo} onChange={e => setForm(f => ({ ...f, effectiveTo: e.target.value }))} />
+          </div>
+          <button onClick={add} className="text-sm font-semibold px-3 py-1.5 rounded-lg" style={{ background: GOLD, color: NAVY }}>Record authority</button>
+        </div>
+      )}
+
+      {auths.length === 0 ? <p className="text-sm text-gray-400">No authority facts recorded for this organisation.</p> : (
+        <ul className="divide-y divide-gray-50">
+          {auths.map(a => (
+            <li key={a.id} className="py-2 flex items-start justify-between">
+              <span className="text-sm text-gray-800">
+                {a.scope}
+                <span className="ml-2 text-xs text-gray-400">{applic(a.effective_from, a.effective_to)}</span>
+                <div className="text-xs text-gray-500 mt-0.5">
+                  holder: {a.holder_subject_kind} · {a.holder_subject_id.slice(0, 8)}
+                  {a.organisation_unit_id && <span> · context: {unitName(a.organisation_unit_id)}</span>}
+                </div>
+                {a.constraints.length > 0 && <div className="text-xs text-gray-500 mt-0.5">constraints: {a.constraints.map(c => `${c.constraint_type} (${c.descriptor})`).join("; ")}</div>}
+                {a.bases.length > 0 && <div className="text-xs text-gray-500 mt-0.5">bases: {a.bases.map(b => b.basis_kind).join(", ")}</div>}
+              </span>
+              <span className="flex gap-3 flex-shrink-0">
+                <button onClick={() => cease(a)} className="text-xs text-amber-600 hover:text-amber-800">Cease</button>
+                <button onClick={() => retire(a)} className="text-xs text-red-400 hover:text-red-600">Retire</button>
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+      <p className="text-xs text-gray-400 mt-3">An Organisational Authority is a non-first-class fact: an eligible holder empowered to act for this organisation (principal) within a scope, subject to material constraints, with its own effective applicability and optional basis references. It is not a subject and grants no platform permissions. Holder eligibility is externally governed and preserved: no holder kind is admitted, so instances remain unavailable until an eligible holder architecture admits one.</p>
     </Card>
   );
 }

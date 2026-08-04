@@ -72,3 +72,32 @@ export function authorityTemporalState(interval: EffectiveInterval, on: string):
 export function authorityAppliesOn(interval: EffectiveInterval, on: string): boolean {
   return isApplicableOn(interval, on);
 }
+
+// ── FR-013: compose a holder-empowered-for-a-target determination ────────────────
+// Deterministic composition over an Authority fact's OWN applicability (FA-D), whether the
+// target falls within the established scope (FA-B scope; R07 authors NO universal scope ontology,
+// so `withinScope` is supplied by the caller's deterministic in/out interpretation), and the
+// material-constraint dimension (FA-B constraints). A determination EMPOWERS only when the
+// Authority applies at the point, the target is within scope, AND every material constraint is
+// satisfied. Insufficient information is never treated as a failure (FR-010/012): scope-unknown
+// or an indeterminate constraint yields 'indeterminate', not 'not_empowered'.
+export type AuthorityDetermination = "empowered" | "not_empowered" | "indeterminate";
+export function composeAuthorityDetermination(input: {
+  interval: EffectiveInterval;
+  on: string;
+  withinScope: boolean | "unknown";
+  constraintEvaluations: readonly ConstraintEvaluation[];
+}): { determination: AuthorityDetermination; temporal: TemporalState; constraintDimension: ConstraintDimension } {
+  const temporal = deriveTemporalState(input.interval, input.on);
+  const constraintDimension = evaluateConstraintDimension(input.constraintEvaluations);
+  const applies = temporal === "current";
+  let determination: AuthorityDetermination;
+  if (!applies || input.withinScope === false || constraintDimension === "failed") {
+    determination = "not_empowered";                 // a deterministic exclusion prevents (FR-012)
+  } else if (input.withinScope === "unknown" || constraintDimension === "indeterminate") {
+    determination = "indeterminate";                 // insufficient info != outside-scope/failure (FR-010/012)
+  } else {
+    determination = "empowered";                     // applies + within scope + all constraints satisfied
+  }
+  return { determination, temporal, constraintDimension };
+}

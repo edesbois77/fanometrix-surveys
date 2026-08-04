@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   isAdmittedHolderKind, anyHolderKindAdmitted, isAuthorityConstraintType, isAuthorityBasisKind, isInternalBasisKind,
-  evaluateConstraintDimension, authorityTemporalState, authorityAppliesOn,
+  evaluateConstraintDimension, authorityTemporalState, authorityAppliesOn, composeAuthorityDetermination,
 } from "./bp05";
 
 // ── Holder eligibility is externally governed; NO kind admitted now (preserved, J-1) ──
@@ -48,4 +48,21 @@ test("authority temporal state is derived half-open; from=D current on D, to=D h
   assert.equal(authorityTemporalState({ effectiveFrom: "2027-01-01", effectiveTo: null }, "2026-08-04"), "future");
   assert.ok(authorityAppliesOn({ effectiveFrom: "2020-01-01", effectiveTo: null }, "2026-08-04"));
   assert.equal(authorityAppliesOn({ effectiveFrom: null, effectiveTo: "2026-08-04" }, "2026-08-04"), false);
+});
+
+// ── FR-013 composition: applies + within scope + constraints satisfied => empowered ──
+test("composeAuthorityDetermination: empowered only when current, in-scope, all constraints satisfied", () => {
+  const cur = { effectiveFrom: "2020-01-01", effectiveTo: null };
+  assert.equal(composeAuthorityDetermination({ interval: cur, on: "2026-08-04", withinScope: true, constraintEvaluations: ["satisfied"] }).determination, "empowered");
+  // Not applicable at the point (future) -> not empowered.
+  assert.equal(composeAuthorityDetermination({ interval: { effectiveFrom: "2027-01-01", effectiveTo: null }, on: "2026-08-04", withinScope: true, constraintEvaluations: [] }).determination, "not_empowered");
+  // Deterministically outside scope -> not empowered.
+  assert.equal(composeAuthorityDetermination({ interval: cur, on: "2026-08-04", withinScope: false, constraintEvaluations: ["satisfied"] }).determination, "not_empowered");
+  // A deterministically failed constraint prevents (FR-012).
+  assert.equal(composeAuthorityDetermination({ interval: cur, on: "2026-08-04", withinScope: true, constraintEvaluations: ["failed"] }).determination, "not_empowered");
+});
+test("composeAuthorityDetermination: insufficient info is indeterminate, never a failure (FR-010/012)", () => {
+  const cur = { effectiveFrom: "2020-01-01", effectiveTo: null };
+  assert.equal(composeAuthorityDetermination({ interval: cur, on: "2026-08-04", withinScope: "unknown", constraintEvaluations: ["satisfied"] }).determination, "indeterminate");
+  assert.equal(composeAuthorityDetermination({ interval: cur, on: "2026-08-04", withinScope: true, constraintEvaluations: ["undetermined"] }).determination, "indeterminate");
 });
