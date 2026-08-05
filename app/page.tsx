@@ -1,6 +1,5 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import Script from "next/script";
 import { ScrollFadeObserver } from "@/app/components/ScrollFadeObserver";
 import { BuiltForCarousel } from "@/app/components/BuiltForCarousel";
 import { APP_URL } from "@/lib/env";
@@ -86,24 +85,12 @@ function SectionEyebrow({ children }: { children: React.ReactNode }) {
   );
 }
 
-// Homepage analytics — Microsoft Clarity + Google Analytics (gtag.js), loaded
-// via next/script (afterInteractive) and scoped to the homepage route only.
-const CLARITY_PROJECT_ID = "xxpmb65ugi";
-const CLARITY_SNIPPET = `(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);})(window, document, "clarity", "script", "${CLARITY_PROJECT_ID}");`;
-const GA_MEASUREMENT_ID = "G-MNDTT2H4L5";
-const GA_INIT_SNIPPET = `window.dataLayer = window.dataLayer || [];function gtag(){dataLayer.push(arguments);}gtag('js', new Date());gtag('config', '${GA_MEASUREMENT_ID}');`;
-
 export default function PublicHomePage() {
   return (
     <div
       className="min-h-screen bg-white flex flex-col"
       style={{ fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}
     >
-      {/* ── Analytics (Clarity + Google Analytics), homepage only ── */}
-      <Script id="microsoft-clarity" strategy="afterInteractive" dangerouslySetInnerHTML={{ __html: CLARITY_SNIPPET }} />
-      <Script src={`https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}`} strategy="afterInteractive" />
-      <Script id="google-analytics" strategy="afterInteractive" dangerouslySetInnerHTML={{ __html: GA_INIT_SNIPPET }} />
-
       {/* ── Header ── */}
       <header className="sticky top-0 z-50 bg-white/85 backdrop-blur border-b border-gray-100 px-4 sm:px-10">
         <div className="max-w-[1340px] mx-auto flex items-center justify-between py-4 sm:py-5">

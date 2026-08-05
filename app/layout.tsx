@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist } from "next/font/google";
 import "./globals.css";
 import { SessionProvider } from "./components/SessionProvider";
+import { MarketingAnalytics } from "./components/MarketingAnalytics";
 
 const geist = Geist({ subsets: ["latin"], variable: "--font-geist" });
 
@@ -20,6 +21,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className="min-h-full bg-gray-50 text-gray-900 antialiased" suppressHydrationWarning>
         <SessionProvider>{children}</SessionProvider>
+        {/* Clarity + Google Analytics — public marketing pages only (self-gated). */}
+        <MarketingAnalytics />
       </body>
     </html>
   );
