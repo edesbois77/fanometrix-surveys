@@ -41,7 +41,7 @@ export async function GET(req: NextRequest) {
 
   const { data: campaign, error } = await supabase
     .from("campaigns")
-    .select("campaign_id, status, survey_language, creative_design, survey_id, research_project_id")
+    .select("campaign_id, status, survey_language, creative_design, survey_id, research_project_id, topic")
     .eq("campaign_id", campaignId)
     .is("deleted_at", null)
     .single();
@@ -148,6 +148,8 @@ export async function GET(req: NextRequest) {
     custom_theme:    customTheme,
     layout:          creativeLayout,
     config:          stackConfig,
+    // Survey/campaign-level Topic (campaigns.topic) — shown on the Stack intro.
+    topic:           (campaign.topic as string | null) ?? null,
     branding,
     questions,
     thank_you_title: resolveText((survey.thank_you_title as LocalisedText | null) ?? {}, lang) || "Thank you!",

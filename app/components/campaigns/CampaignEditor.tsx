@@ -140,6 +140,15 @@ export function CampaignEditor({
   const { user } = useSession();
   const isAdmin = user?.role === "admin";
   const designNames = useCreativeDesignNames();
+  // slug → layout, so we can show the Stack-only Topic input when a Stack design is chosen.
+  const [designLayouts, setDesignLayouts] = useState<Record<string, string>>({});
+  useEffect(() => {
+    fetch("/api/creative-designs").then(r => r.ok ? r.json() : null).then(j => {
+      const m: Record<string, string> = {};
+      for (const d of ((j?.data ?? []) as { slug: string; layout: string }[])) m[d.slug] = d.layout;
+      setDesignLayouts(m);
+    }).catch(() => {});
+  }, []);
   const isEdit = !!campaign?.id;
 
   const [editing, setEditing] = useState<Partial<Campaign>>(() => {
@@ -462,7 +471,17 @@ export function CampaignEditor({
             <CreativeDesignPicker value={editing.creative_design ?? null} onChange={v => setEditing(x => ({ ...x, creative_design: v }))} />
           </>
         )}
-        <CreativeDesignPreview designId={editing.creative_design} />
+        {designLayouts[(editing.creative_design ?? surveyEvidenceDefaults?.creative_design) ?? ""] === "stack" && (
+          <div className="mt-1">
+            <label className="text-xs font-semibold text-gray-700 block mb-1">
+              Topic <span className="font-normal text-gray-400">(optional)</span>
+            </label>
+            <input type="text" value={editing.topic ?? ""} placeholder="e.g. Women's Football"
+              onChange={e => setEditing(x => ({ ...x, topic: e.target.value || null }))} className={INP} />
+            <p className="text-xs text-gray-400 mt-1">Shown on the Intro. Leave blank to hide it.</p>
+          </div>
+        )}
+        <CreativeDesignPreview designId={editing.creative_design} topic={editing.topic ?? null} />
       </Section>
 
       {error && <p className="text-red-500 text-xs">{error}</p>}

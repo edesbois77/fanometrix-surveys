@@ -87,11 +87,12 @@ export async function GET(req: NextRequest) {
     creative_design: string | null;
     survey_id: string | null;
     research_project_id: string | null;
+    topic: string | null;
   };
 
   const { data: campaigns } = await supabase
     .from("campaigns")
-    .select("id, campaign_id, status, start_date, end_date, target_responses, deleted_at, publisher_org_id, country_code, market, survey_language, creative_design, survey_id, research_project_id")
+    .select("id, campaign_id, status, start_date, end_date, target_responses, deleted_at, publisher_org_id, country_code, market, survey_language, creative_design, survey_id, research_project_id, topic")
     .in("id", campaignUuids) as { data: CampaignRow[] | null };
 
   if (!campaigns?.length) {
@@ -291,6 +292,8 @@ export async function GET(req: NextRequest) {
     custom_theme:    customTheme,
     layout:          creativeLayout,
     config:          stackConfig,
+    // Survey/campaign-level Topic (campaigns.topic) — shown on the Stack intro.
+    topic:           (campaign.topic as string | null) ?? null,
     branding,
     questions,
     thank_you_title: resolveText(survey?.thank_you_title ?? {}, lang) || "Thank you!",
