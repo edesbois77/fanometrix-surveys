@@ -73,7 +73,7 @@
       ],
       "table": [
         { "f": "Google Analytics (Google Ireland Limited / Google LLC)", "d": "Aggregated website-usage and traffic measurement. Sets first-party cookies (e.g. _ga, _ga_*). We apply Google Consent Mode v2, so it is signalled as consented only after you accept." },
-        { "f": "Microsoft Clarity (Microsoft Corporation)", "d": "Aggregated usage analytics, heatmaps and session replay showing how pages are used (interactions are masked). Sets cookies (e.g. _clck, _clsk, CLID)." }
+        { "f": "Microsoft Clarity (Microsoft Corporation)", "d": "Aggregated usage analytics, heatmaps and session replay showing how pages are used, with page text and form inputs masked. Sets cookies (e.g. _clck, _clsk, CLID)." }
       ],
       "list": [
         "Legal basis: your consent, which you can withdraw at any time.",
