@@ -21,7 +21,7 @@ type DesignRow = { slug: string; name: string; layout: "timer" | "classic" | "in
  * design will look like. Renders nothing when no design is selected or the
  * id isn't recognised (yet).
  */
-export function CreativeDesignPreview({ designId }: { designId: string | null | undefined }) {
+export function CreativeDesignPreview({ designId, topic }: { designId: string | null | undefined; topic?: string | null }) {
   const [rows, setRows] = useState<DesignRow[]>([]);
 
   useEffect(() => {
@@ -42,7 +42,8 @@ export function CreativeDesignPreview({ designId }: { designId: string | null | 
   if (layout === "stack") {
     const cfg = coerceStackConfig(design.config);
     const qp = new URLSearchParams({ preview: "1", layout: "stack", hover: cfg.hoverVariant, completion: cfg.completionMode });
-    if (cfg.topic) qp.set("topic", cfg.topic);
+    // Topic is survey/campaign content — supplied by the caller (e.g. the campaign editor), not the design.
+    if (topic && topic.trim()) qp.set("topic", topic.trim());
     return (
       <div className="space-y-2 pt-1">
         <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Preview, {name}</p>

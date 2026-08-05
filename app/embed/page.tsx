@@ -150,6 +150,9 @@ function EmbedSurvey() {
   // non-stack designs, and until the config column is migrated → falls back to
   // approved defaults). Preview URL params still override it for the Studio/QA.
   const [stackConfig,        setStackConfig]        = useState<StackConfig | null>(null);
+  // Survey/campaign-level Topic (campaigns.topic), shown on the Stack intro. Not a
+  // design property — the same Stack design carries a different topic per campaign.
+  const [campaignTopic,      setCampaignTopic]      = useState<string | null>(null);
   const [branding,           setBranding]           = useState<string[]>([]);
   const [resolvedGroupId,      setResolvedGroupId]      = useState<string | null>(null);
   const [resolvedSurveyLang,   setResolvedSurveyLang]   = useState<string>(urlLang ?? "en");
@@ -188,6 +191,7 @@ function EmbedSurvey() {
           setCustomTheme(data.custom_theme ?? null);
           setResolvedLayout(data.layout ?? null);
           setStackConfig(coerceStackConfig(data.config));
+          setCampaignTopic(data.topic ?? null);
           setBranding(data.branding ?? []);
         }
         setGroupReady(!!data?.campaign_id);
@@ -215,6 +219,7 @@ function EmbedSurvey() {
           setCustomTheme(data.custom_theme ?? null);
           setResolvedLayout(data.layout ?? null);
           setStackConfig(coerceStackConfig(data.config));
+          setCampaignTopic(data.topic ?? null);
           setBranding(data.branding ?? []);
         }
       })
@@ -279,7 +284,7 @@ function EmbedSurvey() {
         introVariant={introV}
         completionMode={effCompletion}
         panelUrl={cfg.panelUrl}
-        topic={params.get("topic") ?? cfg.topic ?? competition ?? (pvLong ? "Frauenfußball · Weltmeisterschaft" : null)}
+        topic={params.get("topic") ?? campaignTopic ?? (pvLong ? "Frauenfußball · Weltmeisterschaft" : null)}
         previewStartStep={frameQ != null ? Number(frameQ) : undefined}
         previewAnswerState={astate === "hover" || astate === "accepted" ? astate : undefined}
         previewAnswerIndex={aidxQ != null ? Number(aidxQ) : undefined}
