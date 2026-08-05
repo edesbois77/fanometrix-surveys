@@ -257,6 +257,7 @@ export async function GET(req: NextRequest) {
   let customTheme: EmbedTheme | null = null;
   let branding: string[] = [];
   let creativeLayout: string | null = null;
+  let stackConfig: unknown = null; // config jsonb — only meaningful for layout "stack"
   if (resolvedDesign) {
     const { data: design } = await supabaseAdmin
       .from("creative_designs")
@@ -271,6 +272,13 @@ export async function GET(req: NextRequest) {
       customTheme = buildEmbedThemeFromState(design.builder_state as BuilderState);
     }
     branding = resolveBrandingLogos(design?.branding as BrandingConfig | null);
+    // See campaign route: fetched separately so a not-yet-migrated column
+    // degrades to defaults rather than breaking resolution for other designs.
+    if (design?.layout === "stack") {
+      const { data: cfg } = await supabaseAdmin
+        .from("creative_designs").select("config").eq("slug", resolvedDesign).single();
+      stackConfig = cfg?.config ?? null;
+    }
   }
 
   return NextResponse.json({
@@ -282,6 +290,7 @@ export async function GET(req: NextRequest) {
     creative_design:  resolvedDesign,
     custom_theme:    customTheme,
     layout:          creativeLayout,
+    config:          stackConfig,
     branding,
     questions,
     thank_you_title: resolveText(survey?.thank_you_title ?? {}, lang) || "Thank you!",

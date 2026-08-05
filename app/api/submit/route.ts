@@ -23,6 +23,10 @@ export async function POST(req: NextRequest) {
     is_demo,
     // Group + market context — populated when served via a campaign group embed
     group_id, country_code, market, survey_language,
+    // Demographic answers — asked explicitly by the Stack creative's Gender/Age
+    // frames and stored as dimensions on the response (columns exist since
+    // migration 002). Absent for creatives that don't ask them (Classic/Timer).
+    gender, age,
   } = body as Record<string, unknown>;
 
   if (!campaign_id) {
@@ -159,6 +163,10 @@ export async function POST(req: NextRequest) {
     campaign_id, survey_id: effectiveSurveyId, question_set_id,
     q1, q2, q3,
     country, fan_segment,
+    // Explicitly-asked demographics (Stack Gender/Age). Null for creatives that
+    // don't collect them, so existing campaigns are unaffected.
+    gender:          (gender as string | null) ?? null,
+    age_band:        (age    as string | null) ?? null,
     publisher, placement,
     placement_id:    placement_id    ?? null,
     creative_id:     creative_id     ?? null,

@@ -21,7 +21,7 @@ type Design = {
   sub_theme: string | null;
   publisher_org_id: string | null;
   publisher_name: string | null;
-  layout: "timer" | "classic" | "invitation";
+  layout: "timer" | "classic" | "invitation" | "stack";
   status: "active" | "archived";
   is_system: boolean;
   usage_count: number;

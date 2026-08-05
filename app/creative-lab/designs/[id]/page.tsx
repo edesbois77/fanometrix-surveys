@@ -17,6 +17,7 @@ import {
   type BuilderState, type GradientDirection, type BrandingConfig,
 } from "@/lib/creative-theme-builder";
 import { DESIGN_CATEGORIES, type DesignCategory } from "@/lib/creative-designs";
+import { coerceStackConfig, DEFAULT_STACK_CONFIG, type StackConfig } from "@/lib/stack-config";
 
 const GOLD = "#D7B87A";
 const NAVY = "#0B1929";
@@ -49,14 +50,17 @@ type Design = {
   theme: DesignCategory;
   sub_theme: string | null;
   publisher_org_id: string | null;
-  layout: "timer" | "classic" | "invitation";
+  layout: "timer" | "classic" | "invitation" | "stack";
   status: "active" | "archived";
   is_system: boolean;
   created_at: string;
   updated_at: string;
   builder_state: BuilderState;
   branding: BrandingConfig | null;
+  config: unknown;   // Stack config jsonb (only meaningful for layout "stack")
 };
+
+const STACK_FRAMES = ["Intro", "Gender", "Age", "Q1", "Q2", "Q3", "Thank You"];
 
 const INP = "w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D7B87A]";
 
@@ -142,8 +146,10 @@ export default function CreativeStudioPage() {
   const [subTheme, setSubTheme] = useState("");
   const [publisherId, setPublisherId] = useState<string | null>(null);
   const [publishers, setPublishers] = useState<{ id: string; name: string }[]>([]);
-  const [layout, setLayout] = useState<"timer" | "classic" | "invitation">("timer");
+  const [layout, setLayout] = useState<"timer" | "classic" | "invitation" | "stack">("timer");
   const [branding, setBranding] = useState<BrandingConfig>({});
+  const [stackCfg, setStackCfg] = useState<StackConfig>(DEFAULT_STACK_CONFIG);
+  const [previewFrame, setPreviewFrame] = useState(0); // stack preview: which journey frame
   const [allSubThemes, setAllSubThemes] = useState<string[]>([]);
 
   // Bump to remount the live preview on demand — it's a real ThemedSurvey/
@@ -169,6 +175,7 @@ export default function CreativeStudioPage() {
         setPublisherId(d.publisher_org_id);
         setLayout(d.layout);
         setBranding(d.branding ?? {});
+        setStackCfg(coerceStackConfig(d.config));
       })
       .catch(() => setNotFound(true))
       .finally(() => setLoading(false));
@@ -198,7 +205,9 @@ export default function CreativeStudioPage() {
   const setBrandField = <K extends keyof BrandingConfig>(key: K, val: BrandingConfig[K]) =>
     setBranding(b => ({ ...b, [key]: val }));
 
-  const customTheme = useMemo(() => buildEmbedThemeFromState(state), [state]);
+  // Stack has no colour theme (it's a fixed design previewed via /embed), so skip
+  // the builder — its builder_state can be minimal.
+  const customTheme = useMemo(() => layout === "stack" ? undefined : buildEmbedThemeFromState(state), [state, layout]);
   const brandingPreview = useMemo(() => resolveBrandingLogos(branding), [branding]);
 
   const gradientColors = state.useThirdColor
@@ -223,6 +232,8 @@ export default function CreativeStudioPage() {
       layout,
       builder_state: { ...state, name },
       branding,
+      // Stack settings live in their own jsonb column; only written for stack.
+      ...(layout === "stack" ? { config: stackCfg } : {}),
     };
   }
 
@@ -352,7 +363,23 @@ export default function CreativeStudioPage() {
                   clipped the (fixed-pixel-width) quadrant grid via overflow:hidden,
                   which looked like a text-fit bug but was actually this. */}
               <div className="flex-shrink-0">
-              {layout === "classic" ? (
+              {layout === "stack" ? (
+                // Real production renderer over /embed — exactly what ships.
+                <iframe
+                  key={`stack-${previewKey}`}
+                  title="Stack live preview"
+                  src={(() => {
+                    const qp = new URLSearchParams({
+                      preview: "1", layout: "stack",
+                      hover: stackCfg.hoverVariant, completion: stackCfg.completionMode,
+                      frame: String(previewFrame),
+                    });
+                    if (stackCfg.topic) qp.set("topic", stackCfg.topic);
+                    return `/embed?${qp.toString()}`;
+                  })()}
+                  width={300} height={250} style={{ width: 300, height: 250, border: 0 }}
+                />
+              ) : layout === "classic" ? (
                 <ClassicSurvey
                   key={`studio-preview-${previewKey}`}
                   branding={brandingPreview}
@@ -386,6 +413,17 @@ export default function CreativeStudioPage() {
               )}
               </div>
             </div>
+            {layout === "stack" && (
+              <div className="mt-2 flex flex-wrap gap-1 justify-center">
+                {STACK_FRAMES.map((f, i) => (
+                  <button key={f} onClick={() => setPreviewFrame(i)}
+                    className="px-2 py-0.5 rounded text-[11px] font-medium"
+                    style={previewFrame === i ? { background: GOLD, color: NAVY } : { background: "#F3F4F6", color: "#6B7280" }}>
+                    {f}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* ── Right: collapsible configuration sections ── */}
@@ -436,6 +474,53 @@ export default function CreativeStudioPage() {
               </div>
             </Section>
 
+            {layout === "stack" && (
+              <Section title="Stack">
+                <p className="text-xs text-gray-400 -mt-1">
+                  Stack is a fixed Fanometrix design. Only these options are configurable, everything else stays as approved.
+                </p>
+                <div>
+                  <span className="text-xs font-semibold text-gray-700 block mb-1">Hover animation</span>
+                  <div className="flex gap-1.5">
+                    {(["fade", "swipe"] as const).map(v => (
+                      <button key={v} onClick={() => setStackCfg(c => ({ ...c, hoverVariant: v }))}
+                        className="px-3 py-1 rounded-full text-xs font-medium capitalize"
+                        style={stackCfg.hoverVariant === v ? { background: GOLD, color: NAVY } : { background: "#F3F4F6", color: "#4B5563" }}>
+                        {v}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <span className="text-xs font-semibold text-gray-700 block mb-1">Completion</span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {([["standard", "Standard Thank You"], ["panel", "Panel Recruitment"]] as const).map(([v, label]) => (
+                      <button key={v} onClick={() => setStackCfg(c => ({ ...c, completionMode: v }))}
+                        className="px-3 py-1 rounded-full text-xs font-medium"
+                        style={stackCfg.completionMode === v ? { background: GOLD, color: NAVY } : { background: "#F3F4F6", color: "#4B5563" }}>
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <span className="text-xs font-semibold text-gray-700 block mb-1">Topic</span>
+                  <input type="text" value={stackCfg.topic ?? ""} placeholder="e.g. Women's Football"
+                    onChange={e => setStackCfg(c => ({ ...c, topic: e.target.value || null }))} className={INP} />
+                  <p className="text-[11px] text-gray-400 mt-1">Shown as small metadata on the intro. Can be longer in other languages.</p>
+                </div>
+                {stackCfg.completionMode === "panel" && (
+                  <div>
+                    <span className="text-xs font-semibold text-gray-700 block mb-1">Panel CTA URL</span>
+                    <input type="text" value={stackCfg.panelUrl ?? ""} placeholder="https://…  (leave blank until the panel page exists)"
+                      onChange={e => setStackCfg(c => ({ ...c, panelUrl: e.target.value || null }))} className={INP} />
+                    <p className="text-[11px] text-gray-400 mt-1">Until set, the Join Fanometrix button is intentionally inert.</p>
+                  </div>
+                )}
+              </Section>
+            )}
+
+            {layout !== "stack" && (
             <Section title="Branding">
               <p className="text-xs text-gray-400 -mt-1">
                 Simple hosted-image URLs for white-labelled variants (e.g. Fanometrix + Nike). Rendered live on the creative.
@@ -468,6 +553,7 @@ export default function CreativeStudioPage() {
                 );
               })}
             </Section>
+            )}
 
             {(layout === "timer" || layout === "invitation") && (
               <>
