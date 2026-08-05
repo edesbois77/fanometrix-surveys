@@ -4,6 +4,8 @@ import { useState, useEffect, useRef, useCallback, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { ThemedSurvey, type EmbedTheme } from "./ThemedSurvey";
 import { ClassicSurvey } from "./ClassicSurvey";
+import { StackSurvey } from "./StackSurvey";
+import { coerceStackConfig, DEFAULT_STACK_CONFIG, type StackConfig } from "@/lib/stack-config";
 
 const NAVY = "#071B2F";
 
@@ -39,6 +41,27 @@ const QUESTIONS = [
     ],
   },
 ];
+
+// Preview-only sample content for the Stack creative (long / translated strings),
+// used solely to verify wrapping in the embed preview. Never reached outside
+// isPreview + ?plong=1 (see the Stack branch below).
+const STACK_PREVIEW_LONG_QUESTIONS = [
+  { id: "q1", text: "Was zieht dich am meisten in ein Fußballspiel hinein?", options: [
+    { id: 1, text: "Die Dramatik und Spannung" }, { id: 2, text: "Die technische Klasse" },
+    { id: 3, text: "Die Stimmung im Stadion" }, { id: 4, text: "Die große Rivalität" } ] },
+  { id: "q2", text: "Was bringt dich dazu, eine Mannschaft zu unterstützen?", options: [
+    { id: 1, text: "Herausragende Spielerinnen" }, { id: 2, text: "Eine großartige Geschichte" },
+    { id: 3, text: "Eine lokale Verbindung zur Region" }, { id: 4, text: "Besonders schöner Fußball" } ] },
+  { id: "q3", text: "Wie verfolgst du das Spiel heutzutage?", options: [
+    { id: 1, text: "Live im Fernsehen" }, { id: 2, text: "Über Streaming-Dienste" },
+    { id: 3, text: "Kurze Clips in sozialen Medien" }, { id: 4, text: "Direkt im Stadion vor Ort" } ] },
+];
+const STACK_PREVIEW_LONG_DEMO = {
+  genderLabel: "Mit welchem Geschlecht identifizierst du dich?",
+  genderOptions: ["Weiblich", "Männlich", "Nicht-binär", "Keine Angabe machen"],
+  ageLabel: "In welcher Altersgruppe befindest du dich?",
+  ageOptions: ["16–24 Jahre", "25–34 Jahre", "35–44 Jahre", "45 Jahre und älter"],
+};
 
 const COUNTRY_CODES: Record<string, string> = {
   GB: "United Kingdom", US: "United States", FR: "France", DE: "Germany",
@@ -123,6 +146,10 @@ function EmbedSurvey() {
   // server-side. Only "invitation" changes behaviour here (shows the intro
   // screen before Q1); the rest is inferred from customTheme presence below.
   const [resolvedLayout,     setResolvedLayout]     = useState<string | null>(null);
+  // Stack-only config resolved server-side from creative_designs.config (null for
+  // non-stack designs, and until the config column is migrated → falls back to
+  // approved defaults). Preview URL params still override it for the Studio/QA.
+  const [stackConfig,        setStackConfig]        = useState<StackConfig | null>(null);
   const [branding,           setBranding]           = useState<string[]>([]);
   const [resolvedGroupId,      setResolvedGroupId]      = useState<string | null>(null);
   const [resolvedSurveyLang,   setResolvedSurveyLang]   = useState<string>(urlLang ?? "en");
@@ -160,6 +187,7 @@ function EmbedSurvey() {
           setCreativeDesign(data.creative_design ?? null);
           setCustomTheme(data.custom_theme ?? null);
           setResolvedLayout(data.layout ?? null);
+          setStackConfig(coerceStackConfig(data.config));
           setBranding(data.branding ?? []);
         }
         setGroupReady(!!data?.campaign_id);
@@ -186,6 +214,7 @@ function EmbedSurvey() {
           setCreativeDesign(data.creative_design ?? null);
           setCustomTheme(data.custom_theme ?? null);
           setResolvedLayout(data.layout ?? null);
+          setStackConfig(coerceStackConfig(data.config));
           setBranding(data.branding ?? []);
         }
       })
@@ -212,6 +241,67 @@ function EmbedSurvey() {
 
   if ((groupSlug && !groupReady) || questions.length === 0) {
     return <div style={{ width: 300, height: 250, background: "transparent" }} />;
+  }
+
+  // Stack creative — an independent, self-contained design. Rendered only when
+  // the resolved design layout is explicitly "stack" (server-side, via
+  // creative_designs), so existing Timer/Classic designs are entirely unaffected.
+  // A ?layout=stack override is honoured in preview only, for the Creative Lab.
+  const isStack = resolvedLayout === "stack" || (isPreview && params.get("layout") === "stack");
+  if (isStack) {
+    const reportedStackId = creativeIdParam ?? creativeDesign;
+    // Preview-only viewing aids (Creative Lab / verification): jump to a frame,
+    // freeze an answer state, or load long/translated sample copy. All gated on
+    // isPreview so live impressions are never affected.
+    // Saved config (from creative_designs.config) is the source of truth; the
+    // preview-only URL params override it for the Studio/QA preview.
+    const cfg = stackConfig ?? DEFAULT_STACK_CONFIG;
+    const pvLong  = isPreview && params.get("plong") === "1";
+    const astate  = isPreview ? params.get("astate") : null;
+    const frameQ  = isPreview ? params.get("frame") : null;
+    const aidxQ   = isPreview ? params.get("aidx")  : null;
+    const hoverParam = params.get("hover");
+    const effHover = hoverParam === "swipe" ? "swipe" : hoverParam === "fade" ? "fade" : cfg.hoverVariant;
+    const completionParam = isPreview ? params.get("completion") : null;
+    const effCompletion = completionParam === "panel" ? "panel"
+                        : completionParam === "standard" ? "standard" : cfg.completionMode;
+    // Intro Version B is the approved default; preview can force A/B via ?introv=.
+    const introParam = isPreview ? params.get("introv") : null;
+    const introV = introParam === "a" ? "a" : introParam === "b" ? "b" : undefined;
+    return (
+      <StackSurvey
+        questions={pvLong ? STACK_PREVIEW_LONG_QUESTIONS : questions}
+        demographics={pvLong ? STACK_PREVIEW_LONG_DEMO : undefined}
+        thankYouTitle={thankYouTitle}
+        thankYouBody={thankYouBody}
+        isPreview={isPreview}
+        hoverVariant={effHover}
+        introVariant={introV}
+        completionMode={effCompletion}
+        panelUrl={cfg.panelUrl}
+        topic={params.get("topic") ?? cfg.topic ?? competition ?? (pvLong ? "Frauenfußball · Weltmeisterschaft" : null)}
+        previewStartStep={frameQ != null ? Number(frameQ) : undefined}
+        previewAnswerState={astate === "hover" || astate === "accepted" ? astate : undefined}
+        previewAnswerIndex={aidxQ != null ? Number(aidxQ) : undefined}
+        campaignId={resolvedCampaignId}
+        surveyId={surveyId}
+        publisher={publisher}
+        placement={placement}
+        placementId={placementId}
+        creativeId={reportedStackId}
+        club={club}
+        competition={competition}
+        country={country}
+        segment={segment}
+        device={device}
+        browser={browser}
+        groupId={resolvedGroupId}
+        countryCode={resolvedCountryCode}
+        market={resolvedMarket}
+        surveyLanguage={resolvedSurveyLang}
+        sessionId={sessionId.current}
+      />
+    );
   }
 
   // The API already resolved layout server-side (via creative_designs) — a
