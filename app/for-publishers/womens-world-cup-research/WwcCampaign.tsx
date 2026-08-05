@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ScrollFadeObserver } from "@/app/components/ScrollFadeObserver";
 import { APP_URL } from "@/lib/env";
+import { StackDemo } from "./StackDemo";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // FIFA Women's World Cup 2027 — Publisher Research Initiative landing page.
@@ -187,126 +188,8 @@ function HeroBackground() {
   );
 }
 
-// ─── The 300 × 250 MPU — a real, clickable placeholder creative ───────────────
-// Runs the locked seven-frame journey at genuine MPU proportions. Marked as a
-// placeholder because the final creative is supplied separately. Research-
-// question frames are shown as placeholders (no invented question copy).
-type Frame =
-  | { kind: "q"; tag: string; question: string; options: string[] }
-  | { kind: "sample"; tag: string }
-  | { kind: "done"; tag: string };
-
-const FRAMES: Frame[] = [
-  { kind: "q", tag: "01 · Qualifier", question: "Do you follow football?", options: ["Yes", "No"] },
-  { kind: "q", tag: "02 · Gender", question: "Which best describes you?", options: ["Woman", "Man", "Non-binary / another gender identity", "Prefer not to say"] },
-  { kind: "q", tag: "03 · Age", question: "How old are you?", options: ["Under 18", "18–34", "35–54", "55+", "Prefer not to say"] },
-  { kind: "sample", tag: "04 · Research question 1" },
-  { kind: "sample", tag: "05 · Research question 2" },
-  { kind: "sample", tag: "06 · Research question 3" },
-  { kind: "done", tag: "07 · Thank you" },
-];
-
-function MpuPreview() {
-  const [i, setI] = useState(0);
-  const [picked, setPicked] = useState<number | null>(null);
-  const frame = FRAMES[i];
-
-  function advance(pick?: number) {
-    if (picked !== null) return;
-    setPicked(pick ?? -1);
-    setTimeout(() => { setPicked(null); setI(n => Math.min(n + 1, FRAMES.length - 1)); }, 320);
-  }
-  function reset() { setPicked(null); setI(0); }
-
-  return (
-    <div className="w-full">
-      {/* 300 × 250 MPU at true proportions */}
-      <div className="mx-auto" style={{ width: 300, maxWidth: "100%" }}>
-        <div className="relative rounded-xl overflow-hidden" style={{ aspectRatio: "300 / 250", border: `1px solid ${BORDER}`, background: "#fff", boxShadow: "0 24px 50px -20px rgba(11,25,41,0.32)" }}>
-          <span aria-hidden className="absolute inset-x-0 top-0 h-[3px] z-10" style={{ background: `linear-gradient(90deg, transparent, ${GOLD}, transparent)` }} />
-          {/* ad header */}
-          <div className="flex items-center justify-between px-3.5 py-2" style={{ background: NAVY }}>
-            <span className="flex items-center gap-1.5">
-              <span className="h-1.5 w-1.5 rounded-full" style={{ background: GOLD }} />
-              <span className="text-[9px] font-bold uppercase tracking-[0.14em]" style={{ color: "rgba(255,255,255,0.72)" }}>Fan research</span>
-            </span>
-            <span className="text-[9px] font-semibold" style={{ color: "rgba(255,255,255,0.4)" }}>{frame.tag.split(" · ")[0]}/07</span>
-          </div>
-
-          <div className="px-4 pt-3.5 pb-3 flex flex-col" style={{ height: "calc(100% - 30px)" }}>
-            {frame.kind === "q" && (
-              <>
-                <p className="text-[9px] font-bold uppercase tracking-[0.12em] mb-1.5" style={{ color: GOLD_INK }}>{frame.tag}</p>
-                <p className="font-bold mb-2.5" style={{ fontSize: 13, color: INK, lineHeight: 1.3 }}>{frame.question}</p>
-                <div className="space-y-1.5 overflow-auto no-scrollbar mt-auto">
-                  {frame.options.map((opt, oi) => {
-                    const sel = picked === oi;
-                    return (
-                      <button key={opt} onClick={() => advance(oi)} className="w-full flex items-center gap-2 rounded-md px-2.5 py-1.5 text-left transition-colors duration-150" style={{ border: `1.5px solid ${sel ? GOLD : BORDER}`, background: sel ? WASH : "#fff" }}>
-                        <span className="h-3 w-3 rounded-full shrink-0" style={{ border: `1.5px solid ${sel ? GOLD_INK : "#C7CCD4"}`, background: sel ? GOLD : "transparent" }} />
-                        <span style={{ fontSize: 11, color: INK, lineHeight: 1.2 }}>{opt}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </>
-            )}
-
-            {frame.kind === "sample" && (
-              <>
-                <div className="flex items-center gap-2 mb-1.5">
-                  <p className="text-[9px] font-bold uppercase tracking-[0.12em]" style={{ color: GOLD_INK }}>{frame.tag}</p>
-                  <span className="text-[8px] font-bold uppercase tracking-[0.1em] px-1.5 py-0.5 rounded" style={{ background: WASH, color: GOLD_INK }}>Sample</span>
-                </div>
-                <span className="block h-2.5 rounded mb-1.5" style={{ background: "#E9ECF1", width: "90%" }} />
-                <span className="block h-2.5 rounded mb-3" style={{ background: "#E9ECF1", width: "58%" }} />
-                <div className="space-y-1.5 mt-auto">
-                  {[0, 1, 2, 3].map(oi => (
-                    <button key={oi} onClick={() => advance(oi)} className="w-full flex items-center gap-2 rounded-md px-2.5 py-1.5 text-left transition-colors duration-150" style={{ border: `1.5px solid ${picked === oi ? GOLD : BORDER}`, background: picked === oi ? WASH : "#fff" }}>
-                      <span className="h-3 w-3 rounded-full shrink-0" style={{ border: "1.5px solid #C7CCD4" }} />
-                      <span className="h-2 rounded" style={{ background: "#E3E7ED", width: `${64 - oi * 8}%` }} />
-                    </button>
-                  ))}
-                </div>
-              </>
-            )}
-
-            {frame.kind === "done" && (
-              <div className="flex-1 flex flex-col items-center justify-center text-center">
-                <span className="flex h-11 w-11 items-center justify-center rounded-full mb-2.5" style={{ background: WASH }}>
-                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={GOLD_INK} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M20 6L9 17l-5-5" /></svg>
-                </span>
-                <p className="font-bold mb-1" style={{ fontSize: 14, color: INK }}>Thank you</p>
-                <p className="mb-3" style={{ fontSize: 10.5, color: GREY, lineHeight: 1.4, maxWidth: 190 }}>Your response helps build a global picture of football fans.</p>
-                <button onClick={reset} className="inline-flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-[0.12em]" style={{ color: GOLD_INK }}>
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={GOLD_INK} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M4 12a8 8 0 018-8 8 8 0 016.9 4M20 4v4h-4" /></svg>
-                  Replay
-                </button>
-              </div>
-            )}
-
-            {/* progress dots */}
-            <div className="flex items-center justify-center gap-1 pt-2.5">
-              {FRAMES.map((_, di) => (
-                <span key={di} className="h-1 rounded-full transition-all duration-200" style={{ width: di === i ? 14 : 5, background: di <= i ? GOLD : "#DDE1E7" }} />
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-      <div className="mt-4 flex items-center justify-center gap-2 text-[12px]" style={{ color: MUTED }}>
-        <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1" style={{ background: WASH, color: GOLD_INK }}>
-          <span className="h-1.5 w-1.5 rounded-full" style={{ background: GOLD_INK }} />
-          <span className="text-[11px] font-bold uppercase tracking-[0.08em]">Placeholder creative</span>
-        </span>
-        <span>300 × 250 · click through it</span>
-      </div>
-    </div>
-  );
-}
-
 // The locked seven-frame sequence, visualised as a simple horizontal flow.
-const SEQUENCE = ["Qualifier", "Gender", "Age", "Q1", "Q2", "Q3", "Thank You"];
+const SEQUENCE = ["Intro", "Gender", "Age", "Q1", "Q2", "Q3", "Thank You"];
 function SevenFrameFlow() {
   return (
     <div className="flex items-center gap-1 overflow-x-auto no-scrollbar -mx-1 px-1 pb-1">
@@ -694,10 +577,19 @@ export function WwcCampaign() {
               </p>
             </div>
 
-            {/* left: real clickable 300×250 MPU · right: the mechanics */}
+            {/* left: self-contained demo of the real Stack creative · right: the mechanics */}
             <div className="grid lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] gap-12 lg:gap-16 items-center">
-              <div className="scroll-fade-up" style={{ transitionDelay: "0.05s" }}>
-                <MpuPreview />
+              <div className="scroll-fade-up flex flex-col items-center lg:items-start" style={{ transitionDelay: "0.05s" }}>
+                <div style={{ boxShadow: "0 26px 54px -20px rgba(11,25,41,0.4)" }}>
+                  <StackDemo />
+                </div>
+                <div className="mt-4 flex flex-wrap items-center justify-center gap-2 text-[12px]" style={{ color: MUTED }}>
+                  <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1" style={{ background: WASH, color: GOLD_INK }}>
+                    <span className="h-1.5 w-1.5 rounded-full" style={{ background: GOLD_INK }} />
+                    <span className="text-[11px] font-bold uppercase tracking-[0.08em]">Demonstration</span>
+                  </span>
+                  <span>300 × 250 · click through it · no data recorded</span>
+                </div>
               </div>
               <div className="scroll-fade-up" style={{ transitionDelay: "0.1s" }}>
                 <p className="text-[11px] font-bold uppercase tracking-[0.18em] mb-6" style={{ color: GOLD_INK }}>How the survey works</p>
