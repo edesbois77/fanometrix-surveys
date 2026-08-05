@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Script from "next/script";
 import { MARKETING_URL } from "@/lib/env";
 import { WwcCampaign } from "./WwcCampaign";
 
@@ -71,10 +72,17 @@ const JSON_LD = {
   ],
 };
 
+// Microsoft Clarity — analytics / session insight, scoped to THIS page only
+// (not the whole site) via next/script. `afterInteractive` loads it early but
+// after hydration; Clarity then self-injects its tag into <head>.
+const CLARITY_PROJECT_ID = "xxpmb65ugi";
+const CLARITY_SNIPPET = `(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);})(window, document, "clarity", "script", "${CLARITY_PROJECT_ID}");`;
+
 export default function WomensWorldCupResearchPage() {
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(JSON_LD) }} />
+      <Script id="microsoft-clarity" strategy="afterInteractive" dangerouslySetInnerHTML={{ __html: CLARITY_SNIPPET }} />
       <WwcCampaign />
     </>
   );
