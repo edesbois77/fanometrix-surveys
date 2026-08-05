@@ -306,3 +306,40 @@ body {
   .fx-indeterminate { animation: none; left: 0; width: 100% !important; opacity: 0.5; }
   .fx-pulse { animation: none; }
 }
+
+/* ── WWC 2027 landing page (/for-publishers/womens-world-cup-research) ─────────*/
+/* Only the utilities this page needs that aren't already defined above          */
+/* (scroll-fade-up, hero-fade-up, no-scrollbar, fx-tabular-nums already exist).   */
+
+/* FAQ accordion — native <details> with a subtle reveal. */
+.pp-faq summary { list-style: none; }
+.pp-faq summary::-webkit-details-marker { display: none; }
+.pp-faq-icon svg { transition: transform 0.25s ease; }
+.pp-faq[open] .pp-faq-icon { background: #0B1929; border-color: #0B1929; color: #D7B87A; }
+.pp-faq[open] .pp-faq-icon svg { transform: rotate(45deg); }
+@keyframes pp-faq-in {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.pp-faq[open] .pp-faq-panel { animation: pp-faq-in 0.32s ease; }
+/* Dark FAQ variant (navy chapter). */
+.pp-faq.is-dark .pp-faq-icon { border-color: rgba(255,255,255,0.24); color: rgba(255,255,255,0.72); }
+.pp-faq.is-dark[open] .pp-faq-icon { background: #D7B87A; border-color: #D7B87A; color: #0B1929; }
+
+/* Gentle "breathing" pulse (hero deadline dot, live indicators). */
+@keyframes pp-node-breathe {
+  0%, 100% { opacity: 0.55; }
+  50%      { opacity: 1; }
+}
+.pp-breathe { animation: pp-node-breathe 3.8s ease-in-out infinite; }
+
+/* Hero photographic background: gentle fade-in on load. */
+@keyframes wwc-hero-fade { from { opacity: 0; } to { opacity: 1; } }
+.wwc-hero-fade { opacity: 0; animation: wwc-hero-fade 1.5s ease-out 0.05s forwards; }
+
+@media (prefers-reduced-motion: reduce) {
+  .pp-faq-icon svg { transition: none; }
+  .pp-faq[open] .pp-faq-panel { animation: none; }
+  .pp-breathe { animation: none; opacity: 0.9; }
+  .wwc-hero-fade { animation: none; opacity: 1; }
+}

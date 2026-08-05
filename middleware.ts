@@ -182,6 +182,12 @@ export async function middleware(req: NextRequest) {
     return res;
   }
 
+  // Public marketing pages under /for-publishers/* (e.g. the Women's World Cup
+  // landing page) are public, like the canonical /for-publishers page itself.
+  if (pathname.startsWith("/for-publishers/")) {
+    return NextResponse.next();
+  }
+
   // Public pages — only special-case /login to redirect logged-in users
   if (PUBLIC_PATHS.has(pathname)) {
     if (pathname === "/login") {
