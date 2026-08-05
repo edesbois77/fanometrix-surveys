@@ -8,6 +8,7 @@ import { supabase } from "@/lib/supabase";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { resolveQuestion, resolveText, type LangCode, type LocalisedQuestion, type LocalisedText } from "@/lib/survey-locale";
 import { buildEmbedThemeFromState, resolveBrandingLogos, type BuilderState, type BrandingConfig } from "@/lib/creative-theme-builder";
+import { coerceStackConfig, resolveEffectiveTopic } from "@/lib/stack-config";
 import type { EmbedTheme } from "@/app/embed/ThemedSurvey";
 
 const NO_CACHE = {
@@ -117,6 +118,7 @@ export async function GET(req: NextRequest) {
   let branding: string[] = [];
   let creativeLayout: string | null = null;
   let stackConfig: unknown = null; // config jsonb — only meaningful for layout "stack"
+  let effectiveTopic: string | null = null; // resolved default/override/cleared Topic
   if (effectiveCreativeDesign) {
     const { data: design } = await supabaseAdmin
       .from("creative_designs")
@@ -138,6 +140,8 @@ export async function GET(req: NextRequest) {
       const { data: cfg } = await supabaseAdmin
         .from("creative_designs").select("config").eq("slug", effectiveCreativeDesign).single();
       stackConfig = cfg?.config ?? null;
+      // Default (design) / override (campaign text) / cleared (campaign "") → effective Topic.
+      effectiveTopic = resolveEffectiveTopic(campaign.topic as string | null, coerceStackConfig(cfg?.config).defaultTopic);
     }
   }
 
@@ -148,8 +152,8 @@ export async function GET(req: NextRequest) {
     custom_theme:    customTheme,
     layout:          creativeLayout,
     config:          stackConfig,
-    // Survey/campaign-level Topic (campaigns.topic) — shown on the Stack intro.
-    topic:           (campaign.topic as string | null) ?? null,
+    // Effective Stack Topic: design default, unless the campaign overrode or cleared it.
+    topic:           effectiveTopic,
     branding,
     questions,
     thank_you_title: resolveText((survey.thank_you_title as LocalisedText | null) ?? {}, lang) || "Thank you!",

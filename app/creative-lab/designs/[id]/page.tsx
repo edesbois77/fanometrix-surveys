@@ -369,12 +369,13 @@ export default function CreativeStudioPage() {
                   key={`stack-${previewKey}`}
                   title="Stack live preview"
                   src={(() => {
-                    // Design-level preview: no Topic (that's survey/campaign content).
+                    // Design preview shows the design's Default Topic (a survey may later override/clear it).
                     const qp = new URLSearchParams({
                       preview: "1", layout: "stack",
                       hover: stackCfg.hoverVariant, completion: stackCfg.completionMode,
                       frame: String(previewFrame),
                     });
+                    if (stackCfg.defaultTopic) qp.set("topic", stackCfg.defaultTopic);
                     return `/embed?${qp.toString()}`;
                   })()}
                   width={300} height={250} style={{ width: 300, height: 250, border: 0 }}
@@ -503,9 +504,12 @@ export default function CreativeStudioPage() {
                     ))}
                   </div>
                 </div>
-                <p className="text-[11px] text-gray-400">
-                  Topic is survey content, not a design setting — set it per survey/campaign when you assign this design.
-                </p>
+                <div>
+                  <span className="text-xs font-semibold text-gray-700 block mb-1">Default Topic</span>
+                  <input type="text" value={stackCfg.defaultTopic ?? ""} placeholder="e.g. Women's Football"
+                    onChange={e => setStackCfg(c => ({ ...c, defaultTopic: e.target.value || null }))} className={INP} />
+                  <p className="text-[11px] text-gray-400 mt-1">Used by default when this design is assigned to a survey. It can be changed or removed during survey setup.</p>
+                </div>
                 {stackCfg.completionMode === "panel" && (
                   <div>
                     <span className="text-xs font-semibold text-gray-700 block mb-1">Panel CTA URL</span>
