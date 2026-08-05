@@ -49,10 +49,10 @@ export interface StackDemographics {
 }
 
 const DEFAULT_DEMOGRAPHICS: Required<StackDemographics> = {
-  genderLabel:   "What's your gender?",
-  genderOptions: ["Woman", "Man", "Non-binary", "Prefer not to say"],
-  ageLabel:      "What's your age?",
-  ageOptions:    ["16–24", "25–34", "35–44", "45+"],
+  genderLabel:   "What gender are you?",
+  genderOptions: ["Female", "Male", "Non-Binary", "Prefer not to say"],
+  ageLabel:      "How old are you?",
+  ageOptions:    ["16 - 24 years of age", "25 - 34 years of age", "35 - 44 years of age", "45+ years of age"],
 };
 
 export interface StackSurveyProps {

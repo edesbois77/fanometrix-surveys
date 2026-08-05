@@ -42,6 +42,22 @@ const QUESTIONS = [
   },
 ];
 
+// Sample research questions shown in the Stack DESIGN preview (Creative Studio /
+// design-section preview, i.e. layout=stack with no campaign). A live campaign
+// always uses its assigned survey's questions instead; these are the preview
+// sample so the creative demonstrates a realistic Women's Football survey.
+const STACK_PREVIEW_QUESTIONS = [
+  { id: "q1", text: "What matters most when choosing a match to watch?", options: [
+    { id: 1, text: "The teams playing" }, { id: 2, text: "The players involved" },
+    { id: 3, text: "The importance of the match" }, { id: 4, text: "How easy it is to watch" } ] },
+  { id: "q2", text: "What would make you watch women's football more often?", options: [
+    { id: 1, text: "More matches on TV" }, { id: 2, text: "Easier streaming access" },
+    { id: 3, text: "More coverage and promotion" }, { id: 4, text: "Nothing, I watch enough" } ] },
+  { id: "q3", text: "How do you think women's football will grow over the next 5 years?", options: [
+    { id: 1, text: "Significantly" }, { id: 2, text: "Moderately" },
+    { id: 3, text: "A little" }, { id: 4, text: "Not at all" } ] },
+];
+
 // Preview-only sample content for the Stack creative (long / translated strings),
 // used solely to verify wrapping in the embed preview. Never reached outside
 // isPreview + ?plong=1 (see the Stack branch below).
@@ -275,7 +291,9 @@ function EmbedSurvey() {
     const introV = introParam === "a" ? "a" : introParam === "b" ? "b" : undefined;
     return (
       <StackSurvey
-        questions={pvLong ? STACK_PREVIEW_LONG_QUESTIONS : questions}
+        questions={pvLong ? STACK_PREVIEW_LONG_QUESTIONS
+          : resolvedLayout === "stack" ? questions   /* live campaign → its survey's questions */
+          : STACK_PREVIEW_QUESTIONS                    /* design-level preview → sample */}
         demographics={pvLong ? STACK_PREVIEW_LONG_DEMO : undefined}
         thankYouTitle={thankYouTitle}
         thankYouBody={thankYouBody}
