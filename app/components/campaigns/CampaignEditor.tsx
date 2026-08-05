@@ -19,6 +19,7 @@ import { STUDY_TYPES, STUDY_TYPE_LABELS } from "@/lib/naming";
 import { useSession } from "@/app/components/SessionProvider";
 import { CreativeDesignPicker } from "@/app/components/CreativeDesignPicker";
 import { CreativeDesignPreview } from "@/app/components/CreativeDesignPreview";
+import { coerceStackConfig } from "@/lib/stack-config";
 import { isSurveyValidForReady } from "@/lib/survey-validation";
 import { useCreativeDesignNames } from "@/lib/creative-designs";
 import { Icon } from "@/app/components/workspace-ui";
@@ -142,11 +143,17 @@ export function CampaignEditor({
   const designNames = useCreativeDesignNames();
   // slug → layout, so we can show the Stack-only Topic input when a Stack design is chosen.
   const [designLayouts, setDesignLayouts] = useState<Record<string, string>>({});
+  // slug → design Default Topic, so a Stack survey's Topic prefills from its design.
+  const [designDefaultTopics, setDesignDefaultTopics] = useState<Record<string, string | null>>({});
   useEffect(() => {
     fetch("/api/creative-designs").then(r => r.ok ? r.json() : null).then(j => {
-      const m: Record<string, string> = {};
-      for (const d of ((j?.data ?? []) as { slug: string; layout: string }[])) m[d.slug] = d.layout;
-      setDesignLayouts(m);
+      const layouts: Record<string, string> = {};
+      const defs: Record<string, string | null> = {};
+      for (const d of ((j?.data ?? []) as { slug: string; layout: string; config?: unknown }[])) {
+        layouts[d.slug] = d.layout;
+        defs[d.slug] = coerceStackConfig(d.config).defaultTopic;
+      }
+      setDesignLayouts(layouts); setDesignDefaultTopics(defs);
     }).catch(() => {});
   }, []);
   const isEdit = !!campaign?.id;
@@ -476,12 +483,21 @@ export function CampaignEditor({
             <label className="text-xs font-semibold text-gray-700 block mb-1">
               Topic <span className="font-normal text-gray-400">(optional)</span>
             </label>
-            <input type="text" value={editing.topic ?? ""} placeholder="e.g. Women's Football"
-              onChange={e => setEditing(x => ({ ...x, topic: e.target.value || null }))} className={INP} />
-            <p className="text-xs text-gray-400 mt-1">Shown on the Intro. Leave blank to hide it.</p>
+            {/* Prefills from the design's Default Topic when untouched (editing.topic == null).
+                Keep "" when cleared (explicit blank → no Topic); text is an override. */}
+            <input type="text"
+              value={editing.topic ?? designDefaultTopics[(editing.creative_design ?? surveyEvidenceDefaults?.creative_design) ?? ""] ?? ""}
+              placeholder="No topic"
+              onChange={e => setEditing(x => ({ ...x, topic: e.target.value }))} className={INP} />
+            <p className="text-xs text-gray-400 mt-1">Prefilled from the design&apos;s Default Topic. Change it for this survey, or clear it to hide the Topic on the intro.</p>
           </div>
         )}
-        <CreativeDesignPreview designId={editing.creative_design} topic={editing.topic ?? null} />
+        <CreativeDesignPreview designId={editing.creative_design} topic={(() => {
+          const slug = (editing.creative_design ?? surveyEvidenceDefaults?.creative_design) ?? "";
+          if (designLayouts[slug] !== "stack") return null;
+          const dd = designDefaultTopics[slug] ?? null;
+          return editing.topic == null ? dd : (editing.topic.trim() === "" ? null : editing.topic);
+        })()} />
       </Section>
 
       {error && <p className="text-red-500 text-xs">{error}</p>}

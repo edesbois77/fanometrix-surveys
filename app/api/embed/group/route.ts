@@ -22,6 +22,7 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 import { validateSurvey } from "@/lib/survey-validation";
 import { resolveQuestion, resolveText, type LangCode, type LocalisedQuestion, type LocalisedText } from "@/lib/survey-locale";
 import { buildEmbedThemeFromState, resolveBrandingLogos, type BuilderState, type BrandingConfig } from "@/lib/creative-theme-builder";
+import { coerceStackConfig, resolveEffectiveTopic } from "@/lib/stack-config";
 import type { EmbedTheme } from "@/app/embed/ThemedSurvey";
 
 export async function GET(req: NextRequest) {
@@ -259,6 +260,7 @@ export async function GET(req: NextRequest) {
   let branding: string[] = [];
   let creativeLayout: string | null = null;
   let stackConfig: unknown = null; // config jsonb — only meaningful for layout "stack"
+  let effectiveTopic: string | null = null; // resolved default/override/cleared Topic
   if (resolvedDesign) {
     const { data: design } = await supabaseAdmin
       .from("creative_designs")
@@ -279,6 +281,7 @@ export async function GET(req: NextRequest) {
       const { data: cfg } = await supabaseAdmin
         .from("creative_designs").select("config").eq("slug", resolvedDesign).single();
       stackConfig = cfg?.config ?? null;
+      effectiveTopic = resolveEffectiveTopic(campaign.topic, coerceStackConfig(cfg?.config).defaultTopic);
     }
   }
 
@@ -292,8 +295,8 @@ export async function GET(req: NextRequest) {
     custom_theme:    customTheme,
     layout:          creativeLayout,
     config:          stackConfig,
-    // Survey/campaign-level Topic (campaigns.topic) — shown on the Stack intro.
-    topic:           (campaign.topic as string | null) ?? null,
+    // Effective Stack Topic: design default, unless the campaign overrode or cleared it.
+    topic:           effectiveTopic,
     branding,
     questions,
     thank_you_title: resolveText(survey?.thank_you_title ?? {}, lang) || "Thank you!",
