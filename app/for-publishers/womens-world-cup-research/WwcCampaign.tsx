@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ScrollFadeObserver } from "@/app/components/ScrollFadeObserver";
+import { CookieSettingsLink } from "@/app/components/CookieSettingsLink";
 import { APP_URL } from "@/lib/env";
 import { StackDemo } from "./StackDemo";
 
@@ -748,6 +749,7 @@ export function WwcCampaign() {
               <a href={REGISTER_HREF} className="text-[13px] font-semibold transition-opacity hover:opacity-70" style={{ color: GOLD }}>Join the Initiative</a>
               <Link href="/for-publishers" className="text-[13px] transition-opacity hover:opacity-70" style={{ color: "rgba(255,255,255,0.7)" }}>For Publishers</Link>
               <Link href="/privacy" className="text-[13px] transition-opacity hover:opacity-70" style={{ color: "rgba(255,255,255,0.7)" }}>Privacy Policy</Link>
+              <CookieSettingsLink className="text-[13px] transition-opacity hover:opacity-70" style={{ color: "rgba(255,255,255,0.7)" }} />
             </nav>
             <span className="text-[13px]" style={{ color: "rgba(255,255,255,0.45)" }}>© {new Date().getFullYear()} Fanometrix</span>
           </div>

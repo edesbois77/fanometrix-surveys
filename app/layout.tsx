@@ -3,6 +3,7 @@ import { Geist } from "next/font/google";
 import "./globals.css";
 import { SessionProvider } from "./components/SessionProvider";
 import { MarketingAnalytics } from "./components/MarketingAnalytics";
+import { ConsentBanner } from "./components/ConsentBanner";
 
 const geist = Geist({ subsets: ["latin"], variable: "--font-geist" });
 
@@ -21,8 +22,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className="min-h-full bg-gray-50 text-gray-900 antialiased" suppressHydrationWarning>
         <SessionProvider>{children}</SessionProvider>
-        {/* Clarity + Google Analytics — public marketing pages only (self-gated). */}
+        {/* Deny-by-default analytics (GA + Clarity) + its consent banner —
+            both self-limit to public marketing routes. */}
         <MarketingAnalytics />
+        <ConsentBanner />
       </body>
     </html>
   );

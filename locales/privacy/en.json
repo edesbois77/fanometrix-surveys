@@ -63,6 +63,24 @@
         "Because we do not collect any information that can identify you, we are unable to locate, modify or delete a specific individual's response. If you have a concern about data collected via a specific survey placement, please contact the publisher who displayed it.",
         "If you have any questions about our privacy practices, please contact us directly."
       ]
+    },
+    {
+      "heading": "Website analytics & cookies (marketing website only)",
+      "body": [
+        "This section applies only to the Fanometrix marketing website (fanometrix.com). It is separate from the Fanometrix fan survey product described above: our fan surveys do NOT use these marketing analytics cookies, set no advertising or persistent identifiers, and remain anonymous.",
+        "On our marketing website we use two analytics services to understand how visitors find and use the site so we can improve it. They are off by default and load only if you accept analytics cookies in our cookie banner. You can change or withdraw your choice at any time using the \"Cookie Settings\" link in the website footer.",
+        "We do not use these services for advertising and we do not sell your personal data."
+      ],
+      "table": [
+        { "f": "Google Analytics (Google Ireland Limited / Google LLC)", "d": "Aggregated website-usage and traffic measurement. Sets first-party cookies (e.g. _ga, _ga_*). We apply Google Consent Mode v2, so it is signalled as consented only after you accept." },
+        { "f": "Microsoft Clarity (Microsoft Corporation)", "d": "Aggregated usage analytics, heatmaps and session replay showing how pages are used (interactions are masked). Sets cookies (e.g. _clck, _clsk, CLID)." }
+      ],
+      "list": [
+        "Legal basis: your consent, which you can withdraw at any time.",
+        "Provided by Google and Microsoft as data processors; this may involve transfers to the United States under the EU-US / UK Data Privacy Framework and standard contractual clauses.",
+        "To change or withdraw consent: use \"Cookie Settings\" in the website footer, or clear the fx-analytics-consent cookie in your browser.",
+        "Strictly necessary cookies (for example sign-in/session) are always required for the site to function, are not analytics cookies, and are not covered by this consent."
+      ]
     }
   ],
   "contactHeading": "Contact",

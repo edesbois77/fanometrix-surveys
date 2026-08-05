@@ -227,7 +227,7 @@ const FAQS = [
   },
   {
     q: "Do I need to update my CMP or consent banner?",
-    a: "No. Fanometrix collects only anonymous, non-personal data. There are no cookies, no advertising IDs and no personal identifiers. No consent mechanism is required from respondents.",
+    a: "No, not for the survey itself. The Fanometrix survey unit collects only anonymous, non-personal data, with no cookies, no advertising IDs and no personal identifiers, so no consent mechanism is required from survey respondents. Note this relates to the survey you run; the Fanometrix marketing website uses its own analytics cookies with a consent banner, described in our Privacy Policy.",
   },
   {
     q: "What data is collected?",
@@ -431,7 +431,7 @@ export default function PublisherHubPage() {
             </div>
             <div style={{ padding: "16px 24px 20px", background: "#fff" }}>
               <p style={{ fontSize: 13, color: "#6B7280", lineHeight: 1.6 }}>
-                A 3-slide privacy modal is available within every survey. No consent banner required - Fanometrix collects no personal data.
+                A 3-slide privacy modal is available within every survey. No consent banner is required for the survey, which collects no personal data.
               </p>
             </div>
           </div>

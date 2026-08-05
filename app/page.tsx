@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { ScrollFadeObserver } from "@/app/components/ScrollFadeObserver";
 import { BuiltForCarousel } from "@/app/components/BuiltForCarousel";
+import { CookieSettingsLink } from "@/app/components/CookieSettingsLink";
 import { APP_URL } from "@/lib/env";
 
 export const metadata: Metadata = {
@@ -392,6 +393,7 @@ export default function PublicHomePage() {
               {label}
             </Link>
           ))}
+          <CookieSettingsLink className="text-xs hover:text-gray-700 transition-colors duration-150" style={{ color: MUTED }} />
         </nav>
       </footer>
     </div>
