@@ -13,14 +13,31 @@ const GREY = "#4B5563";
 const BORDER = "#E5E7EB";
 const WASH = "#FBF3E1";
 
-const QUESTIONS = [
+export type DemoQuestion = { q: string; options: string[] };
+
+// Default (football) demo content. A non-football publisher overrides these via
+// props so the sample survey matches its audience.
+const DEFAULT_QUESTIONS: DemoQuestion[] = [
   { q: "How often do you watch live football?", options: ["Every day", "A few times a week", "Most weeks", "Occasionally"] },
   { q: "What matters most in your matchday experience?", options: ["Atmosphere", "Value for money", "Food & drink", "Getting there"] },
 ];
+const DEFAULT_INVITE_TITLE = "A quick question for football fans";
+const DEFAULT_THANK_YOU = "Your response helps publishers better understand their supporters.";
 
 type Screen = "invite" | 0 | 1 | "done";
 
-export function SurveyDemo({ brand }: { brand?: string }) {
+export function SurveyDemo({
+  brand,
+  questions = DEFAULT_QUESTIONS,
+  inviteTitle = DEFAULT_INVITE_TITLE,
+  thankYou = DEFAULT_THANK_YOU,
+}: {
+  brand?: string;
+  questions?: DemoQuestion[];
+  inviteTitle?: string;
+  thankYou?: string;
+}) {
+  const QUESTIONS = questions;
   const [screen, setScreen] = useState<Screen>("invite");
   const [picked, setPicked] = useState<number | null>(null);
 
@@ -61,7 +78,7 @@ export function SurveyDemo({ brand }: { brand?: string }) {
                 </svg>
                 <span className="absolute inset-0 flex items-center justify-center font-bold" style={{ fontSize: 18, color: NAVY }}>20s</span>
               </div>
-              <p className="font-bold mb-1.5" style={{ fontSize: 18, color: INK }}>A quick question for football fans</p>
+              <p className="font-bold mb-1.5" style={{ fontSize: 18, color: INK }}>{inviteTitle}</p>
               <p className="mb-6" style={{ fontSize: 13, color: GREY }}>Anonymous · takes about 20 seconds</p>
               <button onClick={() => setScreen(0)} className="w-full rounded-xl py-3 font-bold transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2" style={{ background: GOLD, color: NAVY, fontSize: 15, ["--tw-ring-color" as string]: GOLD }}>
                 Start survey
@@ -98,7 +115,7 @@ export function SurveyDemo({ brand }: { brand?: string }) {
                 <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke={GOLD_INK} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M20 6L9 17l-5-5" /></svg>
               </span>
               <p className="font-bold mb-1.5" style={{ fontSize: 18, color: INK }}>Thank you</p>
-              <p className="mb-6" style={{ fontSize: 13, color: GREY, maxWidth: 240 }}>Your response helps publishers better understand their supporters.</p>
+              <p className="mb-6" style={{ fontSize: 13, color: GREY, maxWidth: 240 }}>{thankYou}</p>
               <button onClick={reset} className="inline-flex items-center gap-2 text-[12px] font-bold uppercase tracking-[0.12em]" style={{ color: GOLD_INK }}>
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={GOLD_INK} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M4 12a8 8 0 018-8 8 8 0 016.9 4M20 4v4h-4" /></svg>
                 Replay demo

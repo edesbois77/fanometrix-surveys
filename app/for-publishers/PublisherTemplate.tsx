@@ -2,8 +2,41 @@ import Link from "next/link";
 import { ScrollFadeObserver } from "@/app/components/ScrollFadeObserver";
 import { CountUp } from "./CountUp";
 import { SurveyDemo } from "./SurveyDemo";
-import type { PublisherConfig } from "./config";
+import type { PublisherConfig, TemplateCopy } from "./config";
 import { APP_URL } from "@/lib/env";
+
+// ─── Default template copy (the approved football wording) ────────────────────
+// Every partner page uses these verbatim unless its config overrides a key
+// (see config.ts → TemplateCopy). Kept in one place so a non-football publisher
+// can be fully de-footballed without touching any other page's output.
+const DEFAULT_TEMPLATE_COPY: TemplateCopy = {
+  capStudioBody: "Create, launch and manage your own football audience surveys through the Fanometrix platform.",
+  capZeroPartyBody: "Collect trusted information directly from supporters through consent-first research.",
+  capAiBody: "Transform thousands of fan responses into clear, actionable audience intelligence.",
+  capBenchmarkBody: "Compare your audience against wider football fan benchmarks.",
+  capIndustryBody: "Contribute to collaborative football research projects undertaken across the Fanometrix publisher network.",
+  capCreativeBody: "Purpose-built creative designed to maximise engagement while protecting the supporter experience.",
+  fanometrixInsights: "Football-specific insights",
+  netMarketComparisonBody: "Explore differences in supporter attitudes across countries, competitions and regions.",
+  netIndustryTrendsBody: "Track how football fan opinions evolve through continuous research.",
+  wayRunOwnBody: "Launch unlimited football audience research through Fanometrix and build your own zero-party audience intelligence.",
+  wayIndustryBody: "Opt in to collaborative industry-wide football research using your house inventory. Receive benchmark data and audience intelligence alongside other publisher partners.",
+  platformIntro: "Becoming a Publisher Partner gives you access to a complete audience intelligence platform designed specifically for football.",
+  complementIntro: "Fanometrix complements existing survey platforms by transforming individual research campaigns into a growing body of football audience intelligence.",
+  audienceUnderstand: "The more you understand your supporters, the better your commercial, editorial and product decisions become.",
+  audienceContribute: "Every survey contributes to a growing body of football audience intelligence that becomes more valuable over time.",
+  pilotIntro: "Before opening Fanometrix to publisher partners, we conducted a pilot across four football publishers spanning multiple European markets. The pilot enabled us to validate the platform, optimise the survey experience and establish our initial performance benchmarks. The illustration below represents a typical two to four week campaign based on those benchmarks. Actual performance will vary depending on audience, placement, survey design and campaign duration.",
+  pilotValidationBody: "These benchmark assumptions were established through a real-world pilot across four football publishers and multiple European markets.",
+  networkCompare: "Every publisher understands their own audience. Fanometrix helps you understand how your audience compares with football supporters across the wider market.",
+  networkExpand: "As more publisher partners join the network, every campaign contributes to an expanding body of football audience intelligence that no individual publisher could create alone.",
+  businessValueIntro: "Fanometrix supports commercial, editorial, product and leadership teams by providing trusted audience intelligence collected directly from football supporters.",
+  faqSurveyExperience: "See exactly what supporters experience. From invitation to thank you, the survey is deliberately lightweight and clean, designed to sit comfortably within your audience's experience.",
+  faqSurveyDuration: "This helps reach a broader cross-section of supporters and produces more representative audience intelligence.",
+  becomePartnerIntro: "Join a growing network of publishers helping to build the future of football audience intelligence.",
+  closingLead: "Football supporters invest their time, passion and money into the game every day. Fanometrix exists to ensure their voices help shape the future of football, helping publishers, brands and the wider industry make better decisions through ",
+  closingHighlight: "trusted audience intelligence",
+  footerTagline: "Football audience intelligence, built from consent-first supporter research, AI-powered analysis and industry benchmarking.",
+};
 
 // ─── Design tokens (shared with the public homepage and wider marketing site) ─
 const NAVY     = "#0B1929";
@@ -38,20 +71,20 @@ const FUNNEL: FunnelStep[] = [
 
 // ─── Content (verbatim from the approved Content Specification v1.0) ──────────
 
-const CAPABILITIES = [
+const capabilities = (t: TemplateCopy) => [
   { title: "Managed Survey Campaigns",        body: "Fanometrix plans, builds and manages professionally designed audience research campaigns.", icon: "campaigns", mode: "Done for you" },
-  { title: "Survey Studio",                   body: "Create, launch and manage your own football audience surveys through the Fanometrix platform.", icon: "studio", soon: true, mode: "Do it yourself" },
-  { title: "Zero-Party Audience Data",        body: "Collect trusted information directly from supporters through consent-first research.", icon: "zeroparty" },
-  { title: "AI-Powered Analysis",             body: "Transform thousands of fan responses into clear, actionable audience intelligence.", icon: "ai" },
+  { title: "Survey Studio",                   body: t.capStudioBody, icon: "studio", soon: true, mode: "Do it yourself" },
+  { title: "Zero-Party Audience Data",        body: t.capZeroPartyBody, icon: "zeroparty" },
+  { title: "AI-Powered Analysis",             body: t.capAiBody, icon: "ai" },
   { title: "Campaign Dashboard",              body: "Monitor campaign performance in real time through an intuitive reporting dashboard.", icon: "dashboard" },
   { title: "Publisher Reports",               body: "Receive professionally produced reports combining research findings with practical recommendations.", icon: "reports" },
-  { title: "Audience Benchmarking",           body: "Compare your audience against wider football fan benchmarks.", icon: "benchmark" },
-  { title: "Industry Research Participation", body: "Contribute to collaborative football research projects undertaken across the Fanometrix publisher network.", icon: "industry" },
-  { title: "Custom Survey Creative",          body: "Purpose-built creative designed to maximise engagement while protecting the supporter experience.", icon: "creative" },
+  { title: "Audience Benchmarking",           body: t.capBenchmarkBody, icon: "benchmark" },
+  { title: "Industry Research Participation", body: t.capIndustryBody, icon: "industry" },
+  { title: "Custom Survey Creative",          body: t.capCreativeBody, icon: "creative" },
 ];
 
 const TRADITIONAL = ["One-off surveys", "Raw responses", "Generic reporting", "Individual campaigns", "Standalone data"];
-const FANOMETRIX  = ["Continuous audience intelligence", "AI-powered analysis", "Football-specific insights", "Long-term knowledge", "Network benchmarking"];
+const fanometrixList = (t: TemplateCopy) => ["Continuous audience intelligence", "AI-powered analysis", t.fanometrixInsights, "Long-term knowledge", "Network benchmarking"];
 
 // The Fanometrix flywheel — a continuous cycle of learning (design direction §6).
 const FLYWHEEL = ["Research question", "Survey research", "Evidence", "AI analysis", "Audience intelligence", "Better decisions"];
@@ -86,10 +119,10 @@ const INVENTORY_TO_INTELLIGENCE = [
   "Actionable recommendations",
 ];
 
-const NETWORK_CARDS = [
+const networkCards = (t: TemplateCopy) => [
   { title: "Audience Benchmarking", body: "Understand how your audience compares with the wider Fanometrix network." },
-  { title: "Market Comparison",     body: "Explore differences in supporter attitudes across countries, competitions and regions." },
-  { title: "Industry Trends",       body: "Track how football fan opinions evolve through continuous research." },
+  { title: "Market Comparison",     body: t.netMarketComparisonBody },
+  { title: "Industry Trends",       body: t.netIndustryTrendsBody },
   { title: "Shared Intelligence",   body: "Benefit from anonymised network benchmarks while maintaining ownership of your own campaign data." },
 ];
 
@@ -110,10 +143,10 @@ const PROCESS = [
 ];
 
 // The three ways publishers can work with Fanometrix (benefit-led headings).
-const WAYS_TO_WORK = [
-  { title: "Run Your Own Research",              body: "Launch unlimited football audience research through Fanometrix and build your own zero-party audience intelligence." },
+const waysToWork = (t: TemplateCopy) => [
+  { title: "Run Your Own Research",              body: t.wayRunOwnBody },
   { title: "Earn Revenue Through Brand Research", body: "Participate in commissioned research campaigns for brands and agencies. Fanometrix funds the publisher inventory and you receive payment for participating." },
-  { title: "Join Industry-Wide Research",        body: "Opt in to collaborative industry-wide football research using your house inventory. Receive benchmark data and audience intelligence alongside other publisher partners." },
+  { title: "Join Industry-Wide Research",        body: t.wayIndustryBody },
 ];
 
 // ─── Iconography — one coherent thin line family (design §13) ─────────────────
@@ -465,6 +498,12 @@ export function PublisherTemplate({ config }: { config: PublisherConfig }) {
   const JOIN_HREF = config.joinHref;
   const DEMO_HREF = config.demoHref;
   const AUDIENCE_QUESTIONS = config.audienceQuestions;
+  // Merge any per-publisher copy overrides over the approved football defaults.
+  const t: TemplateCopy = { ...DEFAULT_TEMPLATE_COPY, ...config.copy };
+  const CAPABILITIES = capabilities(t);
+  const FANOMETRIX = fanometrixList(t);
+  const NETWORK_CARDS = networkCards(t);
+  const WAYS_TO_WORK = waysToWork(t);
   return (
     <div className="min-h-screen flex flex-col" style={{ background: OFFWHITE, color: INK }}>
       {/* ── Header (solid navy, matches the hero) ── */}
@@ -527,7 +566,7 @@ export function PublisherTemplate({ config }: { config: PublisherConfig }) {
                 Everything Included as a Publisher Partner
               </h2>
               <p className="scroll-fade-up leading-[1.7]" style={{ fontSize: 20, color: GREY, transitionDelay: "0.1s" }}>
-                Becoming a Publisher Partner gives you access to a complete audience intelligence platform designed specifically for football.
+                {t.platformIntro}
               </p>
             </div>
 
@@ -567,7 +606,7 @@ export function PublisherTemplate({ config }: { config: PublisherConfig }) {
                 Already Running Surveys?<br />You&apos;re Exactly Who We Built Fanometrix For.
               </h2>
               <p className="scroll-fade-up leading-[1.7] mb-5" style={{ fontSize: 19, color: GREY, transitionDelay: "0.1s" }}>
-                Fanometrix complements existing survey platforms by transforming individual research campaigns into a growing body of football audience intelligence.
+                {t.complementIntro}
               </p>
               <p className="scroll-fade-up leading-[1.6]" style={{ fontSize: 21, color: INK, fontWeight: 600, transitionDelay: "0.14s" }}>
                 Traditional survey tools help you collect responses.{" "}
@@ -678,7 +717,7 @@ export function PublisherTemplate({ config }: { config: PublisherConfig }) {
             </h2>
             <div className="scroll-fade-up mx-auto space-y-4 mb-14" style={{ transitionDelay: "0.1s" }}>
               <p className="leading-[1.7]" style={{ fontSize: 19, color: "rgba(255,255,255,0.82)" }}>Every research campaign helps answer important questions about your audience.</p>
-              <p className="leading-[1.7]" style={{ fontSize: 19, color: "rgba(255,255,255,0.82)" }}>The more you understand your supporters, the better your commercial, editorial and product decisions become.</p>
+              <p className="leading-[1.7]" style={{ fontSize: 19, color: "rgba(255,255,255,0.82)" }}>{t.audienceUnderstand}</p>
             </div>
             {/* An editorial index of research questions — no cards; each is a
                 line in a commissioning agenda, divided by hairlines. */}
@@ -691,7 +730,7 @@ export function PublisherTemplate({ config }: { config: PublisherConfig }) {
               ))}
             </ul>
             <p className="scroll-fade-up mx-auto leading-[1.7]" style={{ fontSize: 17, color: "rgba(255,255,255,0.66)", transitionDelay: "0.1s" }}>
-              Every survey contributes to a growing body of football audience intelligence that becomes more valuable over time.
+              {t.audienceContribute}
             </p>
           </div>
         </section>
@@ -764,7 +803,7 @@ export function PublisherTemplate({ config }: { config: PublisherConfig }) {
                 What Could 1 Million Impressions Deliver?
               </h2>
               <p className="scroll-fade-up leading-[1.7]" style={{ fontSize: 19, color: "rgba(255,255,255,0.82)", transitionDelay: "0.1s" }}>
-                Before opening Fanometrix to publisher partners, we conducted a pilot across four football publishers spanning multiple European markets. The pilot enabled us to validate the platform, optimise the survey experience and establish our initial performance benchmarks. The illustration below represents a typical two to four week campaign based on those benchmarks. Actual performance will vary depending on audience, placement, survey design and campaign duration.
+                {t.pilotIntro}
               </p>
               {config.benchmarkNote && (
                 <p className="scroll-fade-up leading-[1.6] mt-5" style={{ fontSize: 15, color: "rgba(215,184,122,0.9)", transitionDelay: "0.14s" }}>{config.benchmarkNote}</p>
@@ -833,7 +872,7 @@ export function PublisherTemplate({ config }: { config: PublisherConfig }) {
                 <div className="scroll-fade-up flex items-start gap-4 rounded-2xl p-6" style={{ background: "rgba(215,184,122,0.1)", border: "1px solid rgba(215,184,122,0.25)", transitionDelay: "0.14s" }}>
                   <span className="shrink-0 mt-0.5"><Icon name="benchmark" color={GOLD} size={22} /></span>
                   <p className="leading-[1.6]" style={{ fontSize: 15, color: "rgba(255,255,255,0.85)" }}>
-                    <strong className="font-bold" style={{ color: GOLD }}>Validated in the real world.</strong> These benchmark assumptions were established through a real-world pilot across four football publishers and multiple European markets.
+                    <strong className="font-bold" style={{ color: GOLD }}>Validated in the real world.</strong> {t.pilotValidationBody}
                   </p>
                 </div>
               </div>
@@ -857,8 +896,8 @@ export function PublisherTemplate({ config }: { config: PublisherConfig }) {
                 See Beyond Your Own Audience
               </h2>
               <div className="scroll-fade-up space-y-3" style={{ transitionDelay: "0.1s" }}>
-                <p className="leading-[1.7]" style={{ fontSize: 19, color: GREY }}>Every publisher understands their own audience. Fanometrix helps you understand how your audience compares with football supporters across the wider market.</p>
-                <p className="leading-[1.7] mx-auto" style={{ fontSize: 19, color: GREY }}>As more publisher partners join the network, every campaign contributes to an expanding body of football audience intelligence that no individual publisher could create alone.</p>
+                <p className="leading-[1.7]" style={{ fontSize: 19, color: GREY }}>{t.networkCompare}</p>
+                <p className="leading-[1.7] mx-auto" style={{ fontSize: 19, color: GREY }}>{t.networkExpand}</p>
               </div>
             </div>
 
@@ -899,7 +938,7 @@ export function PublisherTemplate({ config }: { config: PublisherConfig }) {
                 Creating Value Across Your Business
               </h2>
               <p className="scroll-fade-up leading-[1.7]" style={{ fontSize: 20, color: GREY, transitionDelay: "0.1s" }}>
-                Fanometrix supports commercial, editorial, product and leadership teams by providing trusted audience intelligence collected directly from football supporters.
+                {t.businessValueIntro}
               </p>
             </div>
             <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
@@ -986,8 +1025,8 @@ export function PublisherTemplate({ config }: { config: PublisherConfig }) {
 
               <FaqItem question="What does a typical survey look like?">
                 <div className="space-y-6">
-                  <FaqP>See exactly what supporters experience. From invitation to thank you, the survey is deliberately lightweight and clean, designed to sit comfortably within your audience&apos;s experience.</FaqP>
-                  <SurveyDemo brand={config.brandLabel} />
+                  <FaqP>{t.faqSurveyExperience}</FaqP>
+                  <SurveyDemo brand={config.brandLabel} inviteTitle={t.demoInviteTitle} thankYou={t.demoThankYou} questions={t.demoQuestions} />
                 </div>
               </FaqItem>
 
@@ -1024,7 +1063,7 @@ export function PublisherTemplate({ config }: { config: PublisherConfig }) {
               <FaqItem question="How long should surveys run?">
                 <div className="space-y-4">
                   <FaqP>Although campaigns can launch within hours, we generally recommend research remains live for 2–4 weeks.</FaqP>
-                  <FaqP>This helps reach a broader cross-section of supporters and produces more representative audience intelligence.</FaqP>
+                  <FaqP>{t.faqSurveyDuration}</FaqP>
                 </div>
               </FaqItem>
 
@@ -1079,7 +1118,7 @@ export function PublisherTemplate({ config }: { config: PublisherConfig }) {
               Become a Publisher Partner
             </h2>
             <p className="scroll-fade-up leading-[1.7] mx-auto mb-16 lg:whitespace-nowrap" style={{ fontSize: 19, color: "rgba(255,255,255,0.82)", transitionDelay: "0.1s" }}>
-              Join a growing network of publishers helping to build the future of football audience intelligence.
+              {t.becomePartnerIntro}
             </p>
 
             {/* Three ways to work with Fanometrix — a clean editorial element
@@ -1123,7 +1162,7 @@ export function PublisherTemplate({ config }: { config: PublisherConfig }) {
           <div className="max-w-[1080px] mx-auto text-center">
             <span aria-hidden className="scroll-fade-up mx-auto mb-9 block gold-rule" style={{ width: 60, height: 2, background: GOLD }} />
             <p className="scroll-fade-up font-semibold tracking-tight" style={{ fontSize: "clamp(24px,3.4vw,38px)", lineHeight: 1.32, color: INK, letterSpacing: "-0.01em", transitionDelay: "0.05s" }}>
-              Football supporters invest their time, passion and money into the game every day. Fanometrix exists to ensure their voices help shape the future of football, helping publishers, brands and the wider industry make better decisions through <span style={{ color: GOLD_INK }}>trusted audience intelligence</span>.
+              {t.closingLead}<span style={{ color: GOLD_INK }}>{t.closingHighlight}</span>.
             </p>
           </div>
         </section>
@@ -1140,7 +1179,7 @@ export function PublisherTemplate({ config }: { config: PublisherConfig }) {
               <img src="/Fanometrix_Logo.png" alt="Fanometrix" className="h-[18px] w-auto" style={{ objectFit: "contain", filter: "brightness(0) invert(1)" }} />
             </Link>
             <p className="leading-[1.6]" style={{ fontSize: 14, color: "rgba(255,255,255,0.55)" }}>
-              Football audience intelligence, built from consent-first supporter research, AI-powered analysis and industry benchmarking.
+              {t.footerTagline}
             </p>
           </div>
           <div className="flex flex-col sm:items-end gap-3">

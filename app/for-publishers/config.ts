@@ -12,6 +12,45 @@
 // the asset is available; until then the name is used as a text co-brand.
 // ─────────────────────────────────────────────────────────────────────────────
 
+// Template copy that is football/fan/supporter-specific by default but may be
+// overridden per publisher (e.g. a non-football, lifestyle network). Every key
+// defaults to the approved football wording in PublisherTemplate's
+// DEFAULT_TEMPLATE_COPY; a publisher supplies only the keys it wants to change,
+// so all other partner pages render byte-identically.
+export type TemplateCopy = {
+  capStudioBody: string;
+  capZeroPartyBody: string;
+  capAiBody: string;
+  capBenchmarkBody: string;
+  capIndustryBody: string;
+  capCreativeBody: string;
+  fanometrixInsights: string;
+  netMarketComparisonBody: string;
+  netIndustryTrendsBody: string;
+  wayRunOwnBody: string;
+  wayIndustryBody: string;
+  platformIntro: string;
+  complementIntro: string;
+  audienceUnderstand: string;
+  audienceContribute: string;
+  pilotIntro: string;
+  pilotValidationBody: string;
+  networkCompare: string;
+  networkExpand: string;
+  businessValueIntro: string;
+  faqSurveyExperience: string;
+  faqSurveyDuration: string;
+  becomePartnerIntro: string;
+  closingLead: string;
+  closingHighlight: string;
+  footerTagline: string;
+  // Sample-survey demo (SurveyDemo). Optional: when omitted the demo falls back
+  // to its own football defaults, so only an overriding publisher changes it.
+  demoInviteTitle?: string;
+  demoThankYou?: string;
+  demoQuestions?: { q: string; options: string[] }[];
+};
+
 export type PublisherConfig = {
   /** URL slug. "" for the canonical /for-publishers page. */
   slug: string;
@@ -51,6 +90,9 @@ export type PublisherConfig = {
   // ── Metadata ─────────────────────────────────────────────────────────────
   metaTitle: string;
   metaDescription: string;
+
+  // ── Optional per-publisher copy overrides (see TemplateCopy) ──────────────
+  copy?: Partial<TemplateCopy>;
 };
 
 // The join CTA must land on the "Run Your First Survey" form, which
@@ -100,6 +142,10 @@ function publisher(
     benchmarkNote?: string;
     logoSrc?: string;
     contact?: { name?: string; email?: string };
+    /** Override the default "…, Football Audience Intelligence" meta title. */
+    metaTitle?: string;
+    /** Per-publisher copy overrides (see TemplateCopy). */
+    copy?: Partial<TemplateCopy>;
   }
 ): PublisherConfig {
   return {
@@ -118,8 +164,9 @@ function publisher(
     joinHref: `${RUN_SURVEY}&publisher=${slug}`,
     demoHref: `${BOOK_DEMO}&publisher=${slug}`,
     contact: o.contact,
-    metaTitle: `Fanometrix for ${name}, Football Audience Intelligence`,
+    metaTitle: o.metaTitle ?? `Fanometrix for ${name}, Football Audience Intelligence`,
     metaDescription: `${o.heroBody}`,
+    copy: o.copy,
   };
 }
 
@@ -196,21 +243,60 @@ export const PUBLISHERS: Record<string, PublisherConfig> = {
     benchmarkNote: BENCHMARK_NOTE("FotMob"),
   }),
 
+  // Hearst is a network of lifestyle and cultural publications, not a football
+  // publisher — so its page is fully de-footballed via `copy` overrides. No
+  // mention of football, fans or supporters; the language is generic to any
+  // audience-led internet publisher (readers / audiences / brands).
   hearst: publisher("hearst", "Hearst", {
     logoSrc: "/HearstLogoTiny.webp",
     heroHeadline: ["Give Your Hearst Audience a Voice.", "Give Your Business an Advantage."],
     heroBody:
-      "Fanometrix helps Hearst turn the opinions of the sport and football audiences across its brands into trusted, zero-party audience intelligence through survey research, AI-powered analysis and industry benchmarking.",
+      "Fanometrix helps Hearst turn the opinions of the audiences across its brands into trusted, zero-party audience intelligence through survey research, AI-powered analysis and industry benchmarking.",
     audienceQuestions: [
       "Which content formats keep Hearst readers coming back?",
-      "Which sport and football stories do audiences most want to read?",
+      "Which topics and stories do your audiences most want to read?",
       "Which subscriptions would readers genuinely pay for?",
-      "Which advertisers do Hearst audiences trust most?",
-      "What frustrates readers about coverage today?",
-      "Which editorial innovations excite your audiences?",
-      "How do reader opinions differ across your brands?",
+      "Which advertisers and brands do Hearst audiences trust most?",
+      "What frustrates readers about the experience today?",
+      "Which editorial and product innovations excite your audiences?",
+      "How do reader opinions differ across your brands and markets?",
     ],
     benchmarkNote: BENCHMARK_NOTE("Hearst"),
+    metaTitle: "Fanometrix for Hearst, Audience Intelligence",
+    copy: {
+      capStudioBody: "Create, launch and manage your own audience surveys through the Fanometrix platform.",
+      capZeroPartyBody: "Collect trusted information directly from your readers through consent-first research.",
+      capAiBody: "Transform thousands of reader responses into clear, actionable audience intelligence.",
+      capBenchmarkBody: "Compare your audience against wider network benchmarks.",
+      capIndustryBody: "Contribute to collaborative research projects undertaken across the Fanometrix publisher network.",
+      capCreativeBody: "Purpose-built creative designed to maximise engagement while protecting the reader experience.",
+      fanometrixInsights: "Audience-specific insights",
+      netMarketComparisonBody: "Explore differences in reader attitudes across brands, categories and regions.",
+      netIndustryTrendsBody: "Track how audience opinions evolve through continuous research.",
+      wayRunOwnBody: "Launch unlimited audience research through Fanometrix and build your own zero-party audience intelligence.",
+      wayIndustryBody: "Opt in to collaborative industry-wide research using your house inventory. Receive benchmark data and audience intelligence alongside other publisher partners.",
+      platformIntro: "Becoming a Publisher Partner gives you access to a complete audience intelligence platform designed specifically for publishers.",
+      complementIntro: "Fanometrix complements existing survey platforms by transforming individual research campaigns into a growing body of audience intelligence.",
+      audienceUnderstand: "The more you understand your readers, the better your commercial, editorial and product decisions become.",
+      audienceContribute: "Every survey contributes to a growing body of audience intelligence that becomes more valuable over time.",
+      pilotIntro: "Before opening Fanometrix to publisher partners, we conducted a pilot across four publishers spanning multiple European markets. The pilot enabled us to validate the platform, optimise the survey experience and establish our initial performance benchmarks. The illustration below represents a typical two to four week campaign based on those benchmarks. Actual performance will vary depending on audience, placement, survey design and campaign duration.",
+      pilotValidationBody: "These benchmark assumptions were established through a real-world pilot across four publishers and multiple European markets.",
+      networkCompare: "Every publisher understands their own audience. Fanometrix helps you understand how your audience compares with readers across the wider market.",
+      networkExpand: "As more publisher partners join the network, every campaign contributes to an expanding body of audience intelligence that no individual publisher could create alone.",
+      businessValueIntro: "Fanometrix supports commercial, editorial, product and leadership teams by providing trusted audience intelligence collected directly from your readers.",
+      faqSurveyExperience: "See exactly what your readers experience. From invitation to thank you, the survey is deliberately lightweight and clean, designed to sit comfortably within your audience's experience.",
+      faqSurveyDuration: "This helps reach a broader cross-section of readers and produces more representative audience intelligence.",
+      becomePartnerIntro: "Join a growing network of publishers helping to build the future of audience intelligence.",
+      closingLead: "Your readers share their time, attention and loyalty with your brands every day. Fanometrix exists to ensure their voices help shape better decisions for publishers, brands and the wider industry through ",
+      closingHighlight: "trusted audience intelligence",
+      footerTagline: "Audience intelligence, built from consent-first reader research, AI-powered analysis and industry benchmarking.",
+      demoInviteTitle: "A quick question for readers",
+      demoThankYou: "Your response helps publishers better understand their readers.",
+      demoQuestions: [
+        { q: "How often do you read Hearst titles?", options: ["Every day", "A few times a week", "Most weeks", "Occasionally"] },
+        { q: "What matters most in your reading experience?", options: ["Quality of writing", "Range of topics", "Ad experience", "Ease of use"] },
+      ],
+    },
   }),
 };
 
