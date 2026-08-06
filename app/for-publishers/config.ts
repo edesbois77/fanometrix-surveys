@@ -195,6 +195,23 @@ export const PUBLISHERS: Record<string, PublisherConfig> = {
     ],
     benchmarkNote: BENCHMARK_NOTE("FotMob"),
   }),
+
+  hearst: publisher("hearst", "Hearst", {
+    logoSrc: "/HearstLogoTiny.webp",
+    heroHeadline: ["Give Your Hearst Audience a Voice.", "Give Your Business an Advantage."],
+    heroBody:
+      "Fanometrix helps Hearst turn the opinions of the sport and football audiences across its brands into trusted, zero-party audience intelligence through survey research, AI-powered analysis and industry benchmarking.",
+    audienceQuestions: [
+      "Which content formats keep Hearst readers coming back?",
+      "Which sport and football stories do audiences most want to read?",
+      "Which subscriptions would readers genuinely pay for?",
+      "Which advertisers do Hearst audiences trust most?",
+      "What frustrates readers about coverage today?",
+      "Which editorial innovations excite your audiences?",
+      "How do reader opinions differ across your brands?",
+    ],
+    benchmarkNote: BENCHMARK_NOTE("Hearst"),
+  }),
 };
 
 export const PUBLISHER_SLUGS = Object.keys(PUBLISHERS);
