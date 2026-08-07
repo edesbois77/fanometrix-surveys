@@ -3,6 +3,7 @@ import { supabase } from "@/lib/supabase";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { requireUser } from "@/lib/auth-server";
 import { canAccess } from "@/lib/access";
+import { assertCampaignProjectAssociation } from "@/lib/campaign-project-association";
 import { computeEffectiveStatus, type CampaignForStatus } from "@/lib/campaign-status";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -141,6 +142,25 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   // their own edit requests get this pinned server-side.
   if (session.role === "publisher") {
     safeBody.publisher_org_id = session.organisationId;
+  }
+
+  // F040 — when this edit sets/changes the Research Project association,
+  // re-validate it: the actor must be authorised to associate with the target
+  // project and the campaign's (effective) organisation must be one of the
+  // project's, else the visibility cascade would leak across organisations.
+  // Fail closed on an invalid project ref. Detach (null) is always allowed.
+  if (safeBody.research_project_id) {
+    const { data: existing } = await supabaseAdmin
+      .from("campaigns")
+      .select("publisher_org_id, brand_org_id, agency_org_id")
+      .eq("id", id)
+      .single();
+    const check = await assertCampaignProjectAssociation(session, safeBody.research_project_id as string, {
+      publisher_org_id: (safeBody.publisher_org_id as string | null) ?? existing?.publisher_org_id ?? null,
+      brand_org_id: (safeBody.brand_org_id as string | null) ?? existing?.brand_org_id ?? null,
+      agency_org_id: (safeBody.agency_org_id as string | null) ?? existing?.agency_org_id ?? null,
+    });
+    if (!check.ok) return NextResponse.json({ error: check.error }, { status: check.status });
   }
 
   // supabaseAdmin, not the anon-key client — same reasoning as the POST

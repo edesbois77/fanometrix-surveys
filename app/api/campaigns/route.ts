@@ -3,6 +3,7 @@ import { supabase } from "@/lib/supabase";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { requireUser } from "@/lib/auth-server";
 import { visibleResourceIds } from "@/lib/access";
+import { assertCampaignProjectAssociation } from "@/lib/campaign-project-association";
 import {
   computeStatusWithReason,
   type CampaignForStatus,
@@ -288,6 +289,20 @@ export async function POST(req: NextRequest) {
     safe.publisher_org_id = session.organisationId;
   }
   safe.created_by_admin = session.role === "admin";
+
+  // F040 — a campaign may only be attached to a Research Project the actor is
+  // authorised to associate with, and only when the campaign's organisation is
+  // one of the project's organisations. Otherwise the project→campaign
+  // visibility cascade (lib/access.ts) would leak this campaign and its
+  // responses across organisations. Fail closed on an invalid project ref.
+  if (safe.research_project_id) {
+    const check = await assertCampaignProjectAssociation(session, safe.research_project_id as string, {
+      publisher_org_id: (safe.publisher_org_id as string | null) ?? null,
+      brand_org_id: (safe.brand_org_id as string | null) ?? null,
+      agency_org_id: (safe.agency_org_id as string | null) ?? null,
+    });
+    if (!check.ok) return NextResponse.json({ error: check.error }, { status: check.status });
+  }
 
   // supabaseAdmin, not the anon-key client — campaigns has no RLS of its own
   // (access control here is entirely the app-layer checks above), but

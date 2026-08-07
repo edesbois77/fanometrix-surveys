@@ -94,6 +94,28 @@ export function documentVisibleToViewer(doc: GovernedDocument, viewer: string | 
   return false;                                                     // internal / other-org / restricted → hidden
 }
 
+/** ENFORCEMENT POINT 2b — direct record/file read (F041). Whether a viewer may
+ *  retrieve a document's record and signed file URL by addressing it directly
+ *  (GET-by-id), NOT via the library list. A leaked/known document UUID must not
+ *  itself confer access. Legitimate read = an operator (admin), OR the document
+ *  is library-visible to the viewer's organisation (own-org / platform / public
+ *  via documentVisibleToViewer), OR the document is attached to a Research
+ *  Project the viewer can access (it "surfaces read-only inside any Research
+ *  Project that attaches it"). Everything else is refused; fail closed.
+ *  Pure: `attachedToAccessibleProject` is resolved by the caller against the
+ *  viewer's project access. */
+export function evaluateDocumentReadAccess(
+  isAdmin: boolean,
+  doc: GovernedDocument,
+  viewerOrgId: string | null,
+  attachedToAccessibleProject: boolean,
+): boolean {
+  if (isAdmin) return true;
+  if (documentVisibleToViewer(doc, viewerOrgId ?? "")) return true;
+  if (attachedToAccessibleProject) return true;
+  return false;
+}
+
 /** ENFORCEMENT POINT 3 — platform learning. Whether observations from this
  *  document may EVER strengthen platform intelligence (Knowledge Objects,
  *  benchmarks, Football Intelligence, cross-project learning). NDA-restricted and

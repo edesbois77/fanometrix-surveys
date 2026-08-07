@@ -13,11 +13,13 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 import { requireUser } from "@/lib/auth-server";
 import { createDownloadUrl } from "@/lib/library-documents/storage";
 import { isDocumentType, isConfidentiality, normaliseTag, MAX_DOCUMENT_TAGS } from "@/lib/library-documents/constants";
-import { isOwner, isVisibility, isLearningPermission, isAIAccess, canAttachDocumentToProject, type GovernedDocument } from "@/lib/library-documents/governance";
+import { isOwner, isVisibility, isLearningPermission, isAIAccess, canAttachDocumentToProject, documentVisibleToViewer, type GovernedDocument } from "@/lib/library-documents/governance";
+import { canAccess } from "@/lib/access";
 import { logActivity } from "@/lib/research-project-activity";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  try { await requireUser(req); } catch (err) { return err as Response; }
+  let session;
+  try { session = await requireUser(req); } catch (err) { return err as Response; }
 
   const { id } = await params;
   const { data, error } = await supabaseAdmin
@@ -28,6 +30,34 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     .single();
 
   if (error || !data) return NextResponse.json({ error: error?.message ?? "Not found" }, { status: 404 });
+
+  // F041 — authorise the direct record/file read BEFORE returning anything or
+  // minting a signed URL. A known/leaked document UUID must not by itself
+  // confer access: a non-admin may read this record only if it is
+  // library-visible to their organisation, or it is attached to a Research
+  // Project they can access. Fail closed on any error.
+  {
+    const isAdmin = session.role === "admin";
+    let authorised = isAdmin || documentVisibleToViewer(data as GovernedDocument, session.organisationId ?? "");
+    if (!authorised) {
+      try {
+        const { data: attachments } = await supabaseAdmin
+          .from("research_project_evidence")
+          .select("research_project_id")
+          .eq("evidence_type", "document")
+          .eq("evidence_id", id);
+        const projectIds = Array.from(
+          new Set((attachments ?? []).map(a => a.research_project_id).filter((p): p is string => !!p))
+        );
+        for (const pid of projectIds) {
+          if (await canAccess(session, "research_project", pid)) { authorised = true; break; }
+        }
+      } catch {
+        authorised = false; // fail closed
+      }
+    }
+    if (!authorised) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   // How many Research Projects attach this document as evidence — surfaced
   // before an edit so it's clear the record is shared, not a project copy.
