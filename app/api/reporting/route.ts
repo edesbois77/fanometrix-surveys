@@ -1,13 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { isReportingAuthorized } from "@/lib/reporting-auth";
 
 const API_KEY = process.env.REPORTING_API_KEY;
 
 function auth(req: NextRequest): boolean {
-  if (!API_KEY) return true; // open if key not configured
-  const header = req.headers.get("authorization");
-  const query  = req.nextUrl.searchParams.get("api_key");
-  return header === `Bearer ${API_KEY}` || query === API_KEY;
+  return isReportingAuthorized(
+    req.headers.get("authorization"),
+    req.nextUrl.searchParams.get("api_key"),
+    API_KEY,
+  );
 }
 
 function corsHeaders() {

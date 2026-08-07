@@ -1,13 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { isReportingAuthorized, isReportingKeyConfigured } from "@/lib/reporting-auth";
 
 const API_KEY = process.env.REPORTING_API_KEY;
 
 function auth(req: NextRequest): boolean {
-  if (!API_KEY) return true;
-  const header = req.headers.get("authorization");
-  const query  = req.nextUrl.searchParams.get("api_key");
-  return header === `Bearer ${API_KEY}` || query === API_KEY;
+  return isReportingAuthorized(
+    req.headers.get("authorization"),
+    req.nextUrl.searchParams.get("api_key"),
+    API_KEY,
+  );
 }
 
 export async function GET(req: NextRequest) {
@@ -29,6 +31,6 @@ export async function GET(req: NextRequest) {
     last_response_at:   latestRes.data?.[0]?.created_at ?? null,
     view_name:          "vw_campaign_responses",
     endpoint:           `${base}/api/reporting`,
-    api_key_configured: !!API_KEY,
+    api_key_configured: isReportingKeyConfigured(API_KEY),
   });
 }

@@ -6,7 +6,9 @@ import { AdminShell } from "@/app/components/AdminShell";
 const BASE = process.env.NEXT_PUBLIC_APP_URL ?? "https://fanometrix-surveys.vercel.app";
 
 const ENDPOINT   = `${BASE}/api/reporting`;
-const STATS_URL  = `${BASE}/api/reporting/stats`;
+// Read stats from the session-authenticated admin route, NOT the key-gated
+// public /api/reporting/stats — the browser must never hold REPORTING_API_KEY.
+const STATS_URL  = `/api/admin/reporting-stats`;
 
 const FIELDS = [
   { name: "response_id",          type: "TEXT",      note: "Unique response UUID" },
@@ -51,7 +53,6 @@ type Stats = {
   total_rows: number;
   last_response_at: string | null;
   api_key_configured: boolean;
-  endpoint: string;
 };
 
 export default function ReportingPage() {
