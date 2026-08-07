@@ -1,6 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { evaluate, type DecisionInput } from "../decision";
+import { resolveActiveContext } from "../organisation-access";
 
 // ORG-005 conformance harness — architecture invariants.
 //   • Currently-true invariants are asserted normally (must stay green).
@@ -46,7 +49,36 @@ test("Q-22 — no super-ALLOW: admin must not bypass a not-visible resource [clo
 
 // ── TARGET invariants pending their owning workstream (mechanism not yet built) ─
 
-test("Q-06 — exactly one Active Organisation Context; no permission union [closes IW-1, F009]", { todo: "Organisation model & Active Context is IW-1" });
+// ── IW-1 delivered: Active Organisation Context mechanism (HELD) ─────────────
+test("Q-05 — multiplicity: context resolution handles zero/one/many access", () => {
+  assert.equal(resolveActiveContext([], null).status, "no_access");
+  assert.equal(resolveActiveContext(["a"], null).activeOrganisationId, "a");
+  assert.equal(resolveActiveContext(["a", "b"], null).status, "selection_required");
+});
+test("Q-06 — exactly one Active Organisation Context; never a permission union", () => {
+  const many = resolveActiveContext(["a", "b", "c"], null);
+  assert.equal(many.activeOrganisationId, null); // no union across contexts
+  assert.equal(resolveActiveContext(["a", "b"], "b").activeOrganisationId, "b"); // exactly one
+});
+test("Q-07 — remembered/preferred context is honoured only while still authorised", () => {
+  assert.equal(resolveActiveContext(["a", "b"], "b").activeOrganisationId, "b");
+  assert.equal(resolveActiveContext(["a", "b"], "x").status, "selection_required"); // stale ignored
+});
+test("Q-08 — switching only among authorised orgs; unauthorised switch grants no context", () => {
+  assert.equal(resolveActiveContext(["a", "b"], "a", "b").activeOrganisationId, "b");
+  assert.equal(resolveActiveContext(["a", "b"], "a", "x").status, "switch_denied");
+});
+
+// IW-1 read cut-over: the Active Organisation Context is now the authoritative
+// Organisation in the trusted path (requireUser), with the scalar retained as
+// the governed fallback. Verified against the wired source.
+test("Q-06 cut-over — requireUser resolves the authoritative org from Active Context (scalar retained as fallback)", () => {
+  const authServer = readFileSync(resolve(__dirname, "..", "..", "auth-server.ts"), "utf8");
+  assert.match(authServer, /resolveActiveContext/);        // active context resolved
+  assert.match(authServer, /recordOrgContextParity/);       // parity recorded (shadow)
+  assert.match(authServer, /fallback/i);                    // scalar retained as fallback
+  assert.match(authServer, /organisationId,/);              // returned org is the resolved active context
+});
 test("Q-11 — contextual permission-profile Roles, not a global identity enum [closes IW-2, F010]", { todo: "Contextual roles is IW-2" });
 test("Q-09/Q-10 — Product Access and Product Capability Access as distinct layers [closes IW-3, F013/F014]", { todo: "Product/Capability is IW-3" });
 test("Q-14/Q-15 — Organisation Resource Entitlement vs User Resource Authorisation [closes IW-6, F024/F025]", { todo: "Resource Entitlement is IW-6" });

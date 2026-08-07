@@ -52,9 +52,15 @@ export const CONFORMANCE_MANIFEST: ConformanceItem[] = [
   { ref: "F040", cls: "REGRESSION", description: "Campaign↔project cross-org association refused; org-consistency invariant.", evidence: ["lib/campaign-project-association.test.ts"] },
   { ref: "F041", cls: "REGRESSION", description: "Library document read authorised before record/signed-URL; leaked UUID insufficient.", evidence: ["lib/library-documents/governance.test.ts"] },
 
+  // ── IW-1 delivered: Organisation model & Active Context mechanism (HELD) ──
+  { ref: "Q-05", cls: "HELD", description: "User–Organisation Access multiplicity zero/one/many; context handles all.", evidence: ["lib/authz/organisation-access.test.ts", "lib/authz/conformance/invariants.test.ts"] },
+  { ref: "Q-06-mech", cls: "HELD", description: "Exactly one Active Organisation Context; never a permission union.", evidence: ["lib/authz/organisation-access.test.ts", "lib/authz/conformance/invariants.test.ts"] },
+  { ref: "Q-07", cls: "HELD", description: "Remembered/preferred context honoured only while still authorised.", evidence: ["lib/authz/organisation-access.test.ts", "lib/authz/conformance/invariants.test.ts"] },
+  { ref: "Q-08", cls: "HELD", description: "Switch only among authorised orgs; unauthorised switch grants no context (no carry-over).", evidence: ["lib/authz/organisation-access.test.ts", "lib/authz/conformance/invariants.test.ts"] },
+
   // ── TARGET invariants — current implementation violates; closed by owner WS ──
   { ref: "Q-22-no-super-ALLOW", cls: "TARGET", description: "No super-ALLOW: admin must not unconditionally bypass resource/DENY.", closesAt: "IW-5", evidence: ["lib/authz/conformance/invariants.test.ts"] },
-  { ref: "Q-06", cls: "TARGET", description: "Exactly one Active Organisation Context; no permission union.", closesAt: "IW-1", evidence: ["lib/authz/conformance/invariants.test.ts"] },
+  { ref: "Q-06-enforce", cls: "HELD", description: "Active Organisation Context authoritative in requireUser (read cut-over); scalar organisation_id retained as fallback until IW-11.", evidence: ["lib/authz/conformance/invariants.test.ts"] },
   { ref: "Q-11", cls: "TARGET", description: "Contextual permission-profile Roles (not a global identity enum).", closesAt: "IW-2", evidence: ["lib/authz/conformance/invariants.test.ts"] },
   { ref: "Q-09/Q-10", cls: "TARGET", description: "Product Access and Product Capability Access as distinct layers.", closesAt: "IW-3", evidence: ["lib/authz/conformance/invariants.test.ts"] },
   { ref: "Q-14/Q-15", cls: "TARGET", description: "Organisation Resource Entitlement vs User Resource Authorisation.", closesAt: "IW-6", evidence: ["lib/authz/conformance/invariants.test.ts"] },

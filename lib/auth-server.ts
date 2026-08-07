@@ -11,7 +11,8 @@ import type { NextRequest } from "next/server";
 import { getSession, type UserRole } from "@/lib/auth";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { evaluate } from "@/lib/authz/decision";
-import { recordShadow } from "@/lib/authz/shadow";
+import { recordShadow, recordOrgContextParity } from "@/lib/authz/shadow";
+import { fetchActiveOrganisationAccess, resolveActiveContext, compareAccessToScalar } from "@/lib/authz/organisation-access";
 
 export type OrganisationType = "publisher" | "agency" | "brand" | "internal";
 
@@ -42,8 +43,11 @@ type UserRow = {
   access_scope: "organisation_wide" | "selected";
   status: "pending_invitation" | "active" | "disabled";
   can_present_simulations: boolean;
+  remembered_organisation_id: string | null;
   organisations: { name: string; type: OrganisationType; status: "active" | "disabled" } | { name: string; type: OrganisationType; status: "active" | "disabled" }[] | null;
 };
+
+type OrgRecord = { name: string; type: OrganisationType; status: "active" | "disabled" } | null;
 
 function unauthorised(message: string, status: 401 | 403): Response {
   return new Response(JSON.stringify({ error: message }), {
@@ -67,7 +71,7 @@ export async function requireUser(
 
   const { data, error } = await supabaseAdmin
     .from("users")
-    .select("id, work_email, first_name, last_name, role, organisation_id, access_scope, status, can_present_simulations, organisations ( name, type, status )")
+    .select("id, work_email, first_name, last_name, role, organisation_id, access_scope, status, can_present_simulations, remembered_organisation_id, organisations ( name, type, status )")
     .eq("id", session.sub)
     .single();
 
@@ -98,7 +102,39 @@ export async function requireUser(
 
   if (row.status !== "active") throw unauthorised("Account disabled", 403);
 
-  const org = Array.isArray(row.organisations) ? row.organisations[0] : row.organisations;
+  const scalarOrg: OrgRecord = Array.isArray(row.organisations) ? (row.organisations[0] ?? null) : (row.organisations ?? null);
+
+  // ── ORG-005 IW-1 read cut-over: the Active Organisation Context is now the
+  //    authoritative Organisation for this request, resolved from the live
+  //    User–Organisation Access set + the remembered/preferred context
+  //    (validated). The scalar users.organisation_id is RETAINED as the
+  //    governed fallback (decommission is IW-11). Fail-safe: any unavailability
+  //    or an unresolved context falls back to the scalar so a user is never
+  //    stranded, and this preserves current single-organisation behaviour
+  //    exactly (proven by the full-population parity census). ──
+  let organisationId = row.organisation_id; // fallback (retained)
+  let org: OrgRecord = scalarOrg;           // fallback org record
+  try {
+    const accessSet = await fetchActiveOrganisationAccess(row.id);
+    if (accessSet !== null) {
+      recordOrgContextParity(compareAccessToScalar(row.organisation_id, accessSet).parity);
+      const ctx = resolveActiveContext(accessSet, row.remembered_organisation_id ?? null);
+      if (ctx.activeOrganisationId) {
+        organisationId = ctx.activeOrganisationId;
+        if (ctx.activeOrganisationId !== row.organisation_id) {
+          // Active org differs from the scalar (not the case for current
+          // single-org data) — fetch its record for correct name/type/status.
+          const { data: activeOrgRow } = await supabaseAdmin
+            .from("organisations").select("name, type, status")
+            .eq("id", ctx.activeOrganisationId).single();
+          org = (activeOrgRow as OrgRecord) ?? null;
+        }
+      }
+      // ctx.activeOrganisationId null (no_access / selection_required) →
+      // keep the scalar fallback (never strands a user; preserves behaviour).
+    }
+    // accessSet null (source unavailable) → keep the scalar fallback.
+  } catch { /* fail-safe: the scalar remains authoritative */ }
 
   // Admins bypass the organisation-disabled check so a disabled internal
   // organisation can never accidentally lock every admin out at once.
@@ -116,7 +152,7 @@ export async function requireUser(
     firstName: row.first_name,
     lastName: row.last_name,
     role: row.role,
-    organisationId: row.organisation_id,
+    organisationId,
     organisationName: org?.name ?? null,
     organisationType: org?.type ?? null,
     accessScope: row.access_scope,

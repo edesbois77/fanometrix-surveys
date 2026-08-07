@@ -17,9 +17,12 @@ export interface ShadowStats {
   divergent: number;
   lastDivergenceAt: number | null;
   lastDivergenceSite: string | null;
+  // ORG-005 IW-1 — Active Organisation Context vs scalar organisation_id parity.
+  orgContextEvaluated: number;
+  orgContextDivergent: number;
 }
 
-const stats: ShadowStats = { evaluated: 0, divergent: 0, lastDivergenceAt: null, lastDivergenceSite: null };
+const stats: ShadowStats = { evaluated: 0, divergent: 0, lastDivergenceAt: null, lastDivergenceSite: null, orgContextEvaluated: 0, orgContextDivergent: 0 };
 
 /**
  * Record one shadow comparison. `legacyAllowed` is the authoritative legacy
@@ -44,6 +47,26 @@ export function recordShadow(site: string, result: AuthzResult, legacyAllowed: b
   }
 }
 
+/**
+ * ORG-005 IW-1 — record whether the resolved Active Organisation Context
+ * matches the legacy scalar organisation_id for this request. Never throws.
+ * A divergence (should be zero — the census proved full-population parity)
+ * emits a structured, PII-free log line.
+ */
+export function recordOrgContextParity(parity: boolean): void {
+  try {
+    stats.orgContextEvaluated++;
+    if (!parity) {
+      stats.orgContextDivergent++;
+      stats.lastDivergenceAt = Date.now();
+      stats.lastDivergenceSite = "requireUser.orgContext";
+      console.warn("[authz-shadow] ORG-CONTEXT DIVERGENCE requireUser (active context != scalar organisation_id)");
+    }
+  } catch {
+    // Never break authorisation.
+  }
+}
+
 /** Snapshot of this instance's shadow counters (for the admin diagnostic). */
 export function shadowStats(): ShadowStats {
   return { ...stats };
@@ -55,4 +78,6 @@ export function __resetShadow(): void {
   stats.divergent = 0;
   stats.lastDivergenceAt = null;
   stats.lastDivergenceSite = null;
+  stats.orgContextEvaluated = 0;
+  stats.orgContextDivergent = 0;
 }
