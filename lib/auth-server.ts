@@ -10,6 +10,8 @@
 import type { NextRequest } from "next/server";
 import { getSession, type UserRole } from "@/lib/auth";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { evaluate } from "@/lib/authz/decision";
+import { recordShadow } from "@/lib/authz/shadow";
 
 export type OrganisationType = "publisher" | "agency" | "brand" | "internal";
 
@@ -71,6 +73,28 @@ export async function requireUser(
 
   const row = data as UserRow | null;
   if (error || !row) throw unauthorised("Unauthorised", 401);
+
+  // ── ORG-005 IW-0 shadow (non-authoritative; must NEVER affect the request) ──
+  // Evaluate the central decision seam on the same resolved inputs and compare
+  // to the legacy structural+role outcome. The legacy checks below remain
+  // authoritative and unchanged; any shadow error is swallowed.
+  try {
+    const shadowOrg = Array.isArray(row.organisations) ? row.organisations[0] : row.organisations;
+    const legacyAllowed =
+      row.status === "active" &&
+      (row.role === "admin" || shadowOrg?.status !== "disabled") &&
+      (!allowedRoles || allowedRoles.includes(row.role));
+    recordShadow("requireUser", evaluate({
+      session: "present",
+      principalStatus: row.status === "active" ? "active" : "inactive",
+      role: row.role,
+      isAdmin: row.role === "admin",
+      orgStatus: shadowOrg == null ? "none" : (shadowOrg.status === "disabled" ? "disabled" : "active"),
+      allowedRoles: allowedRoles ?? undefined,
+      resourceVisibility: "not_applicable",
+      explicitDeny: null,
+    }), legacyAllowed);
+  } catch { /* shadow observation must never break authorisation */ }
 
   if (row.status !== "active") throw unauthorised("Account disabled", 403);
 
