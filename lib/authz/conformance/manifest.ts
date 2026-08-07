@@ -61,7 +61,8 @@ export const CONFORMANCE_MANIFEST: ConformanceItem[] = [
   // ── TARGET invariants — current implementation violates; closed by owner WS ──
   { ref: "Q-22-no-super-ALLOW", cls: "TARGET", description: "No super-ALLOW: admin must not unconditionally bypass resource/DENY.", closesAt: "IW-5", evidence: ["lib/authz/conformance/invariants.test.ts"] },
   { ref: "Q-06-enforce", cls: "HELD", description: "Active Organisation Context authoritative in requireUser (read cut-over); scalar organisation_id retained as fallback until IW-11.", evidence: ["lib/authz/conformance/invariants.test.ts"] },
-  { ref: "Q-11", cls: "TARGET", description: "Contextual permission-profile Roles (not a global identity enum).", closesAt: "IW-2", evidence: ["lib/authz/conformance/invariants.test.ts"] },
+  // ── IW-2 delivered: Contextual Roles as Permission Profiles mechanism (HELD) ──
+  { ref: "Q-11", cls: "HELD", description: "Role = permission profile bound to a User–Organisation Access (contextual, no carry-over); orthogonal to Organisation classification. Contextual value authoritative with legacy users.role as strangler fallback; scalar decommission deferred.", evidence: ["lib/authz/role-profile.test.ts", "lib/authz/conformance/invariants.test.ts"] },
   { ref: "Q-09/Q-10", cls: "TARGET", description: "Product Access and Product Capability Access as distinct layers.", closesAt: "IW-3", evidence: ["lib/authz/conformance/invariants.test.ts"] },
   { ref: "Q-14/Q-15", cls: "TARGET", description: "Organisation Resource Entitlement vs User Resource Authorisation.", closesAt: "IW-6", evidence: ["lib/authz/conformance/invariants.test.ts"] },
   { ref: "Q-27", cls: "TARGET", description: "Scoped Platform Administration Authority; administer≠possess; no self-elevation.", closesAt: "IW-5", evidence: ["lib/authz/conformance/invariants.test.ts"] },

@@ -11,8 +11,9 @@ import type { NextRequest } from "next/server";
 import { getSession, type UserRole } from "@/lib/auth";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { evaluate } from "@/lib/authz/decision";
-import { recordShadow, recordOrgContextParity } from "@/lib/authz/shadow";
+import { recordShadow, recordOrgContextParity, recordRoleParity } from "@/lib/authz/shadow";
 import { fetchActiveOrganisationAccess, resolveActiveContext, compareAccessToScalar } from "@/lib/authz/organisation-access";
+import { fetchContextualRole, resolveEffectiveRole, roleParity } from "@/lib/authz/role-profile";
 
 export type OrganisationType = "publisher" | "agency" | "brand" | "internal";
 
@@ -136,13 +137,31 @@ export async function requireUser(
     // accessSet null (source unavailable) → keep the scalar fallback.
   } catch { /* fail-safe: the scalar remains authoritative */ }
 
+  // ── ORG-005 IW-2 read cut-over: the Role is now a permission profile bound to
+  //    the User–Organisation Access — CONTEXTUAL to the Active Organisation
+  //    Context resolved above (Q-11; REPLACE F010). The contextual Role is
+  //    authoritative for this request; the legacy global users.role is RETAINED
+  //    as the governed strangler/fail-safe fallback (NOT decommissioned).
+  //    Fail-safe: unavailability or no binding for the context falls back to the
+  //    legacy role, so a user is never stranded and current single-Access
+  //    behaviour is preserved exactly (proven by the full-population parity
+  //    census). No cross-Organisation carry-over: the profile is read for the
+  //    active context only. Admin semantics are UNCHANGED here — scoped Platform
+  //    Administration is IW-5, not manufactured now. ──
+  let effectiveRole: UserRole = row.role; // fallback (retained legacy role)
+  try {
+    const contextualRole = await fetchContextualRole(row.id, organisationId);
+    recordRoleParity(roleParity(contextualRole, row.role).parity);
+    effectiveRole = resolveEffectiveRole(contextualRole, row.role).role;
+  } catch { /* fail-safe: the legacy role remains authoritative */ }
+
   // Admins bypass the organisation-disabled check so a disabled internal
   // organisation can never accidentally lock every admin out at once.
-  if (row.role !== "admin" && org?.status === "disabled") {
+  if (effectiveRole !== "admin" && org?.status === "disabled") {
     throw unauthorised("Organisation disabled", 403);
   }
 
-  if (allowedRoles && !allowedRoles.includes(row.role)) {
+  if (allowedRoles && !allowedRoles.includes(effectiveRole)) {
     throw unauthorised("Forbidden", 403);
   }
 
@@ -151,7 +170,7 @@ export async function requireUser(
     workEmail: row.work_email,
     firstName: row.first_name,
     lastName: row.last_name,
-    role: row.role,
+    role: effectiveRole,
     organisationId,
     organisationName: org?.name ?? null,
     organisationType: org?.type ?? null,

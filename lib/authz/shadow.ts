@@ -20,9 +20,12 @@ export interface ShadowStats {
   // ORG-005 IW-1 — Active Organisation Context vs scalar organisation_id parity.
   orgContextEvaluated: number;
   orgContextDivergent: number;
+  // ORG-005 IW-2 — contextual Role vs legacy users.role parity.
+  roleEvaluated: number;
+  roleDivergent: number;
 }
 
-const stats: ShadowStats = { evaluated: 0, divergent: 0, lastDivergenceAt: null, lastDivergenceSite: null, orgContextEvaluated: 0, orgContextDivergent: 0 };
+const stats: ShadowStats = { evaluated: 0, divergent: 0, lastDivergenceAt: null, lastDivergenceSite: null, orgContextEvaluated: 0, orgContextDivergent: 0, roleEvaluated: 0, roleDivergent: 0 };
 
 /**
  * Record one shadow comparison. `legacyAllowed` is the authoritative legacy
@@ -67,6 +70,27 @@ export function recordOrgContextParity(parity: boolean): void {
   }
 }
 
+/**
+ * ORG-005 IW-2 — record whether the contextual Role resolved for the Active
+ * Organisation Context matches the retained legacy `users.role` for this
+ * request. Never throws. A divergence (should be zero — the census proved
+ * full-population 1:1) emits a structured, PII-free log line. A null contextual
+ * Role is the safe legacy-fallback path and is NOT a divergence.
+ */
+export function recordRoleParity(parity: boolean): void {
+  try {
+    stats.roleEvaluated++;
+    if (!parity) {
+      stats.roleDivergent++;
+      stats.lastDivergenceAt = Date.now();
+      stats.lastDivergenceSite = "requireUser.contextualRole";
+      console.warn("[authz-shadow] ROLE DIVERGENCE requireUser (contextual role != legacy users.role)");
+    }
+  } catch {
+    // Never break authorisation.
+  }
+}
+
 /** Snapshot of this instance's shadow counters (for the admin diagnostic). */
 export function shadowStats(): ShadowStats {
   return { ...stats };
@@ -80,4 +104,6 @@ export function __resetShadow(): void {
   stats.lastDivergenceSite = null;
   stats.orgContextEvaluated = 0;
   stats.orgContextDivergent = 0;
+  stats.roleEvaluated = 0;
+  stats.roleDivergent = 0;
 }

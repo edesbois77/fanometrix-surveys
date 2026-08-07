@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { evaluate, type DecisionInput } from "../decision";
 import { resolveActiveContext } from "../organisation-access";
+import { roleForContext, resolveEffectiveRole, type ContextualRoleBinding } from "../role-profile";
 
 // ORG-005 conformance harness — architecture invariants.
 //   • Currently-true invariants are asserted normally (must stay green).
@@ -79,7 +80,50 @@ test("Q-06 cut-over — requireUser resolves the authoritative org from Active C
   assert.match(authServer, /fallback/i);                    // scalar retained as fallback
   assert.match(authServer, /organisationId,/);              // returned org is the resolved active context
 });
-test("Q-11 — contextual permission-profile Roles, not a global identity enum [closes IW-2, F010]", { todo: "Contextual roles is IW-2" });
+// ── IW-2 delivered: Contextual Roles as Permission Profiles (HELD) ───────────
+// Q-11 / REPLACE F010: a Role is a permission profile bound to a User–Organisation
+// Access (contextual), not a global identity enum. Resolution is per active
+// context (no carry-over) and orthogonal to Organisation classification (F034).
+test("Q-11 — Role is contextual to the Active Organisation Context, not global [closes IW-2, F010]", () => {
+  const bindings: ContextualRoleBinding[] = [
+    { organisationId: "org-A", role: "brand" },
+    { organisationId: "org-B", role: "agency" },
+  ];
+  assert.equal(roleForContext(bindings, "org-A"), "brand");
+  assert.equal(roleForContext(bindings, "org-B"), "agency"); // different context → different role
+});
+test("Q-11 — no carry-over: a role in one Organisation does not apply in another", () => {
+  const bindings: ContextualRoleBinding[] = [{ organisationId: "org-A", role: "admin" }];
+  assert.equal(roleForContext(bindings, "org-B"), null); // no binding in B → no admin carry-over
+});
+test("Q-11 — classification vs Role separation: resolution never reads Organisation type (F034)", () => {
+  // Two differently-classified orgs, same bound profile → same Role; the Role
+  // depends only on the Access binding, never on what the Organisation IS.
+  const bindings: ContextualRoleBinding[] = [
+    { organisationId: "org-classified-brand", role: "publisher" },
+    { organisationId: "org-classified-publisher", role: "publisher" },
+  ];
+  assert.equal(roleForContext(bindings, "org-classified-brand"), "publisher");
+  assert.equal(roleForContext(bindings, "org-classified-publisher"), "publisher");
+  assert.equal(roleForContext.length, 2); // (bindings, activeOrg) only — no org-type arg
+});
+test("Q-11 — strangler parity: contextual role backfilled 1:1 preserves current permissions", () => {
+  assert.equal(resolveEffectiveRole("brand", "brand").source, "contextual"); // contextual authoritative
+  assert.equal(resolveEffectiveRole(null, "brand").role, "brand");           // legacy fallback preserved
+  assert.equal(resolveEffectiveRole(null, "admin").role, "admin");           // admin carried unchanged
+});
+
+// IW-2 read cut-over: the contextual Role is now the authoritative Role in the
+// trusted path (requireUser), with the legacy users.role retained as fallback.
+// Verified against the wired source (parallels the Q-06 cut-over assertion).
+test("Q-11 cut-over — requireUser resolves the authoritative Role from the Active Organisation Context (legacy retained as fallback)", () => {
+  const authServer = readFileSync(resolve(__dirname, "..", "..", "auth-server.ts"), "utf8");
+  assert.match(authServer, /fetchContextualRole/);   // contextual role resolved from the active context
+  assert.match(authServer, /resolveEffectiveRole/);  // effective role = contextual, else legacy fallback
+  assert.match(authServer, /recordRoleParity/);      // parity recorded (shadow)
+  assert.match(authServer, /effectiveRole/);         // effective role gates allowedRoles + returned role
+  assert.match(authServer, /fallback/i);             // legacy users.role retained as fallback
+});
 test("Q-09/Q-10 — Product Access and Product Capability Access as distinct layers [closes IW-3, F013/F014]", { todo: "Product/Capability is IW-3" });
 test("Q-14/Q-15 — Organisation Resource Entitlement vs User Resource Authorisation [closes IW-6, F024/F025]", { todo: "Resource Entitlement is IW-6" });
 test("Q-27 — scoped Platform Administration Authority; administer≠possess; no self-elevation [closes IW-5, F035/F036]", { todo: "Scoped admin authority is IW-5" });
