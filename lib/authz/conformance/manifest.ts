@@ -49,6 +49,9 @@ export const CONFORMANCE_MANIFEST: ConformanceItem[] = [
   { ref: "F034", cls: "HELD", description: "Organisation Relationship/Classification never an access source.", evidence: ["lib/authz/conformance/retain-properties.test.ts"] },
   { ref: "F048", cls: "HELD", description: "Permission never reconstructed from audit history.", evidence: ["lib/authz/conformance/retain-properties.test.ts"] },
   { ref: "F049", cls: "HELD", description: "Minimisation: seam introduces no domain-data duplication.", evidence: ["lib/authz/conformance/retain-properties.test.ts"] },
+
+  // ── IW-10 delivered: retention MECHANISM (non-destructive; execution deferred) ──
+  { ref: "F050-mech", cls: "HELD", description: "Retention MECHANISM built (parameterised cutoff + prunable classification + read-only preview; reads only timestamps/counts — F049 minimisation preserved). DESTRUCTIVE pruning execution is DEFERRED (inert, unwired) pending the retention-scope decision + destructive-operation authority. Windows NOT defaulted (reserved scope decision).", evidence: ["lib/retention/policy.test.ts"] },
   { ref: "F069", cls: "HELD", description: "Diagnostic access protected (no unrestricted permission-explain surface).", evidence: ["lib/authz/conformance/retain-properties.test.ts"] },
 
   // ── Remediated-vulnerability regression floor ──
