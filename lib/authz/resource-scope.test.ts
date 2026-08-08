@@ -34,6 +34,21 @@ test("Q-16/Q-36-D06 — no implicit propagation: a direct Study entitlement gran
   assert.equal(organisationEntitled(direct, { resourceClass: "finding", resourceId: "study-A" }), false);
 });
 
+test("Option 1 — per-participant Data scope: a publisher covers only its OWN campaigns, never a co-publisher's", () => {
+  // Data is per-Campaign (resource_id = campaign PK). A publisher's Data scope
+  // holds only its own campaigns within a shared multi-publisher Study.
+  const fotmobOwn = new Set(["camp-fotmob-cocacola"]); // NOT the LiveScore/Flashscore campaigns
+  const dataScopeCovers = (scopeId: string, ref: ResourceRef) =>
+    scopeId === "data-fotmob" && ref.resourceClass === "data" && fotmobOwn.has(ref.resourceId);
+  const fotmobDataEnt = [{ organisationId: "FotMob", resourceClass: "data" as const, scopeId: "data-fotmob" }];
+
+  // own campaign in the shared Study → covered (preserved)
+  assert.equal(organisationEntitled(fotmobDataEnt, { resourceClass: "data", resourceId: "camp-fotmob-cocacola" }, dataScopeCovers), true);
+  // co-publishers' campaigns in the SAME Study → NOT covered (no cross-publisher exposure)
+  assert.equal(organisationEntitled(fotmobDataEnt, { resourceClass: "data", resourceId: "camp-livescore-cocacola" }, dataScopeCovers), false);
+  assert.equal(organisationEntitled(fotmobDataEnt, { resourceClass: "data", resourceId: "camp-flashscore-cocacola" }, dataScopeCovers), false);
+});
+
 test("Q-15 — over a scope, User Authorisation narrows but never expands", () => {
   // org entitled to the scope; a user RESTRICT on a member narrows it away
   assert.equal(resolveResourceAccess({ resourceClass: "study", resourceId: "study-A" }, {

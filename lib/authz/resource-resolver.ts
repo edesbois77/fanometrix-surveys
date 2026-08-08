@@ -26,19 +26,21 @@ import {
   type UserAuthorisation,
 } from "@/lib/authz/resource-entitlement";
 
-/** Resolve the governed uuid for a report/data resource from its natural key
- *  (report: ReportConfig.access.id; data: research_project_id). Study/Finding are
- *  addressed by their own PKs and are NOT registered — pass their id straight
- *  through. Returns null if a report/data resource has no registry row. */
+/** Resolve the governed uuid for a resource from its natural key.
+ *  Study (research_projects.id), Finding (findings.id) and — after the Option-1
+ *  Data-granularity refinement — Data (the CAMPAIGN id; Data is per-Campaign) are
+ *  addressed by their own PKs and pass straight through. Only Report is registry-
+ *  addressed (its identity is a config string, ReportConfig.access.id). Returns
+ *  null if a Report resource has no active registry row. */
 export async function resolveGovernedResourceId(
   resourceClass: ResourceClass,
   naturalKey: string,
 ): Promise<string | null> {
-  if (resourceClass === "study" || resourceClass === "finding") return naturalKey;
+  if (resourceClass !== "report") return naturalKey; // study | finding | data → own PK
   const { data } = await supabaseAdmin
     .from("governed_resources")
     .select("id")
-    .eq("resource_class", resourceClass)
+    .eq("resource_class", "report")
     .eq("natural_key", naturalKey)
     .eq("status", "active")
     .maybeSingle();

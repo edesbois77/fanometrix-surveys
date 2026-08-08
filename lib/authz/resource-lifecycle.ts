@@ -25,54 +25,67 @@ export interface LifecycleActions {
 
 /**
  * PURE — decide which report/data registry rows are now orphaned. A `data` row is
- * orphaned when its Study (natural_key = research_project_id) no longer exists (or
- * is deleted); a `report` row is orphaned when its config id is no longer
- * registered. Study/Finding are addressed by their own PKs and are not registered,
- * so they need no registry retirement (their ORE is revoked directly on deletion).
+ * registered. Study/Finding/Data are addressed by their own PKs and are not
+ * registered (Data is per-Campaign after the Option-1 refinement), so they need no
+ * registry retirement — their entitlement/scope-membership is revoked/pruned
+ * directly on deletion (see reconcileResourceLifecycle). Only Report is registry-
+ * addressed and can be orphaned here (its config id no longer registered).
  */
 export function computeLifecycleActions(
   governed: GovernedResourceRow[],
-  existingStudyIds: Set<string>,
   registeredReportIds: Set<string>,
 ): LifecycleActions {
   const retireGovernedIds: string[] = [];
   const reasons: Record<string, string> = {};
   for (const g of governed) {
     if (g.status !== "active") continue;
-    if (g.resource_class === "data" && !existingStudyIds.has(g.natural_key)) {
-      retireGovernedIds.push(g.id); reasons[g.id] = `data resource orphaned — Study ${g.natural_key} missing/deleted`;
-    } else if (g.resource_class === "report" && !registeredReportIds.has(g.natural_key)) {
+    if (g.resource_class === "report" && !registeredReportIds.has(g.natural_key)) {
       retireGovernedIds.push(g.id); reasons[g.id] = `report resource orphaned — config ${g.natural_key} no longer registered`;
     }
   }
   return { retireGovernedIds, reasons };
 }
 
-/** Reconcile the governed tables against live resources. Returns a summary. Only
- *  the report/data registry is validated here (study/finding ORE is revoked when
- *  those PKs are deleted — reconciled via the same sweep below). */
+/** PURE — Data scope members (per-Campaign) whose campaign no longer exists/was
+ *  deleted are stale and must be pruned so a retired campaign's Data cannot remain
+ *  covered (§9-D). Returns the campaign resource_ids to prune. */
+export function computeStaleDataMembers(
+  dataMemberResourceIds: string[],
+  existingCampaignIds: Set<string>,
+): string[] {
+  return dataMemberResourceIds.filter((id) => !existingCampaignIds.has(id));
+}
+
+/** Reconcile the governed tables against live resources. Returns a summary.
+ *  Retires orphaned Report registry rows; revokes Study ORE for deleted Studies;
+ *  prunes per-Campaign Data scope members whose campaign was deleted (§9-D). */
 export async function reconcileResourceLifecycle(registeredReportIds: Set<string>): Promise<{ retiredResources: number; revokedEntitlements: number; prunedMembers: number }> {
   const { data: governed } = await supabaseAdmin.from("governed_resources").select("id, resource_class, natural_key, status");
   const { data: studies } = await supabaseAdmin.from("research_projects").select("id").is("deleted_at", null);
+  const { data: campaigns } = await supabaseAdmin.from("campaigns").select("id").is("deleted_at", null);
   const existingStudyIds = new Set((studies ?? []).map((r) => r.id as string));
+  const existingCampaignIds = new Set((campaigns ?? []).map((r) => r.id as string));
 
-  const { retireGovernedIds } = computeLifecycleActions((governed ?? []) as GovernedResourceRow[], existingStudyIds, registeredReportIds);
+  const { retireGovernedIds } = computeLifecycleActions((governed ?? []) as GovernedResourceRow[], registeredReportIds);
 
   let revoked = 0, pruned = 0;
   if (retireGovernedIds.length) {
     await supabaseAdmin.from("governed_resources").update({ status: "retired" }).in("id", retireGovernedIds);
-    // Revoke entitlements/authorisations that target a now-retired data/report id,
-    // and prune its scope memberships — authority removed for the orphaned resource.
+    // Revoke entitlements/authorisations that target a now-retired Report id.
     const r1 = await supabaseAdmin.from("organisation_resource_entitlements").update({ status: "revoked" }).in("resource_id", retireGovernedIds).eq("status", "active").select("id");
     const r2 = await supabaseAdmin.from("user_resource_authorisations").update({ status: "revoked" }).in("resource_id", retireGovernedIds).eq("status", "active").select("id");
-    const r3 = await supabaseAdmin.from("resource_scope_members").delete().in("resource_id", retireGovernedIds).select("scope_id");
-    revoked = (r1.data?.length ?? 0) + (r2.data?.length ?? 0);
-    pruned = r3.data?.length ?? 0;
+    revoked += (r1.data?.length ?? 0) + (r2.data?.length ?? 0);
   }
-  // Study/Finding entitlements whose PK was deleted: revoke study ORE for missing studies.
+  // Study ORE whose PK was deleted → revoke (authority removed for the gone Study).
   const { data: studyORE } = await supabaseAdmin.from("organisation_resource_entitlements").select("id, resource_id").eq("resource_class", "study").eq("status", "active").not("resource_id", "is", null);
   const staleStudyOre = (studyORE ?? []).filter((r) => r.resource_id && !existingStudyIds.has(r.resource_id as string)).map((r) => r.id);
   if (staleStudyOre.length) { await supabaseAdmin.from("organisation_resource_entitlements").update({ status: "revoked" }).in("id", staleStudyOre); revoked += staleStudyOre.length; }
+
+  // Per-Campaign Data scope members whose campaign was deleted → prune (§9-D):
+  // a retired campaign's Data can no longer remain covered by any scope.
+  const { data: dataMembers } = await supabaseAdmin.from("resource_scope_members").select("resource_id").eq("resource_class", "data");
+  const stale = computeStaleDataMembers([...new Set((dataMembers ?? []).map((r) => r.resource_id as string))], existingCampaignIds);
+  if (stale.length) { const d = await supabaseAdmin.from("resource_scope_members").delete().eq("resource_class", "data").in("resource_id", stale).select("scope_id"); pruned += d.data?.length ?? 0; }
 
   return { retiredResources: retireGovernedIds.length, revokedEntitlements: revoked, prunedMembers: pruned };
 }

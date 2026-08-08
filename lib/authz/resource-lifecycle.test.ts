@@ -1,35 +1,34 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { computeLifecycleActions, type GovernedResourceRow } from "./resource-lifecycle";
+import { computeLifecycleActions, computeStaleDataMembers, type GovernedResourceRow } from "./resource-lifecycle";
 import { organisationEntitled } from "./resource-entitlement";
 
-// ORG-005 · G-3 (W7 / §9-D) — stale/orphaned resource identity is retired so it
-// cannot remain authoritatively effective after the underlying resource is gone.
+// ORG-005 · G-3 (W7 / §9-D) — stale/orphaned resource identity/membership is
+// retired/pruned so it cannot remain authoritatively effective once the underlying
+// resource is gone. Report is registry-addressed; Study/Finding/Data are PK-addressed.
 
 const rows: GovernedResourceRow[] = [
-  { id: "gr-data-live",    resource_class: "data",   natural_key: "study-live",    status: "active" },
-  { id: "gr-data-orphan",  resource_class: "data",   natural_key: "study-deleted", status: "active" },
   { id: "gr-report-live",  resource_class: "report", natural_key: "fedex-ucl-sponsorship", status: "active" },
   { id: "gr-report-gone",  resource_class: "report", natural_key: "retired-report", status: "active" },
-  { id: "gr-already",      resource_class: "data",   natural_key: "study-deleted", status: "retired" },
+  { id: "gr-report-old",   resource_class: "report", natural_key: "retired-report", status: "retired" },
 ];
 
-test("orphaned data/report identities are retired; live ones and already-retired are left", () => {
-  const { retireGovernedIds } = computeLifecycleActions(
-    rows,
-    new Set(["study-live"]),                 // study-deleted is absent → orphaned
-    new Set(["fedex-ucl-sponsorship"]),      // retired-report absent → orphaned
-  );
-  assert.deepEqual(retireGovernedIds.sort(), ["gr-data-orphan", "gr-report-gone"].sort());
-  assert.ok(!retireGovernedIds.includes("gr-data-live"));
+test("orphaned Report identities are retired; live and already-retired are left", () => {
+  const { retireGovernedIds } = computeLifecycleActions(rows, new Set(["fedex-ucl-sponsorship"]));
+  assert.deepEqual(retireGovernedIds, ["gr-report-gone"]);
   assert.ok(!retireGovernedIds.includes("gr-report-live"));
-  assert.ok(!retireGovernedIds.includes("gr-already")); // status !== active → skipped
+  assert.ok(!retireGovernedIds.includes("gr-report-old")); // status !== active → skipped
 });
 
-test("§9-D — a retired/revoked entitlement is not authoritative (organisationEntitled ignores inactive)", () => {
-  const ref = { resourceClass: "data" as const, resourceId: "gr-data-orphan" };
-  // active entitlement → entitled…
-  assert.equal(organisationEntitled([{ organisationId: "O", resourceClass: "data", resourceId: "gr-data-orphan", active: true }], ref), true);
-  // …but once revoked (active:false, mirroring status='revoked'), authority is gone.
-  assert.equal(organisationEntitled([{ organisationId: "O", resourceClass: "data", resourceId: "gr-data-orphan", active: false }], ref), false);
+test("§9-D — per-Campaign Data scope members whose campaign is deleted are pruned", () => {
+  const members = ["camp-live-1", "camp-deleted", "camp-live-2"];
+  assert.deepEqual(computeStaleDataMembers(members, new Set(["camp-live-1", "camp-live-2"])), ["camp-deleted"]);
+  assert.deepEqual(computeStaleDataMembers(members, new Set(["camp-live-1", "camp-deleted", "camp-live-2"])), []);
+});
+
+test("§9-D — a revoked entitlement is not authoritative (organisationEntitled ignores inactive)", () => {
+  const ref = { resourceClass: "study" as const, resourceId: "study-X" };
+  assert.equal(organisationEntitled([{ organisationId: "O", resourceClass: "study", resourceId: "study-X", active: true }], ref), true);
+  // once revoked (active:false, mirroring status='revoked'), authority is gone.
+  assert.equal(organisationEntitled([{ organisationId: "O", resourceClass: "study", resourceId: "study-X", active: false }], ref), false);
 });
