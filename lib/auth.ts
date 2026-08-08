@@ -20,6 +20,11 @@ export type SessionPayload = {
   sub: string;
   role: UserRole;
   forcePasswordChange: boolean;
+  /** ORG-005 IW-9 — session-currency epoch (users.token_version) at issue. A
+   *  currency claim, NOT authority (F001). Optional so legacy tokens (no `tv`)
+   *  are treated as current; requireUser compares it to the live value to enforce
+   *  revocation (F058) and forced-password-change on live sessions (F059). */
+  tv?: number;
   iat: number;
   exp: number;
 };

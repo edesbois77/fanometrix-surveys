@@ -80,7 +80,9 @@ export const CONFORMANCE_MANIFEST: ConformanceItem[] = [
   // ── IW-8 delivered: explainability & operational diagnosis (HELD) ─────────────
   // ── IW-8 delivered: explainability & operational diagnosis (HELD) ─────────────
   { ref: "Q-35", cls: "HELD", description: "Audience-separated explanation (User coarse/existence-safe → admin sources+DENY/Default → security/operator +INDETERMINATE class), faithfully derived from provenance (D22), least-disclosure (D23/D24); explanation is NOT an authority source (D01) and imports no live state (F069 retained — caller gates the audience). Existence-leak CLOSED: read-detail handlers return uniform 404 for undiscoverable resources (F068/D10, SG-3/SG-9).", evidence: ["lib/authz/explanation.test.ts", "lib/authz/conformance/invariants.test.ts"] },
-  { ref: "F058", cls: "TARGET", description: "Session/token revocation before expiry.", closesAt: "IW-9", evidence: ["lib/authz/conformance/invariants.test.ts"] },
+  // ── IW-9 delivered: session/token currency mechanism (HELD) ──────────────────
+  { ref: "F058-mech", cls: "HELD", description: "Session/token revocation mechanism (Q-31/Q-33, F058/F059): a per-user token-version epoch; a bump revokes earlier-issued sessions (explicit revoke/disable) and invalidates stale sessions on password/forced-change; anti-resurrection (stale never out-votes current, F060); fail-safe (undefined version = current, never a false revocation). Store = migration 169 (presented).", evidence: ["lib/authz/session-currency.test.ts"] },
+  { ref: "F058-activate", cls: "TARGET", description: "Session/token revocation LIVE: migration 169 applied; JWT carries tv; requireUser enforces version currency (SG-8); bump wired at password-change/forced-change/disable; verified in production.", closesAt: "IW-9-activation", evidence: ["lib/authz/conformance/invariants.test.ts"] },
 ];
 
 export function manifestSummary() {

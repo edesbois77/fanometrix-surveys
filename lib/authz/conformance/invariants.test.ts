@@ -8,6 +8,7 @@ import { roleForContext, resolveEffectiveRole, type ContextualRoleBinding } from
 import { resolveProductAccess, resolveCapabilityAccess } from "../product-access";
 import { hasAdminAuthority, adminAuthorityGrantsResourceAccess, isSelfElevation } from "../admin-authority";
 import { explainForAudience } from "../explanation";
+import { isSessionRevoked } from "../session-currency";
 
 // ORG-005 conformance harness — architecture invariants.
 //   • Currently-true invariants are asserted normally (must stay green).
@@ -207,4 +208,11 @@ test("Q-35 — existence leak closed: read-detail handlers return uniform 404, n
   const doc = readFileSync(resolve(__dirname, "..", "..", "..", "app", "api", "library-documents", "[id]", "route.ts"), "utf8");
   assert.match(doc, /F068 \/ Q-35-D10[\s\S]{0,220}status: 404/);
 });
-test("F058 — session/token revocation before expiry [closes IW-9]", { todo: "Session revocation is IW-9" });
+// ── IW-9 delivered: session/token currency mechanism (HELD) ──────────────────
+test("F058 — session/token revocation mechanism: a version bump revokes earlier sessions [closes IW-9, F058/F059]", () => {
+  assert.equal(isSessionRevoked(3, 4), true);          // bumped → revoked before expiry
+  assert.equal(isSessionRevoked(4, 4), false);         // current session valid
+  assert.equal(isSessionRevoked(5, 4), true);          // anti-resurrection (F060)
+  assert.equal(isSessionRevoked(undefined, 4), false); // legacy token → fail-safe, not a false revocation
+});
+test("F058 activate — revocation LIVE in requireUser; bump wired; SG-8 [closes IW-9-activation]", { todo: "mechanism built; live enforcement on migration 169 (DDL boundary)" });
