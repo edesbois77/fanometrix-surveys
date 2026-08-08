@@ -9,6 +9,7 @@ import { resolveProductAccess, resolveCapabilityAccess } from "../product-access
 import { hasAdminAuthority, adminAuthorityGrantsResourceAccess, isSelfElevation } from "../admin-authority";
 import { explainForAudience } from "../explanation";
 import { isSessionRevoked } from "../session-currency";
+import { organisationEntitled, userAuthorisedForResource } from "../resource-entitlement";
 
 // ORG-005 conformance harness — architecture invariants.
 //   • Currently-true invariants are asserted normally (must stay green).
@@ -157,7 +158,18 @@ test("Q-09/Q-10 enforce cut-over — Product/Capability decisions authoritative 
   assert.match(mw, /resolveProductAccess/);                  // middleware projection driven by the same model
   assert.doesNotMatch(mw, /session\.role !== "admin" && session\.role !== "publisher"/); // hard-coded gate removed
 });
-test("Q-14/Q-15 — Organisation Resource Entitlement vs User Resource Authorisation [closes IW-6, F024/F025]", { todo: "Resource Entitlement is IW-6" });
+// ── IW-6 delivered: Resource Entitlement & Authorisation model (HELD) ────────
+test("Q-14/Q-15 — Org Entitlement required; User Authorisation narrows, never expands [closes IW-6, F024/F025]", () => {
+  const e = [{ organisationId: "O", resourceClass: "report" as const, resourceId: "R1" }];
+  // per-class independence (Q-17): Report entitlement ≠ Data
+  assert.equal(organisationEntitled(e, { resourceClass: "report", resourceId: "R1" }), true);
+  assert.equal(organisationEntitled(e, { resourceClass: "data", resourceId: "R1" }), false);
+  // directional invariant (Q-15): no user access without org entitlement
+  assert.equal(userAuthorisedForResource(false, { resourceClass: "report", resourceId: "R1" }, { accessScope: "selected", userAuthorisations: [{ userId: "U", resourceClass: "report", resourceId: "R1", effect: "allow" }] }), false);
+  // user RESTRICT narrows an org-wide entitlement
+  assert.equal(userAuthorisedForResource(true, { resourceClass: "report", resourceId: "R1" }, { accessScope: "organisation_wide", userAuthorisations: [{ userId: "U", resourceClass: "report", resourceId: "R1", effect: "restrict" }] }), false);
+});
+test("Q-14/Q-15 activate — entitlement enforced at the seam; grants→URA dual-run [closes IW-6-activation]", { todo: "model built; persistence + enforcement on migration 170 (DDL boundary)" });
 test("Q-27 — scoped Platform Administration Authority; administer≠possess; no self-elevation [closes IW-5, F035/F036]", () => {
   // scoped: authority permits only its bounded operation, never global
   assert.equal(hasAdminAuthority([{ operation: "user.manage", scope: { organisationId: "org-A" } }], { operation: "user.manage", organisationId: "org-A" }), true);
