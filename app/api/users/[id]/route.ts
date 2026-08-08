@@ -4,7 +4,7 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 import { requireUser } from "@/lib/auth-server";
 import { recordSecurityEvent, withMandatoryAudit, MandatoryAuditUnavailableError } from "@/lib/authz/audit";
 import { bumpTokenVersion } from "@/lib/authz/session-currency";
-import { syncGovernedOrganisationAccess } from "@/lib/authz/provision-access";
+import { syncGovernedOrganisationAccess, syncSelectedStudyAuthorisations, selectedStudyGrantsForDisplay } from "@/lib/authz/provision-access";
 
 const USER_SELECT = "id, first_name, last_name, work_email, job_title, role, organisation_id, access_scope, status, last_login_at, password_changed_at, created_by, created_at, updated_at, organisations ( name, type )";
 
@@ -32,14 +32,16 @@ export async function GET(
 
   const { id } = await params;
 
-  const [{ data: user, error }, { data: grants }] = await Promise.all([
+  // ORG-005 IW-11 / DEC-1 Option A — Selected Access read from the governed Study
+  // URA (research_project shape), replacing the legacy user_access_grants reader.
+  const [{ data: user, error }, grants] = await Promise.all([
     supabaseAdmin.from("users").select(USER_SELECT).eq("id", id).single(),
-    supabaseAdmin.from("user_access_grants").select("resource_type, resource_id").eq("user_id", id),
+    selectedStudyGrantsForDisplay(id),
   ]);
 
   if (error || !user) return NextResponse.json({ error: error?.message ?? "Not found" }, { status: 404 });
 
-  return NextResponse.json({ data: { ...normaliseOrg(user), grants: grants ?? [] } });
+  return NextResponse.json({ data: { ...normaliseOrg(user), grants } });
 }
 
 export async function PUT(
@@ -166,12 +168,8 @@ export async function PUT(
         actorUserId: session.id, actorLabel: session.workEmail, resourceType: "user", resourceId: id,
         origin: "api/users/[id]", detail: { grantCount: grants.length },
       }, async () => {
-        await supabaseAdmin.from("user_access_grants").delete().eq("user_id", id);
-        if (grants.length > 0) {
-          await supabaseAdmin.from("user_access_grants").insert(
-            grants.map(g => ({ user_id: id, resource_type: g.resource_type, resource_id: g.resource_id, created_by: session.workEmail }))
-          );
-        }
+        // ORG-005 IW-11 / DEC-1 Option A — Selected Access (Studies only) via governed URA.
+        await syncSelectedStudyAuthorisations(id, grants);
       });
     } catch (e) {
       if (e instanceof MandatoryAuditUnavailableError) {

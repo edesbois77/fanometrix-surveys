@@ -187,49 +187,14 @@ async function orgWideResourceIds(organisationId: string, resourceType: Resource
   }
 }
 
-async function selectedResourceIds(userId: string, resourceType: ResourceType): Promise<string[]> {
-  const { data: grantRows } = await supabaseAdmin
-    .from("user_access_grants")
-    .select("resource_type, resource_id")
-    .eq("user_id", userId);
-
-  const rows = grantRows ?? [];
-  const idsOf = (t: ResourceType) => rows.filter(g => g.resource_type === t).map(g => g.resource_id as string);
-
-  if (resourceType === "research_project" || resourceType === "insight") {
-    return idsOf(resourceType);
-  }
-
-  if (resourceType === "campaign_group") {
-    // Additive (migration 096): a campaign_group grant still works
-    // directly, and a research_project grant now also cascades to any
-    // group scoped to that project — a user who can see a Research
-    // Project should be able to see the Campaign Groups running its
-    // campaigns without needing a second, separate grant.
-    const direct = idsOf("campaign_group");
-    const projectIds = idsOf("research_project");
-    const ids = new Set<string>(direct);
-    if (projectIds.length > 0) {
-      const { data } = await supabaseAdmin.from("campaign_groups").select("id").in("research_project_id", projectIds);
-      (data ?? []).forEach(r => ids.add(r.id as string));
-    }
-    return Array.from(ids);
-  }
-
-  // resourceType === "campaign": inherits from a grant on the campaign
-  // itself, its campaign group, or its research project.
-  const direct = idsOf("campaign");
-  const groupIds = idsOf("campaign_group");
-  const projectIds = idsOf("research_project");
-  const ids = new Set<string>(direct);
-
-  if (projectIds.length > 0) {
-    const { data } = await supabaseAdmin.from("campaigns").select("id").in("research_project_id", projectIds);
-    (data ?? []).forEach(r => ids.add(r.id as string));
-  }
-  if (groupIds.length > 0) {
-    const { data } = await supabaseAdmin.from("campaign_group_members").select("campaign_id").in("group_id", groupIds);
-    (data ?? []).forEach(r => ids.add(r.campaign_id as string));
-  }
-  return Array.from(ids);
+// ORG-005 IW-11 / DEC-1 Option A — Selected Access is RESTRICTED TO STUDIES and
+// migrated to the governed model. Study Selected Access is served through the
+// governed Study User Resource Authorisation (via `authoritativeStudyIds`, which
+// `visibleResourceIds` uses for "research_project"). Per-user Selected Access for
+// campaign / campaign_group / insight is RETIRED (campaign/group remain §9-E
+// operational visibility; insight is governed by its organisation-ID association).
+// This function is therefore no longer a `user_access_grants` reader — the legacy
+// table has no remaining read consumer.
+async function selectedResourceIds(_userId: string, _resourceType: ResourceType): Promise<string[]> {
+  return [];
 }

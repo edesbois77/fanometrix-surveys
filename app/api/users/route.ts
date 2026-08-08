@@ -3,7 +3,7 @@ import bcrypt from "bcryptjs";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { requireUser } from "@/lib/auth-server";
 import { recordSecurityEvent } from "@/lib/authz/audit";
-import { syncGovernedOrganisationAccess } from "@/lib/authz/provision-access";
+import { syncGovernedOrganisationAccess, syncSelectedStudyAuthorisations } from "@/lib/authz/provision-access";
 
 const USER_SELECT = "id, first_name, last_name, work_email, job_title, role, organisation_id, access_scope, status, last_login_at, password_changed_at, created_by, created_at, updated_at, organisations ( name, type )";
 
@@ -119,10 +119,9 @@ export async function POST(req: NextRequest) {
   // Role so the new user resolves under G-1 sole authority (never stranded).
   await syncGovernedOrganisationAccess(data.id, data.organisation_id, data.role);
 
+  // ORG-005 IW-11 / DEC-1 Option A — Selected Access (Studies only) via governed URA.
   if (effectiveScope === "selected" && grants && grants.length > 0) {
-    await supabaseAdmin.from("user_access_grants").insert(
-      grants.map(g => ({ user_id: data.id, resource_type: g.resource_type, resource_id: g.resource_id, created_by: session.workEmail }))
-    );
+    await syncSelectedStudyAuthorisations(data.id, grants);
   }
 
   // ORG-005 IW-7 — audit user creation (Q-29 lifecycle event; minimised, guarded).

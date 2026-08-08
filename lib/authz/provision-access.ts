@@ -43,3 +43,42 @@ export async function syncGovernedOrganisationAccess(
     .eq("status", "active")
     .neq("organisation_id", organisationId);
 }
+
+/**
+ * ORG-005 IW-11 / DEC-1 Option A — Selected Access is preserved for Studies via the
+ * governed User Resource Authorisation. `research_project` grants → `study` URA
+ * `allow`; campaign / campaign_group / insight grant types are RETIRED and never
+ * written. Reconciles the user's study URA `allow` set to the supplied grants
+ * (the client sends the full desired set). Replaces the legacy user_access_grants
+ * write. No `user_access_grants` row is created.
+ */
+export async function syncSelectedStudyAuthorisations(
+  userId: string,
+  grants: { resource_type: string; resource_id: string }[] | undefined,
+): Promise<void> {
+  await supabaseAdmin
+    .from("user_resource_authorisations")
+    .delete()
+    .eq("user_id", userId)
+    .eq("resource_class", "study")
+    .eq("effect", "allow");
+  const studyIds = [...new Set((grants ?? []).filter((g) => g.resource_type === "research_project").map((g) => g.resource_id))];
+  if (studyIds.length) {
+    await supabaseAdmin.from("user_resource_authorisations").insert(
+      studyIds.map((rid) => ({ user_id: userId, resource_class: "study", resource_id: rid, effect: "allow", status: "active" })),
+    );
+  }
+}
+
+/** Display helper — the user's Selected Access as `research_project` grant shapes,
+ *  read from the governed Study URA (replaces the legacy user_access_grants read). */
+export async function selectedStudyGrantsForDisplay(userId: string): Promise<{ resource_type: string; resource_id: string }[]> {
+  const { data } = await supabaseAdmin
+    .from("user_resource_authorisations")
+    .select("resource_id")
+    .eq("user_id", userId)
+    .eq("resource_class", "study")
+    .eq("effect", "allow")
+    .eq("status", "active");
+  return (data ?? []).map((r) => ({ resource_type: "research_project", resource_id: r.resource_id as string }));
+}

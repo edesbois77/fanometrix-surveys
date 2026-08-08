@@ -404,12 +404,13 @@ type FormState = {
   featured_image_url: string;
   tags:               string[];
   visibility:         InsightVisibility;
+  allowed_organisation_ids: string[];
 };
 
 const EMPTY_FORM: FormState = {
   title:"", subtitle:"", slug:"", content_type:"report", status:"draft",
   published_at:"", summary:"", blocks:[], download_url:"", featured_image_url:"",
-  tags:[], visibility:"restricted",
+  tags:[], visibility:"restricted", allowed_organisation_ids:[],
 };
 
 function insightToForm(i: Insight): FormState {
@@ -426,6 +427,7 @@ function insightToForm(i: Insight): FormState {
     featured_image_url: i.featured_image_url ?? "",
     tags:               i.tags ?? [],
     visibility:         i.visibility,
+    allowed_organisation_ids: i.allowed_organisation_ids ?? [],
   };
 }
 
@@ -433,6 +435,7 @@ function insightToForm(i: Insight): FormState {
 
 export default function AdminInsightsPage() {
   const [insights,    setInsights]    = useState<Insight[]>([]);
+  const [orgs,        setOrgs]        = useState<{ id: string; name: string }[]>([]);
   const [loading,     setLoading]     = useState(true);
   const [showModal,   setShowModal]   = useState(false);
   const [editInsight, setEditInsight] = useState<Insight | null>(null);
@@ -456,6 +459,11 @@ export default function AdminInsightsPage() {
   }, []);
 
   useEffect(() => { loadInsights(); }, [loadInsights]);
+  useEffect(() => {
+    fetch("/api/organisations").then(r => r.json())
+      .then(d => setOrgs((d.data ?? []).map((o: { id: string; name: string }) => ({ id: o.id, name: o.name }))))
+      .catch(() => {});
+  }, []);
 
   function showToast(msg: string, ok = true) { setToast({ msg, ok }); setTimeout(() => setToast(null), 4000); }
 
@@ -508,6 +516,8 @@ export default function AdminInsightsPage() {
       download_url: form.download_url.trim() || null,
       featured_image_url: form.featured_image_url.trim() || null,
       tags: form.tags, visibility: form.visibility,
+      // ORG-005 IW-11 / DEC-2 — governed organisation-ID association (restricted only).
+      allowed_organisation_ids: form.visibility === "restricted" ? form.allowed_organisation_ids : [],
     };
     const url    = editInsight ? `/api/insights/${editInsight.slug}` : "/api/insights";
     const method = editInsight ? "PUT" : "POST";
@@ -718,9 +728,27 @@ export default function AdminInsightsPage() {
                     ))}
                   </div>
                   {form.visibility==="restricted" && (
-                    <Field label="Audience Tags">
-                      <TagSelect tags={form.tags} onChange={tags=>setForm(f=>({...f,tags}))} />
-                    </Field>
+                    <>
+                      {/* ORG-005 IW-11 / DEC-2 — governed organisation-ID association drives access. */}
+                      <Field label="Organisations with access (governed)">
+                        <div className="flex flex-wrap gap-1.5 max-h-40 overflow-auto p-1 border border-gray-100 rounded-lg">
+                          {orgs.length === 0 && <span className="text-xs text-gray-400">Loading organisations…</span>}
+                          {orgs.map(o => {
+                            const on = form.allowed_organisation_ids.includes(o.id);
+                            return (
+                              <button type="button" key={o.id}
+                                onClick={()=>setForm(f=>({...f, allowed_organisation_ids: on ? f.allowed_organisation_ids.filter(x=>x!==o.id) : [...f.allowed_organisation_ids, o.id]}))}
+                                className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${on?"bg-[#0B1929] text-white border-[#0B1929]":"border-gray-200 text-gray-600 hover:border-gray-300"}`}>
+                                {o.name}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </Field>
+                      <Field label="Audience Tags (descriptive only)">
+                        <TagSelect tags={form.tags} onChange={tags=>setForm(f=>({...f,tags}))} />
+                      </Field>
+                    </>
                   )}
                 </div>
               </section>

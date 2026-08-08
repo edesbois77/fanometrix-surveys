@@ -30,41 +30,31 @@ import type { AuthedUser } from "@/lib/auth-server";
 export function canAccessInsight(
   insight: Insight,
   user: AuthedUser,
-  grantedInsightIds: Set<string>
+  operatorInsightAccess: boolean
 ): boolean {
-  if (user.role === "admin") return true;
+  // ORG-005 IW-11 / DEC-2 — Insight is folded into the governed model:
+  //   • Platform-Operator access derives from the GOVERNED operator standing
+  //     entitlement (resolved by the caller), NOT an unconditional role bypass;
+  //   • ordinary restricted access is governed SOLELY by the organisation-ID
+  //     association (allowed_organisation_ids) — the F033 name-match is retired;
+  //   • per-user Insight Selected Access is retired (DEC-1 Option A).
+  if (operatorInsightAccess) return true;
 
   if (insight.status !== "published") return false;
   if (insight.visibility === "admin_only") return false;
   if (insight.visibility === "public") return true;
 
-  // restricted
-  if (user.accessScope === "selected") {
-    return grantedInsightIds.has(insight.id);
-  }
-
-  // ORG-005 IW-4 (F033/G5) — governed policy input. When the id-anchored
-  // association is present it is AUTHORITATIVE: match the user's Organisation by
-  // its immutable id, eliminating the org-NAME string-match collision risk (two
-  // orgs sharing a display name, or a rename silently changing access). The
-  // legacy name-tag match is retained ONLY as the strangler fallback until
-  // migration 167 backfills allowed_organisation_ids.
+  // restricted → governed organisation-ID association ONLY.
   const governed = insight.allowed_organisation_ids;
-  if (governed != null) {
-    return user.organisationId != null && governed.includes(user.organisationId);
-  }
-
-  // Legacy fallback (fragile name-string match — see F033/G5).
-  if (!user.organisationName) return false;
-  const tags = (insight.tags ?? []).map(t => t.toLowerCase());
-  return tags.includes(user.organisationName.toLowerCase());
+  return governed != null && user.organisationId != null && governed.includes(user.organisationId);
 }
 
-/** Filter an insight list to what a user is allowed to see. */
+/** Filter an insight list to what a user is allowed to see. `operatorInsightAccess`
+ *  is the caller-resolved governed operator standing entitlement for insights. */
 export function filterInsights(
   insights: Insight[],
   user: AuthedUser,
-  grantedInsightIds: Set<string>
+  operatorInsightAccess: boolean
 ): Insight[] {
-  return insights.filter(i => canAccessInsight(i, user, grantedInsightIds));
+  return insights.filter(i => canAccessInsight(i, user, operatorInsightAccess));
 }

@@ -4,7 +4,10 @@ import { canAccessInsight } from "./insights-access";
 import type { Insight } from "@/lib/types";
 import type { AuthedUser } from "@/lib/auth-server";
 
-// ORG-005 · IW-4 (F033/G5) — governed org-id policy input for restricted insights.
+// ORG-005 · IW-11 / DEC-2 — Insight folded into the governed model: restricted
+// access is governed SOLELY by the organisation-ID association; operator access
+// derives from the governed standing entitlement (a boolean resolved by the
+// caller); F033 name-match and per-user Insight Selected Access are RETIRED.
 
 const insight = (over: Partial<Insight>): Insight => ({
   id: "ins-1", title: "", subtitle: null, slug: "", content_type: "article" as Insight["content_type"],
@@ -18,50 +21,39 @@ const user = (over: Partial<AuthedUser>): AuthedUser => ({
   accessScope: "organisation_wide", status: "active", canPresentSimulations: false, ...over,
 } as AuthedUser);
 
-const NO_GRANTS = new Set<string>();
+// ── restricted access is governed ONLY by the org-ID association ─────────────
 
-// ── Governed id-anchored policy input is authoritative when present ──────────
-
-test("governed allowed_organisation_ids matches by immutable org id (F033 target)", () => {
-  const i = insight({ allowed_organisation_ids: ["org-A"], tags: [] });
-  assert.equal(canAccessInsight(i, user({ organisationId: "org-A" }), NO_GRANTS), true);
-  assert.equal(canAccessInsight(i, user({ organisationId: "org-B" }), NO_GRANTS), false);
+test("restricted: governed allowed_organisation_ids matches by immutable org id", () => {
+  const i = insight({ allowed_organisation_ids: ["org-A"] });
+  assert.equal(canAccessInsight(i, user({ organisationId: "org-A" }), false), true);
+  assert.equal(canAccessInsight(i, user({ organisationId: "org-B" }), false), false);
 });
 
-test("governed id path does NOT fall back to name tags (name is irrelevant once id-anchored)", () => {
-  // id list excludes org-A even though the name tag would have matched — the
-  // governed input is authoritative and closes the name-match path.
+test("F033 RETIRED: name tags never confer access (governed id association only)", () => {
+  // A matching name tag but a non-matching id list → NO access (name is irrelevant).
   const i = insight({ allowed_organisation_ids: ["org-Z"], tags: ["acme"] });
-  assert.equal(canAccessInsight(i, user({ organisationId: "org-A", organisationName: "Acme" }), NO_GRANTS), false);
+  assert.equal(canAccessInsight(i, user({ organisationId: "org-A", organisationName: "Acme" }), false), false);
+  // No governed association at all (null) → default refuse (no name-match fallback).
+  const none = insight({ allowed_organisation_ids: null, tags: ["acme"] });
+  assert.equal(canAccessInsight(none, user({ organisationId: "org-A", organisationName: "Acme" }), false), false);
 });
 
-// ── G5 collision: two different orgs sharing a display name ──────────────────
+// ── operator access via the governed standing entitlement (not role) ─────────
 
-test("G5 — name-string match cross-grants two orgs with the same name; id-anchoring does not", () => {
-  const legacy = insight({ allowed_organisation_ids: null, tags: ["acme"] });
-  // Two DIFFERENT organisations both named "Acme" — the legacy name match grants BOTH (the collision).
-  assert.equal(canAccessInsight(legacy, user({ organisationId: "org-A", organisationName: "Acme" }), NO_GRANTS), true);
-  assert.equal(canAccessInsight(legacy, user({ organisationId: "org-B", organisationName: "Acme" }), NO_GRANTS), true);
-  // The governed id path grants only the intended org — collision eliminated.
-  const governed = insight({ allowed_organisation_ids: ["org-A"], tags: ["acme"] });
-  assert.equal(canAccessInsight(governed, user({ organisationId: "org-A", organisationName: "Acme" }), NO_GRANTS), true);
-  assert.equal(canAccessInsight(governed, user({ organisationId: "org-B", organisationName: "Acme" }), NO_GRANTS), false);
+test("operator standing entitlement grants access to any insight (incl. admin_only/unpublished)", () => {
+  assert.equal(canAccessInsight(insight({ visibility: "admin_only" }), user({ role: "admin" }), true), true);
+  assert.equal(canAccessInsight(insight({ status: "draft" }), user({ role: "admin" }), true), true);
+  // Without the entitlement flag, an admin gets NO bypass — governed rules apply.
+  assert.equal(canAccessInsight(insight({ visibility: "admin_only" }), user({ role: "admin" }), false), false);
 });
 
-// ── Legacy fallback retained until the migration backfills (parity) ──────────
+// ── non-restricted paths + Selected-Access retirement ────────────────────────
 
-test("legacy name-match fallback applies only while allowed_organisation_ids is absent", () => {
-  const i = insight({ allowed_organisation_ids: null, tags: ["acme"] });
-  assert.equal(canAccessInsight(i, user({ organisationName: "Acme" }), NO_GRANTS), true);
-  assert.equal(canAccessInsight(i, user({ organisationName: "Other" }), NO_GRANTS), false);
-});
-
-// ── Admin + non-restricted paths unchanged ───────────────────────────────────
-
-test("admin sees all; public visible; selected-access uses explicit grants (unchanged)", () => {
-  assert.equal(canAccessInsight(insight({ visibility: "admin_only" }), user({ role: "admin" }), NO_GRANTS), true);
-  assert.equal(canAccessInsight(insight({ visibility: "public" }), user({}), NO_GRANTS), true);
-  const sel = insight({ id: "ins-9", allowed_organisation_ids: null });
-  assert.equal(canAccessInsight(sel, user({ accessScope: "selected" }), new Set(["ins-9"])), true);
-  assert.equal(canAccessInsight(sel, user({ accessScope: "selected" }), NO_GRANTS), false);
+test("public is visible; admin_only hidden from non-operators; selected-scope gets no per-user grant path", () => {
+  assert.equal(canAccessInsight(insight({ visibility: "public" }), user({}), false), true);
+  assert.equal(canAccessInsight(insight({ visibility: "admin_only" }), user({}), false), false);
+  // A selected-scope user now falls under the governed org-id association (no grants mechanism).
+  const restricted = insight({ allowed_organisation_ids: ["org-A"] });
+  assert.equal(canAccessInsight(restricted, user({ accessScope: "selected", organisationId: "org-A" }), false), true);
+  assert.equal(canAccessInsight(restricted, user({ accessScope: "selected", organisationId: "org-B" }), false), false);
 });

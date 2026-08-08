@@ -2,9 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { requireUser } from "@/lib/auth-server";
 import { canAccessInsight } from "@/lib/insights-access";
+import { validateAllowedOrganisationIds } from "@/lib/insights-authoring";
+import { loadOperatorDomains } from "@/lib/authz/operator-access";
 import type { Insight } from "@/lib/types";
 
-const INSIGHT_SELECT = "id,title,subtitle,slug,content_type,status,published_at,summary,content_blocks,download_url,featured_image_url,tags,visibility,created_by,created_at,updated_at";
+const INSIGHT_SELECT = "id,title,subtitle,slug,content_type,status,published_at,summary,content_blocks,download_url,featured_image_url,tags,visibility,allowed_organisation_ids,created_by,created_at,updated_at";
 
 export async function GET(
   req: NextRequest,
@@ -29,18 +31,9 @@ export async function GET(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  if (session.role === "admin") {
-    return NextResponse.json({ data: insight });
-  }
-
-  const { data: grants } = await supabaseAdmin
-    .from("user_access_grants")
-    .select("resource_id")
-    .eq("user_id", session.id)
-    .eq("resource_type", "insight");
-  const grantedInsightIds = new Set((grants ?? []).map(g => g.resource_id as string));
-
-  if (!canAccessInsight(insight as Insight, session, grantedInsightIds)) {
+  // ORG-005 IW-11 / DEC-2 — operator access via the governed standing entitlement.
+  const operatorInsightAccess = session.role === "admin" && (await loadOperatorDomains(session.id)).has("insight");
+  if (!canAccessInsight(insight as Insight, session, operatorInsightAccess)) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
@@ -76,6 +69,13 @@ export async function PUT(
 
   for (const field of fields) {
     if (field in body) update[field] = body[field];
+  }
+
+  // ORG-005 IW-11 / DEC-2 — governed organisation-ID association (validated).
+  if ("allowed_organisation_ids" in body) {
+    const orgs = await validateAllowedOrganisationIds(body.allowed_organisation_ids);
+    if (!orgs.ok) return NextResponse.json({ error: orgs.error }, { status: 400 });
+    update.allowed_organisation_ids = orgs.ids.length ? orgs.ids : null;
   }
 
   if (update.slug && typeof update.slug === "string") {

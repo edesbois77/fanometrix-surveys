@@ -2,9 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { requireUser } from "@/lib/auth-server";
 import { filterInsights } from "@/lib/insights-access";
+import { validateAllowedOrganisationIds } from "@/lib/insights-authoring";
+import { loadOperatorDomains } from "@/lib/authz/operator-access";
 import type { Insight } from "@/lib/types";
 
-const INSIGHT_SELECT = "id,title,subtitle,slug,content_type,status,published_at,summary,content_blocks,download_url,featured_image_url,tags,visibility,created_by,created_at,updated_at";
+const INSIGHT_SELECT = "id,title,subtitle,slug,content_type,status,published_at,summary,content_blocks,download_url,featured_image_url,tags,visibility,allowed_organisation_ids,created_by,created_at,updated_at";
 
 export async function GET(req: NextRequest) {
   let session;
@@ -21,18 +23,9 @@ export async function GET(req: NextRequest) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  if (session.role === "admin") {
-    return NextResponse.json({ data: insights ?? [] });
-  }
-
-  const { data: grants } = await supabaseAdmin
-    .from("user_access_grants")
-    .select("resource_id")
-    .eq("user_id", session.id)
-    .eq("resource_type", "insight");
-  const grantedInsightIds = new Set((grants ?? []).map(g => g.resource_id as string));
-
-  const filtered = filterInsights((insights ?? []) as Insight[], session, grantedInsightIds);
+  // ORG-005 IW-11 / DEC-2 — operator access via the governed standing entitlement.
+  const operatorInsightAccess = session.role === "admin" && (await loadOperatorDomains(session.id)).has("insight");
+  const filtered = filterInsights((insights ?? []) as Insight[], session, operatorInsightAccess);
   return NextResponse.json({ data: filtered });
 }
 
@@ -73,6 +66,10 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // ORG-005 IW-11 / DEC-2 — governed organisation-ID association (validated).
+  const orgs = await validateAllowedOrganisationIds(body.allowed_organisation_ids);
+  if (!orgs.ok) return NextResponse.json({ error: orgs.error }, { status: 400 });
+
   const { data, error } = await supabaseAdmin
     .from("insights")
     .insert({
@@ -88,6 +85,7 @@ export async function POST(req: NextRequest) {
       featured_image_url: body.featured_image_url ?? null,
       tags:               body.tags ?? [],
       visibility:         body.visibility,
+      allowed_organisation_ids: orgs.ids.length ? orgs.ids : null,
       created_by:         session.workEmail,
     })
     .select(INSIGHT_SELECT)

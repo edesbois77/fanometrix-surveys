@@ -32,7 +32,9 @@ export async function GET(req: NextRequest) {
       .select("*")
       .is("deleted_at", null)
       .order("name", { ascending: true }),
-    supabaseAdmin.from("users").select("organisation_id"),
+    // ORG-005 IW-11: count members via the governed Active Organisation Access
+    // (active rows), not the legacy scalar users.organisation_id.
+    supabaseAdmin.from("user_organisation_access").select("organisation_id").eq("status", "active"),
   ]);
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
