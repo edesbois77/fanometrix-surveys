@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { requireUser } from "@/lib/auth-server";
 import { recordSecurityEvent } from "@/lib/authz/audit";
+import { syncGovernedOrganisationAccess } from "@/lib/authz/provision-access";
 
 const USER_SELECT = "id, first_name, last_name, work_email, job_title, role, organisation_id, access_scope, status, last_login_at, password_changed_at, created_by, created_at, updated_at, organisations ( name, type )";
 
@@ -113,6 +114,10 @@ export async function POST(req: NextRequest) {
     }
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
+
+  // ORG-005 IW-11 (additive): maintain the governed Active Context + contextual
+  // Role so the new user resolves under G-1 sole authority (never stranded).
+  await syncGovernedOrganisationAccess(data.id, data.organisation_id, data.role);
 
   if (effectiveScope === "selected" && grants && grants.length > 0) {
     await supabaseAdmin.from("user_access_grants").insert(

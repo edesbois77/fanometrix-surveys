@@ -4,6 +4,7 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 import { requireUser } from "@/lib/auth-server";
 import { recordSecurityEvent, withMandatoryAudit, MandatoryAuditUnavailableError } from "@/lib/authz/audit";
 import { bumpTokenVersion } from "@/lib/authz/session-currency";
+import { syncGovernedOrganisationAccess } from "@/lib/authz/provision-access";
 
 const USER_SELECT = "id, first_name, last_name, work_email, job_title, role, organisation_id, access_scope, status, last_login_at, password_changed_at, created_by, created_at, updated_at, organisations ( name, type )";
 
@@ -136,6 +137,14 @@ export async function PUT(
       return NextResponse.json({ error: "A user with this work email already exists." }, { status: 409 });
     }
     return NextResponse.json({ error: (error as { message: string }).message }, { status: 500 });
+  }
+
+  // ORG-005 IW-11 (additive): keep the governed Active Context + contextual Role
+  // in lockstep with this update so the user always resolves under G-1 sole
+  // authority (never stranded by an org/role change).
+  {
+    const updated = data as { organisation_id: string | null; role: string | null };
+    await syncGovernedOrganisationAccess(id, updated.organisation_id, updated.role);
   }
 
   // ORG-005 IW-9 (F058/F059) — revoke the target user's live sessions when this
