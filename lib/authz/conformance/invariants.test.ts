@@ -166,6 +166,15 @@ test("Q-29/Q-30 — audit capability: tamper-evidence, minimisation, mandatory f
   const decision = readFileSync(resolve(__dirname, "..", "decision.ts"), "utf8");
   assert.doesNotMatch(decision, /authz\/audit|\.\/audit/);
 });
-test("Q-29 activate — audit subsystem live; SG-7 + tamper-evidence + G9 in production [closes IW-7-activation]", { todo: "capability built; live activation on migration 168 (DDL boundary)" });
+// IW-7 activation: mandatory authz-change handlers record-first with SG-7
+// fail-closed. Verified against the wired sources.
+test("Q-29 activate — mandatory authz-change operations are audited fail-closed at their handlers [closes IW-7-activation]", () => {
+  const usr = readFileSync(resolve(__dirname, "..", "..", "..", "app", "api", "users", "[id]", "route.ts"), "utf8");
+  assert.match(usr, /withMandatoryAudit/);                  // record-first fail-closed
+  assert.match(usr, /MandatoryAuditUnavailableError/);      // refuses on audit unavailability
+  assert.match(usr, /change refused/i);                     // operation refused, not permitted
+  const org = readFileSync(resolve(__dirname, "..", "..", "..", "app", "api", "organisations", "[id]", "route.ts"), "utf8");
+  assert.match(org, /withMandatoryAudit/);                  // org lifecycle fail-closed too
+});
 test("Q-35 — audience-separated explanation; distinct denial causes; no existence leak [closes IW-8, F066/F067/F068]", { todo: "Explainability is IW-8" });
 test("F058 — session/token revocation before expiry [closes IW-9]", { todo: "Session revocation is IW-9" });

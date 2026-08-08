@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { requireUser } from "@/lib/auth-server";
-import { recordSecurityEvent } from "@/lib/authz/audit";
+import { recordSecurityEvent, withMandatoryAudit, MandatoryAuditUnavailableError } from "@/lib/authz/audit";
 
 const USER_SELECT = "id, first_name, last_name, work_email, job_title, role, organisation_id, access_scope, status, last_login_at, password_changed_at, created_by, created_at, updated_at, organisations ( name, type )";
 
@@ -100,56 +100,70 @@ export async function PUT(
     update.password_changed_at = new Date().toISOString();
   }
 
-  const { data, error } = await supabaseAdmin
-    .from("users")
-    .update(update)
-    .eq("id", id)
-    .select(USER_SELECT)
-    .single();
-
-  if (error) {
-    if (error.code === "23505") {
-      return NextResponse.json({ error: "A user with this work email already exists." }, { status: 409 });
+  // ORG-005 IW-7 — mandatory-audit FAIL-CLOSED (SG-7 / Q-34). The authz change is
+  // audited BEFORE it is applied; if a live audit subsystem cannot durably record
+  // it, withMandatoryAudit throws and the change is REFUSED (no unaudited change).
+  // Guarded: pre-activation the audit is "unavailable" and the op proceeds as
+  // before. Minimised to changed field NAMES only (no password/secret — Q-30).
+  let data: unknown = null;
+  let error: { code?: string; message: string } | null = null;
+  try {
+    await withMandatoryAudit({
+      eventType: update.role !== undefined ? "role_assignment_change" : "user_lifecycle_change",
+      action: "user.update",
+      outcome: "authorised",
+      actorUserId: session.id,
+      actorLabel: session.workEmail,
+      organisationId: (update.organisation_id as string | null | undefined) ?? null,
+      resourceType: "user",
+      resourceId: id,
+      origin: "api/users/[id]",
+      detail: { fields: Object.keys(update).filter(k => !["hashed_password", "password_changed_at"].includes(k)) },
+    }, async () => {
+      const res = await supabaseAdmin.from("users").update(update).eq("id", id).select(USER_SELECT).single();
+      data = res.data; error = res.error;
+    });
+  } catch (e) {
+    if (e instanceof MandatoryAuditUnavailableError) {
+      return NextResponse.json({ error: "Security audit unavailable; change refused." }, { status: 503 });
     }
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    throw e;
   }
 
-  // ORG-005 IW-7 — durable security-audit of this authorisation change (Q-29;
-  // F037/F042). Guarded (inert until migration 168) and never throws; minimised
-  // to changed field NAMES only (no password/secret content — Q-30).
-  await recordSecurityEvent({
-    eventType: update.role !== undefined ? "role_assignment_change" : "user_lifecycle_change",
-    action: "user.update",
-    outcome: "changed",
-    actorUserId: session.id,
-    actorLabel: session.workEmail,
-    organisationId: (update.organisation_id as string | null | undefined) ?? null,
-    resourceType: "user",
-    resourceId: id,
-    origin: "api/users/[id]",
-    detail: { fields: Object.keys(update).filter(k => !["hashed_password", "password_changed_at"].includes(k)) },
-  });
+  if (error) {
+    if ((error as { code?: string }).code === "23505") {
+      return NextResponse.json({ error: "A user with this work email already exists." }, { status: 409 });
+    }
+    return NextResponse.json({ error: (error as { message: string }).message }, { status: 500 });
+  }
 
   // Selected Access grants: the client sends the full desired set, so
   // reconcile by replacing rather than diffing — simple and correct at
-  // this scale.
+  // this scale. Also mandatory-audit fail-closed (SG-7).
   if (body.grants !== undefined) {
     const grants = body.grants as { resource_type: string; resource_id: string }[];
-    await supabaseAdmin.from("user_access_grants").delete().eq("user_id", id);
-    if (grants.length > 0) {
-      await supabaseAdmin.from("user_access_grants").insert(
-        grants.map(g => ({ user_id: id, resource_type: g.resource_type, resource_id: g.resource_id, created_by: session.workEmail }))
-      );
+    try {
+      await withMandatoryAudit({
+        eventType: "access_grant_change", action: "user.grants.replace", outcome: "authorised",
+        actorUserId: session.id, actorLabel: session.workEmail, resourceType: "user", resourceId: id,
+        origin: "api/users/[id]", detail: { grantCount: grants.length },
+      }, async () => {
+        await supabaseAdmin.from("user_access_grants").delete().eq("user_id", id);
+        if (grants.length > 0) {
+          await supabaseAdmin.from("user_access_grants").insert(
+            grants.map(g => ({ user_id: id, resource_type: g.resource_type, resource_id: g.resource_id, created_by: session.workEmail }))
+          );
+        }
+      });
+    } catch (e) {
+      if (e instanceof MandatoryAuditUnavailableError) {
+        return NextResponse.json({ error: "Security audit unavailable; grant change refused." }, { status: 503 });
+      }
+      throw e;
     }
-    // ORG-005 IW-7 — audit the access-grant change (Q-29; minimised to a count).
-    await recordSecurityEvent({
-      eventType: "access_grant_change", action: "user.grants.replace", outcome: "changed",
-      actorUserId: session.id, actorLabel: session.workEmail, resourceType: "user", resourceId: id,
-      origin: "api/users/[id]", detail: { grantCount: grants.length },
-    });
   }
 
-  return NextResponse.json({ data: normaliseOrg(data) });
+  return NextResponse.json({ data: normaliseOrg(data as { organisations: unknown }) });
 }
 
 // Quick status toggle — used by the table's Disable/Enable action.
@@ -157,8 +171,9 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  let session;
   try {
-    await requireUser(req, ["admin"]);
+    session = await requireUser(req, ["admin"]);
   } catch (err) {
     return err as Response;
   }
@@ -175,15 +190,28 @@ export async function PATCH(
     return NextResponse.json({ error: "Status must be active or disabled." }, { status: 400 });
   }
 
-  const { data, error } = await supabaseAdmin
-    .from("users")
-    .update({ status: body.status })
-    .eq("id", id)
-    .select(USER_SELECT)
-    .single();
+  // ORG-005 IW-7 — mandatory-audit fail-closed (SG-7): a disable/enable is an
+  // authz-significant change, recorded before it is applied.
+  let data: unknown = null;
+  let error: { message: string } | null = null;
+  try {
+    await withMandatoryAudit({
+      eventType: "user_lifecycle_change", action: "user.status", outcome: "authorised",
+      actorUserId: session.id, actorLabel: session.workEmail, resourceType: "user", resourceId: id,
+      origin: "api/users/[id]", detail: { status: body.status },
+    }, async () => {
+      const res = await supabaseAdmin.from("users").update({ status: body.status }).eq("id", id).select(USER_SELECT).single();
+      data = res.data; error = res.error;
+    });
+  } catch (e) {
+    if (e instanceof MandatoryAuditUnavailableError) {
+      return NextResponse.json({ error: "Security audit unavailable; change refused." }, { status: 503 });
+    }
+    throw e;
+  }
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ data: normaliseOrg(data) });
+  if (error) return NextResponse.json({ error: (error as { message: string }).message }, { status: 500 });
+  return NextResponse.json({ data: normaliseOrg(data as { organisations: unknown }) });
 }
 
 export async function DELETE(

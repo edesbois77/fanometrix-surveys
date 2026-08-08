@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { requireUser } from "@/lib/auth-server";
+import { withMandatoryAudit, MandatoryAuditUnavailableError } from "@/lib/authz/audit";
 
 const ORG_TYPES = ["publisher", "agency", "brand", "internal"] as const;
 
@@ -67,8 +68,9 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
 // Quick status toggle — mirrors the users PATCH endpoint's enable/disable pattern.
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  let session;
   try {
-    await requireUser(req, ["admin"]);
+    session = await requireUser(req, ["admin"]);
   } catch (err) {
     return err as Response;
   }
@@ -80,14 +82,27 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     return NextResponse.json({ error: "Status must be active or disabled." }, { status: 400 });
   }
 
-  const { data, error } = await supabaseAdmin
-    .from("organisations")
-    .update({ status: body.status, updated_at: new Date().toISOString() })
-    .eq("id", id)
-    .select()
-    .single();
+  // ORG-005 IW-7 — mandatory-audit fail-closed (SG-7): organisation lifecycle
+  // change recorded before it is applied.
+  let data: unknown = null;
+  let error: { message: string } | null = null;
+  try {
+    await withMandatoryAudit({
+      eventType: "organisation_lifecycle_change", action: "organisation.status", outcome: "authorised",
+      actorUserId: session.id, actorLabel: session.workEmail, organisationId: id,
+      resourceType: "organisation", resourceId: id, origin: "api/organisations/[id]", detail: { status: body.status },
+    }, async () => {
+      const res = await supabaseAdmin.from("organisations").update({ status: body.status, updated_at: new Date().toISOString() }).eq("id", id).select().single();
+      data = res.data; error = res.error;
+    });
+  } catch (e) {
+    if (e instanceof MandatoryAuditUnavailableError) {
+      return NextResponse.json({ error: "Security audit unavailable; change refused." }, { status: 503 });
+    }
+    throw e;
+  }
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return NextResponse.json({ error: (error as { message: string }).message }, { status: 500 });
   return NextResponse.json({ data });
 }
 

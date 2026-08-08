@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { requireUser } from "@/lib/auth-server";
+import { recordSecurityEvent } from "@/lib/authz/audit";
 
 const USER_SELECT = "id, first_name, last_name, work_email, job_title, role, organisation_id, access_scope, status, last_login_at, password_changed_at, created_by, created_at, updated_at, organisations ( name, type )";
 
@@ -118,6 +119,14 @@ export async function POST(req: NextRequest) {
       grants.map(g => ({ user_id: data.id, resource_type: g.resource_type, resource_id: g.resource_id, created_by: session.workEmail }))
     );
   }
+
+  // ORG-005 IW-7 — audit user creation (Q-29 lifecycle event; minimised, guarded).
+  await recordSecurityEvent({
+    eventType: "user_lifecycle_change", action: "user.create", outcome: "created",
+    actorUserId: session.id, actorLabel: session.workEmail,
+    organisationId: (organisation_id as string) || null, resourceType: "user", resourceId: data.id,
+    origin: "api/users", detail: { role, accessScope: effectiveScope, grantCount: grants?.length ?? 0 },
+  });
 
   return NextResponse.json({ data: normaliseOrg(data) }, { status: 201 });
 }
