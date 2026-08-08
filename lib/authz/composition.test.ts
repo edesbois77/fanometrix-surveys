@@ -65,12 +65,18 @@ test("provenance preserves EVERY independently-applicable ALLOW source", () => {
   // property that a first-match model cannot provide (Q-35-D07).
 });
 
-// ── Admin super-ALLOW retained (F011 → IW-5), outranks DENY ───────────────────
+// ── IW-5: NO super-ALLOW — DENY precedence applies to every source ────────────
 
-test("admin_override ALLOW outranks DENY (retained super-ALLOW; NOT removed at IW-4)", () => {
-  const r = composeOrdinary([{ source: "admin_override", effect: "ALLOW", reason: "admin_bypass" }, D("explicit_deny")]);
-  assert.equal(r.decision, "ALLOW");
-  assert.equal(r.provenance.decidedBy, "admin_override");
+test("no super-ALLOW: a former admin_override ALLOW no longer outranks DENY", () => {
+  const r = composeOrdinary([{ source: "admin_override", effect: "ALLOW", reason: "x" }, D("explicit_deny")]);
+  assert.equal(r.decision, "REFUSE"); // DENY precedence applies to all
+});
+
+test("scoped admin authority + exceptional access are ordinary ALLOWs subject to DENY", () => {
+  assert.equal(composeOrdinary([A("admin_authority")]).decision, "ALLOW");
+  assert.equal(composeOrdinary([A("exceptional_access")]).decision, "ALLOW");
+  assert.equal(composeOrdinary([A("admin_authority"), D("explicit_deny")]).decision, "REFUSE");
+  assert.equal(composeOrdinary([A("exceptional_access"), D("explicit_deny")]).decision, "REFUSE");
 });
 
 // ── Purity ───────────────────────────────────────────────────────────────────

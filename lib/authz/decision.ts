@@ -27,7 +27,10 @@ export type Source =
   | "role"            // role allowlist (current model)
   | "resource"        // resource authorisation (lib/access.ts visibility)
   | "explicit_deny"   // an explicit DENY-override (e.g. created_by_admin read-only)
-  | "admin_override"  // current admin super-ALLOW (F011 — preserved at IW-0)
+  | "admin_override"  // DEPRECATED super-ALLOW source (removed at IW-5; retained in
+                      // the union only so historical provenance stays typed)
+  | "admin_authority" // IW-5 — scoped Platform Administration Authority (Q-27)
+  | "exceptional_access" // IW-5 — Exceptional Resource Access, a separate path (Q-19)
   | "policy";         // policy-derived input (reserved for later formalisation)
 
 /**
@@ -86,9 +89,17 @@ export interface DecisionInput {
   /** Resource authorisation outcome from lib/access.ts, or not_applicable when
    *  the operation is not resource-scoped. */
   resourceVisibility?: "visible" | "not_visible" | "not_applicable" | "indeterminate";
-  /** An explicit DENY-override that revokes an otherwise-ALLOW for non-admins
-   *  (e.g. the "Set up by Fanometrix" created_by_admin read-only rule). */
+  /** An explicit DENY-override that revokes an otherwise-ALLOW (applies to
+   *  everyone including admin from IW-5 — no super-ALLOW). */
   explicitDeny?: { denied: boolean; reason: string } | null;
+  /** ORG-005 IW-5 — resolved scoped Platform Administration Authority for the
+   *  administrative operation in scope (Q-27). Authorises the OPERATION only
+   *  (administer ≠ possess); NOT a resource super-ALLOW. */
+  adminAuthority?: { operation: string; granted: boolean } | null;
+  /** ORG-005 IW-5 — resolved Exceptional Resource Access (Q-19): a separate,
+   *  bounded, audited path. `granted` only when invoked + valid; it is an ALLOW
+   *  with NO priority over DENY (not an override-DENY). */
+  exceptionalAccess?: { granted: boolean; purpose?: string } | null;
 }
 
 const prov = (decidedBy: Source, reason: string, contributing: Source[]): Provenance => ({
@@ -104,9 +115,10 @@ const prov = (decidedBy: Source, reason: string, contributing: Source[]): Proven
  *  - Fail-closed distinction: an unevaluable dependency yields INDETERMINATE,
  *    which callers treat as deny — but it is reported distinctly from an
  *    authoritative REFUSE (F064 mechanism).
- *  - Explicit DENY precedence over an otherwise-ALLOW for non-admins (Q-22).
- *  - Admin super-ALLOW is PRESERVED (current F011 behaviour) — admin bypasses
- *    resource + explicit DENY, but NOT the inactive-principal block.
+ *  - Explicit DENY precedence over an otherwise-ALLOW for EVERYONE incl. admin
+ *    (Q-22) — the admin super-ALLOW is REMOVED at IW-5 (F011/F023).
+ *  - Admin cross-cutting power comes from scoped admin authority (Q-27) and
+ *    Exceptional Resource Access (Q-19), never an unconditional bypass.
  *  - No side effects: failures manufacture no state (F065).
  */
 export function evaluate(input: DecisionInput): AuthzResult {
@@ -133,7 +145,9 @@ export function evaluate(input: DecisionInput): AuthzResult {
     return { decision: "REFUSE", provenance: prov("structural", "principal_inactive", contributing) };
   }
   if (!input.isAdmin && input.orgStatus === "disabled") {
-    // Admins are exempt from org-disabled — mirrors auth-server.ts:81.
+    // Admins are exempt from org-disabled (a narrow STRUCTURAL availability
+    // exemption so a disabled internal org can't lock every admin out — NOT the
+    // resource super-ALLOW, which is removed at IW-5). Mirrors auth-server.ts:81.
     return { decision: "REFUSE", provenance: prov("structural", "organisation_disabled", contributing) };
   }
 
@@ -144,13 +158,17 @@ export function evaluate(input: DecisionInput): AuthzResult {
     return { decision: "REFUSE", provenance: prov("role", "role_not_permitted", contributing) };
   }
 
-  // 4. ORG-005 IW-4 — ordinary permission COMPOSITION (Q-20/Q-21/Q-22). Gather
-  //    the applicable source contributions, then compose them by the canonical
-  //    rule. The admin super-ALLOW is retained as an admin_override ALLOW that
-  //    currently outranks even DENY (F011 — REPLACED by scoped authority at IW-5,
-  //    NOT here). Source-attributed provenance is preserved (Q-35-D06/D07).
+  // 4. ORG-005 IW-4/IW-5 — ordinary permission COMPOSITION (Q-20/Q-21/Q-22).
+  //    The admin super-ALLOW is REMOVED at IW-5 (F011/F023): `isAdmin` no longer
+  //    contributes an unconditional ALLOW, so DENY precedence and resource
+  //    authorisation apply to admins like everyone (SG-4 no-super-ALLOW).
+  //    Admin cross-cutting power now comes from SCOPED admin authority (Q-27,
+  //    authorises the operation only — administer≠possess) and, for the
+  //    exceptional customer-resource path, Exceptional Resource Access (Q-19, a
+  //    separate bounded/audited ALLOW with no priority over DENY).
   const contributions: PermissionContribution[] = [];
-  if (input.isAdmin) contributions.push({ source: "admin_override", effect: "ALLOW", reason: "admin_bypass" });
+  if (input.adminAuthority?.granted) contributions.push({ source: "admin_authority", effect: "ALLOW", reason: "scoped_admin_authority" });
+  if (input.exceptionalAccess?.granted) contributions.push({ source: "exceptional_access", effect: "ALLOW", reason: "exceptional_resource_access" });
   if (input.explicitDeny?.denied) contributions.push({ source: "explicit_deny", effect: "DENY", reason: input.explicitDeny.reason });
   if (input.resourceVisibility === "visible") {
     contributions.push({ source: "resource", effect: "ALLOW", reason: "prerequisites_satisfied" });
@@ -165,17 +183,17 @@ export function evaluate(input: DecisionInput): AuthzResult {
 }
 
 /**
- * ORG-005 · IW-4 — the ordinary permission COMPOSITION engine (Q-22, Workshop
- * §13). Pure and deterministic. Composition rule, applied AFTER structural
- * prerequisites (which are supreme and handled by the caller):
- *   1. Admin super-ALLOW — an admin_override ALLOW yields ALLOW and currently
- *      outranks DENY (the retained F011 behaviour; REMOVED at IW-5 → then pure
- *      DENY-precedence applies to everyone).
- *   2. Explicit DENY precedence — any DENY overrides ordinary ALLOW (Q-22).
- *   3. At least one sufficient ALLOW is required — with NO inherent priority
- *      among direct / Role-derived / policy / resource sources (no super-ALLOW,
- *      no override-DENY, no weighting, no first-match beyond DENY precedence).
- *   4. Otherwise Default Refuse.
+ * ORG-005 · IW-4/IW-5 — the ordinary permission COMPOSITION engine (Q-22,
+ * Workshop §13). Pure and deterministic. Composition rule, applied AFTER
+ * structural prerequisites (which are supreme and handled by the caller):
+ *   1. Explicit DENY precedence — any DENY overrides ordinary ALLOW (Q-22).
+ *      From IW-5 this applies to EVERYONE, including admin: there is NO super-
+ *      ALLOW (F011/F023 removed). Scoped admin authority and Exceptional Resource
+ *      Access are ordinary ALLOW sources with no priority over DENY.
+ *   2. At least one sufficient ALLOW is required — with NO inherent priority
+ *      among any sources (no super-ALLOW, no override-DENY, no weighting, no
+ *      first-match beyond DENY precedence).
+ *   3. Otherwise Default Refuse.
  * Provenance is source-attributed: `allowSources` lists every source that
  * independently established ALLOW (so revoking one is explainable, Q-35-D07).
  */
@@ -185,16 +203,12 @@ export function composeOrdinary(contributions: PermissionContribution[], base: S
   const allowSources = contributions.filter(c => c.effect === "ALLOW").map(c => c.source);
   const denySources = contributions.filter(c => c.effect === "DENY").map(c => c.source);
 
-  // 1. Admin super-ALLOW (retained F011; outranks DENY) — REPLACED at IW-5.
-  if (contributions.some(c => c.source === "admin_override" && c.effect === "ALLOW")) {
-    return { decision: "ALLOW", provenance: { decidedBy: "admin_override", reason: "admin_bypass", contributing, allowSources, denySources } };
-  }
-  // 2. Explicit DENY precedence (Q-22).
+  // 1. Explicit DENY precedence (Q-22) — applies to admin too (no super-ALLOW).
   const deny = contributions.find(c => c.effect === "DENY");
   if (deny) {
     return { decision: "REFUSE", provenance: { decidedBy: deny.source, reason: deny.reason, contributing, allowSources: [], denySources } };
   }
-  // 3. Any sufficient ALLOW — no inherent source priority (Q-22).
+  // 2. Any sufficient ALLOW — no inherent source priority (Q-22).
   const allow = contributions.find(c => c.effect === "ALLOW");
   if (allow) {
     return { decision: "ALLOW", provenance: { decidedBy: allow.source, reason: allow.reason, contributing, allowSources, denySources: [] } };

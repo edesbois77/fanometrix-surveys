@@ -6,6 +6,7 @@ import { evaluate, type DecisionInput } from "../decision";
 import { resolveActiveContext } from "../organisation-access";
 import { roleForContext, resolveEffectiveRole, type ContextualRoleBinding } from "../role-profile";
 import { resolveProductAccess, resolveCapabilityAccess } from "../product-access";
+import { hasAdminAuthority, adminAuthorityGrantsResourceAccess, isSelfElevation } from "../admin-authority";
 
 // ORG-005 conformance harness — architecture invariants.
 //   • Currently-true invariants are asserted normally (must stay green).
@@ -44,9 +45,10 @@ test("Q-34 — INDETERMINATE is distinct from REFUSE and never ALLOWs", () => {
 // The current seam mirrors the production admin super-ALLOW; this assertion of
 // the APPROVED target therefore fails today and is closed at IW-5.
 
-test("Q-22 — no super-ALLOW: admin must not bypass a not-visible resource [closes IW-5, F011/F023/F035]", { todo: "admin super-ALLOW preserved at IW-0; replaced by scoped authority at IW-5" }, () => {
-  const adminForbiddenResource = evaluate({ ...base, isAdmin: true, role: "admin", resourceVisibility: "not_visible" });
-  assert.equal(adminForbiddenResource.decision, "REFUSE"); // currently ALLOW → todo until IW-5
+// ── IW-5 delivered: no super-ALLOW in the seam (HELD) ────────────────────────
+test("Q-22 — no super-ALLOW: admin must not bypass a not-visible resource or explicit DENY [closes IW-5, F011/F023/F035]", () => {
+  assert.equal(evaluate({ ...base, isAdmin: true, role: "admin", resourceVisibility: "not_visible" }).decision, "REFUSE");
+  assert.equal(evaluate({ ...base, isAdmin: true, role: "admin", resourceVisibility: "visible", explicitDeny: { denied: true, reason: "x" } }).decision, "REFUSE");
 });
 
 // ── TARGET invariants pending their owning workstream (mechanism not yet built) ─
@@ -154,7 +156,16 @@ test("Q-09/Q-10 enforce cut-over — Product/Capability decisions authoritative 
   assert.doesNotMatch(mw, /session\.role !== "admin" && session\.role !== "publisher"/); // hard-coded gate removed
 });
 test("Q-14/Q-15 — Organisation Resource Entitlement vs User Resource Authorisation [closes IW-6, F024/F025]", { todo: "Resource Entitlement is IW-6" });
-test("Q-27 — scoped Platform Administration Authority; administer≠possess; no self-elevation [closes IW-5, F035/F036]", { todo: "Scoped admin authority is IW-5" });
+test("Q-27 — scoped Platform Administration Authority; administer≠possess; no self-elevation [closes IW-5, F035/F036]", () => {
+  // scoped: authority permits only its bounded operation, never global
+  assert.equal(hasAdminAuthority([{ operation: "user.manage", scope: { organisationId: "org-A" } }], { operation: "user.manage", organisationId: "org-A" }), true);
+  assert.equal(hasAdminAuthority([{ operation: "user.manage", scope: { organisationId: "org-A" } }], { operation: "user.manage", organisationId: "org-B" }), false);
+  assert.equal(hasAdminAuthority([], { operation: "user.manage" }), false); // no super-admin
+  // administer ≠ possess
+  assert.equal(adminAuthorityGrantsResourceAccess(), false);
+  // no self-elevation
+  assert.equal(isSelfElevation("u1", { userId: "u1", elevatesAuthorityOrRole: true }), true);
+});
 // ── IW-7 delivered: security-audit capability mechanism (HELD) ───────────────
 // Q-29/Q-30 capability + SG-7 fail-closed + F048; live activation on migration 168.
 test("Q-29/Q-30 — audit capability: tamper-evidence, minimisation, mandatory fail-closed, F048 [closes IW-7, F018/F045/F046/F048]", () => {

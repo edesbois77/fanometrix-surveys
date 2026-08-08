@@ -50,12 +50,29 @@ test("role in allowlist proceeds", () => {
   assert.equal(evaluate({ ...base, allowedRoles: ["admin", "publisher"] }).decision, "ALLOW");
 });
 
-// ── Admin super-ALLOW (CURRENT semantics preserved at IW-0; F011 → IW-5) ──────
+// ── IW-5: NO super-ALLOW (F011/F023 removed) — admin subject to DENY + resource ─
 
-test("admin bypasses resource + explicit DENY (super-ALLOW preserved)", () => {
-  const r = evaluate({ ...base, isAdmin: true, role: "admin", resourceVisibility: "not_visible", explicitDeny: { denied: true, reason: "x" } });
+test("no super-ALLOW: admin is subject to explicit DENY (DENY precedence for all)", () => {
+  const r = evaluate({ ...base, isAdmin: true, role: "admin", resourceVisibility: "visible", explicitDeny: { denied: true, reason: "readonly" } });
+  assert.equal(r.decision, "REFUSE");
+  assert.equal(r.provenance.decidedBy, "explicit_deny");
+});
+
+test("no super-ALLOW: admin does NOT bypass a not-visible resource", () => {
+  assert.equal(evaluate({ ...base, isAdmin: true, role: "admin", resourceVisibility: "not_visible" }).decision, "REFUSE");
+});
+
+test("admin authorised for an operation via scoped admin authority (Q-27, administer≠possess)", () => {
+  const r = evaluate({ ...base, isAdmin: true, role: "admin", resourceVisibility: "not_applicable", adminAuthority: { operation: "user.manage", granted: true } });
   assert.equal(r.decision, "ALLOW");
-  assert.equal(r.provenance.decidedBy, "admin_override");
+});
+
+test("Exceptional Resource Access is a bounded ALLOW that does NOT override DENY (Q-19)", () => {
+  const ok = evaluate({ ...base, isAdmin: true, role: "admin", resourceVisibility: "not_visible", exceptionalAccess: { granted: true, purpose: "support" } });
+  assert.equal(ok.decision, "ALLOW");
+  assert.equal(ok.provenance.decidedBy, "exceptional_access");
+  const denied = evaluate({ ...base, isAdmin: true, role: "admin", resourceVisibility: "not_visible", exceptionalAccess: { granted: true }, explicitDeny: { denied: true, reason: "x" } });
+  assert.equal(denied.decision, "REFUSE"); // DENY still precedes — not an override-DENY
 });
 
 // ── Explicit DENY precedence (Q-22) ──────────────────────────────────────────
