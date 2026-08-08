@@ -7,6 +7,7 @@ import { resolveActiveContext } from "../organisation-access";
 import { roleForContext, resolveEffectiveRole, type ContextualRoleBinding } from "../role-profile";
 import { resolveProductAccess, resolveCapabilityAccess } from "../product-access";
 import { hasAdminAuthority, adminAuthorityGrantsResourceAccess, isSelfElevation } from "../admin-authority";
+import { explainForAudience } from "../explanation";
 
 // ORG-005 conformance harness — architecture invariants.
 //   • Currently-true invariants are asserted normally (must stay green).
@@ -187,5 +188,23 @@ test("Q-29 activate — mandatory authz-change operations are audited fail-close
   const org = readFileSync(resolve(__dirname, "..", "..", "..", "app", "api", "organisations", "[id]", "route.ts"), "utf8");
   assert.match(org, /withMandatoryAudit/);                  // org lifecycle fail-closed too
 });
-test("Q-35 — audience-separated explanation; distinct denial causes; no existence leak [closes IW-8, F066/F067/F068]", { todo: "Explainability is IW-8" });
+// ── IW-8 delivered: explainability & existence-leak closure (HELD) ───────────
+test("Q-35 — audience-separated explanation with distinct denial causes [closes IW-8, F066/F067]", () => {
+  const deny = evaluate({ ...base, resourceVisibility: "visible", explicitDeny: { denied: true, reason: "ro" } });
+  const dflt = evaluate({ ...base, resourceVisibility: "not_visible" });
+  // administrator sees the DENY-vs-Default-Refuse distinction + sources
+  assert.equal(explainForAudience(deny, "administrator").refuseCause, "explicit_deny");
+  assert.equal(explainForAudience(dflt, "administrator").refuseCause, "default_refuse");
+  // User gets a coarse, existence-safe outcome with NO provenance (least-disclosure)
+  assert.equal(explainForAudience(deny, "user").outcome, "not_available");
+  assert.equal(explainForAudience(deny, "user").sources, undefined);
+});
+test("Q-35 — existence leak closed: read-detail handlers return uniform 404, not 403 [closes IW-8, F068]", () => {
+  // The undiscoverable-resource gate returns a uniform 404 (not 403) — asserted
+  // by the F068 marker being immediately followed by a not-found 404 response.
+  const rp = readFileSync(resolve(__dirname, "..", "..", "..", "app", "api", "research-projects", "[id]", "route.ts"), "utf8");
+  assert.match(rp, /F068 \/ Q-35-D10[\s\S]{0,320}status: 404/);
+  const doc = readFileSync(resolve(__dirname, "..", "..", "..", "app", "api", "library-documents", "[id]", "route.ts"), "utf8");
+  assert.match(doc, /F068 \/ Q-35-D10[\s\S]{0,220}status: 404/);
+});
 test("F058 — session/token revocation before expiry [closes IW-9]", { todo: "Session revocation is IW-9" });

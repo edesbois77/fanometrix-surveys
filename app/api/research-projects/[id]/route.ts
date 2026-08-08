@@ -36,7 +36,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   if (error || !data) return NextResponse.json({ error: error?.message ?? "Not found" }, { status: 404 });
 
   if (session.role !== "admin" && !(await canAccess(session, "research_project", data.id))) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    // ORG-005 IW-8 (F068 / Q-35-D10) — do NOT leak resource existence: a caller
+    // not authorised to DISCOVER this project receives the SAME not-found response
+    // as a non-existent one (uniform 404), never a 403 that confirms existence.
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
   // Same rollup the list endpoint exposes (vw_research_project_stats), keyed

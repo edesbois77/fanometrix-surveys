@@ -77,7 +77,9 @@ export const CONFORMANCE_MANIFEST: ConformanceItem[] = [
   // ── IW-7 delivered: security-audit capability & mandatory-audit fail-closed (HELD) ──
   { ref: "Q-29/Q-30-mech", cls: "HELD", description: "Security audit CAPABILITY: durable, attributable, TAMPER-EVIDENT (hash chain + append-only), access-protected, content-MINIMISED (no content/secrets); mandatory-audit FAIL-CLOSED primitive (SG-7); permission never read from audit (F048 retained). Store = migration 168 (presented).", evidence: ["lib/authz/audit.test.ts"] },
   { ref: "Q-29-activate", cls: "HELD", description: "Audit subsystem LIVE (migration 168 applied): recordSecurityEvent recording live; mandatory authz-change events wired (user create/update/status/grants, org lifecycle) with SG-7 fail-closed (withMandatoryAudit) — a live audit-write failure refuses the operation; tamper-evidence (append-only + chain), G9 read-after-write and access-protection verified in production.", evidence: ["lib/authz/conformance/invariants.test.ts", "lib/authz/audit.test.ts"] },
-  { ref: "Q-35", cls: "TARGET", description: "Audience-separated explanation; denial causes distinct; no existence leak.", closesAt: "IW-8", evidence: ["lib/authz/conformance/invariants.test.ts"] },
+  // ── IW-8 delivered: explainability & operational diagnosis (HELD) ─────────────
+  // ── IW-8 delivered: explainability & operational diagnosis (HELD) ─────────────
+  { ref: "Q-35", cls: "HELD", description: "Audience-separated explanation (User coarse/existence-safe → admin sources+DENY/Default → security/operator +INDETERMINATE class), faithfully derived from provenance (D22), least-disclosure (D23/D24); explanation is NOT an authority source (D01) and imports no live state (F069 retained — caller gates the audience). Existence-leak CLOSED: read-detail handlers return uniform 404 for undiscoverable resources (F068/D10, SG-3/SG-9).", evidence: ["lib/authz/explanation.test.ts", "lib/authz/conformance/invariants.test.ts"] },
   { ref: "F058", cls: "TARGET", description: "Session/token revocation before expiry.", closesAt: "IW-9", evidence: ["lib/authz/conformance/invariants.test.ts"] },
 ];
 

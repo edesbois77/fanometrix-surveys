@@ -56,7 +56,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         authorised = false; // fail closed
       }
     }
-    if (!authorised) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    // ORG-005 IW-8 (F068 / Q-35-D10) — uniform not-found for an undiscoverable
+    // document: never confirm existence to an unauthorised caller via 403-vs-404.
+    if (!authorised) return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
   // How many Research Projects attach this document as evidence — surfaced
