@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { requireUser } from "@/lib/auth-server";
 import { recordSecurityEvent, withMandatoryAudit, MandatoryAuditUnavailableError } from "@/lib/authz/audit";
+import { bumpTokenVersion } from "@/lib/authz/session-currency";
 
 const USER_SELECT = "id, first_name, last_name, work_email, job_title, role, organisation_id, access_scope, status, last_login_at, password_changed_at, created_by, created_at, updated_at, organisations ( name, type )";
 
@@ -137,6 +138,14 @@ export async function PUT(
     return NextResponse.json({ error: (error as { message: string }).message }, { status: 500 });
   }
 
+  // ORG-005 IW-9 (F058/F059) — revoke the target user's live sessions when this
+  // change is session-affecting: a forced-password-change is set, their password
+  // is reset, or they are disabled. A version bump invalidates their existing
+  // tokens on the next request (disable is also immediate via the status gate).
+  if (update.force_password_change === true || update.hashed_password !== undefined || update.status === "disabled") {
+    await bumpTokenVersion(id);
+  }
+
   // Selected Access grants: the client sends the full desired set, so
   // reconcile by replacing rather than diffing — simple and correct at
   // this scale. Also mandatory-audit fail-closed (SG-7).
@@ -211,6 +220,10 @@ export async function PATCH(
   }
 
   if (error) return NextResponse.json({ error: (error as { message: string }).message }, { status: 500 });
+
+  // ORG-005 IW-9 (F058) — disabling a user revokes their live sessions.
+  if (body.status === "disabled") await bumpTokenVersion(id);
+
   return NextResponse.json({ data: normaliseOrg(data as { organisations: unknown }) });
 }
 

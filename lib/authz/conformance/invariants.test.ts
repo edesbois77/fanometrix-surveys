@@ -215,4 +215,12 @@ test("F058 — session/token revocation mechanism: a version bump revokes earlie
   assert.equal(isSessionRevoked(5, 4), true);          // anti-resurrection (F060)
   assert.equal(isSessionRevoked(undefined, 4), false); // legacy token → fail-safe, not a false revocation
 });
-test("F058 activate — revocation LIVE in requireUser; bump wired; SG-8 [closes IW-9-activation]", { todo: "mechanism built; live enforcement on migration 169 (DDL boundary)" });
+test("F058 activate — revocation enforced in requireUser; bump wired at the triggers [closes IW-9-activation]", () => {
+  const authServer = readFileSync(resolve(__dirname, "..", "..", "auth-server.ts"), "utf8");
+  assert.match(authServer, /isSessionRevoked\(session\.tv/);   // enforced in the live re-fetch (SG-8)
+  assert.match(authServer, /token_version/);                   // folded into the existing select (no extra query)
+  const login = readFileSync(resolve(__dirname, "..", "..", "..", "app", "api", "auth", "login", "route.ts"), "utf8");
+  assert.match(login, /tv: user\.token_version/);              // JWT stamped with the epoch
+  const chpw = readFileSync(resolve(__dirname, "..", "..", "..", "app", "api", "auth", "change-password", "route.ts"), "utf8");
+  assert.match(chpw, /bumpTokenVersion/);                      // password change revokes other sessions (F059)
+});

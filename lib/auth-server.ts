@@ -15,6 +15,7 @@ import { recordShadow, recordOrgContextParity, recordRoleParity, recordCapabilit
 import { fetchActiveOrganisationAccess, resolveActiveContext, compareAccessToScalar } from "@/lib/authz/organisation-access";
 import { fetchContextualRole, resolveEffectiveRole, roleParity } from "@/lib/authz/role-profile";
 import { capabilityAccessParity, resolveProductAccess, tierForAllowedRoles } from "@/lib/authz/product-access";
+import { isSessionRevoked } from "@/lib/authz/session-currency";
 
 export type OrganisationType = "publisher" | "agency" | "brand" | "internal";
 
@@ -46,6 +47,7 @@ type UserRow = {
   status: "pending_invitation" | "active" | "disabled";
   can_present_simulations: boolean;
   remembered_organisation_id: string | null;
+  token_version: number | null;
   organisations: { name: string; type: OrganisationType; status: "active" | "disabled" } | { name: string; type: OrganisationType; status: "active" | "disabled" }[] | null;
 };
 
@@ -73,12 +75,24 @@ export async function requireUser(
 
   const { data, error } = await supabaseAdmin
     .from("users")
-    .select("id, work_email, first_name, last_name, role, organisation_id, access_scope, status, can_present_simulations, remembered_organisation_id, organisations ( name, type, status )")
+    .select("id, work_email, first_name, last_name, role, organisation_id, access_scope, status, can_present_simulations, remembered_organisation_id, token_version, organisations ( name, type, status )")
     .eq("id", session.sub)
     .single();
 
   const row = data as UserRow | null;
   if (error || !row) throw unauthorised("Unauthorised", 401);
+
+  // ── ORG-005 IW-9 — session/token currency (F058/F059/SG-8). A session whose
+  //    issued version is behind the live users.token_version has been revoked
+  //    (explicit revoke, user disable, or password/forced-password-change) →
+  //    401 BEFORE the token's natural expiry. Uses the live re-fetch already
+  //    performed here (F003), so no extra query. Fail-safe: an undefined version
+  //    (legacy token / unset column) is treated as current — never a false
+  //    revocation. Anti-resurrection (F060): a stale token never out-votes the
+  //    live value. ──
+  if (isSessionRevoked(session.tv, row.token_version ?? undefined)) {
+    throw unauthorised("Session expired", 401);
+  }
 
   // ── ORG-005 IW-0 shadow (non-authoritative; must NEVER affect the request) ──
   // Evaluate the central decision seam on the same resolved inputs and compare

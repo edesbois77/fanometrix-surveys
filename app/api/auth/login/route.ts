@@ -50,6 +50,9 @@ export async function POST(req: NextRequest) {
     sub: user.id,
     role: user.role,
     forcePasswordChange: user.force_password_change ?? false,
+    // ORG-005 IW-9 — stamp the session-currency epoch so requireUser can detect
+    // a later revocation (F058) or forced-change bump (F059).
+    tv: user.token_version ?? 0,
   });
 
   const now = new Date().toISOString();

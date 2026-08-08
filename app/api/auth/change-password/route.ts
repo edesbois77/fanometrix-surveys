@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { getSession, signJwt, SESSION_COOKIE_NAME, SESSION_DURATION_SECONDS } from "@/lib/auth";
+import { bumpTokenVersion } from "@/lib/authz/session-currency";
 
 export async function POST(req: NextRequest) {
   const session = await getSession(req);
@@ -34,6 +35,11 @@ export async function POST(req: NextRequest) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
+  // ORG-005 IW-9 (F059) — bump the session-currency epoch so every OTHER live
+  // session (issued before this change) is revoked on its next request; the
+  // refreshed token below carries the NEW version, so this session stays valid.
+  const newVersion = await bumpTokenVersion(session.sub);
+
   // Issue a refreshed JWT with forcePasswordChange cleared. Role is
   // carried forward unchanged here purely as middleware's coarse routing
   // hint — the next API call re-fetches it live from the database
@@ -42,6 +48,7 @@ export async function POST(req: NextRequest) {
     sub: session.sub,
     role: session.role,
     forcePasswordChange: false,
+    tv: newVersion ?? session.tv ?? 0,
   });
 
   const response = NextResponse.json({ success: true });
