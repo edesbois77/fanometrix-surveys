@@ -24,6 +24,28 @@ export interface RetentionPolicy {
   retentionDays: number;    // the window — supplied by the retention-scope decision
 }
 
+/**
+ * The GOVERNED retention policy set (ORG-005 IW-10, F050).
+ *
+ * These windows are the recorded output of explicit governance decisions — this
+ * module still never invents one:
+ *   • D-R1 — `survey_events` (delivery telemetry): 180 days. APPROVED.
+ *   • D-R2 — `responses` (research Data): RETAIN — NO routine age-based pruning.
+ *     Deliberately ABSENT from this set; it must never inherit the telemetry rule.
+ *   • D-R3 — project archive lifecycle (`archive_after_days`): DEFERRED (not here).
+ *
+ * IMPORTANT — this is CONFIGURATION ONLY. D-R4 (destructive F050 execution) is
+ * DEFERRED / NOT AUTHORISED: nothing in this module deletes rows, and this set is
+ * wired to no scheduler. It exists so the governed windows are recorded in code
+ * and can drive the READ-ONLY `retentionPreview` sizing tool. Evidence at the time
+ * of the decision: a 180-day `survey_events` window prunes ≈ 0 rows (telemetry is
+ * young), so no destructive activation is required to complete IW-10.
+ */
+export const GOVERNED_RETENTION_POLICIES: readonly RetentionPolicy[] = [
+  { table: "survey_events", timestampColumn: "created_at", retentionDays: 180 },
+  // responses: intentionally NOT listed — D-R2 RETAIN (research Data, no pruning).
+];
+
 /** The cutoff ISO timestamp: records older than this are past the window. Pure. */
 export function retentionCutoffIso(nowMs: number, retentionDays: number): string {
   return new Date(nowMs - retentionDays * 86_400_000).toISOString();

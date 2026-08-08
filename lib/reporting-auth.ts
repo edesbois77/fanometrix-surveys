@@ -10,6 +10,11 @@
 //     the previous `if (!API_KEY) return true` fail-open behaviour.)
 //   - Constant-time comparison so a caller can't recover the key byte-by-byte
 //     from response timing.
+//
+// ORG-005 · IW-10 / F052 (D-F052 Option A): the credential is accepted ONLY via
+// the `Authorization: Bearer <key>` header. The former `?api_key=<key>` URL
+// query-parameter path has been REMOVED so the secret can no longer land in
+// request URLs / access logs (G2). Consumers must send the header.
 import { timingSafeEqual } from "node:crypto";
 
 function safeEqual(provided: string, expected: string): boolean {
@@ -23,22 +28,23 @@ function safeEqual(provided: string, expected: string): boolean {
 
 /**
  * True only when a Reporting API key is configured AND the request presents a
- * matching credential, via either `Authorization: Bearer <key>` or an
- * `api_key=<key>` query parameter.
+ * matching credential via the `Authorization: Bearer <key>` header.
+ *
+ * The `?api_key=` URL query-parameter path was removed under ORG-005 IW-10
+ * (F052 / D-F052 Option A) so the key can never appear in request URLs or
+ * access logs (G2). Header-only.
  *
  * Fails closed (returns false) whenever the key is absent, empty or
  * whitespace-only — missing security configuration must never produce ALLOW.
  */
 export function isReportingAuthorized(
   authorizationHeader: string | null | undefined,
-  apiKeyQuery: string | null | undefined,
   key: string | null | undefined,
 ): boolean {
   const configured = key?.trim();
   if (!configured) return false; // fail closed — never open when unconfigured
 
   if (authorizationHeader && safeEqual(authorizationHeader, `Bearer ${configured}`)) return true;
-  if (apiKeyQuery && safeEqual(apiKeyQuery, configured)) return true;
   return false;
 }
 

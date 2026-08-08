@@ -142,18 +142,17 @@ export default function ReportingPage() {
                 <li><code className="text-[#0B1929]">publisher</code>, filter by publisher</li>
                 <li><code className="text-[#0B1929]">country</code>, filter by country</li>
                 <li><code className="text-[#0B1929]">date_from</code> / <code className="text-[#0B1929]">date_to</code>, YYYY-MM-DD</li>
-                <li><code className="text-[#0B1929]">api_key</code>, auth key (or use Authorization header)</li>
               </ul>
             </div>
             <div>
               <p className="font-semibold text-gray-700 mb-1">Authentication</p>
-              <p className="mb-2">Pass your API key as a header or query param:</p>
+              <p className="mb-2">Pass your API key in the <code className="bg-gray-100 px-1 rounded">Authorization</code> header:</p>
               <code className="block bg-gray-100 text-gray-800 px-2 py-1.5 rounded text-xs mb-1">
                 Authorization: Bearer YOUR_API_KEY
               </code>
-              <code className="block bg-gray-100 text-gray-800 px-2 py-1.5 rounded text-xs">
-                ?api_key=YOUR_API_KEY
-              </code>
+              <p className="text-[11px] text-gray-400 mt-1">
+                The key must be sent in the header. Passing it in the URL (a query parameter) is not supported, so the secret never appears in logs.
+              </p>
             </div>
           </div>
         </div>
@@ -200,8 +199,10 @@ export default function ReportingPage() {
                 <div className="flex items-start gap-2">
                   <pre className="flex-1 bg-gray-900 text-green-400 text-xs p-3 rounded-lg overflow-x-auto whitespace-pre">{`function syncFanometrix() {
   const API_KEY = "YOUR_API_KEY";
-  const url = "${ENDPOINT}?limit=10000&api_key=" + API_KEY;
-  const res = UrlFetchApp.fetch(url);
+  const url = "${ENDPOINT}?limit=10000";
+  const res = UrlFetchApp.fetch(url, {
+    headers: { Authorization: "Bearer " + API_KEY },
+  });
   const json = JSON.parse(res.getContentText());
   const rows = json.data;
   if (!rows || !rows.length) return;
@@ -213,8 +214,10 @@ export default function ReportingPage() {
 }`}</pre>
                   {copyBtn(`function syncFanometrix() {
   const API_KEY = "YOUR_API_KEY";
-  const url = "${ENDPOINT}?limit=10000&api_key=" + API_KEY;
-  const res = UrlFetchApp.fetch(url);
+  const url = "${ENDPOINT}?limit=10000";
+  const res = UrlFetchApp.fetch(url, {
+    headers: { Authorization: "Bearer " + API_KEY },
+  });
   const json = JSON.parse(res.getContentText());
   const rows = json.data;
   if (!rows || !rows.length) return;

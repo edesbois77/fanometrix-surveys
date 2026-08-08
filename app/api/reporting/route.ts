@@ -5,11 +5,9 @@ import { isReportingAuthorized } from "@/lib/reporting-auth";
 const API_KEY = process.env.REPORTING_API_KEY;
 
 function auth(req: NextRequest): boolean {
-  return isReportingAuthorized(
-    req.headers.get("authorization"),
-    req.nextUrl.searchParams.get("api_key"),
-    API_KEY,
-  );
+  // Header-only (ORG-005 IW-10 / F052): the `?api_key=` query path was removed
+  // so the credential never lands in request URLs / access logs (G2).
+  return isReportingAuthorized(req.headers.get("authorization"), API_KEY);
 }
 
 function corsHeaders() {
