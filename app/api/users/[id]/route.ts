@@ -4,9 +4,11 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 import { requireUser } from "@/lib/auth-server";
 import { recordSecurityEvent, withMandatoryAudit, MandatoryAuditUnavailableError } from "@/lib/authz/audit";
 import { bumpTokenVersion } from "@/lib/authz/session-currency";
-import { syncGovernedOrganisationAccess, syncSelectedStudyAuthorisations, selectedStudyGrantsForDisplay } from "@/lib/authz/provision-access";
+import { syncGovernedOrganisationAccess, syncSelectedStudyAuthorisations, selectedStudyGrantsForDisplay, governedUserContext } from "@/lib/authz/provision-access";
 
-const USER_SELECT = "id, first_name, last_name, work_email, job_title, role, organisation_id, access_scope, status, last_login_at, password_changed_at, created_by, created_at, updated_at, organisations ( name, type )";
+// ORG-005 IW-11: Organisation + Role for display come from the governed
+// user_organisation_access (merged below), not the scalar users columns.
+const USER_SELECT = "id, first_name, last_name, work_email, job_title, access_scope, status, last_login_at, password_changed_at, created_by, created_at, updated_at";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -34,14 +36,15 @@ export async function GET(
 
   // ORG-005 IW-11 / DEC-1 Option A — Selected Access read from the governed Study
   // URA (research_project shape), replacing the legacy user_access_grants reader.
-  const [{ data: user, error }, grants] = await Promise.all([
+  const [{ data: user, error }, grants, ctx] = await Promise.all([
     supabaseAdmin.from("users").select(USER_SELECT).eq("id", id).single(),
     selectedStudyGrantsForDisplay(id),
+    governedUserContext(id),
   ]);
 
   if (error || !user) return NextResponse.json({ error: error?.message ?? "Not found" }, { status: 404 });
 
-  return NextResponse.json({ data: { ...normaliseOrg(user), grants } });
+  return NextResponse.json({ data: { ...normaliseOrg({ ...user, ...ctx }), grants } });
 }
 
 export async function PUT(
@@ -78,16 +81,13 @@ export async function PUT(
     update.work_email = cleanEmail;
   }
 
-  if (body.role !== undefined) {
-    if (!["admin", "brand", "agency", "publisher"].includes(body.role as string)) {
-      return NextResponse.json({ error: "Invalid role." }, { status: 400 });
-    }
-    update.role = body.role;
+  // ORG-005 IW-11: Organisation + Role are persisted to the governed model only
+  // (syncGovernedOrganisationAccess below) — the scalar users columns are not written.
+  if (body.role !== undefined && !["admin", "brand", "agency", "publisher"].includes(body.role as string)) {
+    return NextResponse.json({ error: "Invalid role." }, { status: 400 });
   }
 
-  if (body.organisation_id !== undefined) update.organisation_id = body.organisation_id || null;
-
-  const effectiveRole = (update.role as string | undefined) ?? undefined;
+  const effectiveRole = body.role !== undefined ? (body.role as string) : undefined;
   if (body.access_scope !== undefined) {
     // A publisher account is always organisation-wide, regardless of what
     // the request asked for — mirrors the create-time enforcement.
@@ -113,18 +113,22 @@ export async function PUT(
   let error: { code?: string; message: string } | null = null;
   try {
     await withMandatoryAudit({
-      eventType: update.role !== undefined ? "role_assignment_change" : "user_lifecycle_change",
+      eventType: body.role !== undefined ? "role_assignment_change" : "user_lifecycle_change",
       action: "user.update",
       outcome: "authorised",
       actorUserId: session.id,
       actorLabel: session.workEmail,
-      organisationId: (update.organisation_id as string | null | undefined) ?? null,
+      organisationId: body.organisation_id !== undefined ? ((body.organisation_id as string | null) || null) : null,
       resourceType: "user",
       resourceId: id,
       origin: "api/users/[id]",
       detail: { fields: Object.keys(update).filter(k => !["hashed_password", "password_changed_at"].includes(k)) },
     }, async () => {
-      const res = await supabaseAdmin.from("users").update(update).eq("id", id).select(USER_SELECT).single();
+      // Org/Role now persist to the governed model (below), so `update` may be empty
+      // (an org/role-only change) — avoid an empty scalar UPDATE; still audited here.
+      const res = Object.keys(update).length > 0
+        ? await supabaseAdmin.from("users").update(update).eq("id", id).select(USER_SELECT).single()
+        : await supabaseAdmin.from("users").select(USER_SELECT).eq("id", id).single();
       data = res.data; error = res.error;
     });
   } catch (e) {
@@ -141,12 +145,15 @@ export async function PUT(
     return NextResponse.json({ error: (error as { message: string }).message }, { status: 500 });
   }
 
-  // ORG-005 IW-11 (additive): keep the governed Active Context + contextual Role
-  // in lockstep with this update so the user always resolves under G-1 sole
-  // authority (never stranded by an org/role change).
+  // ORG-005 IW-11: reconcile the governed Active Context + contextual Role from the
+  // effective Organisation/Role (request value if provided, else the current governed
+  // value) — so a non-org/role update never revokes access, and the user is never
+  // stranded under G-1 sole authority.
   {
-    const updated = data as { organisation_id: string | null; role: string | null };
-    await syncGovernedOrganisationAccess(id, updated.organisation_id, updated.role);
+    const cur = await governedUserContext(id);
+    const effOrg = body.organisation_id !== undefined ? ((body.organisation_id as string | null) || null) : cur.organisation_id;
+    const effRole = body.role !== undefined ? (body.role as string) : cur.role;
+    await syncGovernedOrganisationAccess(id, effOrg, effRole);
   }
 
   // ORG-005 IW-9 (F058/F059) — revoke the target user's live sessions when this
@@ -179,7 +186,7 @@ export async function PUT(
     }
   }
 
-  return NextResponse.json({ data: normaliseOrg(data as { organisations: unknown }) });
+  { const ctx = await governedUserContext(id); return NextResponse.json({ data: normaliseOrg({ ...(data as object), ...ctx } as { organisations: unknown }) }); }
 }
 
 // Quick status toggle — used by the table's Disable/Enable action.
@@ -231,7 +238,7 @@ export async function PATCH(
   // ORG-005 IW-9 (F058) — disabling a user revokes their live sessions.
   if (body.status === "disabled") await bumpTokenVersion(id);
 
-  return NextResponse.json({ data: normaliseOrg(data as { organisations: unknown }) });
+  { const ctx = await governedUserContext(id); return NextResponse.json({ data: normaliseOrg({ ...(data as object), ...ctx } as { organisations: unknown }) }); }
 }
 
 export async function DELETE(

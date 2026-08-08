@@ -3,9 +3,11 @@ import bcrypt from "bcryptjs";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { requireUser } from "@/lib/auth-server";
 import { recordSecurityEvent } from "@/lib/authz/audit";
-import { syncGovernedOrganisationAccess, syncSelectedStudyAuthorisations } from "@/lib/authz/provision-access";
+import { syncGovernedOrganisationAccess, syncSelectedStudyAuthorisations, governedUserContexts, governedUserContext } from "@/lib/authz/provision-access";
 
-const USER_SELECT = "id, first_name, last_name, work_email, job_title, role, organisation_id, access_scope, status, last_login_at, password_changed_at, created_by, created_at, updated_at, organisations ( name, type )";
+// ORG-005 IW-11: Organisation + Role for display come from the governed
+// user_organisation_access (merged below), not the scalar users columns.
+const USER_SELECT = "id, first_name, last_name, work_email, job_title, access_scope, status, last_login_at, password_changed_at, created_by, created_at, updated_at";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -30,7 +32,9 @@ export async function GET(req: NextRequest) {
     .order("created_at", { ascending: true });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ data: (data ?? []).map(normaliseOrg) });
+  const list = data ?? [];
+  const ctxs = await governedUserContexts(list.map((u) => u.id));
+  return NextResponse.json({ data: list.map((u) => normaliseOrg({ ...u, ...(ctxs.get(u.id) ?? { organisation_id: null, role: null, organisations: null }) })) });
 }
 
 export async function POST(req: NextRequest) {
@@ -98,8 +102,8 @@ export async function POST(req: NextRequest) {
       work_email: cleanEmail,
       job_title: job_title?.trim() || null,
       hashed_password,
-      role,
-      organisation_id: organisation_id || null,
+      // ORG-005 IW-11: Organisation + Role persisted to the governed model only
+      // (syncGovernedOrganisationAccess below) — scalar users columns not written.
       access_scope: effectiveScope,
       status: "pending_invitation",
       force_password_change: force_password_change ?? true,
@@ -115,9 +119,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  // ORG-005 IW-11 (additive): maintain the governed Active Context + contextual
-  // Role so the new user resolves under G-1 sole authority (never stranded).
-  await syncGovernedOrganisationAccess(data.id, data.organisation_id, data.role);
+  // ORG-005 IW-11: persist Organisation + Role to the governed model (Active
+  // Context + contextual Role) so the new user resolves under G-1 sole authority.
+  await syncGovernedOrganisationAccess(data.id, organisation_id || null, role);
 
   // ORG-005 IW-11 / DEC-1 Option A — Selected Access (Studies only) via governed URA.
   if (effectiveScope === "selected" && grants && grants.length > 0) {
@@ -132,5 +136,6 @@ export async function POST(req: NextRequest) {
     origin: "api/users", detail: { role, accessScope: effectiveScope, grantCount: grants?.length ?? 0 },
   });
 
-  return NextResponse.json({ data: normaliseOrg(data) }, { status: 201 });
+  const ctx = await governedUserContext(data.id);
+  return NextResponse.json({ data: normaliseOrg({ ...data, ...ctx }) }, { status: 201 });
 }

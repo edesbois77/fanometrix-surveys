@@ -70,6 +70,37 @@ export async function syncSelectedStudyAuthorisations(
   }
 }
 
+export interface GovernedUserContext {
+  organisation_id: string | null;
+  role: string | null;
+  organisations: { name: string; type: string } | null;
+}
+const EMPTY_CTX: GovernedUserContext = { organisation_id: null, role: null, organisations: null };
+
+/** ORG-005 IW-11 — a user's Organisation + Role for DISPLAY, sourced from the
+ *  governed user_organisation_access (active), replacing the scalar
+ *  users.organisation_id / users.role display reads. Keyed by user id. */
+export async function governedUserContexts(userIds: string[]): Promise<Map<string, GovernedUserContext>> {
+  const map = new Map<string, GovernedUserContext>();
+  if (!userIds.length) return map;
+  const { data } = await supabaseAdmin
+    .from("user_organisation_access")
+    .select("user_id, organisation_id, role, organisations ( name, type )")
+    .in("user_id", userIds)
+    .eq("status", "active");
+  for (const r of data ?? []) {
+    const org = Array.isArray(r.organisations) ? r.organisations[0] : r.organisations;
+    map.set(r.user_id as string, { organisation_id: r.organisation_id as string, role: r.role as string, organisations: (org as GovernedUserContext["organisations"]) ?? null });
+  }
+  return map;
+}
+
+/** Single-user governed display context (Organisation + Role) from the active
+ *  user_organisation_access row. */
+export async function governedUserContext(userId: string): Promise<GovernedUserContext> {
+  return (await governedUserContexts([userId])).get(userId) ?? { ...EMPTY_CTX };
+}
+
 /** Display helper — the user's Selected Access as `research_project` grant shapes,
  *  read from the governed Study URA (replaces the legacy user_access_grants read). */
 export async function selectedStudyGrantsForDisplay(userId: string): Promise<{ resource_type: string; resource_id: string }[]> {

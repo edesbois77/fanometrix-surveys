@@ -76,9 +76,12 @@ export async function requireUser(
   const session = await getSession(req);
   if (!session) throw unauthorised("Unauthorised", 401);
 
+  // ORG-005 IW-11: the scalar users.organisation_id / users.role and the org join
+  // are no longer read here — the Organisation comes from the Active Organisation
+  // Context (fetched by id below) and the Role from the contextual binding.
   const { data, error } = await supabaseAdmin
     .from("users")
-    .select("id, work_email, first_name, last_name, role, organisation_id, access_scope, status, can_present_simulations, remembered_organisation_id, token_version, organisations ( name, type, status )")
+    .select("id, work_email, first_name, last_name, access_scope, status, can_present_simulations, remembered_organisation_id, token_version")
     .eq("id", session.sub)
     .single();
 
@@ -99,26 +102,17 @@ export async function requireUser(
 
   if (row.status !== "active") throw unauthorised("Account disabled", 403);
 
-  const scalarOrg: OrgRecord = Array.isArray(row.organisations) ? (row.organisations[0] ?? null) : (row.organisations ?? null);
-
-  // ── ORG-005 G-1: the Active Organisation Context is the SOLE authority for the
-  //    request Organisation (Q-06/Q-11). The scalar users.organisation_id is no
-  //    longer an authorisation fallback (fail-safe removed; a full-population
-  //    census proved every active user resolves an Active Context with zero
-  //    divergence). Fail CLOSED if none resolves — never a silent scalar fallback.
-  //    (The scalar column is retained only as the org-record source when the
-  //    active org equals it, and until IW-11 drops it — not as an authz fallback.) ──
+  // ── ORG-005 G-1/IW-11: the Active Organisation Context is the SOLE authority for
+  //    the request Organisation (Q-06/Q-11); its record is fetched by the context
+  //    id — no scalar users.organisation_id read. Fail CLOSED if none resolves. ──
   const accessSet = await fetchActiveOrganisationAccess(row.id);
   const ctx = accessSet ? resolveActiveContext(accessSet, row.remembered_organisation_id ?? null) : null;
   if (!ctx?.activeOrganisationId) throw unauthorised("No active organisation context", 403);
   const organisationId = ctx.activeOrganisationId;
-  let org: OrgRecord = scalarOrg;
-  if (organisationId !== row.organisation_id) {
-    const { data: activeOrgRow } = await supabaseAdmin
-      .from("organisations").select("name, type, status")
-      .eq("id", organisationId).single();
-    org = (activeOrgRow as OrgRecord) ?? null;
-  }
+  const { data: activeOrgRow } = await supabaseAdmin
+    .from("organisations").select("name, type, status")
+    .eq("id", organisationId).single();
+  const org: OrgRecord = (activeOrgRow as OrgRecord) ?? null;
 
   // ── ORG-005 G-1: the contextual Role (bound to the Active Organisation Context)
   //    is the SOLE authority (Q-11; REPLACE F010). The legacy global users.role is

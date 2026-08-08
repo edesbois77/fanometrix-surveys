@@ -119,11 +119,23 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   const force = searchParams.get("force") === "true";
   const now = new Date().toISOString();
 
-  const { count } = await supabaseAdmin
-    .from("users")
-    .select("id", { count: "exact", head: true })
+  // ORG-005 IW-11: active members via the governed user_organisation_access, not
+  // the scalar users.organisation_id — count active users holding active access.
+  const { data: members } = await supabaseAdmin
+    .from("user_organisation_access")
+    .select("user_id")
     .eq("organisation_id", id)
     .eq("status", "active");
+  const memberIds = [...new Set((members ?? []).map((m) => m.user_id as string))];
+  let count = 0;
+  if (memberIds.length) {
+    const { count: c } = await supabaseAdmin
+      .from("users")
+      .select("id", { count: "exact", head: true })
+      .in("id", memberIds)
+      .eq("status", "active");
+    count = c ?? 0;
+  }
 
   if ((count ?? 0) > 0 && !force) {
     return NextResponse.json(
