@@ -106,6 +106,37 @@ export function resolveCapabilityAccess({ role, canPresentSimulations, capabilit
   }
 }
 
+// ── Server-side authoritative helpers (enforce cut-over) ─────────────────────
+
+/**
+ * Authoritative server-side Product Capability Access check (Q-10). The governed
+ * model is the decision function; the User's role + direct grant are its inputs.
+ * Replaces the scattered inline `role === "admin" || canPresentSimulations`
+ * gates. Admin bypass preserved (IW-5).
+ */
+export function hasCapability(
+  user: { role: UserRole; canPresentSimulations: boolean },
+  capability: ProductCapability,
+): boolean {
+  return resolveCapabilityAccess({ role: user.role, canPresentSimulations: user.canPresentSimulations, capability });
+}
+
+/**
+ * Map a `requireUser(allowedRoles)` allow-set to a governed Product Access tier
+ * when it exactly matches one — so the authoritative role gate flows through the
+ * governed model. Returns null for any non-standard allow-set, in which case the
+ * caller retains the legacy `allowedRoles.includes(role)` path (governed fallback
+ * until IW-11). Pure and deterministic.
+ */
+export function tierForAllowedRoles(allowedRoles: readonly UserRole[]): ProductAreaAccessTier | null {
+  const set = new Set(allowedRoles);
+  for (const tier of ["admin-only", "admin-and-publisher", "shared"] as ProductAreaAccessTier[]) {
+    const t = PRODUCT_AREA_ROLES[tier];
+    if (set.size === t.size && [...set].every(r => t.has(r))) return tier;
+  }
+  return null;
+}
+
 // ── Strangler parity oracles ─────────────────────────────────────────────────
 // Independent re-encodings of the CURRENT gate (middleware route-prefix rules and
 // the inline `role === "admin" || canPresentSimulations` capability check), used

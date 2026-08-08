@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { requireUser } from "@/lib/auth-server";
+import { hasCapability } from "@/lib/authz/product-access";
 import { canAccess } from "@/lib/access";
 import { getCompletedLanguages, type LocalisedQuestion, type LocalisedText } from "@/lib/survey-locale";
 import { getSummary } from "@/lib/intelligence/store";
@@ -570,7 +571,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   // handler for the same reasoning) — gated by the capability flag,
   // never by the org-scoped canAccess() real projects use below.
   if (project.research_mode === "simulated") {
-    if (session.role !== "admin" && !session.canPresentSimulations) {
+    if (!hasCapability(session, "present-simulations")) {
       return NextResponse.json({ error: "You don't have access to Product Walkthrough." }, { status: 403 });
     }
   } else if (

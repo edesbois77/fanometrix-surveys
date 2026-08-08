@@ -11,10 +11,10 @@ import type { NextRequest } from "next/server";
 import { getSession, type UserRole } from "@/lib/auth";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { evaluate } from "@/lib/authz/decision";
-import { recordShadow, recordOrgContextParity, recordRoleParity, recordCapabilityParity } from "@/lib/authz/shadow";
+import { recordShadow, recordOrgContextParity, recordRoleParity, recordCapabilityParity, recordProductAccessParity } from "@/lib/authz/shadow";
 import { fetchActiveOrganisationAccess, resolveActiveContext, compareAccessToScalar } from "@/lib/authz/organisation-access";
 import { fetchContextualRole, resolveEffectiveRole, roleParity } from "@/lib/authz/role-profile";
-import { capabilityAccessParity } from "@/lib/authz/product-access";
+import { capabilityAccessParity, resolveProductAccess, tierForAllowedRoles } from "@/lib/authz/product-access";
 
 export type OrganisationType = "publisher" | "agency" | "brand" | "internal";
 
@@ -176,8 +176,20 @@ export async function requireUser(
     throw unauthorised("Organisation disabled", 403);
   }
 
-  if (allowedRoles && !allowedRoles.includes(effectiveRole)) {
-    throw unauthorised("Forbidden", 403);
+  // ── ORG-005 IW-3 enforce cut-over: the Product Access role gate is now decided
+  //    by the governed server-side model (Q-09). When allowedRoles matches a
+  //    governed Product Access tier, resolveProductAccess is AUTHORITATIVE;
+  //    otherwise the legacy allowedRoles.includes() path is retained as the
+  //    governed fallback (until IW-11). Behaviour is unchanged (exhaustive
+  //    parity). Parity is recorded for continued evidence. ──
+  if (allowedRoles) {
+    const legacyAllowed = allowedRoles.includes(effectiveRole);
+    const tier = tierForAllowedRoles(allowedRoles);
+    const allowed = tier !== null
+      ? resolveProductAccess({ role: effectiveRole, tier })   // governed model authoritative
+      : legacyAllowed;                                          // legacy fallback (non-standard allow-set)
+    recordProductAccessParity(allowed === legacyAllowed);
+    if (!allowed) throw unauthorised("Forbidden", 403);
   }
 
   return {

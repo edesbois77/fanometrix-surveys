@@ -141,7 +141,18 @@ test("Q-10 — Product Capability Access is independent of Product Access [close
   // Product access without the grant does NOT confer the capability.
   assert.equal(resolveCapabilityAccess({ role: "brand", canPresentSimulations: false, capability: "present-simulations" }), false);
 });
-test("Q-09/Q-10 enforce cut-over — Product/Capability authoritative at the seam [closes IW-3-enforce]", { todo: "shadow-live; enforce cut-over is the subsequent gated step per Programme §4" });
+// IW-3 enforce cut-over: Product Access authoritative via the governed model at
+// the requireUser seam; Product Capability Access authoritative via hasCapability;
+// middleware model-driven + projection-only (SG-3). Verified against wired sources.
+test("Q-09/Q-10 enforce cut-over — Product/Capability decisions authoritative through the governed model [closes IW-3-enforce]", () => {
+  const authServer = readFileSync(resolve(__dirname, "..", "..", "auth-server.ts"), "utf8");
+  assert.match(authServer, /resolveProductAccess/);          // Product Access authoritative at the seam
+  assert.match(authServer, /tierForAllowedRoles/);           // governed-tier routing
+  assert.match(authServer, /legacyAllowed/);                 // legacy fallback retained (until IW-11)
+  const mw = readFileSync(resolve(__dirname, "..", "..", "..", "middleware.ts"), "utf8");
+  assert.match(mw, /resolveProductAccess/);                  // middleware projection driven by the same model
+  assert.doesNotMatch(mw, /session\.role !== "admin" && session\.role !== "publisher"/); // hard-coded gate removed
+});
 test("Q-14/Q-15 — Organisation Resource Entitlement vs User Resource Authorisation [closes IW-6, F024/F025]", { todo: "Resource Entitlement is IW-6" });
 test("Q-27 — scoped Platform Administration Authority; administer≠possess; no self-elevation [closes IW-5, F035/F036]", { todo: "Scoped admin authority is IW-5" });
 test("Q-29 — security audit + mandatory-audit fail-closed [closes IW-7, F018/F045]", { todo: "Security audit is IW-7" });

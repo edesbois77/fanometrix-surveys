@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
+import { resolveProductAccess } from "@/lib/authz/product-access";
+// ORG-005 IW-3 / SG-3: middleware is a PROJECTION only (coarse Edge routing). The
+// authoritative Product Access gate is the governed model at the requireUser
+// server seam; this layer consults the SAME governed model so the projection can
+// never diverge from enforcement, but is never the security boundary by itself.
 
 // ── Domain constants (resolved at Edge runtime) ───────────────────────────────
 const MARKETING_ORIGIN = process.env.NEXT_PUBLIC_MARKETING_URL ?? "https://fanometrix-surveys.vercel.app";
@@ -224,9 +229,9 @@ export async function middleware(req: NextRequest) {
     }
   }
 
-  // Admin-only routes
+  // Admin-only routes — projection driven by the governed Product Access model.
   const isAdminOnly = ADMIN_ONLY_PREFIXES.some((p) => pathname.startsWith(p));
-  if (isAdminOnly && session.role !== "admin") {
+  if (isAdminOnly && !resolveProductAccess({ role: session.role, tier: "admin-only" })) {
     if (isApi) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     return NextResponse.redirect(new URL("/access-denied", req.url));
   }
@@ -234,7 +239,7 @@ export async function middleware(req: NextRequest) {
   // Admin + Publisher only routes (Campaigns, Campaign Groups) — brand/agency
   // stay blocked here, same as they always were when these were admin-only.
   const isAdminAndPublisherOnly = ADMIN_AND_PUBLISHER_PREFIXES.some((p) => pathname.startsWith(p));
-  if (isAdminAndPublisherOnly && session.role !== "admin" && session.role !== "publisher") {
+  if (isAdminAndPublisherOnly && !resolveProductAccess({ role: session.role, tier: "admin-and-publisher" })) {
     if (isApi) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     return NextResponse.redirect(new URL("/access-denied", req.url));
   }

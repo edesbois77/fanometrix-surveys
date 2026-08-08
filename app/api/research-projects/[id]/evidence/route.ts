@@ -8,6 +8,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { requireUser } from "@/lib/auth-server";
+import { hasCapability } from "@/lib/authz/product-access";
 import { canAccess } from "@/lib/access";
 import { logActivity } from "@/lib/research-project-activity";
 import { getSourceTable } from "@/lib/research-sources/registry";
@@ -34,7 +35,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (!project) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   if (project.research_mode === "simulated") {
-    if (session.role !== "admin" && !session.canPresentSimulations) {
+    if (!hasCapability(session, "present-simulations")) {
       return NextResponse.json({ error: "You don't have access to Product Walkthrough." }, { status: 403 });
     }
   } else if (
@@ -191,7 +192,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   if (!project) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   if (project.research_mode === "simulated") {
-    if (session.role !== "admin" && !session.canPresentSimulations) {
+    if (!hasCapability(session, "present-simulations")) {
       return NextResponse.json({ error: "You don't have access to Product Walkthrough." }, { status: 403 });
     }
   } else if (

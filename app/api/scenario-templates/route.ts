@@ -5,6 +5,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { requireUser } from "@/lib/auth-server";
+import { hasCapability } from "@/lib/authz/product-access";
 
 export async function GET(req: NextRequest) {
   let session;
@@ -14,7 +15,7 @@ export async function GET(req: NextRequest) {
     return err as Response;
   }
 
-  if (session.role !== "admin" && !session.canPresentSimulations) {
+  if (!hasCapability(session, "present-simulations")) {
     return NextResponse.json({ error: "You don't have access to Product Walkthrough." }, { status: 403 });
   }
 

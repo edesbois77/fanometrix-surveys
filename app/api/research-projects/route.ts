@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { after } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { requireUser } from "@/lib/auth-server";
+import { hasCapability } from "@/lib/authz/product-access";
 import { visibleResourceIds } from "@/lib/access";
 import { logActivity } from "@/lib/research-project-activity";
 import { createSimulatedProject, createEmptySimulatedProject } from "@/lib/simulation/create-simulated-project";
@@ -67,7 +68,7 @@ export async function GET(req: NextRequest) {
       visibleReal = visibleReal.filter(p => allowed.has(p.id));
     }
   }
-  const visibleSimulated = (session.role === "admin" || session.canPresentSimulations) ? simulated : [];
+  const visibleSimulated = hasCapability(session, "present-simulations") ? simulated : [];
   const visible = [...visibleReal, ...visibleSimulated];
 
   // Showroom gallery info — a handful of batched queries for every visible
@@ -314,7 +315,7 @@ async function createSimulated(req: NextRequest, body: Record<string, unknown>):
     return err as Response;
   }
 
-  if (session.role !== "admin" && !session.canPresentSimulations) {
+  if (!hasCapability(session, "present-simulations")) {
     return NextResponse.json({ error: "You don't have access to create Product Walkthroughs." }, { status: 403 });
   }
 
