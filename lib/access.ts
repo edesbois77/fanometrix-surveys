@@ -25,7 +25,16 @@ export async function visibleResourceIds(
   user: AuthedUser,
   resourceType: ResourceType
 ): Promise<string[] | null> {
-  if (user.role === "admin") return null;
+  if (user.role === "admin") return null; // admin super-ALLOW (retained until G-2)
+
+  // ORG-005 G-3 (ACTIVE): the Study decision is authoritative via Organisation
+  // Resource Entitlement (Q-14/Q-15). Study ORE was backfilled to mirror the
+  // prior org-wide visibility exactly (0 divergence). campaign / campaign_group /
+  // insight remain OPERATIONAL visibility on the legacy path (§9-E) — they are not
+  // governed resource classes and their monitoring visibility is unchanged.
+  if (resourceType === "research_project") {
+    return authoritativeStudyIds(user);
+  }
 
   if (user.accessScope === "organisation_wide") {
     if (!user.organisationId) return [];
@@ -33,6 +42,58 @@ export async function visibleResourceIds(
   }
 
   return selectedResourceIds(user.id, resourceType);
+}
+
+/**
+ * ORG-005 G-3 — the authoritative Study visible set for a non-admin principal:
+ * Organisation Resource Entitlement (study class) narrowed by User Resource
+ * Authorisation (never expands). Direct-id study entitlements only (no scopes at
+ * baseline). Mirrors the accepted pure resolver's narrowing semantics.
+ */
+async function authoritativeStudyIds(user: AuthedUser): Promise<string[]> {
+  if (!user.organisationId) return [];
+  const [{ data: ore }, { data: ura }] = await Promise.all([
+    supabaseAdmin.from("organisation_resource_entitlements")
+      .select("resource_id").eq("organisation_id", user.organisationId)
+      .eq("resource_class", "study").eq("status", "active").not("resource_id", "is", null),
+    supabaseAdmin.from("user_resource_authorisations")
+      .select("resource_id, effect").eq("user_id", user.id)
+      .eq("resource_class", "study").eq("status", "active"),
+  ]);
+  const restrict = new Set((ura ?? []).filter(u => u.effect === "restrict").map(u => u.resource_id));
+  const allow = new Set((ura ?? []).filter(u => u.effect === "allow").map(u => u.resource_id));
+  let ids = (ore ?? []).map(r => r.resource_id as string).filter(id => !restrict.has(id));
+  if (user.accessScope === "selected") ids = ids.filter(id => allow.has(id)); // selected: explicit URA only
+  return ids;
+}
+
+/**
+ * ORG-005 G-3 — the authoritative campaign set whose response DATA a non-admin
+ * principal may read, per the approved per-participant Data Resource Scopes
+ * (Data is per-Campaign; a scope holds only the org's OWN campaigns within Studies
+ * it participates in). Returns campaign UUIDs (same shape as the legacy campaign
+ * gate); `null` = admin (super-ALLOW). This REPLACES campaign-visibility gating on
+ * the Data-egress routes: it preserves publisher isolation, prohibits
+ * cross-publisher Data, and yields exactly the 11 accepted governed tightenings.
+ */
+export async function dataVisibleCampaignIds(user: AuthedUser): Promise<string[] | null> {
+  if (user.role === "admin") return null; // admin super-ALLOW (retained until G-2)
+  if (!user.organisationId) return [];
+  const { data: ore } = await supabaseAdmin.from("organisation_resource_entitlements")
+    .select("resource_id, scope_id").eq("organisation_id", user.organisationId)
+    .eq("resource_class", "data").eq("status", "active");
+  const campaignIds = new Set<string>((ore ?? []).map(r => r.resource_id).filter(Boolean) as string[]); // direct (none at baseline)
+  const scopeIds = (ore ?? []).map(r => r.scope_id).filter(Boolean) as string[];
+  if (scopeIds.length) {
+    const { data: members } = await supabaseAdmin.from("resource_scope_members")
+      .select("resource_id").eq("resource_class", "data").in("scope_id", scopeIds);
+    (members ?? []).forEach(m => campaignIds.add(m.resource_id as string));
+  }
+  const { data: ura } = await supabaseAdmin.from("user_resource_authorisations")
+    .select("resource_id, effect").eq("user_id", user.id)
+    .eq("resource_class", "data").eq("status", "active");
+  (ura ?? []).filter(u => u.effect === "restrict").forEach(u => campaignIds.delete(u.resource_id as string)); // narrows
+  return [...campaignIds];
 }
 
 /** Single-resource check, for detail-fetch routes. */

@@ -2,7 +2,7 @@
 // caller's visible campaigns.
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth-server";
-import { visibleResourceIds } from "@/lib/access";
+import { dataVisibleCampaignIds } from "@/lib/access";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
 const EMPTY = { totalResponses: 0, responsesThisWeek: 0, activeCampaigns: 0, publisherCount: 0 };
@@ -27,7 +27,7 @@ export async function GET(req: NextRequest) {
   let publisherCount = 0;
 
   if (session.role !== "admin") {
-    campaignUuids = await visibleResourceIds(session, "campaign");
+    campaignUuids = await dataVisibleCampaignIds(session); // ORG-005 G-3: Data authoritative (per-participant scopes)
     if (campaignUuids !== null) {
       if (campaignUuids.length === 0) return NextResponse.json(EMPTY);
       const { data: rows } = await supabaseAdmin

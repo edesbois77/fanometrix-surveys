@@ -5,3 +5,6 @@ import "@/lib/jobs/handlers/document-process";
 import "@/lib/jobs/handlers/event-rollup";
 import "@/lib/jobs/handlers/analysis-run";
 import "@/lib/jobs/handlers/source-findings-extract";
+// ORG-005 G-3 (W7): resource/scope lifecycle reconciliation (§9-D). Registering
+// the handler makes `resource-lifecycle-reconcile` resolvable by the worker.
+import "@/lib/authz/resource-lifecycle";

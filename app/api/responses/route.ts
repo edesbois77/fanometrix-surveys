@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { requireUser } from "@/lib/auth-server";
-import { visibleResourceIds } from "@/lib/access";
+import { dataVisibleCampaignIds } from "@/lib/access";
 
 export async function GET(req: NextRequest) {
   let session;
@@ -50,7 +50,7 @@ export async function GET(req: NextRequest) {
   // user's visible campaigns (unified across publisher/brand/agency
   // org-wide and Selected Access) down to that text id.
   if (session.role !== "admin") {
-    const uuids = await visibleResourceIds(session, "campaign");
+    const uuids = await dataVisibleCampaignIds(session); // ORG-005 G-3: Data authoritative (per-participant scopes)
     if (uuids !== null) {
       if (uuids.length === 0) return NextResponse.json({ data: [] });
       const { data: rows } = await supabaseAdmin.from("campaigns").select("campaign_id").in("id", uuids);

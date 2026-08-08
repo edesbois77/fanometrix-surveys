@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { requireUser } from "@/lib/auth-server";
-import { visibleResourceIds } from "@/lib/access";
+import { dataVisibleCampaignIds } from "@/lib/access";
 
 // Render events over time for the "Responses Over Time" chart's Renders metric.
 // The sibling /api/dashboard/events endpoint returns only aggregate totals, so
@@ -39,7 +39,7 @@ export async function GET(req: NextRequest) {
   // is keyed by — same access model as /api/dashboard/events.
   let scopedCampaignIds: string[] | null = null;
   if (user.role !== "admin") {
-    const uuids = (await visibleResourceIds(user, "campaign")) ?? [];
+    const uuids = (await dataVisibleCampaignIds(user)) ?? []; // ORG-005 G-3: Data authoritative (per-participant scopes)
     if (uuids.length === 0) return NextResponse.json(EMPTY);
 
     const { data: rows } = await supabaseAdmin.from("campaigns").select("campaign_id").in("id", uuids);

@@ -10,6 +10,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { drainJobs } from "@/lib/jobs/worker";
 import { TICK_BUDGET_MS } from "@/lib/jobs/config";
 import { isCronAuthorized } from "@/lib/jobs/cron-auth";
+import { enqueueJob } from "@/lib/jobs/enqueue";
+import { RESOURCE_LIFECYCLE_JOB } from "@/lib/authz/resource-lifecycle";
 
 // The drain runs synchronously within the request (not after()) — pg_net fired
 // it as a fire-and-forget POST, so the invocation must stay alive for the whole
@@ -33,6 +35,16 @@ export async function POST(req: NextRequest) {
     // deliberately lightweight (handlers lazy-load their heavy deps), so this
     // import itself won't pull in the PDF/vision stack.
     await import("@/lib/jobs/handlers");
+    // ORG-005 G-3 (W7 / §9-D): seed the resource/scope lifecycle reconciliation.
+    // dedupeKey keeps at most one live, so this heartbeat schedules it without
+    // ever piling up; it prunes any entitlement/scope-membership orphaned by a
+    // resource deletion so a retired resource cannot remain authoritative.
+    // Best-effort: a seeding hiccup must never break the primary drain heartbeat.
+    try {
+      await enqueueJob({ type: RESOURCE_LIFECYCLE_JOB, dedupeKey: RESOURCE_LIFECYCLE_JOB });
+    } catch (e) {
+      console.error("[cron/jobs/tick] resource-lifecycle seed failed (non-fatal)", e);
+    }
     const summary = await drainJobs({ workerId, budgetMs: TICK_BUDGET_MS });
     return NextResponse.json({ ok: true, worker: workerId, ...summary });
   } catch (err) {

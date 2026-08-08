@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { requireUser } from "@/lib/auth-server";
-import { visibleResourceIds } from "@/lib/access";
+import { dataVisibleCampaignIds } from "@/lib/access";
 import { getTimingStats, type TimingFilter } from "@/lib/survey-timing";
 
 // Genuine zeros: the caller can see no campaigns at all, so every funnel stage
@@ -44,7 +44,7 @@ export async function GET(req: NextRequest) {
   // branching, which is now handled uniformly by visibleResourceIds().
   let scopedCampaignIds: string[] | null = null;
   if (user.role !== "admin") {
-    const uuids = (await visibleResourceIds(user, "campaign")) ?? [];
+    const uuids = (await dataVisibleCampaignIds(user)) ?? []; // ORG-005 G-3: Data authoritative (per-participant scopes)
     if (uuids.length === 0) return NextResponse.json(EMPTY);
 
     const { data: rows } = await supabaseAdmin.from("campaigns").select("campaign_id").in("id", uuids);
