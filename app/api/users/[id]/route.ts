@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { requireUser } from "@/lib/auth-server";
+import { recordSecurityEvent } from "@/lib/authz/audit";
 
 const USER_SELECT = "id, first_name, last_name, work_email, job_title, role, organisation_id, access_scope, status, last_login_at, password_changed_at, created_by, created_at, updated_at, organisations ( name, type )";
 
@@ -113,6 +114,22 @@ export async function PUT(
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
+  // ORG-005 IW-7 — durable security-audit of this authorisation change (Q-29;
+  // F037/F042). Guarded (inert until migration 168) and never throws; minimised
+  // to changed field NAMES only (no password/secret content — Q-30).
+  await recordSecurityEvent({
+    eventType: update.role !== undefined ? "role_assignment_change" : "user_lifecycle_change",
+    action: "user.update",
+    outcome: "changed",
+    actorUserId: session.id,
+    actorLabel: session.workEmail,
+    organisationId: (update.organisation_id as string | null | undefined) ?? null,
+    resourceType: "user",
+    resourceId: id,
+    origin: "api/users/[id]",
+    detail: { fields: Object.keys(update).filter(k => !["hashed_password", "password_changed_at"].includes(k)) },
+  });
+
   // Selected Access grants: the client sends the full desired set, so
   // reconcile by replacing rather than diffing — simple and correct at
   // this scale.
@@ -124,6 +141,12 @@ export async function PUT(
         grants.map(g => ({ user_id: id, resource_type: g.resource_type, resource_id: g.resource_id, created_by: session.workEmail }))
       );
     }
+    // ORG-005 IW-7 — audit the access-grant change (Q-29; minimised to a count).
+    await recordSecurityEvent({
+      eventType: "access_grant_change", action: "user.grants.replace", outcome: "changed",
+      actorUserId: session.id, actorLabel: session.workEmail, resourceType: "user", resourceId: id,
+      origin: "api/users/[id]", detail: { grantCount: grants.length },
+    });
   }
 
   return NextResponse.json({ data: normaliseOrg(data) });

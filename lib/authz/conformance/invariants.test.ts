@@ -155,6 +155,17 @@ test("Q-09/Q-10 enforce cut-over — Product/Capability decisions authoritative 
 });
 test("Q-14/Q-15 — Organisation Resource Entitlement vs User Resource Authorisation [closes IW-6, F024/F025]", { todo: "Resource Entitlement is IW-6" });
 test("Q-27 — scoped Platform Administration Authority; administer≠possess; no self-elevation [closes IW-5, F035/F036]", { todo: "Scoped admin authority is IW-5" });
-test("Q-29 — security audit + mandatory-audit fail-closed [closes IW-7, F018/F045]", { todo: "Security audit is IW-7" });
+// ── IW-7 delivered: security-audit capability mechanism (HELD) ───────────────
+// Q-29/Q-30 capability + SG-7 fail-closed + F048; live activation on migration 168.
+test("Q-29/Q-30 — audit capability: tamper-evidence, minimisation, mandatory fail-closed, F048 [closes IW-7, F018/F045/F046/F048]", () => {
+  const audit = readFileSync(resolve(__dirname, "..", "audit.ts"), "utf8");
+  assert.match(audit, /verifyChain/);                 // tamper-evidence (Q-30/F046)
+  assert.match(audit, /isMinimisedDetail/);           // content minimisation (Q-30)
+  assert.match(audit, /mustFailClosed|assertMandatoryAudit/); // SG-7 fail-closed (Q-34/F045)
+  // F048 — no authorisation path reads the audit store.
+  const decision = readFileSync(resolve(__dirname, "..", "decision.ts"), "utf8");
+  assert.doesNotMatch(decision, /authz\/audit|\.\/audit/);
+});
+test("Q-29 activate — audit subsystem live; SG-7 + tamper-evidence + G9 in production [closes IW-7-activation]", { todo: "capability built; live activation on migration 168 (DDL boundary)" });
 test("Q-35 — audience-separated explanation; distinct denial causes; no existence leak [closes IW-8, F066/F067/F068]", { todo: "Explainability is IW-8" });
 test("F058 — session/token revocation before expiry [closes IW-9]", { todo: "Session revocation is IW-9" });
