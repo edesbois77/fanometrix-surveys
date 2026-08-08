@@ -10,11 +10,14 @@
 import type { NextRequest } from "next/server";
 import { getSession, type UserRole } from "@/lib/auth";
 import { supabaseAdmin } from "@/lib/supabase-admin";
-import { evaluate } from "@/lib/authz/decision";
-import { recordShadow, recordOrgContextParity, recordRoleParity, recordCapabilityParity, recordProductAccessParity } from "@/lib/authz/shadow";
-import { fetchActiveOrganisationAccess, resolveActiveContext, compareAccessToScalar } from "@/lib/authz/organisation-access";
-import { fetchContextualRole, resolveEffectiveRole, roleParity } from "@/lib/authz/role-profile";
-import { capabilityAccessParity, resolveProductAccess, tierForAllowedRoles } from "@/lib/authz/product-access";
+// ORG-005 G-1: the governed per-slice resolutions below are the SOLE authority.
+// The transitional shadow observers (lib/authz/shadow) and the shadow decision
+// seam (lib/authz/decision.evaluate) have been retired; the legacy fail-safe
+// fallbacks (scalar org, legacy role, legacy product allow-set) are removed —
+// governed-source completeness was proven by full-population census before removal.
+import { fetchActiveOrganisationAccess, resolveActiveContext } from "@/lib/authz/organisation-access";
+import { fetchContextualRole, resolveEffectiveRole } from "@/lib/authz/role-profile";
+import { resolveProductAccess, tierForAllowedRoles } from "@/lib/authz/product-access";
 import { isSessionRevoked } from "@/lib/authz/session-currency";
 
 export type OrganisationType = "publisher" | "agency" | "brand" | "internal";
@@ -94,95 +97,38 @@ export async function requireUser(
     throw unauthorised("Session expired", 401);
   }
 
-  // ── ORG-005 IW-0 shadow (non-authoritative; must NEVER affect the request) ──
-  // Evaluate the central decision seam on the same resolved inputs and compare
-  // to the legacy structural+role outcome. The legacy checks below remain
-  // authoritative and unchanged; any shadow error is swallowed.
-  try {
-    const shadowOrg = Array.isArray(row.organisations) ? row.organisations[0] : row.organisations;
-    const legacyAllowed =
-      row.status === "active" &&
-      (row.role === "admin" || shadowOrg?.status !== "disabled") &&
-      (!allowedRoles || allowedRoles.includes(row.role));
-    recordShadow("requireUser", evaluate({
-      session: "present",
-      principalStatus: row.status === "active" ? "active" : "inactive",
-      role: row.role,
-      isAdmin: row.role === "admin",
-      orgStatus: shadowOrg == null ? "none" : (shadowOrg.status === "disabled" ? "disabled" : "active"),
-      allowedRoles: allowedRoles ?? undefined,
-      resourceVisibility: "not_applicable",
-      explicitDeny: null,
-    }), legacyAllowed);
-  } catch { /* shadow observation must never break authorisation */ }
-
   if (row.status !== "active") throw unauthorised("Account disabled", 403);
 
   const scalarOrg: OrgRecord = Array.isArray(row.organisations) ? (row.organisations[0] ?? null) : (row.organisations ?? null);
 
-  // ── ORG-005 IW-1 read cut-over: the Active Organisation Context is now the
-  //    authoritative Organisation for this request, resolved from the live
-  //    User–Organisation Access set + the remembered/preferred context
-  //    (validated). The scalar users.organisation_id is RETAINED as the
-  //    governed fallback (decommission is IW-11). Fail-safe: any unavailability
-  //    or an unresolved context falls back to the scalar so a user is never
-  //    stranded, and this preserves current single-organisation behaviour
-  //    exactly (proven by the full-population parity census). ──
-  let organisationId = row.organisation_id; // fallback (retained)
-  let org: OrgRecord = scalarOrg;           // fallback org record
-  try {
-    const accessSet = await fetchActiveOrganisationAccess(row.id);
-    if (accessSet !== null) {
-      recordOrgContextParity(compareAccessToScalar(row.organisation_id, accessSet).parity);
-      const ctx = resolveActiveContext(accessSet, row.remembered_organisation_id ?? null);
-      if (ctx.activeOrganisationId) {
-        organisationId = ctx.activeOrganisationId;
-        if (ctx.activeOrganisationId !== row.organisation_id) {
-          // Active org differs from the scalar (not the case for current
-          // single-org data) — fetch its record for correct name/type/status.
-          const { data: activeOrgRow } = await supabaseAdmin
-            .from("organisations").select("name, type, status")
-            .eq("id", ctx.activeOrganisationId).single();
-          org = (activeOrgRow as OrgRecord) ?? null;
-        }
-      }
-      // ctx.activeOrganisationId null (no_access / selection_required) →
-      // keep the scalar fallback (never strands a user; preserves behaviour).
-    }
-    // accessSet null (source unavailable) → keep the scalar fallback.
-  } catch { /* fail-safe: the scalar remains authoritative */ }
+  // ── ORG-005 G-1: the Active Organisation Context is the SOLE authority for the
+  //    request Organisation (Q-06/Q-11). The scalar users.organisation_id is no
+  //    longer an authorisation fallback (fail-safe removed; a full-population
+  //    census proved every active user resolves an Active Context with zero
+  //    divergence). Fail CLOSED if none resolves — never a silent scalar fallback.
+  //    (The scalar column is retained only as the org-record source when the
+  //    active org equals it, and until IW-11 drops it — not as an authz fallback.) ──
+  const accessSet = await fetchActiveOrganisationAccess(row.id);
+  const ctx = accessSet ? resolveActiveContext(accessSet, row.remembered_organisation_id ?? null) : null;
+  if (!ctx?.activeOrganisationId) throw unauthorised("No active organisation context", 403);
+  const organisationId = ctx.activeOrganisationId;
+  let org: OrgRecord = scalarOrg;
+  if (organisationId !== row.organisation_id) {
+    const { data: activeOrgRow } = await supabaseAdmin
+      .from("organisations").select("name, type, status")
+      .eq("id", organisationId).single();
+    org = (activeOrgRow as OrgRecord) ?? null;
+  }
 
-  // ── ORG-005 IW-2 read cut-over: the Role is now a permission profile bound to
-  //    the User–Organisation Access — CONTEXTUAL to the Active Organisation
-  //    Context resolved above (Q-11; REPLACE F010). The contextual Role is
-  //    authoritative for this request; the legacy global users.role is RETAINED
-  //    as the governed strangler/fail-safe fallback (NOT decommissioned).
-  //    Fail-safe: unavailability or no binding for the context falls back to the
-  //    legacy role, so a user is never stranded and current single-Access
-  //    behaviour is preserved exactly (proven by the full-population parity
-  //    census). No cross-Organisation carry-over: the profile is read for the
-  //    active context only. Admin semantics are UNCHANGED here — scoped Platform
-  //    Administration is IW-5, not manufactured now. ──
-  let effectiveRole: UserRole = row.role; // fallback (retained legacy role)
-  try {
-    const contextualRole = await fetchContextualRole(row.id, organisationId);
-    recordRoleParity(roleParity(contextualRole, row.role).parity);
-    effectiveRole = resolveEffectiveRole(contextualRole, row.role).role;
-  } catch { /* fail-safe: the legacy role remains authoritative */ }
-
-  // ── ORG-005 IW-3 shadow (non-authoritative; must NEVER affect the request) ──
-  // The Product Capability Access layer is evaluated alongside the legacy inline
-  // gate for the one capability resolvable at this chokepoint
-  // ("present-simulations", from role + can_present_simulations) and parity is
-  // recorded. The legacy inline checks at the call sites remain authoritative;
-  // the enforce cut-over is a subsequent governed step (shadow → enforce).
-  try {
-    recordCapabilityParity(capabilityAccessParity({
-      role: effectiveRole,
-      canPresentSimulations: row.can_present_simulations,
-      capability: "present-simulations",
-    }).parity);
-  } catch { /* shadow observation must never break authorisation */ }
+  // ── ORG-005 G-1: the contextual Role (bound to the Active Organisation Context)
+  //    is the SOLE authority (Q-11; REPLACE F010). The legacy global users.role is
+  //    no longer a fallback (census proved every active user has a contextual
+  //    binding with zero divergence). Fail CLOSED if none — never a silent
+  //    legacy-role fallback. No cross-Organisation carry-over: read for the active
+  //    context only. ──
+  const contextualRole = await fetchContextualRole(row.id, organisationId);
+  if (contextualRole == null) throw unauthorised("No role for the active organisation context", 403);
+  const effectiveRole: UserRole = resolveEffectiveRole(contextualRole, contextualRole).role;
 
   // Admins bypass the organisation-disabled check so a disabled internal
   // organisation can never accidentally lock every admin out at once.
@@ -190,19 +136,13 @@ export async function requireUser(
     throw unauthorised("Organisation disabled", 403);
   }
 
-  // ── ORG-005 IW-3 enforce cut-over: the Product Access role gate is now decided
-  //    by the governed server-side model (Q-09). When allowedRoles matches a
-  //    governed Product Access tier, resolveProductAccess is AUTHORITATIVE;
-  //    otherwise the legacy allowedRoles.includes() path is retained as the
-  //    governed fallback (until IW-11). Behaviour is unchanged (exhaustive
-  //    parity). Parity is recorded for continued evidence. ──
+  // ── ORG-005 G-1: Product Access is decided SOLELY by the governed model (Q-09).
+  //    Every governed call-site allow-set maps to a governed tier (proven by
+  //    census); a non-mapping set is a misconfiguration → fail CLOSED (no legacy
+  //    allowedRoles.includes() fallback). Behaviour unchanged (exhaustive parity). ──
   if (allowedRoles) {
-    const legacyAllowed = allowedRoles.includes(effectiveRole);
     const tier = tierForAllowedRoles(allowedRoles);
-    const allowed = tier !== null
-      ? resolveProductAccess({ role: effectiveRole, tier })   // governed model authoritative
-      : legacyAllowed;                                          // legacy fallback (non-standard allow-set)
-    recordProductAccessParity(allowed === legacyAllowed);
+    const allowed = tier !== null && resolveProductAccess({ role: effectiveRole, tier });
     if (!allowed) throw unauthorised("Forbidden", 403);
   }
 

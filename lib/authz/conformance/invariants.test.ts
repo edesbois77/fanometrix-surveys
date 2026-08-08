@@ -76,15 +76,16 @@ test("Q-08 — switching only among authorised orgs; unauthorised switch grants 
   assert.equal(resolveActiveContext(["a", "b"], "a", "x").status, "switch_denied");
 });
 
-// IW-1 read cut-over: the Active Organisation Context is now the authoritative
-// Organisation in the trusted path (requireUser), with the scalar retained as
-// the governed fallback. Verified against the wired source.
-test("Q-06 cut-over — requireUser resolves the authoritative org from Active Context (scalar retained as fallback)", () => {
+// ORG-005 G-1 consolidation: the Active Organisation Context is the SOLE authority
+// in requireUser — the scalar fail-safe fallback and the shadow parity observer are
+// REMOVED (governed-source completeness proven by census). Verified against source.
+test("Q-06 G-1 — requireUser resolves the org SOLELY from Active Context; no scalar fallback, fail-closed", () => {
   const authServer = readFileSync(resolve(__dirname, "..", "..", "auth-server.ts"), "utf8");
-  assert.match(authServer, /resolveActiveContext/);        // active context resolved
-  assert.match(authServer, /recordOrgContextParity/);       // parity recorded (shadow)
-  assert.match(authServer, /fallback/i);                    // scalar retained as fallback
-  assert.match(authServer, /organisationId,/);              // returned org is the resolved active context
+  assert.match(authServer, /resolveActiveContext/);                 // active context resolved
+  assert.match(authServer, /No active organisation context/);       // fail CLOSED when unresolved (not scalar fallback)
+  assert.doesNotMatch(authServer, /recordOrgContextParity/);        // shadow observer retired
+  assert.doesNotMatch(authServer, /let organisationId = row\.organisation_id; \/\/ fallback/); // fail-safe fallback removed
+  assert.match(authServer, /organisationId,/);                      // returned org is the resolved active context
 });
 // ── IW-2 delivered: Contextual Roles as Permission Profiles (HELD) ───────────
 // Q-11 / REPLACE F010: a Role is a permission profile bound to a User–Organisation
@@ -120,15 +121,16 @@ test("Q-11 — strangler parity: contextual role backfilled 1:1 preserves curren
 });
 
 // IW-2 read cut-over: the contextual Role is now the authoritative Role in the
-// trusted path (requireUser), with the legacy users.role retained as fallback.
-// Verified against the wired source (parallels the Q-06 cut-over assertion).
-test("Q-11 cut-over — requireUser resolves the authoritative Role from the Active Organisation Context (legacy retained as fallback)", () => {
+// ORG-005 G-1 consolidation: the contextual Role is the SOLE authority in
+// requireUser — the legacy users.role fail-safe fallback and the shadow parity
+// observer are REMOVED (census-proven completeness). Verified against source.
+test("Q-11 G-1 — requireUser resolves the Role SOLELY from the Active Organisation Context; no legacy fallback, fail-closed", () => {
   const authServer = readFileSync(resolve(__dirname, "..", "..", "auth-server.ts"), "utf8");
-  assert.match(authServer, /fetchContextualRole/);   // contextual role resolved from the active context
-  assert.match(authServer, /resolveEffectiveRole/);  // effective role = contextual, else legacy fallback
-  assert.match(authServer, /recordRoleParity/);      // parity recorded (shadow)
-  assert.match(authServer, /effectiveRole/);         // effective role gates allowedRoles + returned role
-  assert.match(authServer, /fallback/i);             // legacy users.role retained as fallback
+  assert.match(authServer, /fetchContextualRole/);              // contextual role resolved from the active context
+  assert.match(authServer, /No role for the active organisation context/); // fail CLOSED (not legacy fallback)
+  assert.doesNotMatch(authServer, /recordRoleParity/);          // shadow observer retired
+  assert.doesNotMatch(authServer, /let effectiveRole: UserRole = row\.role; \/\/ fallback/); // fail-safe fallback removed
+  assert.match(authServer, /effectiveRole/);                    // effective role gates allowedRoles + returned role
 });
 // ── IW-3 delivered: Product Access & Product Capability Access mechanism (HELD) ─
 // Q-09/Q-10 / EVOLVE F013/F014: two distinct layers, server-side, independent of
@@ -153,7 +155,7 @@ test("Q-09/Q-10 enforce cut-over — Product/Capability decisions authoritative 
   const authServer = readFileSync(resolve(__dirname, "..", "..", "auth-server.ts"), "utf8");
   assert.match(authServer, /resolveProductAccess/);          // Product Access authoritative at the seam
   assert.match(authServer, /tierForAllowedRoles/);           // governed-tier routing
-  assert.match(authServer, /legacyAllowed/);                 // legacy fallback retained (until IW-11)
+  assert.doesNotMatch(authServer, /legacyAllowed/);          // G-1: legacy allowedRoles fallback REMOVED (fail-closed)
   const mw = readFileSync(resolve(__dirname, "..", "..", "..", "middleware.ts"), "utf8");
   assert.match(mw, /resolveProductAccess/);                  // middleware projection driven by the same model
   assert.doesNotMatch(mw, /session\.role !== "admin" && session\.role !== "publisher"/); // hard-coded gate removed
