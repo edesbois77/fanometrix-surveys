@@ -57,6 +57,11 @@ export type Insight = {
   download_url: string | null;
   featured_image_url: string | null;
   tags: string[];
+  /** ORG-005 IW-4 (F033/G5) — governed org-id policy input for restricted-insight
+   *  access. When present it is AUTHORITATIVE (id-anchored, collision-free); the
+   *  legacy `tags` name-match is retained as fallback until migration 167 backfills
+   *  this column. Absent (undefined/null) until that migration is applied. */
+  allowed_organisation_ids?: string[] | null;
   visibility: InsightVisibility;
   created_by: string | null;
   created_at: string;

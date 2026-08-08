@@ -43,6 +43,18 @@ export function canAccessInsight(
     return grantedInsightIds.has(insight.id);
   }
 
+  // ORG-005 IW-4 (F033/G5) — governed policy input. When the id-anchored
+  // association is present it is AUTHORITATIVE: match the user's Organisation by
+  // its immutable id, eliminating the org-NAME string-match collision risk (two
+  // orgs sharing a display name, or a rename silently changing access). The
+  // legacy name-tag match is retained ONLY as the strangler fallback until
+  // migration 167 backfills allowed_organisation_ids.
+  const governed = insight.allowed_organisation_ids;
+  if (governed != null) {
+    return user.organisationId != null && governed.includes(user.organisationId);
+  }
+
+  // Legacy fallback (fragile name-string match — see F033/G5).
   if (!user.organisationName) return false;
   const tags = (insight.tags ?? []).map(t => t.toLowerCase());
   return tags.includes(user.organisationName.toLowerCase());

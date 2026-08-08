@@ -33,6 +33,10 @@ export const CONFORMANCE_MANIFEST: ConformanceItem[] = [
   { ref: "Q-22-deny", cls: "HELD", description: "Explicit DENY precedence over an otherwise-ALLOW (non-admin).", evidence: ["lib/authz/decision.test.ts"] },
   { ref: "Q-21", cls: "HELD", description: "Decision provenance is recoverable (source attribution).", evidence: ["lib/authz/decision.test.ts"] },
 
+  // ── IW-4 delivered: composition engine & source-attributed provenance (HELD) ──
+  { ref: "Q-20/Q-21-compose", cls: "HELD", description: "Explicit source composition (direct/Role/policy/resource → ALLOW/DENY/NO_EFFECT) by the canonical Q-22 rule: no inherent source priority, explicit DENY precedence, Default Refuse; source-attributed provenance retains EVERY independently-applicable ALLOW source (Q-35-D06/D07). Admin super-ALLOW retained (IW-5). SG-4 (DENY-precedence half).", evidence: ["lib/authz/composition.test.ts", "lib/authz/decision.test.ts"] },
+  { ref: "F033", cls: "HELD", description: "Restricted-insight access uses a governed org-ID policy input when present (id-anchored, collision-free), replacing the org-NAME string match (F033/G5); legacy name-match retained as strangler fallback until migration 167 backfills allowed_organisation_ids (id-activation gated on that migration + collision review).", evidence: ["lib/insights-access.test.ts"] },
+
   // ── UD-01 RETAIN properties (must never regress) ──
   { ref: "F001", cls: "HELD", description: "Identity-only token; seam holds no state and reads no authority from a token.", evidence: ["lib/authz/conformance/retain-properties.test.ts"] },
   { ref: "F003", cls: "HELD", description: "Live-authority: seam consumes freshly-resolved inputs, caches nothing.", evidence: ["lib/authz/conformance/retain-properties.test.ts"] },

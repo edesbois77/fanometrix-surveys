@@ -30,6 +30,19 @@ export type Source =
   | "admin_override"  // current admin super-ALLOW (F011 — preserved at IW-0)
   | "policy";         // policy-derived input (reserved for later formalisation)
 
+/**
+ * ORG-005 · IW-4 — a source's effect on a permission (Workshop §13). A source
+ * may ALLOW, DENY, or have NO_EFFECT; these compose by the canonical Q-22 rule.
+ */
+export type Effect = "ALLOW" | "DENY" | "NO_EFFECT";
+
+/** A single permission source's contribution to the composition (Q-20/Q-21). */
+export interface PermissionContribution {
+  source: Source;
+  effect: Effect;
+  reason: string;
+}
+
 export interface Provenance {
   /** The source that produced the final outcome. */
   decidedBy: Source;
@@ -38,6 +51,12 @@ export interface Provenance {
   reason: string;
   /** Every source consulted en route to the decision. */
   contributing: Source[];
+  /** ORG-005 IW-4 — source-attributed provenance (Q-35-D06/D07): every source
+   *  that independently established ALLOW, so removing one source is explainable.
+   *  Empty for a REFUSE/INDETERMINATE outcome. */
+  allowSources?: Source[];
+  /** ORG-005 IW-4 — every source contributing an explicit DENY (Q-35-D08). */
+  denySources?: Source[];
 }
 
 export interface AuthzResult {
@@ -125,30 +144,72 @@ export function evaluate(input: DecisionInput): AuthzResult {
     return { decision: "REFUSE", provenance: prov("role", "role_not_permitted", contributing) };
   }
 
-  // 4. Admin super-ALLOW — CURRENT semantics (F011). Preserved at IW-0; to be
-  //    REPLACED by scoped Platform Administration Authority at IW-5.
-  if (input.isAdmin) {
-    contributing.push("admin_override");
-    return { decision: "ALLOW", provenance: prov("admin_override", "admin_bypass", contributing) };
+  // 4. ORG-005 IW-4 — ordinary permission COMPOSITION (Q-20/Q-21/Q-22). Gather
+  //    the applicable source contributions, then compose them by the canonical
+  //    rule. The admin super-ALLOW is retained as an admin_override ALLOW that
+  //    currently outranks even DENY (F011 — REPLACED by scoped authority at IW-5,
+  //    NOT here). Source-attributed provenance is preserved (Q-35-D06/D07).
+  const contributions: PermissionContribution[] = [];
+  if (input.isAdmin) contributions.push({ source: "admin_override", effect: "ALLOW", reason: "admin_bypass" });
+  if (input.explicitDeny?.denied) contributions.push({ source: "explicit_deny", effect: "DENY", reason: input.explicitDeny.reason });
+  if (input.resourceVisibility === "visible") {
+    contributions.push({ source: "resource", effect: "ALLOW", reason: "prerequisites_satisfied" });
+  } else if (input.resourceVisibility === "not_visible") {
+    contributions.push({ source: "resource", effect: "NO_EFFECT", reason: "resource_default_refuse" });
+  } else {
+    // not_applicable — the satisfied role allowlist is the sufficient ALLOW.
+    contributions.push({ source: "role", effect: "ALLOW", reason: "prerequisites_satisfied" });
   }
 
-  // 5. Explicit DENY precedence — overrides an otherwise-ALLOW for non-admins.
-  if (input.explicitDeny?.denied) {
-    contributing.push("explicit_deny");
-    return { decision: "REFUSE", provenance: prov("explicit_deny", input.explicitDeny.reason, contributing) };
-  }
+  return composeOrdinary(contributions, contributing);
+}
 
-  // 6. Resource authorisation — Default Refuse when the resource is not visible.
-  if (input.resourceVisibility === "not_visible") {
-    contributing.push("resource");
-    return { decision: "REFUSE", provenance: prov("resource", "resource_default_refuse", contributing) };
-  }
-  if (input.resourceVisibility === "visible") contributing.push("resource");
+/**
+ * ORG-005 · IW-4 — the ordinary permission COMPOSITION engine (Q-22, Workshop
+ * §13). Pure and deterministic. Composition rule, applied AFTER structural
+ * prerequisites (which are supreme and handled by the caller):
+ *   1. Admin super-ALLOW — an admin_override ALLOW yields ALLOW and currently
+ *      outranks DENY (the retained F011 behaviour; REMOVED at IW-5 → then pure
+ *      DENY-precedence applies to everyone).
+ *   2. Explicit DENY precedence — any DENY overrides ordinary ALLOW (Q-22).
+ *   3. At least one sufficient ALLOW is required — with NO inherent priority
+ *      among direct / Role-derived / policy / resource sources (no super-ALLOW,
+ *      no override-DENY, no weighting, no first-match beyond DENY precedence).
+ *   4. Otherwise Default Refuse.
+ * Provenance is source-attributed: `allowSources` lists every source that
+ * independently established ALLOW (so revoking one is explainable, Q-35-D07).
+ */
+export function composeOrdinary(contributions: PermissionContribution[], base: Source[] = ["structural"]): AuthzResult {
+  const contributing = [...base];
+  for (const c of contributions) if (!contributing.includes(c.source)) contributing.push(c.source);
+  const allowSources = contributions.filter(c => c.effect === "ALLOW").map(c => c.source);
+  const denySources = contributions.filter(c => c.effect === "DENY").map(c => c.source);
 
-  // 7. All prerequisites satisfied, no DENY → ALLOW.
+  // 1. Admin super-ALLOW (retained F011; outranks DENY) — REPLACED at IW-5.
+  if (contributions.some(c => c.source === "admin_override" && c.effect === "ALLOW")) {
+    return { decision: "ALLOW", provenance: { decidedBy: "admin_override", reason: "admin_bypass", contributing, allowSources, denySources } };
+  }
+  // 2. Explicit DENY precedence (Q-22).
+  const deny = contributions.find(c => c.effect === "DENY");
+  if (deny) {
+    return { decision: "REFUSE", provenance: { decidedBy: deny.source, reason: deny.reason, contributing, allowSources: [], denySources } };
+  }
+  // 3. Any sufficient ALLOW — no inherent source priority (Q-22).
+  const allow = contributions.find(c => c.effect === "ALLOW");
+  if (allow) {
+    return { decision: "ALLOW", provenance: { decidedBy: allow.source, reason: allow.reason, contributing, allowSources, denySources: [] } };
+  }
+  // 4. Default Refuse (Q-22) — no sufficient ALLOW established.
+  const noEffectResource = contributions.find(c => c.source === "resource" && c.effect === "NO_EFFECT");
   return {
-    decision: "ALLOW",
-    provenance: prov(input.resourceVisibility === "visible" ? "resource" : "role", "prerequisites_satisfied", contributing),
+    decision: "REFUSE",
+    provenance: {
+      decidedBy: noEffectResource ? "resource" : "structural",
+      reason: noEffectResource ? noEffectResource.reason : "default_refuse",
+      contributing,
+      allowSources: [],
+      denySources: [],
+    },
   };
 }
 
