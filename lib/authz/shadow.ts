@@ -23,9 +23,14 @@ export interface ShadowStats {
   // ORG-005 IW-2 — contextual Role vs legacy users.role parity.
   roleEvaluated: number;
   roleDivergent: number;
+  // ORG-005 IW-3 — Product Access / Product Capability Access vs legacy gate parity.
+  productAccessEvaluated: number;
+  productAccessDivergent: number;
+  capabilityEvaluated: number;
+  capabilityDivergent: number;
 }
 
-const stats: ShadowStats = { evaluated: 0, divergent: 0, lastDivergenceAt: null, lastDivergenceSite: null, orgContextEvaluated: 0, orgContextDivergent: 0, roleEvaluated: 0, roleDivergent: 0 };
+const stats: ShadowStats = { evaluated: 0, divergent: 0, lastDivergenceAt: null, lastDivergenceSite: null, orgContextEvaluated: 0, orgContextDivergent: 0, roleEvaluated: 0, roleDivergent: 0, productAccessEvaluated: 0, productAccessDivergent: 0, capabilityEvaluated: 0, capabilityDivergent: 0 };
 
 /**
  * Record one shadow comparison. `legacyAllowed` is the authoritative legacy
@@ -91,6 +96,43 @@ export function recordRoleParity(parity: boolean): void {
   }
 }
 
+/**
+ * ORG-005 IW-3 — record whether the new Product Access layer matches the legacy
+ * route-prefix gate for this evaluation. Never throws. A divergence (should be
+ * zero — parity is proven by exhaustive enumeration) emits a PII-free log line.
+ */
+export function recordProductAccessParity(parity: boolean): void {
+  try {
+    stats.productAccessEvaluated++;
+    if (!parity) {
+      stats.productAccessDivergent++;
+      stats.lastDivergenceAt = Date.now();
+      stats.lastDivergenceSite = "productAccess";
+      console.warn("[authz-shadow] PRODUCT-ACCESS DIVERGENCE (model != legacy route-prefix gate)");
+    }
+  } catch {
+    // Never break authorisation.
+  }
+}
+
+/**
+ * ORG-005 IW-3 — record whether the new Product Capability Access layer matches
+ * the legacy inline capability gate for this evaluation. Never throws.
+ */
+export function recordCapabilityParity(parity: boolean): void {
+  try {
+    stats.capabilityEvaluated++;
+    if (!parity) {
+      stats.capabilityDivergent++;
+      stats.lastDivergenceAt = Date.now();
+      stats.lastDivergenceSite = "capabilityAccess";
+      console.warn("[authz-shadow] CAPABILITY DIVERGENCE (model != legacy inline gate)");
+    }
+  } catch {
+    // Never break authorisation.
+  }
+}
+
 /** Snapshot of this instance's shadow counters (for the admin diagnostic). */
 export function shadowStats(): ShadowStats {
   return { ...stats };
@@ -106,4 +148,8 @@ export function __resetShadow(): void {
   stats.orgContextDivergent = 0;
   stats.roleEvaluated = 0;
   stats.roleDivergent = 0;
+  stats.productAccessEvaluated = 0;
+  stats.productAccessDivergent = 0;
+  stats.capabilityEvaluated = 0;
+  stats.capabilityDivergent = 0;
 }

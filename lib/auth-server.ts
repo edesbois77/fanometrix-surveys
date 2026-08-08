@@ -11,9 +11,10 @@ import type { NextRequest } from "next/server";
 import { getSession, type UserRole } from "@/lib/auth";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { evaluate } from "@/lib/authz/decision";
-import { recordShadow, recordOrgContextParity, recordRoleParity } from "@/lib/authz/shadow";
+import { recordShadow, recordOrgContextParity, recordRoleParity, recordCapabilityParity } from "@/lib/authz/shadow";
 import { fetchActiveOrganisationAccess, resolveActiveContext, compareAccessToScalar } from "@/lib/authz/organisation-access";
 import { fetchContextualRole, resolveEffectiveRole, roleParity } from "@/lib/authz/role-profile";
+import { capabilityAccessParity } from "@/lib/authz/product-access";
 
 export type OrganisationType = "publisher" | "agency" | "brand" | "internal";
 
@@ -154,6 +155,20 @@ export async function requireUser(
     recordRoleParity(roleParity(contextualRole, row.role).parity);
     effectiveRole = resolveEffectiveRole(contextualRole, row.role).role;
   } catch { /* fail-safe: the legacy role remains authoritative */ }
+
+  // ── ORG-005 IW-3 shadow (non-authoritative; must NEVER affect the request) ──
+  // The Product Capability Access layer is evaluated alongside the legacy inline
+  // gate for the one capability resolvable at this chokepoint
+  // ("present-simulations", from role + can_present_simulations) and parity is
+  // recorded. The legacy inline checks at the call sites remain authoritative;
+  // the enforce cut-over is a subsequent governed step (shadow → enforce).
+  try {
+    recordCapabilityParity(capabilityAccessParity({
+      role: effectiveRole,
+      canPresentSimulations: row.can_present_simulations,
+      capability: "present-simulations",
+    }).parity);
+  } catch { /* shadow observation must never break authorisation */ }
 
   // Admins bypass the organisation-disabled check so a disabled internal
   // organisation can never accidentally lock every admin out at once.

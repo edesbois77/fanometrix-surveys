@@ -5,6 +5,7 @@ import { resolve } from "node:path";
 import { evaluate, type DecisionInput } from "../decision";
 import { resolveActiveContext } from "../organisation-access";
 import { roleForContext, resolveEffectiveRole, type ContextualRoleBinding } from "../role-profile";
+import { resolveProductAccess, resolveCapabilityAccess } from "../product-access";
 
 // ORG-005 conformance harness — architecture invariants.
 //   • Currently-true invariants are asserted normally (must stay green).
@@ -124,7 +125,23 @@ test("Q-11 cut-over — requireUser resolves the authoritative Role from the Act
   assert.match(authServer, /effectiveRole/);         // effective role gates allowedRoles + returned role
   assert.match(authServer, /fallback/i);             // legacy users.role retained as fallback
 });
-test("Q-09/Q-10 — Product Access and Product Capability Access as distinct layers [closes IW-3, F013/F014]", { todo: "Product/Capability is IW-3" });
+// ── IW-3 delivered: Product Access & Product Capability Access mechanism (HELD) ─
+// Q-09/Q-10 / EVOLVE F013/F014: two distinct layers, server-side, independent of
+// each other and of nav (SG-3). Enforce cut-over is the subsequent gated step.
+test("Q-09 — Product Access is a distinct role-derived layer, parity with legacy [closes IW-3, F013]", () => {
+  assert.equal(resolveProductAccess({ role: "admin", tier: "admin-only" }), true);
+  assert.equal(resolveProductAccess({ role: "publisher", tier: "admin-only" }), false); // admin-only gate
+  assert.equal(resolveProductAccess({ role: "publisher", tier: "admin-and-publisher" }), true);
+  assert.equal(resolveProductAccess({ role: "brand", tier: "admin-and-publisher" }), false); // brand/agency blocked
+});
+test("Q-10 — Product Capability Access is independent of Product Access [closes IW-3, F014]", () => {
+  // No admin-only product access, yet the direct grant allows the capability.
+  assert.equal(resolveProductAccess({ role: "publisher", tier: "admin-only" }), false);
+  assert.equal(resolveCapabilityAccess({ role: "publisher", canPresentSimulations: true, capability: "present-simulations" }), true);
+  // Product access without the grant does NOT confer the capability.
+  assert.equal(resolveCapabilityAccess({ role: "brand", canPresentSimulations: false, capability: "present-simulations" }), false);
+});
+test("Q-09/Q-10 enforce cut-over — Product/Capability authoritative at the seam [closes IW-3-enforce]", { todo: "shadow-live; enforce cut-over is the subsequent gated step per Programme §4" });
 test("Q-14/Q-15 — Organisation Resource Entitlement vs User Resource Authorisation [closes IW-6, F024/F025]", { todo: "Resource Entitlement is IW-6" });
 test("Q-27 — scoped Platform Administration Authority; administer≠possess; no self-elevation [closes IW-5, F035/F036]", { todo: "Scoped admin authority is IW-5" });
 test("Q-29 — security audit + mandatory-audit fail-closed [closes IW-7, F018/F045]", { todo: "Security audit is IW-7" });
