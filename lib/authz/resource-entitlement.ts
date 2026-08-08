@@ -141,3 +141,42 @@ export function resolveResourceAccess(
 export function ownershipIsEntitlement(): boolean {
   return false;
 }
+
+// ── IW-6 dual-run mapping semantics (Q-26 / §D migration mapping) ─────────────
+// The governed mappings from the current mechanisms into the IW-6 model, as PURE
+// functions. They define the dual-run; materialising rows for concrete product
+// resources requires the §38-reserved resource/scope schemas and is NOT done here.
+
+/**
+ * §D — a `user_access_grants` row maps to a User Resource Authorisation `allow`
+ * for the same resource (an EXERCISE permission), never an Organisation
+ * Entitlement. It can only NARROW/permit within the org's entitlement (Q-15), so
+ * mapping a grant to a URA never expands org entitlement.
+ */
+export function grantToUserAuthorisation(
+  grant: { userId: string; resourceClass: ResourceClass; resourceId: string },
+): UserAuthorisation {
+  return { userId: grant.userId, resourceClass: grant.resourceClass, resourceId: grant.resourceId, effect: "allow", active: true };
+}
+
+/**
+ * §D — an ownership / targeting Organisation FK is a governed POLICY INPUT. This
+ * explicit policy DERIVES an Organisation Resource Entitlement consequence from
+ * it; the ownership fact itself is never entitlement (`ownershipIsEntitlement()`
+ * stays false). The derived entitlement is a distinct, separately-identifiable
+ * OrgEntitlement — the source fact → governed policy → consequence chain (Q-12).
+ * Callers apply this only where a governed policy authorises the derivation; the
+ * concrete per-product resource/scope binding is §38-reserved and supplied
+ * externally (not invented here).
+ */
+export function deriveEntitlementFromOwnershipPolicy(
+  policyInput: { organisationId: string; resourceClass: ResourceClass; resourceId?: string | null; scopeId?: string | null },
+): OrgEntitlement {
+  return {
+    organisationId: policyInput.organisationId,
+    resourceClass: policyInput.resourceClass,
+    resourceId: policyInput.resourceId ?? null,
+    scopeId: policyInput.scopeId ?? null,
+    active: true,
+  };
+}

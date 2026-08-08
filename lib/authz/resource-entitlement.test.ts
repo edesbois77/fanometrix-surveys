@@ -5,6 +5,8 @@ import {
   userAuthorisedForResource,
   resolveResourceAccess,
   ownershipIsEntitlement,
+  grantToUserAuthorisation,
+  deriveEntitlementFromOwnershipPolicy,
   type OrgEntitlement,
   type UserAuthorisation,
   type ResourceRef,
@@ -76,4 +78,23 @@ test("resolveResourceAccess requires org entitlement AND user authorisation", ()
 
 test("ownership / operational involvement is not Organisation Resource Entitlement (policy input only)", () => {
   assert.equal(ownershipIsEntitlement(), false);
+});
+
+// ── IW-6 dual-run mapping (§D) ───────────────────────────────────────────────
+
+test("a grant maps to a User Resource Authorisation ALLOW (exercise), which cannot expand org entitlement", () => {
+  const ura = grantToUserAuthorisation({ userId: "U", resourceClass: "report", resourceId: "R1" });
+  assert.deepEqual(ura, { userId: "U", resourceClass: "report", resourceId: "R1", effect: "allow", active: true });
+  // even mapped, it grants nothing without org entitlement (directional invariant)
+  assert.equal(userAuthorisedForResource(false, { resourceClass: "report", resourceId: "R1" }, { accessScope: "selected", userAuthorisations: [ura] }), false);
+});
+
+test("an ownership FK derives an Org Entitlement via explicit policy — ownership itself is never entitlement", () => {
+  const derived = deriveEntitlementFromOwnershipPolicy({ organisationId: "O", resourceClass: "report", resourceId: "R1" });
+  assert.equal(derived.organisationId, "O");
+  assert.equal(derived.resourceClass, "report");
+  assert.equal(ownershipIsEntitlement(), false); // the fact is a Policy Input; the derived row is the entitlement
+  // the derived entitlement is a normal OrgEntitlement — per-class, no cross-class leak
+  assert.equal(organisationEntitled([derived], { resourceClass: "report", resourceId: "R1" }), true);
+  assert.equal(organisationEntitled([derived], { resourceClass: "data", resourceId: "R1" }), false);
 });

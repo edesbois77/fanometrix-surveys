@@ -9,7 +9,7 @@ import { resolveProductAccess, resolveCapabilityAccess } from "../product-access
 import { hasAdminAuthority, adminAuthorityGrantsResourceAccess, isSelfElevation } from "../admin-authority";
 import { explainForAudience } from "../explanation";
 import { isSessionRevoked } from "../session-currency";
-import { organisationEntitled, userAuthorisedForResource } from "../resource-entitlement";
+import { organisationEntitled, userAuthorisedForResource, grantToUserAuthorisation, deriveEntitlementFromOwnershipPolicy, ownershipIsEntitlement } from "../resource-entitlement";
 
 // ORG-005 conformance harness — architecture invariants.
 //   • Currently-true invariants are asserted normally (must stay green).
@@ -169,7 +169,15 @@ test("Q-14/Q-15 — Org Entitlement required; User Authorisation narrows, never 
   // user RESTRICT narrows an org-wide entitlement
   assert.equal(userAuthorisedForResource(true, { resourceClass: "report", resourceId: "R1" }, { accessScope: "organisation_wide", userAuthorisations: [{ userId: "U", resourceClass: "report", resourceId: "R1", effect: "restrict" }] }), false);
 });
-test("Q-14/Q-15 activate — entitlement enforced at the seam; grants→URA dual-run [closes IW-6-activation]", { todo: "model built; persistence + enforcement on migration 170 (DDL boundary)" });
+// IW-6 activation (within authority): persistence live + dual-run mapping.
+test("Q-14/Q-15 activate — dual-run mapping: grant→URA (never expands); ownership→policy-derived entitlement [closes IW-6-activation]", () => {
+  const ura = grantToUserAuthorisation({ userId: "U", resourceClass: "report", resourceId: "R1" });
+  assert.equal(userAuthorisedForResource(false, { resourceClass: "report", resourceId: "R1" }, { accessScope: "selected", userAuthorisations: [ura] }), false); // no expansion
+  const e = deriveEntitlementFromOwnershipPolicy({ organisationId: "O", resourceClass: "report", resourceId: "R1" });
+  assert.equal(organisationEntitled([e], { resourceClass: "report", resourceId: "R1" }), true);
+  assert.equal(ownershipIsEntitlement(), false); // ownership is a Policy Input, not entitlement
+});
+test("Q-14/Q-15 enforce — AUTHORITATIVE per-asset enforcement live [closes IW-6-enforce]", { todo: "requires §38 concrete resource/scope schemas + crosses super-ALLOW/seam boundary — beyond IW-6 authority" });
 test("Q-27 — scoped Platform Administration Authority; administer≠possess; no self-elevation [closes IW-5, F035/F036]", () => {
   // scoped: authority permits only its bounded operation, never global
   assert.equal(hasAdminAuthority([{ operation: "user.manage", scope: { organisationId: "org-A" } }], { operation: "user.manage", organisationId: "org-A" }), true);
