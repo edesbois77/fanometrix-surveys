@@ -21,7 +21,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   if (error || !group) return NextResponse.json({ error: error?.message ?? "Not found" }, { status: 404 });
 
-  if (session.role !== "admin" && !(await canAccess(session, "campaign_group", group.id))) {
+  if (!(await canAccess(session, "campaign_group", group.id))) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -43,7 +43,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
   const { id } = await params;
 
-  if (session.role !== "admin" && !(await canAccess(session, "campaign_group", id))) {
+  if (!(await canAccess(session, "campaign_group", id))) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -73,7 +73,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     ? (groupFields.research_project_id as string | null)
     : existing.research_project_id;
 
-  if (effectiveProjectId && session.role !== "admin" && !(await canAccess(session, "research_project", effectiveProjectId))) {
+  if (effectiveProjectId && !(await canAccess(session, "research_project", effectiveProjectId))) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

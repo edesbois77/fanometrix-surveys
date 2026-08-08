@@ -23,10 +23,14 @@ test("F063 — INDETERMINATE and absent-session never ALLOW", () => {
   assert.notEqual(evaluate({ ...base, principalStatus: "indeterminate" }).decision, "ALLOW");
 });
 
-test("F063 — lib/access.ts contains no fail-open (returns [] not null on empty; admin-only null)", () => {
+test("F063 — lib/access.ts no fail-open; admin super-ALLOW REMOVED at G-2 (operator governed by standing entitlement)", () => {
   const access = src("lib/access.ts");
-  // The only place a null ("see everything") is returned is the explicit admin check.
-  assert.match(access, /if \(user\.role === "admin"\) return null;/);
+  // ORG-005 G-2: the unconditional `role === "admin" → null` super-ALLOW is GONE.
+  assert.doesNotMatch(access, /if \(user\.role === "admin"\) return null;/);
+  // Admin/operator resource visibility now flows through the governed, entitlement-
+  // based resolver (revocable, DENY-subordinate) — never an unconditional role bypass.
+  assert.match(access, /if \(user\.role === "admin"\) return operatorVisibleResourceIds\(user, resourceType\);/);
+  assert.match(access, /if \(user\.role === "admin"\) return operatorVisibleDataCampaignIds\(user\);/);
 });
 
 // F065 — failures manufacture no state; the seam is pure/deterministic.

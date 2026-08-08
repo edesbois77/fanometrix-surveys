@@ -117,7 +117,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Research Project is required. Every new Campaign Group must belong to one." }, { status: 400 });
   }
 
-  if (session.role !== "admin" && !(await canAccess(session, "research_project", researchProjectId))) {
+  if (!(await canAccess(session, "research_project", researchProjectId))) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

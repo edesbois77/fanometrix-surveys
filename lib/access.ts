@@ -11,6 +11,7 @@
 // combination of role + access scope + user_access_grants rows.
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import type { AuthedUser } from "@/lib/auth-server";
+import { operatorVisibleResourceIds, operatorVisibleDataCampaignIds } from "@/lib/authz/operator-access";
 
 export type ResourceType = "research_project" | "campaign_group" | "campaign" | "insight";
 
@@ -25,7 +26,11 @@ export async function visibleResourceIds(
   user: AuthedUser,
   resourceType: ResourceType
 ): Promise<string[] | null> {
-  if (user.role === "admin") return null; // admin super-ALLOW (retained until G-2)
+  // ORG-005 G-2 (ACTIVE): platform operators (admins) are governed by the
+  // Platform-Operator standing entitlement, NOT by an unconditional role bypass.
+  // An entitled domain yields unrestricted visibility (routine operation); otherwise
+  // Default Refuse + bounded Exceptional Access. Revocable + DENY-subordinate.
+  if (user.role === "admin") return operatorVisibleResourceIds(user, resourceType);
 
   // ORG-005 G-3 (ACTIVE): the Study decision is authoritative via Organisation
   // Resource Entitlement (Q-14/Q-15). Study ORE was backfilled to mirror the
@@ -77,7 +82,8 @@ async function authoritativeStudyIds(user: AuthedUser): Promise<string[]> {
  * cross-publisher Data, and yields exactly the 11 accepted governed tightenings.
  */
 export async function dataVisibleCampaignIds(user: AuthedUser): Promise<string[] | null> {
-  if (user.role === "admin") return null; // admin super-ALLOW (retained until G-2)
+  // ORG-005 G-2 (ACTIVE): operator Data access via the standing entitlement, not role.
+  if (user.role === "admin") return operatorVisibleDataCampaignIds(user);
   if (!user.organisationId) return [];
   const { data: ore } = await supabaseAdmin.from("organisation_resource_entitlements")
     .select("resource_id, scope_id").eq("organisation_id", user.organisationId)

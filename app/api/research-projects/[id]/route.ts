@@ -35,7 +35,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   if (error || !data) return NextResponse.json({ error: error?.message ?? "Not found" }, { status: 404 });
 
-  if (session.role !== "admin" && !(await canAccess(session, "research_project", data.id))) {
+  if (!(await canAccess(session, "research_project", data.id))) {
     // ORG-005 IW-8 (F068 / Q-35-D10) — do NOT leak resource existence: a caller
     // not authorised to DISCOVER this project receives the SAME not-found response
     // as a non-existent one (uniform 404), never a 403 that confirms existence.
@@ -437,7 +437,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
   const { id } = await params;
 
-  if (session.role !== "admin" && !(await canAccess(session, "research_project", id))) {
+  if (!(await canAccess(session, "research_project", id))) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -579,7 +579,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     }
   } else if (
     !(session.role === "admin" || session.role === "publisher") ||
-    (session.role !== "admin" && !(await canAccess(session, "research_project", id)))
+    (!(await canAccess(session, "research_project", id)))
   ) {
     // A publisher can only ever delete projects they can see — admin-created
     // ones are already fully hidden from them (lib/access.ts), so this is

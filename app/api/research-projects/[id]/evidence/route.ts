@@ -40,7 +40,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }
   } else if (
     !(session.role === "admin" || session.role === "publisher") ||
-    (session.role !== "admin" && !(await canAccess(session, "research_project", id)))
+    (!(await canAccess(session, "research_project", id)))
   ) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
@@ -149,7 +149,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
   const { id } = await params;
 
-  if (session.role !== "admin" && !(await canAccess(session, "research_project", id))) {
+  if (!(await canAccess(session, "research_project", id))) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -197,7 +197,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     }
   } else if (
     !(session.role === "admin" || session.role === "publisher") ||
-    (session.role !== "admin" && !(await canAccess(session, "research_project", id)))
+    (!(await canAccess(session, "research_project", id)))
   ) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }

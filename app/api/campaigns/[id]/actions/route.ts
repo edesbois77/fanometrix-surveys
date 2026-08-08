@@ -26,7 +26,7 @@ export async function POST(
   // one an admin set up — that's read-only for them (labelled "Set up by
   // Fanometrix" in the UI), same restriction as content edits and delete.
   // See app/api/campaigns/[id]/route.ts.
-  if (session.role !== "admin" && !(await canAccess(session, "campaign", id))) {
+  if (!(await canAccess(session, "campaign", id))) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

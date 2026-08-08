@@ -26,7 +26,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   // were checked here at all, leaving publisher users able to fetch any
   // campaign by id regardless of allowed_publisher_ids; canAccess() closes
   // that gap by covering all three the same way.
-  if (session.role !== "admin" && !(await canAccess(session, "campaign", data.id))) {
+  if (!(await canAccess(session, "campaign", data.id))) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

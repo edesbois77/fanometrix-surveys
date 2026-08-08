@@ -42,14 +42,17 @@ export async function GET(req: NextRequest) {
   // down to that text id before filtering. Empty means "none" — this
   // replaces the old per-role allowed_campaign_ids/allowed_publisher_ids
   // branching, which is now handled uniformly by visibleResourceIds().
+  // ORG-005 G-2: all principals (incl. platform operators) gated by
+  // dataVisibleCampaignIds — null = entitled/unrestricted, [] = Default Refuse.
   let scopedCampaignIds: string[] | null = null;
-  if (user.role !== "admin") {
-    const uuids = (await dataVisibleCampaignIds(user)) ?? []; // ORG-005 G-3: Data authoritative (per-participant scopes)
-    if (uuids.length === 0) return NextResponse.json(EMPTY);
-
-    const { data: rows } = await supabaseAdmin.from("campaigns").select("campaign_id").in("id", uuids);
-    scopedCampaignIds = (rows ?? []).map(r => r.campaign_id as string);
-    if (scopedCampaignIds.length === 0) return NextResponse.json(EMPTY);
+  {
+    const gate = await dataVisibleCampaignIds(user);
+    if (gate !== null) {
+      if (gate.length === 0) return NextResponse.json(EMPTY);
+      const { data: rows } = await supabaseAdmin.from("campaigns").select("campaign_id").in("id", gate);
+      scopedCampaignIds = (rows ?? []).map(r => r.campaign_id as string);
+      if (scopedCampaignIds.length === 0) return NextResponse.json(EMPTY);
+    }
   }
 
   // Build a count query for a given event type

@@ -49,8 +49,10 @@ export async function GET(req: NextRequest) {
   // campaigns.campaign_id), not the campaigns.id uuid, so resolve this
   // user's visible campaigns (unified across publisher/brand/agency
   // org-wide and Selected Access) down to that text id.
-  if (session.role !== "admin") {
-    const uuids = await dataVisibleCampaignIds(session); // ORG-005 G-3: Data authoritative (per-participant scopes)
+  // ORG-005 G-2: all principals (incl. platform operators) gated by
+  // dataVisibleCampaignIds — null = entitled/unrestricted, [] = Default Refuse.
+  {
+    const uuids = await dataVisibleCampaignIds(session);
     if (uuids !== null) {
       if (uuids.length === 0) return NextResponse.json({ data: [] });
       const { data: rows } = await supabaseAdmin.from("campaigns").select("campaign_id").in("id", uuids);

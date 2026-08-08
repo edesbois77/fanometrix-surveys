@@ -26,17 +26,17 @@ export async function GET(req: NextRequest) {
   let campaignTextIds: string[] = [];
   let publisherCount = 0;
 
-  if (session.role !== "admin") {
-    campaignUuids = await dataVisibleCampaignIds(session); // ORG-005 G-3: Data authoritative (per-participant scopes)
-    if (campaignUuids !== null) {
-      if (campaignUuids.length === 0) return NextResponse.json(EMPTY);
-      const { data: rows } = await supabaseAdmin
-        .from("campaigns")
-        .select("campaign_id, publisher_org_id")
-        .in("id", campaignUuids);
-      campaignTextIds = (rows ?? []).map(r => r.campaign_id as string);
-      publisherCount = new Set((rows ?? []).map(r => r.publisher_org_id).filter(Boolean)).size;
-    }
+  // ORG-005 G-2: all principals (incl. platform operators) gated by
+  // dataVisibleCampaignIds — null = entitled/unrestricted, [] = Default Refuse.
+  campaignUuids = await dataVisibleCampaignIds(session);
+  if (campaignUuids !== null) {
+    if (campaignUuids.length === 0) return NextResponse.json(EMPTY);
+    const { data: rows } = await supabaseAdmin
+      .from("campaigns")
+      .select("campaign_id, publisher_org_id")
+      .in("id", campaignUuids);
+    campaignTextIds = (rows ?? []).map(r => r.campaign_id as string);
+    publisherCount = new Set((rows ?? []).map(r => r.publisher_org_id).filter(Boolean)).size;
   }
 
   const isRestricted = campaignUuids !== null;
