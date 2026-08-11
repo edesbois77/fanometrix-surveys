@@ -93,8 +93,16 @@ export async function correctPrimaryName(subjectId: string, value: string) {
 }
 
 /** GENUINE CHANGE: close the current primary at the transition date (exclusive end) and
- *  open a new primary from that date (inclusive start). Preserves the earlier Name as
- *  history. Ordered (close→open) to respect the one-primary index; reverts on failure. */
+ *  open a new primary from that date (inclusive start), preserving the earlier Name as
+ *  history.
+ *
+ *  ORG-007 CF-001 (NFR-004) — the close→open is performed ATOMICALLY by the
+ *  record_organisation_name_change RPC (migration 177): both writes commit together or
+ *  not at all, so an interruption can never leave the subject without an active primary
+ *  Name. This replaces the former non-transactional close→insert + best-effort (itself
+ *  fallible) revert, which had a partial-state window. The pre-flight read below is only
+ *  for the friendly half-open validation message; the RPC re-resolves and locks the
+ *  current primary itself, so it remains correct under concurrent changes. */
 export async function recordNameChange(
   subjectId: string, subjectKind: string, newValue: string, transitionDate: string,
   extras?: { nameForm?: string; language?: string | null; script?: string | null }
@@ -113,24 +121,18 @@ export async function recordNameChange(
     return { error: "The transition date must be after the current name's start date.", status: 400 as const };
   }
 
-  if (prev) {
-    const { error: closeErr } = await supabaseAdmin.from("organisation_names")
-      .update({ is_primary: false, effective_to: transitionDate }).eq("id", prev.id);
-    if (closeErr) { const m = mapOrgDbError(closeErr); return { error: m.message, status: m.status }; }
-  }
-
-  const { data, error } = await supabaseAdmin.from("organisation_names").insert({
-    subject_id: subjectId, subject_kind: subjectKind, value, name_form: extras?.nameForm ?? "display",
-    language: extras?.language ?? null, script: extras?.script ?? null,
-    is_primary: true, effective_from: transitionDate, effective_to: null,
-  }).select(COLS).single();
-
-  if (error) {
-    // Best-effort revert so the subject is never left without a primary.
-    if (prev) await supabaseAdmin.from("organisation_names")
-      .update({ is_primary: true, effective_to: null }).eq("id", prev.id);
-    const m = mapOrgDbError(error); return { error: m.message, status: m.status };
-  }
+  // Atomic close-current-primary → open-new-primary (migration 177). No partial state,
+  // no revert path: any failure rolls the whole operation back in the database.
+  const { data, error } = await supabaseAdmin.rpc("record_organisation_name_change", {
+    p_subject_id: subjectId,
+    p_subject_kind: subjectKind,
+    p_value: value,
+    p_name_form: extras?.nameForm ?? "display",
+    p_language: extras?.language ?? null,
+    p_script: extras?.script ?? null,
+    p_transition_date: transitionDate,
+  });
+  if (error) { const m = mapOrgDbError(error); return { error: m.message, status: m.status }; }
   return { data: data as NameRow };
 }
 

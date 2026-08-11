@@ -12,7 +12,7 @@ import { resolve } from "node:path";
 // checks are source-guards.
 
 type Op = { table: string; op: string | null; payload: unknown; filters: [string, string, unknown][]; terminal?: string };
-const state: { readRow: unknown; ops: Op[] } = { readRow: null, ops: [] };
+const state: { readRow: unknown; ops: Op[]; rpcs: { fn: string; args: unknown }[]; rpcData: unknown } = { readRow: null, ops: [], rpcs: [], rpcData: null };
 
 function makeChain(table: string) {
   const ctx: Op = { table, op: null, payload: null, filters: [] };
@@ -38,12 +38,15 @@ function makeChain(table: string) {
   return chain;
 }
 
-const supabaseAdmin = { from: (t: string) => makeChain(t) };
+const supabaseAdmin = {
+  from: (t: string) => makeChain(t),
+  rpc: (fn: string, args: unknown) => { state.rpcs.push({ fn, args }); return Promise.resolve({ data: state.rpcData, error: null }); },
+};
 mock.module("@/lib/supabase-admin", { namedExports: { supabaseAdmin } });
 
 let N: typeof import("@/lib/organisations/names");
 before(async () => { N = await import("@/lib/organisations/names"); });
-beforeEach(() => { state.ops = []; state.readRow = null; });
+beforeEach(() => { state.ops = []; state.readRow = null; state.rpcs = []; state.rpcData = null; });
 
 const root = resolve(__dirname, "..", "..");
 const src = (p: string) => readFileSync(resolve(root, p), "utf8");
@@ -91,27 +94,28 @@ test("correctPrimaryName refuses when there is no primary (never silently seeds)
 
 // VO-03-B + VO-03-C — represented-world CHANGE preserves the prior fact as history
 // and respects Effective Applicability (close current at T, open new from T).
-test("VO-03-B/C — recordNameChange preserves history and Effective Applicability", async () => {
+// ORG-007 CF-001 — the close→open is now performed ATOMICALLY by the
+// record_organisation_name_change RPC (migration 177); the app forwards the change
+// (value + transition = Effective Applicability) to that boundary and never writes
+// the organisations projection directly. The history-preserving close-at-T /
+// open-from-T semantics are asserted at the DB boundary by
+// cf01-atomic-mutations.test.ts + supabase-migration-177-verify.sql.
+test("VO-03-B/C — recordNameChange drives the atomic change with history + Effective Applicability", async () => {
   state.readRow = { id: "p1", value: "Old", subject_id: "org1", subject_kind: "organisation", is_primary: true, effective_from: "2020-01-01", effective_to: null };
+  state.rpcData = { id: "p2", value: "New", is_primary: true, effective_from: "2026-01-01", effective_to: null };
   const r = await N.recordNameChange("org1", "organisation", "New", "2026-01-01");
   assert.ok(!("error" in r), "change succeeds");
 
+  const call = state.rpcs.find((c) => c.fn === "record_organisation_name_change");
+  assert.ok(call, "the atomic name-change RPC drives the represented-world change");
+  const a = call!.args as { p_subject_id: string; p_value: string; p_transition_date: string };
+  assert.equal(a.p_value, "New");
+  assert.equal(a.p_transition_date, "2026-01-01", "transition date carries Effective Applicability");
+  assert.equal(a.p_subject_id, "org1");
+  // The prior fact is never destroyed and the projection is never written directly.
   const nameOps = opsOn("organisation_names");
-  // Prior primary is CLOSED (kept as history), not deleted/overwritten in value.
-  const close = nameOps.find((o) => o.op === "update");
-  assert.ok(close, "prior primary is closed");
-  const cp = close!.payload as { is_primary?: boolean; effective_to?: string };
-  assert.equal(cp.is_primary, false);
-  assert.equal(cp.effective_to, "2026-01-01", "closed at the transition (Effective Applicability)");
   assert.ok(!nameOps.some((o) => o.op === "delete"), "prior Name history is never destroyed");
-  // New primary opens from the transition date, still current (no end).
-  const ins = nameOps.find((o) => o.op === "insert");
-  assert.ok(ins, "a new primary Name fact is created");
-  const ip = ins!.payload as { value?: string; is_primary?: boolean; effective_from?: string; effective_to?: string | null };
-  assert.equal(ip.value, "New");
-  assert.equal(ip.is_primary, true);
-  assert.equal(ip.effective_from, "2026-01-01");
-  assert.equal(ip.effective_to, null);
+  assert.equal(opsOn("organisations").length, 0, "no direct write to organisations.name");
 });
 
 test("VO-03-C — a transition on/before the current start is rejected (half-open interval)", async () => {

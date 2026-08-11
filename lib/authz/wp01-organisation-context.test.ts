@@ -20,10 +20,11 @@ test("VO-01-A — zero accessible organisations → no_access, null Current Orga
   assert.equal(r.status, "no_access");
   assert.equal(r.activeOrganisationId, null);
   // requireUser fails CLOSED (403) on no_access — never manufactures a context.
+  // (ORG-007 CF-003 adds an operational signal on the branch before the same throw.)
   const auth = src("lib/auth-server.ts");
-  assert.match(auth, /if \(!ctx\.activeOrganisationId\) throw unauthorised\("No active organisation context", 403\); \/\/ no_access/);
+  assert.match(auth, /if \(!ctx\.activeOrganisationId\) \{[\s\S]*?throw unauthorised\("No active organisation context", 403\); \/\/ no_access/);
   // Indeterminate access source also fails closed (403), never fabricated.
-  assert.match(auth, /if \(accessSet === null\) throw unauthorised\("No active organisation context", 403\);/);
+  assert.match(auth, /if \(accessSet === null\) \{[\s\S]*?throw unauthorised\("No active organisation context", 403\);/);
 });
 
 // VO-01-B — Exactly one Organisation → auto-resolved, no selection required.

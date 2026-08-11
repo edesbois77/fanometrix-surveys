@@ -4,6 +4,9 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 import { signJwt, SESSION_COOKIE_NAME, SESSION_DURATION_SECONDS, type UserRole } from "@/lib/auth";
 import { fetchActiveOrganisationAccess, resolveActiveContext } from "@/lib/authz/organisation-access";
 import { fetchContextualRole } from "@/lib/authz/role-profile";
+// ORG-007 CF-003 (NFR-005) — make a failed login-role projection operationally
+// detectable at the moment it happens (server log only; never in the response).
+import { reportOrganisationContext } from "@/lib/observability/operational-telemetry";
 
 export async function POST(req: NextRequest) {
   let body: { email?: string; password?: string };
@@ -66,6 +69,19 @@ export async function POST(req: NextRequest) {
   const contextualRole = activeOrganisationId
     ? await fetchContextualRole(user.id, activeOrganisationId)
     : null;
+
+  // ORG-007 CF-003 — if the coarse role hint cannot be projected, emit a diagnosable
+  // operational signal. The material incident class is a resolved Current Organisation
+  // with NO contextual role (contextual_role_missing); a multi-org login with no single
+  // context yet is the normal selection_required state and is not signalled as a failure.
+  reportOrganisationContext({
+    phase: "login",
+    userId: user.id,
+    accessIndeterminate: accessSet === null,
+    accessSetSize: accessSet?.length ?? 0,
+    activeOrganisationId,
+    contextualRole,
+  });
 
   const token = await signJwt({
     sub: user.id,

@@ -11,6 +11,10 @@
 // context/access provisioning, never a permission union (a single Current
 // Organisation is resolved at request time — see resolveActiveContext).
 import { supabaseAdmin } from "@/lib/supabase-admin";
+// ORG-007 CF-003 (NFR-005) — make the Primary Organisation inconsistency class
+// (a designation that silently no-ops because the target is not an active member of
+// the Accessible Organisation Set) operationally detectable/diagnosable.
+import { reportPrimaryDesignation } from "@/lib/observability/operational-telemetry";
 
 export interface OrganisationAssignment {
   organisationId: string;
@@ -32,39 +36,16 @@ export async function setOrganisationAccessSet(
   assignments: OrganisationAssignment[],
 ): Promise<void> {
   const desired = assignments.filter((a) => a.organisationId && a.role);
-  if (desired.length === 0) {
-    // No organisation → revoke any active access (the governed "no organisation" state).
-    await supabaseAdmin
-      .from("user_organisation_access")
-      .update({ status: "revoked" })
-      .eq("user_id", userId)
-      .eq("status", "active");
-    return;
-  }
-  // Grant/retain every desired association ACTIVE (upsert on the (user,org) key).
-  await supabaseAdmin
-    .from("user_organisation_access")
-    .upsert(
-      desired.map((a) => ({ user_id: userId, organisation_id: a.organisationId, role: a.role, status: "active" })),
-      { onConflict: "user_id,organisation_id" },
-    );
-  // Revoke ONLY active associations that are not in the desired set — never the
-  // ones being granted/maintained. No automatic single-collapse.
-  const keep = new Set(desired.map((a) => a.organisationId));
-  const { data: active } = await supabaseAdmin
-    .from("user_organisation_access")
-    .select("organisation_id")
-    .eq("user_id", userId)
-    .eq("status", "active");
-  const toRevoke = (active ?? []).map((r) => r.organisation_id as string).filter((id) => !keep.has(id));
-  if (toRevoke.length) {
-    await supabaseAdmin
-      .from("user_organisation_access")
-      .update({ status: "revoked" })
-      .eq("user_id", userId)
-      .eq("status", "active")
-      .in("organisation_id", toRevoke);
-  }
+  // ORG-007 CF-001 (NFR-004) — the reconcile (upsert desired + revoke non-desired, or
+  // revoke-all when empty) runs ATOMICALLY in the set_organisation_access_set RPC
+  // (migration 177). This replaces the former upsert→select→revoke multi-statement
+  // sequence, whose interruption could leave an over-broad Accessible Organisation Set
+  // until a later re-run repaired it. The governed outcome is unchanged (exactly the
+  // desired set active, all others revoked; no permission union, no single-collapse).
+  await supabaseAdmin.rpc("set_organisation_access_set", {
+    p_user_id: userId,
+    p_assignments: desired.map((a) => ({ organisationId: a.organisationId, role: a.role })),
+  });
 }
 
 /**
@@ -117,18 +98,15 @@ export async function syncSelectedStudyAuthorisations(
   userId: string,
   grants: { resource_type: string; resource_id: string }[] | undefined,
 ): Promise<void> {
-  await supabaseAdmin
-    .from("user_resource_authorisations")
-    .delete()
-    .eq("user_id", userId)
-    .eq("resource_class", "study")
-    .eq("effect", "allow");
   const studyIds = [...new Set((grants ?? []).filter((g) => g.resource_type === "research_project").map((g) => g.resource_id))];
-  if (studyIds.length) {
-    await supabaseAdmin.from("user_resource_authorisations").insert(
-      studyIds.map((rid) => ({ user_id: userId, resource_class: "study", resource_id: rid, effect: "allow", status: "active" })),
-    );
-  }
+  // ORG-007 CF-001 (NFR-004) — the DELETE→INSERT reconcile runs ATOMICALLY in the
+  // sync_selected_study_authorisations RPC (migration 177), so an interruption can no
+  // longer transiently empty the Study allow-set. Governed outcome unchanged (the allow
+  // set becomes exactly the supplied research_project grants).
+  await supabaseAdmin.rpc("sync_selected_study_authorisations", {
+    p_user_id: userId,
+    p_study_ids: studyIds,
+  });
 }
 
 export interface GovernedUserContext {
@@ -183,6 +161,9 @@ export async function setPrimaryOrganisation(userId: string, organisationId: str
     .order("created_at", { ascending: true })
     .order("organisation_id", { ascending: true });
   const rows = (data ?? []) as { organisation_id: string; created_at: string }[];
+  // ORG-007 CF-003 — detect a Primary designation that cannot take effect (target not
+  // an active member of the Accessible Organisation Set, or no active access at all).
+  reportPrimaryDesignation({ userId, targetOrganisationId: organisationId, activeAccessOrganisationIds: rows.map((r) => r.organisation_id) });
   if (!rows.length || rows[0].organisation_id === organisationId) return; // absent or already primary
   const anchored = new Date(new Date(rows[0].created_at).getTime() - 1000).toISOString();
   await supabaseAdmin
