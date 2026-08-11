@@ -2,14 +2,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth-server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { searchInOrg } from "@/lib/social-listening/org-scope";
 
 export async function GET(req: NextRequest) {
-  try { await requireUser(req, ["admin"]); } catch (err) { return err as Response; }
+  let session;
+  try { session = await requireUser(req, ["admin"]); } catch (err) { return err as Response; }
 
   const searchId = req.nextUrl.searchParams.get("search_id");
   const format   = req.nextUrl.searchParams.get("format") ?? "csv";
 
   if (!searchId) return NextResponse.json({ error: "search_id required" }, { status: 400 });
+  // ORG-006 WP-02 — export only a search owned by the Current Organisation.
+  if (!(await searchInOrg(searchId, session.organisationId))) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const { data: mentions } = await supabaseAdmin
     .from("social_mentions")

@@ -2,9 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth-server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { getProjectSocialSearchIds } from "@/lib/research-sources/project-searches";
+import { currentOrgSearchIds, searchInOrg } from "@/lib/social-listening/org-scope";
+
+const EMPTY_REPORT = { sentimentTrend: [], topicBreakdown: [], marketComparison: [], recentSummaries: [] };
 
 export async function GET(req: NextRequest) {
-  try { await requireUser(req, ["admin"]); } catch (err) { return err as Response; }
+  let session;
+  try { session = await requireUser(req, ["admin"]); } catch (err) { return err as Response; }
 
   const searchId = req.nextUrl.searchParams.get("search_id");
   // Additive project scope — same rules as /api/social/stats.
@@ -15,10 +19,18 @@ export async function GET(req: NextRequest) {
     .select("sentiment, topic, subtopic, platform, market, published_at, content, ai_summary")
     .order("published_at", { ascending: true });
   if (searchId) {
+    // ORG-006 WP-02 — a single search only if owned by the Current Organisation.
+    if (!(await searchInOrg(searchId, session.organisationId))) return NextResponse.json(EMPTY_REPORT);
     q = q.eq("search_id", searchId);
   } else if (projectId) {
     const ids = await getProjectSocialSearchIds(projectId);
-    if (ids.length === 0) return NextResponse.json({ sentimentTrend: [], topicBreakdown: [], marketComparison: [], recentSummaries: [] });
+    if (ids.length === 0) return NextResponse.json(EMPTY_REPORT);
+    q = q.in("search_id", ids);
+  } else {
+    // Platform-wide report: the Current Organisation's real searches only (ORG-006
+    // WP-02). Excludes simulated and legacy NULL-scope searches.
+    const ids = await currentOrgSearchIds(session.organisationId);
+    if (ids.length === 0) return NextResponse.json(EMPTY_REPORT);
     q = q.in("search_id", ids);
   }
 

@@ -5,6 +5,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth-server";
 import { getSummary, approve } from "@/lib/intelligence/store";
+import { searchInOrg } from "@/lib/social-listening/org-scope";
 
 export async function POST(req: NextRequest) {
   let session;
@@ -12,6 +13,8 @@ export async function POST(req: NextRequest) {
 
   const { search_id } = await req.json();
   if (!search_id) return NextResponse.json({ error: "search_id is required" }, { status: 400 });
+  // ORG-006 WP-02 — only approve an insight for a search in the Current Organisation.
+  if (!(await searchInOrg(search_id, session.organisationId))) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const existing = await getSummary("conversation_search", search_id, "research_summary");
   if (!existing) return NextResponse.json({ error: "No research summary found for this search." }, { status: 404 });

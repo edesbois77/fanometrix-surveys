@@ -303,6 +303,14 @@ export default function OrganisationsPage() {
               <Field label="Name *">
                 <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
                   className={INP} placeholder="e.g. FotMob" autoFocus />
+                {editingId && (
+                  // ORG-006 WP-03 — editing here CORRECTS the current canonical Name.
+                  // A dated, represented-world name change (preserving history) is the
+                  // Names tab's "Record name change".
+                  <p className="mt-1 text-xs text-gray-400">
+                    Corrects the current name. For a dated name change that keeps history, use the Names tab.
+                  </p>
+                )}
               </Field>
 
               <Field label="Type *">

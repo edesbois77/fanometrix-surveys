@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth-server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { buildClassificationPrompt, FOOTBALL_TOPICS, type Sentiment } from "@/lib/social-taxonomy";
+import { searchInOrg } from "@/lib/social-listening/org-scope";
 
 type CsvRow = {
   platform:     string;
@@ -56,12 +57,18 @@ function fallback(content: string) {
 }
 
 export async function POST(req: NextRequest) {
-  try { await requireUser(req, ["admin"]); } catch (err) { return err as Response; }
+  let session;
+  try { session = await requireUser(req, ["admin"]); } catch (err) { return err as Response; }
 
   const body = await req.json();
   const { rows, search_id }: { rows: CsvRow[]; search_id?: string } = body;
 
   if (!rows?.length) return NextResponse.json({ error: "No rows provided" }, { status: 400 });
+
+  // ORG-006 WP-02 — imports may only target a search in the Current Organisation.
+  if (search_id && !(await searchInOrg(search_id, session.organisationId))) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
 
   // Real collection only. A simulated search only ever receives
   // evidence from the Simulation engine's own generation routes.

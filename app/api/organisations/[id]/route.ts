@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { requireUser } from "@/lib/auth-server";
 import { withMandatoryAudit, MandatoryAuditUnavailableError } from "@/lib/authz/audit";
+import { correctPrimaryName } from "@/lib/organisations/names";
 
 const ORG_TYPES = ["publisher", "agency", "brand", "internal"] as const;
 
@@ -30,12 +31,21 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   const body = await req.json();
   const now = new Date().toISOString();
 
-  const update: Record<string, unknown> = { updated_at: now };
+  // ORG-006 WP-03 — Organisation NAME is administered through the governed canonical
+  // Name capability, NOT by writing the compatibility/core organisations.name column
+  // directly. `name` here is a CORRECTION of the current primary canonical Name
+  // (represented-world Name CHANGE with history + Effective Applicability is a
+  // separate governed operation — recordNameChange, via the Names tab). The
+  // canonical correction updates organisation_names; the DB projection (migration
+  // 151) keeps organisations.name in step for existing consumers. `name` is
+  // therefore never placed in the `organisations` core update below.
+  let name: string | undefined;
   if (body.name !== undefined) {
-    const name = (body.name ?? "").trim();
+    name = (body.name ?? "").trim();
     if (!name) return NextResponse.json({ error: "Organisation name is required." }, { status: 400 });
-    update.name = name;
   }
+
+  const update: Record<string, unknown> = { updated_at: now };
   if (body.type !== undefined) {
     if (!ORG_TYPES.includes(body.type)) {
       return NextResponse.json({ error: "A valid organisation type is required." }, { status: 400 });
@@ -49,6 +59,19 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     update.status = body.status;
   }
 
+  // Canonical Name correction first (its DB projection updates organisations.name),
+  // so the core row re-read below already reflects the corrected name.
+  if (name !== undefined) {
+    const r = await correctPrimaryName(id, name);
+    if ("error" in r) {
+      // A duplicate surfaces from the projection's unique index (23505 → 409).
+      const msg = r.status === 409 && /already exists/i.test(r.error)
+        ? "An organisation with this name already exists."
+        : r.error;
+      return NextResponse.json({ error: msg }, { status: r.status });
+    }
+  }
+
   const { data, error } = await supabaseAdmin
     .from("organisations")
     .update(update)
@@ -56,12 +79,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     .select()
     .single();
 
-  if (error) {
-    if (error.code === "23505") {
-      return NextResponse.json({ error: "An organisation with this name already exists." }, { status: 409 });
-    }
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   return NextResponse.json({ data });
 }

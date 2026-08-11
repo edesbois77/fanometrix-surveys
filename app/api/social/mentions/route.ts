@@ -2,9 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth-server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { getProjectSocialSearchIds } from "@/lib/research-sources/project-searches";
+import { currentOrgSearchIds, searchInOrg } from "@/lib/social-listening/org-scope";
 
 export async function GET(req: NextRequest) {
-  try { await requireUser(req, ["admin"]); } catch (err) { return err as Response; }
+  let session;
+  try { session = await requireUser(req, ["admin"]); } catch (err) { return err as Response; }
 
   const searchId  = req.nextUrl.searchParams.get("search_id");
   const projectId = req.nextUrl.searchParams.get("research_project_id");
@@ -25,18 +27,24 @@ export async function GET(req: NextRequest) {
     .range(offset, offset + limit - 1);
 
   if (searchId) {
-    // A single search's evidence.
+    // A single search's evidence — only if it belongs to the Current Organisation
+    // (ORG-006 WP-02: no cross-Organisation access by supplying a search id).
+    if (!(await searchInOrg(searchId, session.organisationId))) return NextResponse.json({ data: [], count: 0 });
     q = q.eq("search_id", searchId);
   } else if (projectId) {
     // Every conversation collected across the project's attached searches —
-    // the same project→search resolution the stats/reports endpoints use.
+    // the same project→search resolution the stats/reports endpoints use. This is
+    // the Research Project workspace surface (project-membership scoped), not the
+    // ordinary platform-wide Social Listening list.
     const ids = await getProjectSocialSearchIds(projectId);
     if (ids.length === 0) return NextResponse.json({ data: [], count: 0 });
     q = q.in("search_id", ids);
   } else {
-    // Platform-wide list (no search / project scope): real conversations only —
-    // simulated (Product Walkthrough) mentions must never appear in it.
-    q = q.eq("is_simulated", false);
+    // Platform-wide list: the Current Organisation's real conversations only.
+    // Simulated (Product Walkthrough) and legacy NULL-scope searches never appear.
+    const ids = await currentOrgSearchIds(session.organisationId);
+    if (ids.length === 0) return NextResponse.json({ data: [], count: 0 });
+    q = q.in("search_id", ids);
   }
   if (sentiment) q = q.eq("sentiment",  sentiment);
   if (topic)     q = q.eq("topic",      topic);
@@ -47,9 +55,14 @@ export async function GET(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-  try { await requireUser(req, ["admin"]); } catch (err) { return err as Response; }
+  let session;
+  try { session = await requireUser(req, ["admin"]); } catch (err) { return err as Response; }
   const { ids }: { ids: string[] } = await req.json();
-  const { error } = await supabaseAdmin.from("social_mentions").delete().in("id", ids);
+  // ORG-006 WP-02 — only delete mentions whose search belongs to the Current
+  // Organisation, so a caller cannot delete another Organisation's evidence by id.
+  const orgSearchIds = await currentOrgSearchIds(session.organisationId);
+  if (orgSearchIds.length === 0) return NextResponse.json({ success: true });
+  const { error } = await supabaseAdmin.from("social_mentions").delete().in("id", ids).in("search_id", orgSearchIds);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ success: true });
 }

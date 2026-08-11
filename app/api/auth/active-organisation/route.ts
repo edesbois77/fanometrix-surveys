@@ -1,18 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireUser } from "@/lib/auth-server";
+import { requireIdentity } from "@/lib/auth-server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { fetchActiveOrganisationAccess, canSwitchTo } from "@/lib/authz/organisation-access";
 
-// ORG-005 · IW-1 — switch the caller's Active Organisation Context (Q-08).
-// Sets the remembered/preferred organisation, validated against the LIVE
-// User–Organisation Access set. An unauthorised target is rejected (403). No
-// permission carries from the previous organisation — the next request
-// re-resolves context live (lib/auth-server.ts). Fails closed if the access
-// source is unavailable.
+// ORG-005 · IW-1 / ORG-006 · WP-01 — SELECT or SWITCH the caller's Current
+// Organisation (Q-08). Sets the remembered/preferred Organisation, validated
+// against the LIVE authoritative Accessible Organisation Set. Selection (from
+// selection_required) and switching are the same governed operation: pick one
+// Organisation the caller is authorised for.
+//
+// Authenticated via requireIdentity (identity only), NOT requireUser — a user in
+// the selection_required state has no resolved Current Organisation yet, so they
+// must be able to reach this endpoint to make the required selection.
+//
+// This changes Current/remembered context ONLY. It never grants or revokes
+// Organisation access and never mutates user_organisation_access; an unauthorised
+// target is rejected (403); no permission carries from the previous Organisation —
+// the next request re-resolves context live. Fails closed if the source is
+// unavailable (503).
 export async function POST(req: NextRequest) {
   let user;
   try {
-    user = await requireUser(req);
+    user = await requireIdentity(req);
   } catch (err) {
     return err as Response;
   }

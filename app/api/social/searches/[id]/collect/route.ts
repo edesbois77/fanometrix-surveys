@@ -7,6 +7,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth-server";
 import { runCollection } from "@/lib/collection/run-collection";
+import { searchInOrg } from "@/lib/social-listening/org-scope";
 
 // Collection fans out to external APIs and inline classification; give it room.
 export const maxDuration = 300;
@@ -15,6 +16,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   let session;
   try { session = await requireUser(req, ["admin"]); } catch (err) { return err as Response; }
   const { id } = await params;
+
+  // ORG-006 WP-02 — collection may only run against a search in the Current Organisation.
+  if (!(await searchInOrg(id, session.organisationId))) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const body = await req.json().catch(() => ({}));
   const connectorIds: string[] | undefined = Array.isArray(body?.connectors)

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth-server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { getProjectSocialSearchIds } from "@/lib/research-sources/project-searches";
+import { currentOrgSearchIds, searchInOrg } from "@/lib/social-listening/org-scope";
 
 const EMPTY_STATS = {
   total: 0, classified: 0, undetermined: 0,
@@ -16,7 +17,8 @@ const EMPTY_STATS = {
 const NON_CONVERSATION = new Set(["video", "trend"]);
 
 export async function GET(req: NextRequest) {
-  try { await requireUser(req, ["admin"]); } catch (err) { return err as Response; }
+  let session;
+  try { session = await requireUser(req, ["admin"]); } catch (err) { return err as Response; }
 
   const searchId = req.nextUrl.searchParams.get("search_id");
   // Additive project scope: aggregate across every conversation search attached
@@ -26,17 +28,17 @@ export async function GET(req: NextRequest) {
 
   // Resolve the scope to a set of search ids.
   let ids: string[] | null = null;
-  if (searchId) ids = [searchId];
-  else if (projectId) {
+  if (searchId) {
+    // ORG-006 WP-02 — a single search only if it belongs to the Current Organisation.
+    if (!(await searchInOrg(searchId, session.organisationId))) return NextResponse.json(EMPTY_STATS);
+    ids = [searchId];
+  } else if (projectId) {
     ids = await getProjectSocialSearchIds(projectId);
     if (ids.length === 0) return NextResponse.json(EMPTY_STATS);
   } else {
-    // Platform-wide: restrict to REAL searches so simulated (Product Walkthrough)
-    // searches never inflate the platform-wide conversation stats. Their sentiment
-    // and volume must stay out of any "real" aggregate.
-    const { data: real } = await supabaseAdmin
-      .from("social_searches").select("id").eq("is_simulated", false);
-    ids = (real ?? []).map(s => s.id as string);
+    // Platform-wide: the Current Organisation's REAL searches only (ORG-006 WP-02).
+    // Simulated (Product Walkthrough) and legacy NULL-scope searches are excluded.
+    ids = await currentOrgSearchIds(session.organisationId);
     if (ids.length === 0) return NextResponse.json(EMPTY_STATS);
   }
 
