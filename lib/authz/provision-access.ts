@@ -4,25 +4,36 @@
 // (fail-closed Active Context) a newly created or updated user ALWAYS resolves a
 // valid governed context and can never be stranded.
 //
-// This runs ALONGSIDE the legacy scalar users.organisation_id / users.role writes
-// (those columns are dropped only in the later, separately-authorised destructive
-// IW-11 phase). It preserves the current single-organisation semantics exactly:
-// exactly one active access row per user = its current (organisation, role).
+// ORG-006 · WP-01 (IS-01) — provisioning now supports the governed 0/1/many
+// Organisation Access model: an Access SET can be reconciled, and specific
+// associations granted/revoked, WITHOUT automatically collapsing the set to a
+// single association. The authoritative access model itself is unchanged; this is
+// context/access provisioning, never a permission union (a single Current
+// Organisation is resolved at request time — see resolveActiveContext).
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
+export interface OrganisationAssignment {
+  organisationId: string;
+  role: string;
+}
+
 /**
- * Reconcile the user's governed Organisation Access to its current provisioning
- * state. Idempotent. Preserves single-org Active Context (exactly one active row):
- *   • no org/role → revoke any active access (mirrors the "no organisation" state);
- *   • else → upsert the (user, org) row ACTIVE with the role, and revoke any other
- *     active rows so the Active Context resolves unambiguously (no selection_required).
+ * ORG-006 WP-01 — Reconcile a user's governed Organisation Access to EXACTLY the
+ * supplied set of (organisation, role) assignments. Grants/retains each listed
+ * association ACTIVE and revokes only active associations NOT in the set. It never
+ * collapses to a single association merely because one is added or maintained, so a
+ * user can legitimately hold zero, one OR many active associations. Idempotent.
+ *
+ * This provisions ACCESS (the Accessible Organisation Set), which is distinct from
+ * Current Organisation and does not union permissions across organisations.
  */
-export async function syncGovernedOrganisationAccess(
+export async function setOrganisationAccessSet(
   userId: string,
-  organisationId: string | null | undefined,
-  role: string | null | undefined,
+  assignments: OrganisationAssignment[],
 ): Promise<void> {
-  if (!organisationId || !role) {
+  const desired = assignments.filter((a) => a.organisationId && a.role);
+  if (desired.length === 0) {
+    // No organisation → revoke any active access (the governed "no organisation" state).
     await supabaseAdmin
       .from("user_organisation_access")
       .update({ status: "revoked" })
@@ -30,18 +41,68 @@ export async function syncGovernedOrganisationAccess(
       .eq("status", "active");
     return;
   }
+  // Grant/retain every desired association ACTIVE (upsert on the (user,org) key).
   await supabaseAdmin
     .from("user_organisation_access")
     .upsert(
-      { user_id: userId, organisation_id: organisationId, role, status: "active" },
+      desired.map((a) => ({ user_id: userId, organisation_id: a.organisationId, role: a.role, status: "active" })),
       { onConflict: "user_id,organisation_id" },
     );
+  // Revoke ONLY active associations that are not in the desired set — never the
+  // ones being granted/maintained. No automatic single-collapse.
+  const keep = new Set(desired.map((a) => a.organisationId));
+  const { data: active } = await supabaseAdmin
+    .from("user_organisation_access")
+    .select("organisation_id")
+    .eq("user_id", userId)
+    .eq("status", "active");
+  const toRevoke = (active ?? []).map((r) => r.organisation_id as string).filter((id) => !keep.has(id));
+  if (toRevoke.length) {
+    await supabaseAdmin
+      .from("user_organisation_access")
+      .update({ status: "revoked" })
+      .eq("user_id", userId)
+      .eq("status", "active")
+      .in("organisation_id", toRevoke);
+  }
+}
+
+/**
+ * ORG-006 WP-01 — grant/retain a SINGLE association ACTIVE without disturbing the
+ * user's other active associations (additive access grant, no collapse).
+ */
+export async function grantOrganisationAccess(userId: string, organisationId: string, role: string): Promise<void> {
+  await supabaseAdmin
+    .from("user_organisation_access")
+    .upsert({ user_id: userId, organisation_id: organisationId, role, status: "active" }, { onConflict: "user_id,organisation_id" });
+}
+
+/**
+ * ORG-006 WP-01 — revoke a SINGLE association (leaves the rest of the Accessible
+ * Organisation Set intact). This is an ACCESS change, never a context switch.
+ */
+export async function revokeOrganisationAccess(userId: string, organisationId: string): Promise<void> {
   await supabaseAdmin
     .from("user_organisation_access")
     .update({ status: "revoked" })
     .eq("user_id", userId)
-    .eq("status", "active")
-    .neq("organisation_id", organisationId);
+    .eq("organisation_id", organisationId)
+    .eq("status", "active");
+}
+
+/**
+ * Reconcile the user's governed Organisation Access from a SINGLE (organisation,
+ * role) provisioning input — the inherited single-Organisation provisioning path.
+ * Delegates to setOrganisationAccessSet with a one- or zero-element set, so the
+ * end state is IDENTICAL to the prior behaviour (exactly that organisation active,
+ * any others revoked). Retained for backward compatibility of existing call sites.
+ */
+export async function syncGovernedOrganisationAccess(
+  userId: string,
+  organisationId: string | null | undefined,
+  role: string | null | undefined,
+): Promise<void> {
+  await setOrganisationAccessSet(userId, organisationId && role ? [{ organisationId, role }] : []);
 }
 
 /**
@@ -96,9 +157,39 @@ export async function governedUserContexts(userIds: string[]): Promise<Map<strin
 }
 
 /** Single-user governed display context (Organisation + Role) from the active
- *  user_organisation_access row. */
+ *  user_organisation_access row. When a user holds MANY active associations this
+ *  returns the first the DB yields — callers needing the full set use
+ *  governedUserAccessSet below (it is a display convenience only, not authority). */
 export async function governedUserContext(userId: string): Promise<GovernedUserContext> {
   return (await governedUserContexts([userId])).get(userId) ?? { ...EMPTY_CTX };
+}
+
+export interface OrganisationAccessRow {
+  organisation_id: string;
+  role: string | null;
+  name: string | null;
+  type: string | null;
+}
+
+/** ORG-006 WP-01 — a user's FULL active Organisation Access set (the Accessible
+ *  Organisation Set, with Organisation name/type and per-context role) for the
+ *  provisioning-administration surface. Zero, one or many rows. Reuses the governed
+ *  user_organisation_access table — it never introduces a second access model. */
+export async function governedUserAccessSet(userId: string): Promise<OrganisationAccessRow[]> {
+  const { data } = await supabaseAdmin
+    .from("user_organisation_access")
+    .select("organisation_id, role, organisations ( name, type )")
+    .eq("user_id", userId)
+    .eq("status", "active");
+  return (data ?? []).map((r) => {
+    const org = Array.isArray(r.organisations) ? r.organisations[0] : r.organisations;
+    return {
+      organisation_id: r.organisation_id as string,
+      role: (r.role as string) ?? null,
+      name: (org as { name?: string } | null)?.name ?? null,
+      type: (org as { type?: string } | null)?.type ?? null,
+    };
+  });
 }
 
 /** Display helper — the user's Selected Access as `research_project` grant shapes,

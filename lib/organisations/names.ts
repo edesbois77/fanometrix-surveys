@@ -39,7 +39,7 @@ function validateAttrs(a: Partial<NameAttrs>): string | null {
 }
 
 /** Add an additional (non-primary) canonical Name. Changing the display/primary name
- *  goes through changePrimaryName (a correction) or recordNameChange (a genuine change). */
+ *  goes through correctPrimaryName (a correction) or recordNameChange (a genuine change). */
 export async function addName(subjectId: string, subjectKind: string, attrs: NameAttrs) {
   if (!isEligibleFactSubjectKind(subjectKind)) return { error: "Subject must be an organisation or unit.", status: 400 as const };
   const v = validateAttrs(attrs);
@@ -70,6 +70,26 @@ export async function correctName(nameId: string, patch: Partial<NameAttrs>) {
     .eq("id", nameId).is("deleted_at", null).select(COLS).single();
   if (error) { const m = mapOrgDbError(error); return { error: m.message, status: m.status }; }
   return { data: data as NameRow };
+}
+
+/** CORRECTION of a subject's CURRENT PRIMARY canonical Name value (ORG-006 WP-03).
+ *  The governed canonical write path for an administrative "edit this name" action:
+ *  it resolves the subject's active primary Name fact and applies correctName to it
+ *  (in-place, NO fabricated history — a correction, NOT a represented-world change,
+ *  which remains recordNameChange). The DB projection (migration 151) keeps the
+ *  compatibility organisations.name / organisation_units.name column in step. This
+ *  exists so administrative name edits never write the compatibility/core projection
+ *  directly as the canonical semantic path. Never seeds a primary: a subject with no
+ *  primary is a data-integrity condition surfaced as an error, not silently created. */
+export async function correctPrimaryName(subjectId: string, value: string) {
+  const v = (value ?? "").trim();
+  if (!v) return { error: "Name value cannot be blank.", status: 400 as const };
+  const { data: primary } = await supabaseAdmin.from("organisation_names")
+    .select("id, value").eq("subject_id", subjectId).eq("is_primary", true).is("deleted_at", null).maybeSingle();
+  const prev = primary as { id: string; value: string } | null;
+  if (!prev) return { error: "No primary canonical Name to correct.", status: 409 as const };
+  if (prev.value === v) return { data: { id: prev.id, value: v, unchanged: true } };
+  return correctName(prev.id, { value: v });
 }
 
 /** GENUINE CHANGE: close the current primary at the transition date (exclusive end) and

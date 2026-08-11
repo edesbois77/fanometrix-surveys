@@ -4,6 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { useSession } from "./SessionProvider";
+import { OrganisationSwitcher } from "./OrganisationSwitcher";
 import { useState, useEffect } from "react";
 import type { UserRole } from "@/lib/auth";
 
@@ -27,7 +28,7 @@ const SKELETON_NAV = Array.from({ length: 4 }, (_, i) => i);
 export function AdminShell({ children }: { children: React.ReactNode }) {
   const path   = usePathname();
   const router = useRouter();
-  const { user, loading } = useSession();
+  const { user, identity, loading } = useSession();
   const [mobileOpen,   setMobileOpen]   = useState(false);
   const [devOpen,      setDevOpen]      = useState(false);
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
@@ -249,11 +250,16 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
               )
             )}
 
-            {!loading && user && (
+            {!loading && (user || identity) && (
               <div className="mt-3 pt-3" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-                <p className="px-3 text-xs mb-1.5 truncate" style={{ color: "#B0B7C3" }}>
-                  {user.organisationName || user.workEmail}
-                </p>
+                {/* ORG-006 WP-01 — platform-owned Current Organisation control
+                    (static when one Organisation, a switcher when many, a prompt
+                    when selection is required). Shown whenever an authenticated
+                    identity exists — so a selection_required user (no resolved
+                    Current Organisation, user === null) can still select here. */}
+                <div className="px-3 mb-1.5">
+                  <OrganisationSwitcher variant="dark" fullWidth />
+                </div>
                 <button
                   onClick={handleLogout}
                   className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium

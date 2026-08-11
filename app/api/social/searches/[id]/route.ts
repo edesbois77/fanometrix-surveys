@@ -1,12 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth-server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { searchInOrg } from "@/lib/social-listening/org-scope";
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  try { await requireUser(req, ["admin"]); } catch (err) { return err as Response; }
+  let session;
+  try { session = await requireUser(req, ["admin"]); } catch (err) { return err as Response; }
   const { id } = await params;
+  // ORG-006 WP-02 — a caller may only operate on a search in their Current
+  // Organisation; another Organisation's (or a legacy NULL) search is 404.
+  if (!(await searchInOrg(id, session.organisationId))) return NextResponse.json({ error: "Not found" }, { status: 404 });
   const body = await req.json();
-  const { keywords, ...fields } = body;
+  // organisation_id is immutable through ordinary update — it is context/scope, not
+  // an editable field (never trust it from the body).
+  const { keywords, organisation_id: _ignoredOrg, ...fields } = body;
+  void _ignoredOrg;
 
   const { data, error } = await supabaseAdmin
     .from("social_searches").update(fields).eq("id", id).select().single();
@@ -26,8 +34,11 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 }
 
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  try { await requireUser(req, ["admin"]); } catch (err) { return err as Response; }
+  let session;
+  try { session = await requireUser(req, ["admin"]); } catch (err) { return err as Response; }
   const { id } = await params;
+  // ORG-006 WP-02 — cross-Organisation isolation (see PUT).
+  if (!(await searchInOrg(id, session.organisationId))) return NextResponse.json({ error: "Not found" }, { status: 404 });
   const { error } = await supabaseAdmin.from("social_searches").delete().eq("id", id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ success: true });

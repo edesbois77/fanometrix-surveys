@@ -4,7 +4,9 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 import { requireUser } from "@/lib/auth-server";
 import { recordSecurityEvent, withMandatoryAudit, MandatoryAuditUnavailableError } from "@/lib/authz/audit";
 import { bumpTokenVersion } from "@/lib/authz/session-currency";
-import { syncGovernedOrganisationAccess, syncSelectedStudyAuthorisations, selectedStudyGrantsForDisplay, governedUserContext } from "@/lib/authz/provision-access";
+import { syncGovernedOrganisationAccess, setOrganisationAccessSet, governedUserAccessSet, syncSelectedStudyAuthorisations, selectedStudyGrantsForDisplay, governedUserContext } from "@/lib/authz/provision-access";
+
+const VALID_ROLES = ["admin", "brand", "agency", "publisher"];
 
 // ORG-005 IW-11: Organisation + Role for display come from the governed
 // user_organisation_access (merged below), not the scalar users columns.
@@ -36,15 +38,18 @@ export async function GET(
 
   // ORG-005 IW-11 / DEC-1 Option A — Selected Access read from the governed Study
   // URA (research_project shape), replacing the legacy user_access_grants reader.
-  const [{ data: user, error }, grants, ctx] = await Promise.all([
+  // ORG-006 WP-01: also return the FULL governed Organisation Access set (0/1/many)
+  // so the provisioning surface can represent multiple Organisation associations.
+  const [{ data: user, error }, grants, ctx, organisationAccess] = await Promise.all([
     supabaseAdmin.from("users").select(USER_SELECT).eq("id", id).single(),
     selectedStudyGrantsForDisplay(id),
     governedUserContext(id),
+    governedUserAccessSet(id),
   ]);
 
   if (error || !user) return NextResponse.json({ error: error?.message ?? "Not found" }, { status: 404 });
 
-  return NextResponse.json({ data: { ...normaliseOrg({ ...user, ...ctx }), grants } });
+  return NextResponse.json({ data: { ...normaliseOrg({ ...user, ...ctx }), grants, organisationAccess } });
 }
 
 export async function PUT(
@@ -83,8 +88,23 @@ export async function PUT(
 
   // ORG-005 IW-11: Organisation + Role are persisted to the governed model only
   // (syncGovernedOrganisationAccess below) — the scalar users columns are not written.
-  if (body.role !== undefined && !["admin", "brand", "agency", "publisher"].includes(body.role as string)) {
+  if (body.role !== undefined && !VALID_ROLES.includes(body.role as string)) {
     return NextResponse.json({ error: "Invalid role." }, { status: 400 });
+  }
+
+  // ORG-006 WP-01 — optional multi-Organisation access set. When present it is the
+  // authoritative desired set of (organisation, role) associations for this user;
+  // each entry must name an organisation and a valid contextual role.
+  if (body.organisations !== undefined) {
+    if (!Array.isArray(body.organisations)) {
+      return NextResponse.json({ error: "organisations must be an array." }, { status: 400 });
+    }
+    for (const a of body.organisations as { organisation_id?: unknown; role?: unknown }[]) {
+      if (!a || typeof a.organisation_id !== "string" || !a.organisation_id ||
+          typeof a.role !== "string" || !VALID_ROLES.includes(a.role)) {
+        return NextResponse.json({ error: "Each organisation access entry needs an organisation and a valid role." }, { status: 400 });
+      }
+    }
   }
 
   const effectiveRole = body.role !== undefined ? (body.role as string) : undefined;
@@ -150,10 +170,21 @@ export async function PUT(
   // value) — so a non-org/role update never revokes access, and the user is never
   // stranded under G-1 sole authority.
   {
-    const cur = await governedUserContext(id);
-    const effOrg = body.organisation_id !== undefined ? ((body.organisation_id as string | null) || null) : cur.organisation_id;
-    const effRole = body.role !== undefined ? (body.role as string) : cur.role;
-    await syncGovernedOrganisationAccess(id, effOrg, effRole);
+    if (body.organisations !== undefined) {
+      // ORG-006 WP-01 — reconcile the governed Organisation Access SET (0/1/many):
+      // grant/retain each supplied association, revoke only those removed. Never a
+      // single-collapse, never a permission union.
+      const assignments = (body.organisations as { organisation_id: string; role: string }[])
+        .map((a) => ({ organisationId: a.organisation_id, role: a.role }));
+      await setOrganisationAccessSet(id, assignments);
+    } else {
+      // Inherited single-Organisation provisioning path (unchanged behaviour): a
+      // non-org/role update never revokes access, so the user is never stranded.
+      const cur = await governedUserContext(id);
+      const effOrg = body.organisation_id !== undefined ? ((body.organisation_id as string | null) || null) : cur.organisation_id;
+      const effRole = body.role !== undefined ? (body.role as string) : cur.role;
+      await syncGovernedOrganisationAccess(id, effOrg, effRole);
+    }
   }
 
   // ORG-005 IW-9 (F058/F059) — revoke the target user's live sessions when this

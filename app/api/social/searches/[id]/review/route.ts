@@ -9,6 +9,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth-server";
 import { approveSearch, archiveSearch, reactivateSearch } from "@/lib/evidence-review";
+import { searchInOrg } from "@/lib/social-listening/org-scope";
 
 const ACTIONS = { approve: approveSearch, archive: archiveSearch, reactivate: reactivateSearch } as const;
 type Action = keyof typeof ACTIONS;
@@ -17,6 +18,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   let session;
   try { session = await requireUser(req, ["admin"]); } catch (err) { return err as Response; }
   const { id } = await params;
+
+  // ORG-006 WP-02 — review actions may only target a search in the Current Organisation.
+  if (!(await searchInOrg(id, session.organisationId))) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const body = await req.json().catch(() => ({}));
   const action = body?.action as Action | undefined;

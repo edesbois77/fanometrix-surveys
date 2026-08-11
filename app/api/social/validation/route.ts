@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth-server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { currentOrgSearchIds, searchInOrg } from "@/lib/social-listening/org-scope";
 
 function dist<T extends string>(items: T[]): { label: T; count: number; pct: number }[] {
   const m: Record<string, number> = {};
@@ -13,7 +14,8 @@ function dist<T extends string>(items: T[]): { label: T; count: number; pct: num
 }
 
 export async function GET(req: NextRequest) {
-  try { await requireUser(req, ["admin"]); } catch (err) { return err as Response; }
+  let session;
+  try { session = await requireUser(req, ["admin"]); } catch (err) { return err as Response; }
 
   const searchId = req.nextUrl.searchParams.get("search_id");
   const limit    = Math.min(parseInt(req.nextUrl.searchParams.get("limit") ?? "200"), 500);
@@ -24,7 +26,21 @@ export async function GET(req: NextRequest) {
     .order("created_at", { ascending: false })
     .limit(limit);
 
-  if (searchId) q = q.eq("search_id", searchId);
+  // ORG-006 WP-02 — scope to the Current Organisation: a single owned search, or
+  // (platform-wide) the Organisation's real searches. Legacy NULL / other-org /
+  // simulated searches are excluded.
+  if (searchId) {
+    if (!(await searchInOrg(searchId, session.organisationId))) {
+      return NextResponse.json({ total: 0, synthetic_count: 0, distributions: { sentiment: [], topic: [], subtopic: [], platform: [], market: [] }, mentions: [] });
+    }
+    q = q.eq("search_id", searchId);
+  } else {
+    const ids = await currentOrgSearchIds(session.organisationId);
+    if (ids.length === 0) {
+      return NextResponse.json({ total: 0, synthetic_count: 0, distributions: { sentiment: [], topic: [], subtopic: [], platform: [], market: [] }, mentions: [] });
+    }
+    q = q.in("search_id", ids);
+  }
 
   const { data: mentions, error } = await q;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

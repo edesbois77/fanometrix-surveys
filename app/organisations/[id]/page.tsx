@@ -138,10 +138,15 @@ function UnitsTab({ orgId, show }: { orgId: string; show: (m: string, ok?: boole
     const res = await fetch(`/api/organisations/units/${u.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name }) });
     const j = await res.json(); if (!res.ok) { show(j.error ?? "Failed.", false); return; } show("Unit renamed."); load();
   }
-  async function del(u: Unit) {
-    if (!confirm(`Delete unit "${u.name}"?`)) return;
+  // ORG-006 WP-04 — technical repository-visibility removal, NOT a canonical/
+  // represented-world deletion or cessation of the Unit. It hides the unit from
+  // the active/ordinary view (sets the technical deleted_at/deleted_by state); the
+  // Unit record, its organisational-subject registration and its attached canonical
+  // facts are all preserved. Wording avoids any represented-world lifecycle meaning.
+  async function removeFromView(u: Unit) {
+    if (!confirm(`Remove "${u.name}" from the active organisation-units list?\n\nThis hides the unit from ordinary views. It does not delete the unit or its underlying records.`)) return;
     const res = await fetch(`/api/organisations/units/${u.id}`, { method: "DELETE" });
-    const j = await res.json(); if (!res.ok) { show(j.error ?? "Failed.", false); return; } show("Unit deleted."); load();
+    const j = await res.json(); if (!res.ok) { show(j.error ?? "Failed.", false); return; } show("Unit removed from the active list."); load();
   }
 
   return (
@@ -157,7 +162,7 @@ function UnitsTab({ orgId, show }: { orgId: string; show: (m: string, ok?: boole
               <span className="text-sm text-gray-800">{depthOf(u) > 0 && <span className="text-gray-300 mr-1">└</span>}{u.name}</span>
               <span className="flex gap-3">
                 <button onClick={() => rename(u)} className="text-xs text-gray-500 hover:text-gray-800">Rename</button>
-                <button onClick={() => del(u)} className="text-xs text-red-400 hover:text-red-600">Delete</button>
+                <button onClick={() => removeFromView(u)} title="Hide this unit from the active view (does not delete the unit or its records)" className="text-xs text-gray-500 hover:text-gray-800">Remove from list</button>
               </span>
             </li>
           ))}

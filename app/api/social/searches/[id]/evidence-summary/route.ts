@@ -6,12 +6,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth-server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { searchInOrg } from "@/lib/social-listening/org-scope";
 
 const NON_CONVERSATION = new Set(["video", "trend"]); // context kinds, not conversations
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  try { await requireUser(req, ["admin"]); } catch (err) { return err as Response; }
+  let session;
+  try { session = await requireUser(req, ["admin"]); } catch (err) { return err as Response; }
   const { id } = await params;
+  // ORG-006 WP-02 — dependent read of a search (via search_id).
+  if (!(await searchInOrg(id, session.organisationId))) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   // Runs + the scope ever used (union of connectors and each run's config.markets).
   const { data: runs } = await supabaseAdmin

@@ -167,6 +167,10 @@ type FormState = {
   access_scope: AccessScope;
   status: Status;
   grants: string[]; // composite "resource_type:resource_id" values
+  // ORG-006 WP-01 — ADDITIONAL Organisation access associations beyond the primary
+  // organisation above. Together with the primary they form the user's authoritative
+  // Accessible Organisation Set (0/1/many). Edit-mode only.
+  additional_access: { organisation_id: string; role: Role }[];
 };
 
 const EMPTY_FORM: FormState = {
@@ -184,6 +188,7 @@ const EMPTY_FORM: FormState = {
   access_scope: "organisation_wide",
   status: "active",
   grants: [],
+  additional_access: [],
 };
 
 const INPUT = "w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:border-[#D7B87A] transition-colors bg-white";
@@ -266,14 +271,28 @@ export default function UserManagementPage() {
       access_scope: u.access_scope,
       status: u.status,
       grants: [],
+      additional_access: [],
     });
     setDrawerOpen(true);
 
-    // Fetch this user's current grants to pre-populate Assign Permissions.
+    // Fetch this user's current grants + governed Organisation Access set to
+    // pre-populate Assign Permissions and the Organisation access editor.
     const res = await fetch(`/api/users/${u.id}`);
     if (res.ok) {
-      const detail = (await res.json()).data as User & { grants: Grant[] };
-      setForm(f => ({ ...f, grants: detail.grants.map(g => `${g.resource_type}:${g.resource_id}`) }));
+      const detail = (await res.json()).data as User & {
+        grants: Grant[];
+        organisationAccess?: { organisation_id: string; role: Role | null }[];
+      };
+      // Additional associations = the governed access set minus the primary org.
+      const primary = u.organisation_id ?? "";
+      const additional = (detail.organisationAccess ?? [])
+        .filter(a => a.organisation_id && a.organisation_id !== primary)
+        .map(a => ({ organisation_id: a.organisation_id, role: (a.role ?? "brand") as Role }));
+      setForm(f => ({
+        ...f,
+        grants: detail.grants.map(g => `${g.resource_type}:${g.resource_id}`),
+        additional_access: additional,
+      }));
     }
   }
 
@@ -339,6 +358,20 @@ export default function UserManagementPage() {
     };
     if (editUser) payload.status = form.status;
     if (hasPassword) payload.password = form.new_password;
+
+    // ORG-006 WP-01 — when editing, send the authoritative desired Organisation
+    // Access SET (primary + any additional associations, de-duplicated). The API
+    // reconciles to exactly this set: grant/retain each, revoke only those removed
+    // — no single-collapse. Only when there IS a primary organisation (an empty
+    // primary keeps the inherited single-path "no organisation" semantics).
+    if (editUser && organisationId && organisationId !== NEW_ORG) {
+      const set = new Map<string, Role>();
+      set.set(organisationId, form.role);
+      for (const a of form.additional_access) {
+        if (a.organisation_id && a.organisation_id !== organisationId) set.set(a.organisation_id, a.role);
+      }
+      payload.organisations = [...set.entries()].map(([organisation_id, role]) => ({ organisation_id, role }));
+    }
 
     const url = editUser ? `/api/users/${editUser.id}` : "/api/users";
     const method = editUser ? "PUT" : "POST";
@@ -601,6 +634,54 @@ export default function UserManagementPage() {
                         <option value="internal">Internal</option>
                       </select>
                     </Field>
+                  </div>
+                )}
+
+                {/* ORG-006 WP-01 — additional Organisation access. Together with the
+                    primary organisation above these form the user's Accessible
+                    Organisation Set. The user still operates ONE Current Organisation
+                    at a time (selected in the app shell); this only grants access. */}
+                {editUser && form.organisation_id && form.organisation_id !== NEW_ORG && (
+                  <div className="mt-1 bg-gray-50 border border-gray-100 rounded-lg p-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Additional organisation access</p>
+                      <span className="text-[11px] text-gray-400">Access only — not the Current Organisation</span>
+                    </div>
+                    {form.additional_access.length === 0 ? (
+                      <p className="text-xs text-gray-400 mb-2">No additional organisations. This user can access only their primary organisation.</p>
+                    ) : (
+                      <div className="space-y-2 mb-2">
+                        {form.additional_access.map((a, i) => (
+                          <div key={i} className="grid grid-cols-[1fr_auto_auto] gap-2 items-center">
+                            <select value={a.organisation_id}
+                              onChange={e => setForm(f => { const next = [...f.additional_access]; next[i] = { ...next[i], organisation_id: e.target.value }; return { ...f, additional_access: next }; })}
+                              className={INPUT}>
+                              <option value="">Select organisation…</option>
+                              {(["publisher", "agency", "brand", "internal"] as OrgType[]).map(t => (
+                                orgsByType[t].length > 0 && (
+                                  <optgroup key={t} label={ORG_TYPE_LABELS[t] + "s"}>
+                                    {orgsByType[t]
+                                      .filter(o => o.id === a.organisation_id || (o.id !== form.organisation_id && !form.additional_access.some((b, j) => j !== i && b.organisation_id === o.id)))
+                                      .map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
+                                  </optgroup>
+                                )
+                              ))}
+                            </select>
+                            <select value={a.role}
+                              onChange={e => setForm(f => { const next = [...f.additional_access]; next[i] = { ...next[i], role: e.target.value as Role }; return { ...f, additional_access: next }; })}
+                              className={INPUT + " w-auto"}>
+                              {ROLES.map(r => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
+                            </select>
+                            <button type="button" title="Remove access"
+                              onClick={() => setForm(f => ({ ...f, additional_access: f.additional_access.filter((_, j) => j !== i) }))}
+                              className="px-2 py-2 text-xs text-red-400 hover:text-red-600">Remove</button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <button type="button"
+                      onClick={() => setForm(f => ({ ...f, additional_access: [...f.additional_access, { organisation_id: "", role: "brand" as Role }] }))}
+                      className="text-xs font-medium text-[#0B1929] hover:underline">+ Add organisation access</button>
                   </div>
                 )}
               </DrawerSection>

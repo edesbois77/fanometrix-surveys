@@ -9,14 +9,18 @@ import { analyseConversation } from "@/lib/intelligence/analysts/analyseConversa
 import { getSummary, saveDraft } from "@/lib/intelligence/store";
 import { IntelligenceError } from "@/lib/intelligence/types";
 import { assertSimulatedResearchReady } from "@/lib/intelligence/assert-research-ready";
+import { searchInOrg } from "@/lib/social-listening/org-scope";
 
 export type { InsightReport } from "@/lib/intelligence/analysts/analyseConversation";
 
 export async function GET(req: NextRequest) {
-  try { await requireUser(req, ["admin"]); } catch (err) { return err as Response; }
+  let session;
+  try { session = await requireUser(req, ["admin"]); } catch (err) { return err as Response; }
 
   const searchId = req.nextUrl.searchParams.get("search_id");
   if (!searchId) return NextResponse.json({ error: "search_id is required" }, { status: 400 });
+  // ORG-006 WP-02 — a search's insight is only readable within its Current Organisation.
+  if (!(await searchInOrg(searchId, session.organisationId))) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const data = await getSummary("conversation_search", searchId, "research_summary");
   return NextResponse.json({ data });
@@ -28,6 +32,8 @@ export async function POST(req: NextRequest) {
 
   const { search_id, confirm, research_project_evidence_id } = await req.json();
   if (!search_id) return NextResponse.json({ error: "search_id is required" }, { status: 400 });
+  // ORG-006 WP-02 — insight generation only for a search in the Current Organisation.
+  if (!(await searchInOrg(search_id, session.organisationId))) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   // Regenerating replaces the current draft outright, but once an admin
   // has edited/approved/published it, silently discarding that work
