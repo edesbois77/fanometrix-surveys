@@ -4,7 +4,7 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 import { requireUser } from "@/lib/auth-server";
 import { recordSecurityEvent, withMandatoryAudit, MandatoryAuditUnavailableError } from "@/lib/authz/audit";
 import { bumpTokenVersion } from "@/lib/authz/session-currency";
-import { syncGovernedOrganisationAccess, setOrganisationAccessSet, governedUserAccessSet, syncSelectedStudyAuthorisations, selectedStudyGrantsForDisplay, governedUserContext } from "@/lib/authz/provision-access";
+import { syncGovernedOrganisationAccess, setOrganisationAccessSet, setPrimaryOrganisation, governedUserAccessSet, syncSelectedStudyAuthorisations, selectedStudyGrantsForDisplay, governedUserContext } from "@/lib/authz/provision-access";
 
 const VALID_ROLES = ["admin", "brand", "agency", "publisher"];
 
@@ -177,6 +177,11 @@ export async function PUT(
       const assignments = (body.organisations as { organisation_id: string; role: string }[])
         .map((a) => ({ organisationId: a.organisation_id, role: a.role }));
       await setOrganisationAccessSet(id, assignments);
+      // ORG-006 — the first assignment is the PRIMARY Organisation (the user-management
+      // editor lists the Primary first). Anchor it so an explicit Primary change persists
+      // and adding/removing Additional access never changes the Primary. Distinct from
+      // Current Organisation (users.remembered_organisation_id), which is untouched here.
+      if (assignments.length) await setPrimaryOrganisation(id, assignments[0].organisationId);
     } else {
       // Inherited single-Organisation provisioning path (unchanged behaviour): a
       // non-org/role update never revokes access, so the user is never stranded.

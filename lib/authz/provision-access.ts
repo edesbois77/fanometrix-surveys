@@ -144,16 +144,53 @@ const EMPTY_CTX: GovernedUserContext = { organisation_id: null, role: null, orga
 export async function governedUserContexts(userIds: string[]): Promise<Map<string, GovernedUserContext>> {
   const map = new Map<string, GovernedUserContext>();
   if (!userIds.length) return map;
+  // ORG-006 — a user's PRIMARY Organisation is the EARLIEST-established active
+  // association (deterministic by created_at, tie-broken by organisation_id). This
+  // makes the displayed Primary stable: adding/removing ADDITIONAL Organisation
+  // access does not change it, and switching Current Organisation (which writes
+  // users.remembered_organisation_id — a DIFFERENT field, never touched here) does
+  // not change it either. Ordered ASC + first-wins per user selects that primary.
   const { data } = await supabaseAdmin
     .from("user_organisation_access")
-    .select("user_id, organisation_id, role, organisations ( name, type )")
+    .select("user_id, organisation_id, role, created_at, organisations ( name, type )")
     .in("user_id", userIds)
-    .eq("status", "active");
+    .eq("status", "active")
+    .order("created_at", { ascending: true })
+    .order("organisation_id", { ascending: true });
   for (const r of data ?? []) {
+    if (map.has(r.user_id as string)) continue; // first (earliest) wins = the Primary
     const org = Array.isArray(r.organisations) ? r.organisations[0] : r.organisations;
     map.set(r.user_id as string, { organisation_id: r.organisation_id as string, role: r.role as string, organisations: (org as GovernedUserContext["organisations"]) ?? null });
   }
   return map;
+}
+
+/**
+ * ORG-006 — persist an EXPLICIT Primary Organisation designation. The Primary is
+ * the earliest-established active association (see governedUserContexts); this
+ * anchors `organisationId` as that primary by making it the earliest, so that an
+ * admin explicitly changing the Primary field takes effect and is stable. It is a
+ * no-op when the organisation is already the primary. It NEVER touches
+ * users.remembered_organisation_id (the Current Organisation) and never changes the
+ * access set — Primary, Current and Additional access remain distinct.
+ */
+export async function setPrimaryOrganisation(userId: string, organisationId: string): Promise<void> {
+  const { data } = await supabaseAdmin
+    .from("user_organisation_access")
+    .select("organisation_id, created_at")
+    .eq("user_id", userId)
+    .eq("status", "active")
+    .order("created_at", { ascending: true })
+    .order("organisation_id", { ascending: true });
+  const rows = (data ?? []) as { organisation_id: string; created_at: string }[];
+  if (!rows.length || rows[0].organisation_id === organisationId) return; // absent or already primary
+  const anchored = new Date(new Date(rows[0].created_at).getTime() - 1000).toISOString();
+  await supabaseAdmin
+    .from("user_organisation_access")
+    .update({ created_at: anchored })
+    .eq("user_id", userId)
+    .eq("organisation_id", organisationId)
+    .eq("status", "active");
 }
 
 /** Single-user governed display context (Organisation + Role) from the active
