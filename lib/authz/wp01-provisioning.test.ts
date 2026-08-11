@@ -8,9 +8,17 @@ import assert from "node:assert/strict";
 // associations can be granted/revoked without disturbing the rest. Uses a
 // recording fake for @/lib/supabase-admin so the real provisioning code runs
 // without a database.
+//
+// ORG-007 CF-001 — the SET reconcile now runs atomically in the
+// set_organisation_access_set RPC (migration 177). These tests assert the app
+// forwards the EXACT desired set to that atomic boundary (no collapse to one at the
+// app layer); the retain-vs-revoke-not-in-set guarantee is proven at the DB boundary
+// by cf01-atomic-mutations.test.ts + supabase-migration-177-verify.sql. The
+// single-association grant/revoke paths are unchanged (direct writes).
 
 type Op = { table: string; op: string | null; payload: unknown; opts?: unknown; filters: [string, string, unknown][] };
-const state: { activeOrgs: { organisation_id: string }[]; ops: Op[] } = { activeOrgs: [], ops: [] };
+type Rpc = { fn: string; args: unknown };
+const state: { activeOrgs: { organisation_id: string }[]; ops: Op[]; rpcs: Rpc[] } = { activeOrgs: [], ops: [], rpcs: [] };
 
 function makeChain(table: string) {
   const ctx: Op = { table, op: null, payload: null, filters: [] };
@@ -32,75 +40,63 @@ function makeChain(table: string) {
   return chain;
 }
 
-const supabaseAdmin = { from: (table: string) => makeChain(table) };
+const supabaseAdmin = {
+  from: (table: string) => makeChain(table),
+  rpc: (fn: string, args: unknown) => { state.rpcs.push({ fn, args }); return Promise.resolve({ data: null, error: null }); },
+};
 mock.module("@/lib/supabase-admin", { namedExports: { supabaseAdmin } });
 
 let P: typeof import("@/lib/authz/provision-access");
 before(async () => { P = await import("@/lib/authz/provision-access"); });
-beforeEach(() => { state.ops = []; state.activeOrgs = []; });
+beforeEach(() => { state.ops = []; state.activeOrgs = []; state.rpcs = []; });
 
 const upsertOp = () => state.ops.find((o) => o.op === "upsert");
 const revokeOp = () => state.ops.find((o) => o.op === "update" && (o.payload as { status?: string })?.status === "revoked");
+const reconcileRpc = () => state.rpcs.find((r) => r.fn === "set_organisation_access_set");
+const assignmentsOf = (r: Rpc | undefined) => (r?.args as { p_assignments: { organisationId: string; role: string }[] })?.p_assignments;
 
-// VO-01-H — a multi-Organisation set is provisioned WITHOUT collapsing to one.
-test("VO-01-H — setOrganisationAccessSet grants many, collapses none", async () => {
-  // Simulate the DB state after the upsert: A,B (desired) plus a stale C.
-  state.activeOrgs = [{ organisation_id: "A" }, { organisation_id: "B" }, { organisation_id: "C" }];
+// VO-01-H — a multi-Organisation set is provisioned WITHOUT collapsing to one:
+// the app forwards BOTH desired associations to the atomic reconcile.
+test("VO-01-H — setOrganisationAccessSet forwards the whole desired set (grants many, collapses none)", async () => {
   await P.setOrganisationAccessSet("u1", [
     { organisationId: "A", role: "admin" },
     { organisationId: "B", role: "brand" },
   ]);
-
-  const up = upsertOp();
-  assert.ok(up, "expected an upsert");
-  const rows = up!.payload as { organisation_id: string; status: string }[];
-  assert.equal(rows.length, 2, "both desired associations upserted (no collapse to one)");
-  assert.deepEqual(rows.map((r) => r.organisation_id).sort(), ["A", "B"]);
-  assert.ok(rows.every((r) => r.status === "active"));
-
-  // Only the stale association (C) is revoked — A and B are retained.
-  const rev = revokeOp();
-  assert.ok(rev, "expected a revoke of removed associations");
-  const inF = rev!.filters.find((f) => f[0] === "in");
-  assert.ok(inF, "revoke targets a specific id set, not all-others");
-  assert.deepEqual(inF![2], ["C"]);
-
-  // No `.neq`-style blanket "revoke every other active row" (the old collapse).
+  const rpc = reconcileRpc();
+  assert.ok(rpc, "the atomic reconcile RPC is invoked");
+  const asg = assignmentsOf(rpc);
+  assert.equal(asg.length, 2, "both desired associations forwarded (no collapse to one)");
+  assert.deepEqual(asg.map((a) => a.organisationId).sort(), ["A", "B"]);
+  // No app-layer multi-statement upsert/select/revoke (the old partial-state path).
+  assert.equal(upsertOp(), undefined, "no app-layer upsert");
+  assert.equal(revokeOp(), undefined, "no app-layer revoke");
   assert.ok(!state.ops.some((o) => o.filters.some((f) => f[0] === "neq")), "no blanket single-collapse");
 });
 
-// VO-01-H (retention) — re-provisioning the same set revokes nothing.
-test("VO-01-H — reconciling to the SAME multi set retains all, revokes none", async () => {
-  state.activeOrgs = [{ organisation_id: "A" }, { organisation_id: "B" }];
+// VO-01-H (retention) — the SAME multi set is forwarded intact (retain, no drop).
+test("VO-01-H — reconciling to the SAME multi set forwards both (retains all)", async () => {
   await P.setOrganisationAccessSet("u1", [
     { organisationId: "A", role: "admin" },
     { organisationId: "B", role: "brand" },
   ]);
-  assert.equal(revokeOp(), undefined, "nothing to revoke when the set is unchanged");
+  assert.deepEqual(assignmentsOf(reconcileRpc()).map((a) => a.organisationId).sort(), ["A", "B"]);
 });
 
-// Compatibility — the inherited SINGLE-Organisation path still collapses to one.
-test("VO-01-J — syncGovernedOrganisationAccess (single) still yields exactly one active org", async () => {
-  state.activeOrgs = [{ organisation_id: "A" }, { organisation_id: "C" }]; // had C; setting A
+// Compatibility — the inherited SINGLE-Organisation path forwards exactly one.
+test("VO-01-J — syncGovernedOrganisationAccess (single) forwards exactly one association", async () => {
   await P.syncGovernedOrganisationAccess("u1", "A", "admin");
-
-  const up = upsertOp();
-  const rows = up!.payload as { organisation_id: string }[];
-  assert.equal(rows.length, 1);
-  assert.equal(rows[0].organisation_id, "A");
-  const rev = revokeOp();
-  const inF = rev!.filters.find((f) => f[0] === "in");
-  assert.deepEqual(inF![2], ["C"], "the prior association is revoked (single-org parity)");
+  const asg = assignmentsOf(reconcileRpc());
+  assert.equal(asg.length, 1);
+  assert.deepEqual(asg[0], { organisationId: "A", role: "admin" });
 });
 
-// No org/role → revoke all active (governed "no organisation" state).
-test("no organisation → revoke all active access (no upsert)", async () => {
-  state.activeOrgs = [{ organisation_id: "A" }];
+// No org/role → the atomic reconcile receives an EMPTY set (governed revoke-all).
+test("no organisation → atomic reconcile with an empty set (no app-layer writes)", async () => {
   await P.syncGovernedOrganisationAccess("u1", null, null);
-  assert.equal(upsertOp(), undefined, "no grant when there is no organisation");
-  const rev = revokeOp();
-  assert.ok(rev, "revokes active access");
-  assert.ok(rev!.filters.some((f) => f[0] === "eq" && f[1] === "status" && f[2] === "active"));
+  const asg = assignmentsOf(reconcileRpc());
+  assert.deepEqual(asg, [], "empty desired set → RPC revokes all active");
+  assert.equal(upsertOp(), undefined);
+  assert.equal(revokeOp(), undefined, "no app-layer statements");
 });
 
 // Specific-association grant/revoke leave the rest of the set intact.

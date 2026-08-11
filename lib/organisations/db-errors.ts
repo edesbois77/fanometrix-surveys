@@ -14,9 +14,12 @@ export function mapOrgDbError(error: PgError): { message: string; status: number
 
   // P0001 = raise_exception from our guard functions (containment, protection …).
   // The RAISE text is already human-readable, so pass it through as a 409 conflict.
-  if (code === "P0001") return { message: raw, status: 409 };
+  // ORG-007 CF-002 — the Unit removal ↔ live-children guards (migration 177) raise P0001;
+  // translate their coded messages into friendly text.
+  if (code === "P0001") return { message: friendlyRaise(raw), status: 409 };
   if (code === "23514") return { message: friendlyCheck(raw), status: 400 }; // check_violation
   if (code === "23505") return { message: "That already exists.", status: 409 }; // unique_violation
+  if (code === "23P01") return { message: friendlyExclusion(raw), status: 409 }; // exclusion_violation (ORG-007 CF-002)
   if (code === "23503") return { message: "Referenced record does not exist.", status: 400 }; // fk_violation
   if (code === "23502") return { message: "A required field is missing.", status: 400 }; // not_null
 
@@ -30,4 +33,20 @@ function friendlyCheck(raw: string): string {
   if (raw.includes("subject_kind")) return "That subject type is not permitted here.";
   if (raw.includes("length") || raw.includes("btrim")) return "This value cannot be blank.";
   return "That value is not allowed.";
+}
+
+// ORG-007 CF-002 — friendly text for the Unit removal ↔ live-children guards (migration 177).
+function friendlyRaise(raw: string): string {
+  if (raw.includes("unit_has_live_children"))
+    return "This unit still contains sub-unit(s). Remove or re-parent them first.";
+  if (raw.includes("parent_unit_removed"))
+    return "That parent unit has been removed. Choose a live parent unit.";
+  return raw; // other guard functions already RAISE human-readable text
+}
+
+// ORG-007 CF-002 — friendly text for the Office attachment exclusivity constraint (FR-010).
+function friendlyExclusion(raw: string): string {
+  if (raw.includes("org_office_attachment_no_overlap"))
+    return "This office already has a governing organisation for an overlapping period.";
+  return "That change conflicts with an existing overlapping record.";
 }

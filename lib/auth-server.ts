@@ -19,6 +19,11 @@ import { fetchActiveOrganisationAccess, resolveActiveContext } from "@/lib/authz
 import { fetchContextualRole, resolveEffectiveRole } from "@/lib/authz/role-profile";
 import { resolveProductAccess, tierForAllowedRoles } from "@/lib/authz/product-access";
 import { isSessionRevoked } from "@/lib/authz/session-currency";
+// ORG-007 CF-003 (NFR-005) — operational detection/diagnosis for material
+// Organisation Context resolution failures. Emits to the platform log ONLY on the
+// failure branches (never on the resolved happy path, so the hot path is untouched)
+// and NEVER alters the Response or the authorisation outcome.
+import { reportOrganisationContext } from "@/lib/observability/operational-telemetry";
 
 export type OrganisationType = "publisher" | "agency" | "brand" | "internal";
 
@@ -153,10 +158,16 @@ export async function requireUser(
   //    reduces it to a SINGLE Current Organisation (never a union). Fail CLOSED when the
   //    source is indeterminate or access is empty; surface selection_required distinctly. ──
   const accessSet = await fetchActiveOrganisationAccess(identity.id);
-  if (accessSet === null) throw unauthorised("No active organisation context", 403); // indeterminate → fail closed
+  if (accessSet === null) {
+    reportOrganisationContext({ phase: "request", userId: identity.id, accessIndeterminate: true, accessSetSize: 0, activeOrganisationId: null, contextualRole: null });
+    throw unauthorised("No active organisation context", 403); // indeterminate → fail closed
+  }
   const ctx = resolveActiveContext(accessSet, identity.rememberedOrganisationId);
-  if (ctx.status === "selection_required") throw selectionRequired();
-  if (!ctx.activeOrganisationId) throw unauthorised("No active organisation context", 403); // no_access
+  if (ctx.status === "selection_required") throw selectionRequired(); // GOVERNED state, not a failure — no signal
+  if (!ctx.activeOrganisationId) {
+    reportOrganisationContext({ phase: "request", userId: identity.id, accessIndeterminate: false, accessSetSize: accessSet.length, activeOrganisationId: null, contextualRole: null });
+    throw unauthorised("No active organisation context", 403); // no_access
+  }
   const organisationId = ctx.activeOrganisationId;
   const { data: activeOrgRow } = await supabaseAdmin
     .from("organisations").select("name, type, status")
@@ -170,7 +181,13 @@ export async function requireUser(
   //    legacy-role fallback. No cross-Organisation carry-over: read for the active
   //    context only. ──
   const contextualRole = await fetchContextualRole(identity.id, organisationId);
-  if (contextualRole == null) throw unauthorised("No role for the active organisation context", 403);
+  if (contextualRole == null) {
+    // The login-role projection failure class: a Current Organisation resolved but
+    // no contextual role binds to it. Surface a diagnosable operational signal
+    // (capability + reason + user/org ids, no role value) before the generic 403.
+    reportOrganisationContext({ phase: "request", userId: identity.id, accessIndeterminate: false, accessSetSize: accessSet.length, activeOrganisationId: organisationId, contextualRole: null });
+    throw unauthorised("No role for the active organisation context", 403);
+  }
   const effectiveRole: UserRole = resolveEffectiveRole(contextualRole, contextualRole).role;
 
   // Admins bypass the organisation-disabled check so a disabled internal
