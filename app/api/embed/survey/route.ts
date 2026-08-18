@@ -6,6 +6,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { validateSurvey } from "@/lib/survey-validation";
 import { resolveQuestion, resolveText, type LangCode, type LocalisedQuestion, type LocalisedText } from "@/lib/survey-locale";
+import { resolveSystemThankYou, isSystemThankYouSurvey } from "@/lib/system-thankyou";
 
 const NO_CACHE = {
   "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
@@ -34,7 +35,10 @@ export async function GET(req: NextRequest) {
 
   const { data, error } = await supabase
     .from("surveys")
-    .select("id, questions, thank_you_title, thank_you_body")
+    // intro_* / thank_you_enabled are the Phase 3 Survey-journey columns (migration
+    // 182). The clients are untyped, so these resolve to `any` here even before the
+    // migration is applied; a not-yet-migrated column simply comes back undefined.
+    .select("id, questions, thank_you_title, thank_you_body, intro_enabled, intro_title, intro_body, thank_you_enabled")
     .eq("id", id)
     .neq("status", "deleted")
     .single();
@@ -59,9 +63,30 @@ export async function GET(req: NextRequest) {
     resolveQuestion(q, lang)
   );
 
+  // Survey-level Intro copy resolves to the requested language exactly like the
+  // Thank-You copy. Emitted only as resolved strings; whether the intro is shown
+  // is driven by intro_enabled (NULL/false ⇒ no survey-level intro).
+  const introTitle = resolveText((data.intro_title as LocalisedText | null) ?? {}, lang);
+  const introBody  = resolveText((data.intro_body  as LocalisedText | null) ?? {}, lang);
+
+  // Mandatory system-owned Thank-You for Studio-journey surveys (intro_enabled set).
+  // Historical surveys (intro_enabled NULL) keep their own authored thank-you.
+  const systemTy = isSystemThankYouSurvey(data.intro_enabled as boolean | null) ? resolveSystemThankYou(lang) : null;
+
   return NextResponse.json({
     questions,
-    thank_you_title: resolveText((data.thank_you_title as LocalisedText | null) ?? {}, lang) || "Thank you!",
-    thank_you_body:  resolveText((data.thank_you_body as LocalisedText | null) ?? {}, lang) || "Your anonymous feedback helps improve the football experience for fans everywhere.",
+    thank_you_title: systemTy ? systemTy.title : (resolveText((data.thank_you_title as LocalisedText | null) ?? {}, lang) || "Thank you!"),
+    thank_you_body:  systemTy ? systemTy.body  : (resolveText((data.thank_you_body as LocalisedText | null) ?? {}, lang) || "Your anonymous feedback helps improve the football experience for fans everywhere."),
+    thank_you_system: !!systemTy,
+    // Phase 3 Survey-journey fields. intro_enabled NULL/false ⇒ no survey-level
+    // intro; thank_you_enabled NULL ⇒ enabled (historical default), false ⇒ off.
+    // Pass the raw tri-state through (null for legacy surveys). Coercing NULL→false
+    // here would make Stack — whose intro is historically ALWAYS ON — drop its intro
+    // on live campaigns. The renderer decides the default per mechanic (Stack: on;
+    // Timer/Studio Classic: off) from null/undefined.
+    intro_enabled:     (data.intro_enabled as boolean | null) ?? null,
+    intro_title:       introTitle || null,
+    intro_body:        introBody  || null,
+    thank_you_enabled: (data.thank_you_enabled as boolean | null) ?? null,
   }, { headers: preview ? NO_CACHE : LIVE_CACHE });
 }

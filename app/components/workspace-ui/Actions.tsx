@@ -38,20 +38,33 @@ const SIZE_CLS: Record<Size, string> = {
 };
 
 function styleFor(variant: Variant): { className: string; style: React.CSSProperties } {
+  // Hover feedback per tier.
+  //   • Filled tiers (primary/brand) carry their colour as an INLINE style, which a
+  //     Tailwind `hover:bg-*` cannot override — so they shift with a brightness
+  //     filter (works over any inline background) plus a small lift.
+  //   • Outlined tiers (secondary/ghost) take their colours from CLASSES, not inline
+  //     style. This is deliberate: an inline `style` background/border/color beats a
+  //     `hover:` class, so setting them inline would make the hover invisible (the
+  //     original bug). Secondary gets an unmistakable rollover — a gold wash fill,
+  //     gold border, darkened ink, a shadow and a 1px lift.
   switch (variant) {
     case "primary":
-      return { className: "font-semibold border border-transparent", style: { background: GOLD, color: NAVY } };
+      return { className: "font-semibold border border-transparent hover:brightness-95 hover:shadow-sm hover:-translate-y-px", style: { background: GOLD, color: NAVY } };
     case "brand":
-      return { className: "font-semibold border border-transparent", style: { background: NAVY, color: GOLD } };
+      return { className: "font-semibold border border-transparent hover:brightness-125 hover:shadow-sm hover:-translate-y-px", style: { background: NAVY, color: GOLD } };
     case "secondary":
       return {
-        className: "font-semibold border hover:bg-[var(--surface-hover)]",
-        style: { background: "var(--surface)", color: "var(--text-secondary)", borderColor: "var(--border-default)" },
+        className:
+          "font-semibold border bg-[var(--surface)] text-[var(--text-secondary)] border-[var(--border-default)] " +
+          "hover:bg-[var(--accent-wash)] hover:border-[var(--accent-gold)] hover:text-[var(--accent-ink)] hover:shadow-md hover:-translate-y-px",
+        style: {},
       };
     case "ghost":
       return {
-        className: "font-semibold border border-transparent hover:bg-[var(--surface-sunken)]",
-        style: { background: "transparent", color: "var(--text-secondary)" },
+        className:
+          "font-semibold border border-transparent text-[var(--text-secondary)] " +
+          "hover:bg-[var(--accent-wash)] hover:text-[var(--accent-ink)]",
+        style: {},
       };
   }
 }
@@ -60,7 +73,10 @@ export function Button({
   href, onClick, disabled, title, className = "", type = "button", variant = "secondary", size = "sm", children,
 }: Props) {
   const v = styleFor(variant);
-  const classes = `inline-flex items-center justify-center gap-1.5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0 ${SIZE_CLS[size]} ${v.className} ${className}`;
+  // transition covers colour AND the filter/shadow/transform used across tiers, so
+  // the rollover animates smoothly. Disabled + active reset the lift/shadow/filter
+  // so a non-clickable or pressed button doesn't appear to hover.
+  const classes = `inline-flex items-center justify-center gap-1.5 cursor-pointer transition-[color,background-color,border-color,filter,box-shadow,transform] duration-150 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:brightness-100 disabled:hover:shadow-none disabled:hover:translate-y-0 active:translate-y-0 active:shadow-none flex-shrink-0 ${SIZE_CLS[size]} ${v.className} ${className}`;
   const style: React.CSSProperties = { ...v.style, borderRadius: "var(--radius-control)" };
   if (href && !disabled) {
     return <Link href={href} title={title} className={classes} style={style}>{children}</Link>;

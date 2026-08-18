@@ -35,8 +35,11 @@ export async function POST(req: NextRequest) {
   if (!campaign_id || typeof campaign_id !== "string" || campaign_id.length > MAX_FIELD_LEN) {
     return NextResponse.json({ error: "campaign_id is required" }, { status: 400 });
   }
+  // Phase 3: surveys run 1–5 questions, so the generic per-answer store accepts
+  // question_index 0–4 (widened from 0–2; DB CHECK widened in migration 183).
+  // Historical 3-question surveys only ever send 0–2, so this is purely additive.
   const qIndex = Number(question_index);
-  if (!Number.isInteger(qIndex) || qIndex < 0 || qIndex > 2) {
+  if (!Number.isInteger(qIndex) || qIndex < 0 || qIndex > 4) {
     return NextResponse.json({ error: "Invalid question_index" }, { status: 400 });
   }
   if (typeof answer_value !== "string" || answer_value.length === 0 || answer_value.length > MAX_FIELD_LEN) {

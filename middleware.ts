@@ -75,6 +75,12 @@ const ADMIN_AND_PUBLISHER_PREFIXES = [
 
 // Routes only admins may access
 const ADMIN_ONLY_PREFIXES = [
+  // FedEx report-preview pages render one client's confidential approved findings
+  // (composed data hardcoded in the client bundle) with no per-org scoping. Gate
+  // them to admins so no brand/agency/publisher (or a future reviewer account on a
+  // non-admin role) can reach a single client's data. Uses the same governed
+  // admin-only projection as every other admin route below.
+  "/survey-studio/reports-preview",
   "/analysis",
   "/campaign-deployment",
   "/reporting",

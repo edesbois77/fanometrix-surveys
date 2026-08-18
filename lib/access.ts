@@ -85,8 +85,26 @@ export async function dataVisibleCampaignIds(user: AuthedUser): Promise<string[]
   // ORG-005 G-2 (ACTIVE): operator Data access via the standing entitlement, not role.
   if (user.role === "admin") return operatorVisibleDataCampaignIds(user);
   if (!user.organisationId) return [];
+  const campaignIds = new Set<string>(await orgDataCampaignIds(user.organisationId)); // org-level entitlement
+  const { data: ura } = await supabaseAdmin.from("user_resource_authorisations")
+    .select("resource_id, effect").eq("user_id", user.id)
+    .eq("resource_class", "data").eq("status", "active");
+  (ura ?? []).filter(u => u.effect === "restrict").forEach(u => campaignIds.delete(u.resource_id as string)); // narrows within the org
+  return [...campaignIds];
+}
+
+/**
+ * The ORGANISATION-level governed Data universe: the org's active Data-class ORE
+ * campaigns (direct + scope members), BEFORE any per-user URA narrowing. This is the
+ * SAME governed authority (`organisation_resource_entitlements`, class `data`) that
+ * `dataVisibleCampaignIds` reads — factored out so an owning organisation's eligible
+ * survey universe can be resolved when a platform operator edits that org's Study.
+ * It is NOT a second entitlement path and NEVER grants access on its own. `[]` = none.
+ */
+export async function orgDataCampaignIds(organisationId: string): Promise<string[]> {
+  if (!organisationId) return [];
   const { data: ore } = await supabaseAdmin.from("organisation_resource_entitlements")
-    .select("resource_id, scope_id").eq("organisation_id", user.organisationId)
+    .select("resource_id, scope_id").eq("organisation_id", organisationId)
     .eq("resource_class", "data").eq("status", "active");
   const campaignIds = new Set<string>((ore ?? []).map(r => r.resource_id).filter(Boolean) as string[]); // direct (none at baseline)
   const scopeIds = (ore ?? []).map(r => r.scope_id).filter(Boolean) as string[];
@@ -95,10 +113,6 @@ export async function dataVisibleCampaignIds(user: AuthedUser): Promise<string[]
       .select("resource_id").eq("resource_class", "data").in("scope_id", scopeIds);
     (members ?? []).forEach(m => campaignIds.add(m.resource_id as string));
   }
-  const { data: ura } = await supabaseAdmin.from("user_resource_authorisations")
-    .select("resource_id, effect").eq("user_id", user.id)
-    .eq("resource_class", "data").eq("status", "active");
-  (ura ?? []).filter(u => u.effect === "restrict").forEach(u => campaignIds.delete(u.resource_id as string)); // narrows
   return [...campaignIds];
 }
 

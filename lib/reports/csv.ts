@@ -14,6 +14,7 @@ import {
   fetchCampaigns,
   fetchEffectiveCreatives,
   fetchEventBuckets,
+  fetchLateAnswers,
   fetchResponses,
   fetchSurveyQuestions,
 } from "./data";
@@ -64,12 +65,42 @@ export async function buildResponsesCsv(report: PartnerReport): Promise<string> 
   const questionSets = await fetchSurveyQuestions(surveyIds);
   const canonical = [...questionSets.values()].sort((a, b) => b.length - a.length)[0] ?? [];
 
+  // The Responses CSV is one row per COMPLETED response, and now presents the
+  // survey's ACTUAL question count (up to 5, settled PA decision). Q1–Q3 come
+  // straight from the `responses` row (q1/q2/q3, unchanged). Q4/Q5 answers live
+  // only in response_answers (keyed by session_id); since migration 184 added
+  // responses.session_id, they are joined back per-respondent. A 1–3-question
+  // export issues no extra query and is byte-identical to before (no q4/q5 columns,
+  // no lookup). Width caps at 5.
+  const MAX_ANSWER_COLUMNS = 5;
+  const questionColumnCount = Math.min(canonical.length, MAX_ANSWER_COLUMNS);
+
+  // Per-respondent Q4/Q5, only when a survey in scope actually has >3 questions.
+  // Keyed by session_id → question_index → answer option id.
+  const lateBySession = new Map<string, Map<number, string | null>>();
+  if (questionColumnCount > 3) {
+    const late = await fetchLateAnswers(report.campaignIds, report.dataFrom);
+    for (const a of late) {
+      let m = lateBySession.get(a.session_id);
+      if (!m) { m = new Map(); lateBySession.set(a.session_id, m); }
+      m.set(a.question_index, a.answer_value);
+    }
+  }
+
   const answerLabel = (index: number, optionId: string | null): string => {
     if (!optionId) return "";
     const q = canonical[index];
     if (!q) return optionId;
     const opt = q.options.find((o) => String(o.id) === optionId);
     return opt ? localisedText(opt.text) : optionId;
+  };
+
+  // The stored answer id for a given question column of a response: q1/q2/q3 from
+  // the row; q4/q5 (index 3/4) joined from response_answers via session_id.
+  const answerIdFor = (r: (typeof responses)[number], index: number): string | null => {
+    if (index < 3) return r[(["q1", "q2", "q3"] as const)[index]];
+    const sid = r.session_id;
+    return sid ? (lateBySession.get(sid)?.get(index) ?? null) : null;
   };
 
   const headers = [
@@ -84,7 +115,7 @@ export async function buildResponsesCsv(report: PartnerReport): Promise<string> 
     "survey_language",
     "device",
     "browser",
-    ...canonical.slice(0, 3).flatMap((q, i) => [`q${i + 1}_question`, `q${i + 1}_answer`]),
+    ...canonical.slice(0, questionColumnCount).flatMap((q, i) => [`q${i + 1}_question`, `q${i + 1}_answer`]),
     "completed",
     "duration_seconds",
   ];
@@ -92,9 +123,8 @@ export async function buildResponsesCsv(report: PartnerReport): Promise<string> 
   const rows = responses.map((r) => {
     const c = byCampaign.get(r.campaign_id);
     const slug = effectiveCreatives.get(r.campaign_id) ?? "classic";
-    const answers = canonical.slice(0, 3).flatMap((q, i) => {
-      const key = (["q1", "q2", "q3"] as const)[i];
-      return [localisedText(q.text), answerLabel(i, r[key])];
+    const answers = canonical.slice(0, questionColumnCount).flatMap((q, i) => {
+      return [localisedText(q.text), answerLabel(i, answerIdFor(r, i))];
     });
     return [
       r.id,

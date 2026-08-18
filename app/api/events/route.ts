@@ -18,9 +18,23 @@ function malformedOptional(v: unknown): boolean {
 const VALID_TYPES = new Set([
   "SURVEY_RENDER",
   "SURVEY_VISIBLE", // genuine viewport entry; start of Avg Time to First Interaction
+  // Survey-level Intro (Phase 3). Additive; only the new Survey Studio journey
+  // emits these. INTRO_VIEWED = the intro frame was shown; INTRO_CONTINUED = the
+  // fan continued from the intro into Q1.
+  "INTRO_VIEWED",
+  "INTRO_CONTINUED",
+  // SURVEY_START (Phase 3 semantics): the fan ENTERS the question journey — on
+  // continue-from-intro when an intro is shown, else when Q1 becomes active. The
+  // event name is unchanged so historical rows/queries stay valid; only its
+  // emission point moved (it is no longer "first answer selected").
   "SURVEY_START",
   "QUESTION_2_REACHED",
   "QUESTION_3_REACHED",
+  // Phase 3: surveys now run 1–5 questions. Additive milestone events for the 4th
+  // and 5th questions; QUESTION_2/3_REACHED behaviour is unchanged and the generic
+  // report engine (/^QUESTION_(\d+)_REACHED$/) picks these up with no report change.
+  "QUESTION_4_REACHED",
+  "QUESTION_5_REACHED",
   "SURVEY_COMPLETED",
   // SURVEY_EXIT is DEPRECATED: no longer emitted by the embed (no dashboard,
   // series or report ever consumed it). Still accepted here so embed bundles

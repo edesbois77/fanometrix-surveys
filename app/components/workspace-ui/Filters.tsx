@@ -67,26 +67,31 @@ export function FilterSearch({
 // A styled native <select> — keeps keyboard/mobile behaviour, loses the default
 // chrome. `label` prefixes the current value ("Source: All").
 export function FilterSelect({
-  label, value, onChange, options,
+  label, value, onChange, options, dense = false, fullWidth = false,
 }: {
   label?: string;
   value: string;
   onChange: (v: string) => void;
   options: { value: string; label: string }[];
+  /** Compact variant — smaller height/padding for dense one-row filter strips. */
+  dense?: boolean;
+  /** Fill the parent's width (truncating the selected label) instead of sizing to
+   *  content — for equal-width filter rows that span the content boundary. */
+  fullWidth?: boolean;
 }) {
   return (
-    <label className="relative inline-flex items-center">
+    <label className={`relative items-center ${fullWidth ? "flex w-full" : "inline-flex"}`}>
       <select
         value={value}
         onChange={e => onChange(e.target.value)}
-        className="appearance-none text-sm font-medium rounded-lg pl-3 pr-7 py-1.5 outline-none cursor-pointer transition-colors"
+        className={`appearance-none font-medium rounded-md outline-none cursor-pointer transition-colors truncate ${fullWidth ? "w-full" : ""} ${dense ? "text-xs pl-2 pr-6 py-1" : "text-sm pl-3 pr-7 py-1.5 rounded-lg"}`}
         style={{ background: "var(--surface-sunken)", border: "1px solid var(--border-subtle)", color: "var(--text-secondary)" }}
       >
         {options.map(o => (
           <option key={o.value} value={o.value}>{label ? `${label}: ${o.label}` : o.label}</option>
         ))}
       </select>
-      <span className="absolute right-2 pointer-events-none" style={{ color: "var(--text-tertiary)" }}><Icon.chevronDown size={14} /></span>
+      <span className={`absolute pointer-events-none ${dense ? "right-1.5" : "right-2"}`} style={{ color: "var(--text-tertiary)" }}><Icon.chevronDown size={dense ? 12 : 14} /></span>
     </label>
   );
 }

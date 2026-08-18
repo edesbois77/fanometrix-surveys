@@ -6,6 +6,7 @@
 
 import { useState, useRef, useEffect, useLayoutEffect } from "react";
 import { Space_Grotesk, Inter } from "next/font/google";
+import { resolveSystemPrivacy, privacyPolicyHref } from "@/lib/system-privacy";
 
 // Self-hosted via next/font (built at compile time, served from this origin,
 // size-matched fallback) — not a runtime Google Fonts @import. That approach
@@ -65,8 +66,32 @@ const PROG_SVG  = (PROG_R + 3) * 2;
 const PROG_CX_V = PROG_SVG / 2;
 const PROG_CIRC = 2 * Math.PI * PROG_R;
 
-// GRID_TO_ANSWER: display index → options array index
-const GRID_TO_ANS = [0, 1, 3, 2];
+// Quadrant layout for 2–4 options. The centred countdown timer sits on the
+// vertical divider (x=150), so every layout keeps its answer text hugging the
+// left/right edges (never centred behind the timer):
+//   • 4 options → the classic 2×2 grid (TL,TR / BL,BR).
+//   • 3 options → one full-height left tile + two stacked right tiles (1 + 2).
+//   • 2 options → two full-height columns (left / right).
+// `ans` is the options-array index; `isTop` drives the reversed selected gradient
+// and the answer-text line-split weighting, matching the historical top-row look.
+type QuadrantCell = { ans: number; col: string; row: string; side: "left" | "right"; isTop: boolean };
+function quadrantCells(n: number): QuadrantCell[] {
+  if (n <= 2) return [
+    { ans: 0, col: "1", row: "1 / span 2", side: "left",  isTop: true },
+    { ans: 1, col: "2", row: "1 / span 2", side: "right", isTop: true },
+  ];
+  if (n === 3) return [
+    { ans: 0, col: "1", row: "1 / span 2", side: "left",  isTop: true },
+    { ans: 1, col: "2", row: "1", side: "right", isTop: true },
+    { ans: 2, col: "2", row: "2", side: "right", isTop: false },
+  ];
+  return [
+    { ans: 0, col: "1", row: "1", side: "left",  isTop: true },
+    { ans: 1, col: "2", row: "1", side: "right", isTop: true },
+    { ans: 3, col: "1", row: "2", side: "left",  isTop: false },
+    { ans: 2, col: "2", row: "2", side: "right", isTop: false },
+  ];
+}
 
 const FONT_Q = spaceGrotesk.style.fontFamily;
 const FONT_A = inter.style.fontFamily;
@@ -92,7 +117,37 @@ export interface ThemedSurveyProps {
   // The countdown timer stays paused on this screen and only starts once the
   // fan presses "Share Your Voice". Undefined/false = the classic Countdown
   // Clock behaviour (opens straight on Question 1).
+  // NOTE: this is the historical CREATIVE intro (layout==='invitation'). It is a
+  // DISTINCT concept from the Survey-level intro below and its wiring is unchanged.
   intro?:         boolean;
+  // ── Phase 3 Survey-journey props (additive; distinct from `intro` above) ──
+  // Show a Survey-level intro frame. Reuses the invitation surface but is driven
+  // by the survey's intro_enabled, not by the creative layout. When neither this
+  // nor `intro` is set, behaviour is identical to today (opens on Q1).
+  surveyIntroEnabled?: boolean;
+  // Already-resolved localised Intro copy. Absent ⇒ fall back to the existing
+  // hardcoded belief copy on the invitation surface.
+  introTitle?:    string;
+  introBody?:     string;
+  // Optional short survey subject shown on the SURVEY intro frame (surveys.topic).
+  // Absent ⇒ no Topic line; never shown for the historical fan-invitation.
+  introTopic?:    string;
+  // Thank-You frame toggle. undefined (default) = enabled (historical always-on);
+  // false = suppress the authored Thank-You and show a minimal system terminal
+  // acknowledgement ("Response recorded") instead. SURVEY_COMPLETED + submit are
+  // unaffected either way.
+  thankYouEnabled?: boolean;
+  // Marks the mandatory system-owned Thank-You (copy supplied centrally). Reserved
+  // for a future centrally-controlled terminal CTA; V1 renders no CTA.
+  thankYouSystem?: boolean;
+  // Preview-only: freeze the countdown on the question frame (a still, non-ticking
+  // representative image for the Creative library card). No effect on live embeds
+  // (default undefined/false → identical to today's behaviour).
+  staticFrame?:   boolean;
+  // Preview-only (Survey-stage integrated preview): land on and freeze a specific
+  // journey frame — a question index (number), "intro", or "thankyou". isPreview
+  // only; undefined ⇒ normal flow (live embeds unaffected).
+  previewFrame?:  number | "intro" | "thankyou";
   // Submit payload — passed from parent EmbedSurvey
   campaignId:     string;
   surveyId:       string | null;
@@ -261,11 +316,13 @@ function Header({ text, step, total, visible, theme }: {
 
 // ── Quadrant ──────────────────────────────────────────────────────────────────
 
-function Quadrant({ text, side, isSelected, isOther, isHovered, visible, onSelect, onHover, onLeave, disabled, selectedBg, theme }: {
+function Quadrant({ text, side, isSelected, isOther, isHovered, visible, onSelect, onHover, onLeave, disabled, selectedBg, theme, gridColumn, gridRow }: {
   text: string; side:"left"|"right";
   isSelected: boolean; isOther: boolean; isHovered: boolean; visible: boolean;
   onSelect:()=>void; onHover:()=>void; onLeave:()=>void;
   disabled: boolean; selectedBg: string; theme: EmbedTheme;
+  // Explicit CSS grid placement so 2–4 option layouts can span rows/columns.
+  gridColumn?: string; gridRow?: string;
 }) {
   const bg        = isSelected ? selectedBg : isHovered ? theme.hoverBg : theme.quad;
   const textColor = isSelected ? theme.selectedText : theme.text;
@@ -293,6 +350,7 @@ function Quadrant({ text, side, isSelected, isOther, isHovered, visible, onSelec
       onMouseEnter={disabled ? undefined : onHover}
       onMouseLeave={disabled ? undefined : onLeave}
       style={{
+        gridColumn, gridRow,
         background: bg,
         display:"flex", alignItems:"center",
         justifyContent: side === "left" ? "flex-start" : "flex-end",
@@ -345,18 +403,31 @@ function ThankYou({ title, body, theme }: { title: string; body: string; theme: 
   );
 }
 
+// ── Minimal system terminal ───────────────────────────────────────────────────
+// Shown instead of the authored Thank-You when thankYouEnabled === false. A plain,
+// unbranded acknowledgement — the survey still submits and fires SURVEY_COMPLETED.
+
+function MinimalTerminal({ theme }: { theme: EmbedTheme }) {
+  return (
+    <div style={{
+      position:"absolute", inset:0, background:theme.canvas,
+      display:"flex", alignItems:"center", justifyContent:"center",
+      textAlign:"center", padding:"20px 24px", zIndex:10,
+    }}>
+      <p style={{ color:"rgba(255,255,255,0.82)", fontSize:15, margin:0, fontFamily:FONT_A, fontWeight:500 }}>
+        Response recorded
+      </p>
+    </div>
+  );
+}
+
 // ── Themed privacy overlay ────────────────────────────────────────────────────
 // Matches the design approved in Creative Lab (PrivacyOverlay.tsx).
-// Single screen — no pagination.
+// Single screen — no pagination. All strings are Fanometrix system content resolved
+// for the active delivery language (lib/system-privacy), NOT Publisher-authored.
 
-const PRIVACY_ITEMS = [
-  "No personal information collected",
-  "No email addresses collected",
-  "No cookies required",
-  "No individual identifiers stored",
-];
-
-function ThemedPrivacyOverlay({ theme, onClose }: { theme: EmbedTheme; onClose: () => void }) {
+function ThemedPrivacyOverlay({ theme, onClose, lang }: { theme: EmbedTheme; onClose: () => void; lang?: string | null }) {
+  const sp = resolveSystemPrivacy(lang);
   // Derive overlay colours from the existing EmbedTheme fields
   const bg        = theme.canvas;
   const titleCol  = theme.accent;
@@ -383,23 +454,23 @@ function ThemedPrivacyOverlay({ theme, onClose }: { theme: EmbedTheme; onClose: 
       {/* Header */}
       <div style={{ height: 42, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 16px", borderBottom: `1px solid ${border}` }}>
         <span style={{ color: titleCol, fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", fontFamily: FONT_Q }}>
-          Privacy
+          {sp.label}
         </span>
         <button
           onClick={onClose}
           aria-label="Close privacy and return to survey"
           style={{ background: closeBg, border: `1px solid ${accent}44`, borderRadius: 12, cursor: "pointer", color: accent, fontSize: 9, fontWeight: 700, padding: "3px 10px", lineHeight: 1.4, letterSpacing: "0.04em", fontFamily: FONT_A }}
         >
-          ✕ Back
+          ✕ {sp.back}
         </button>
       </div>
 
       {/* Body */}
       <div style={{ flex: 1, padding: "12px 16px 8px", overflow: "hidden", display: "flex", flexDirection: "column", gap: 8 }}>
         <p style={{ color: titleCol, fontSize: 10.5, fontWeight: 700, margin: 0, lineHeight: 1.3, fontFamily: FONT_Q }}>
-          Your responses are anonymous.
+          {sp.anonymousHeading}
         </p>
-        {PRIVACY_ITEMS.map(item => (
+        {sp.bullets.map(item => (
           <div key={item} style={{ display: "flex", gap: 7, alignItems: "flex-start" }}>
             <span style={{ color: accent, fontSize: 7, marginTop: 2.5, flexShrink: 0 }}>●</span>
             <span style={{ color: textCol, fontSize: 9.5, lineHeight: 1.4, fontFamily: FONT_A, fontWeight: 400 }}>
@@ -412,12 +483,12 @@ function ThemedPrivacyOverlay({ theme, onClose }: { theme: EmbedTheme; onClose: 
       {/* Footer */}
       <div style={{ padding: "8px 16px 12px", flexShrink: 0, borderTop: `1px solid ${border}` }}>
         <a
-          href="/en/privacy"
+          href={privacyPolicyHref(lang)}
           target="_blank"
           rel="noopener"
           style={{ display: "block", textAlign: "center", color: accent, fontSize: 9.5, fontWeight: 700, padding: "7px", borderRadius: 6, textDecoration: "none", background: closeBg, border: `1px solid ${accent}44`, letterSpacing: "0.03em", fontFamily: FONT_A }}
         >
-          Read Full Privacy Policy →
+          {sp.policyCta} →
         </a>
       </div>
     </div>
@@ -452,14 +523,24 @@ function withAlpha(hex: string, a: number): string {
   return `rgba(${r},${g},${b},${a})`;
 }
 
-function InvitationScreen({ theme, total, leaving, onStart }: {
+function InvitationScreen({ theme, total, leaving, onStart, title, body, topic, surveyMeta = false }: {
   theme: EmbedTheme; total: number; leaving: boolean; onStart: () => void;
+  // Survey-level Intro copy (already resolved). Absent ⇒ the historical belief
+  // copy, so the fan-invitation creative is byte-for-byte unchanged.
+  title?: string; body?: string;
+  // Survey intro only: an optional Topic line and the unified "N Questions" meta.
+  // For the fan-invitation creative these are absent/false → unchanged rendering.
+  topic?: string; surveyMeta?: boolean;
 }) {
   const [panelHover, setPanelHover] = useState(false);
-  // ~7s per question, rounded to the nearest 5s — a friendly estimate, not the
-  // hard 10s-per-question timer. For the 3-question built-in this reads
-  // "Around 20 Seconds".
-  const estSeconds = Math.max(10, Math.round((total * 7) / 5) * 5);
+  const headline   = title ?? "Football fans deserve\na voice.";
+  const supporting = body  ?? "Help shape better football experiences\nby sharing yours.";
+  // Unified V1 estimate for the SURVEY intro: ~5s per question + 5s for the intro,
+  // min 10, rounded to 5s (Thank-You is terminal and doesn't add time). The
+  // fan-invitation creative keeps its original ~7s/question estimate byte-for-byte.
+  const estSeconds = surveyMeta
+    ? Math.max(10, 5 * total + 5)
+    : Math.max(10, Math.round((total * 7) / 5) * 5);
 
   return (
     <div
@@ -469,7 +550,7 @@ function InvitationScreen({ theme, total, leaving, onStart }: {
       onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onStart(); } }}
       onMouseEnter={() => setPanelHover(true)}
       onMouseLeave={() => setPanelHover(false)}
-      aria-label={`Start ${total} question${total === 1 ? "" : "s"} — begin the survey`}
+      aria-label={surveyMeta ? "Start survey" : `Start ${total} question${total === 1 ? "" : "s"} — begin the survey`}
       style={{
       // The whole of Question Zero is the tap target — not just the gold panel.
       // Match the question answer-tile navy (theme.quad), not the lighter
@@ -497,21 +578,40 @@ function InvitationScreen({ theme, total, leaving, onStart }: {
       `}</style>
 
       {/* Fanometrix logo — small, centred in the band between the top border and
-          the headline (equidistant) */}
-      <div style={{
-        position:"absolute", top:0, left:0, right:0, height:INVITE_LOGO_H,
-        display:"flex", alignItems:"center", justifyContent:"center",
-      }}>
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={INVITE_LOGO_SRC} alt="Fanometrix" style={{ height:7, width:"auto", opacity:0.95 }} />
-      </div>
+          the headline. Shown for the historical fan-invitation creative only; the
+          new Survey-level Intro (surveyMeta) deliberately carries NO Fanometrix
+          logo (branding comes from the Creative, not the intro frame). */}
+      {!surveyMeta && (
+        <div style={{
+          position:"absolute", top:0, left:0, right:0, height:INVITE_LOGO_H,
+          display:"flex", alignItems:"center", justifyContent:"center",
+        }}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={INVITE_LOGO_SRC} alt="Fanometrix" style={{ height:7, width:"auto", opacity:0.95 }} />
+        </div>
+      )}
 
-      {/* Content — belief centred in the space between the logo and the panel */}
+      {/* Content — belief centred in the space above the gold panel. The survey
+          intro has no logo, so it starts at the very top (top:0) and the flex
+          centring makes the block equidistant from the card top and the gold
+          button; the fan-invitation keeps its top:20 gap below its logo. */}
       <div style={{
-        position:"absolute", top:20, left:0, right:0, bottom:INVITE_PANEL_H,
+        position:"absolute", top: surveyMeta ? 0 : 20, left:0, right:0, bottom:INVITE_PANEL_H,
         display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center",
         textAlign:"center", padding:"0 12px", boxSizing:"border-box",
       }}>
+        {/* Topic — survey subject (survey intro only). Gold eyebrow; the "Topic:"
+            label sits slightly muted, the value reads at full accent. No all-caps. */}
+        {topic && topic.trim() && (
+          <p style={{
+            color:theme.accent, fontSize:11, fontWeight:700, fontFamily:FONT_A,
+            margin:"0 0 8px",
+          }}>
+            <span style={{ color:withAlpha(theme.accent, 0.7), fontWeight:600 }}>Topic: </span>
+            {topic.trim()}
+          </p>
+        )}
+
         {/* Headline — the belief, large enough to own the frame. Line breaks are
             deliberate: "Football fans deserve" / "a voice." */}
         <p style={{
@@ -519,7 +619,7 @@ function InvitationScreen({ theme, total, leaving, onStart }: {
           letterSpacing:"-0.03em", lineHeight:1.12, margin:0, maxWidth:288,
           whiteSpace:"pre-line",
         }}>
-          {"Football fans deserve\na voice."}
+          {headline}
         </p>
 
         {/* Supporting — split to match: line 1, then "by sharing yours." */}
@@ -527,7 +627,7 @@ function InvitationScreen({ theme, total, leaving, onStart }: {
           color:withAlpha(theme.text, 0.66), fontSize:11.5, fontWeight:400, fontFamily:FONT_A,
           lineHeight:1.45, margin:"14px 0 0", whiteSpace:"pre-line",
         }}>
-          {"Help shape better football experiences\nby sharing yours."}
+          {supporting}
         </p>
 
         {/* Commitment — quick, and "Complete in banner" reinforces that the fan
@@ -536,7 +636,9 @@ function InvitationScreen({ theme, total, leaving, onStart }: {
           color:theme.accent, fontSize:10, fontWeight:600, fontFamily:FONT_A,
           letterSpacing:"0.02em", margin:"12px 0 0",
         }}>
-          Around {estSeconds} Seconds • Complete in banner
+          {surveyMeta
+            ? `~${estSeconds} seconds · ${total} question${total === 1 ? "" : "s"} · In banner`
+            : `Around ${estSeconds} Seconds • Complete in banner`}
         </p>
       </div>
 
@@ -554,7 +656,7 @@ function InvitationScreen({ theme, total, leaving, onStart }: {
           transform: panelHover ? "translateY(-1px)" : "translateY(0)",
           transition:"filter 0.2s ease, transform 0.2s ease",
         }}>
-        <span>Start {total} Question{total === 1 ? "" : "s"}</span>
+        <span>{surveyMeta ? "Start Survey" : `Start ${total} Question${total === 1 ? "" : "s"}`}</span>
         <span className="fan-inv-arrow" aria-hidden style={{
           display:"inline-block", animation:"fanInvNudge 1.3s ease-in-out infinite",
         }}>→</span>
@@ -575,11 +677,18 @@ export function ThemedSurvey(props: ThemedSurveyProps) {
   const theme = props.customTheme ?? FALLBACK_THEME;
   const total = props.questions.length;
 
-  const [step,        setStep]        = useState(0);
+  // Preview-only initial frame (Survey-stage integrated preview). Gated on
+  // isPreview so live embeds are never affected.
+  const pf = props.isPreview ? props.previewFrame : undefined;
+  const previewIsIntro    = pf === "intro";
+  const previewIsThankYou = pf === "thankyou";
+  const previewStep = typeof pf === "number" ? Math.max(0, Math.min(pf, Math.max(0, total - 1))) : 0;
+
+  const [step,        setStep]        = useState(previewStep);
   const [done,        setDone]        = useState(0);
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
   const [hoveredIdx,  setHoveredIdx]  = useState<number | null>(null);
-  const [phase,       setPhase]       = useState<"question"|"selecting"|"thankyou">("question");
+  const [phase,       setPhase]       = useState<"question"|"selecting"|"thankyou">(previewIsThankYou ? "thankyou" : "question");
   const [textVisible, setTextVisible] = useState(true);
   const [pulse,       setPulse]       = useState(false);
   const [answers,     setAnswers]     = useState<Record<string, number>>({});
@@ -590,19 +699,38 @@ export function ThemedSurvey(props: ThemedSurveyProps) {
 
   const [showPrivacy, setShowPrivacy] = useState(false);
 
-  // "Fan Invitation" layout — the invitation (Question Zero) is shown before Q1
-  // and the countdown is held until the fan presses "Have Your Say" (see the
-  // timer gate + handleStartSurvey below). `introDismissed` gates the timer;
+  // An intro frame is shown when EITHER the historical fan-invitation creative
+  // (`intro`, layout==='invitation') OR the Survey-level intro (`surveyIntroEnabled`)
+  // is active. They share the same invitation surface but are distinct concepts;
+  // the creative-invitation wiring is unchanged. `introDismissed` gates the timer;
   // `introLeaving` keeps the invitation mounted for its dissolve-out so the
-  // transition into Q1 is a cross-fade, not a hard cut. A non-invitation
-  // creative starts already dismissed — identical to today's Countdown Clock.
-  const [introDismissed, setIntroDismissed] = useState<boolean>(!props.intro);
+  // transition into Q1 is a cross-fade, not a hard cut. With no intro at all the
+  // survey starts already dismissed — identical to today's Countdown Clock.
+  const creativeIntro = !!props.intro;
+  const showIntro     = creativeIntro || !!props.surveyIntroEnabled || previewIsIntro;
+  // Use the Survey intro copy only when it is the Survey-level intro (never for the
+  // fan-invitation creative, whose belief copy must stay unchanged).
+  const introUseSurveyCopy = (!!props.surveyIntroEnabled || previewIsIntro) && !creativeIntro;
+  // Preview: an "intro" frame forces the intro shown; a question/thankyou frame
+  // starts past it. Otherwise the survey starts dismissed iff there is no intro.
+  const [introDismissed, setIntroDismissed] = useState<boolean>(
+    previewIsIntro ? false : (typeof pf === "number" || previewIsThankYou ? true : !showIntro),
+  );
   const [introLeaving,   setIntroLeaving]   = useState(false);
 
   function handleStartSurvey() {
     setIntroDismissed(true);   // ungate the countdown — the survey comes to life
     setIntroLeaving(true);     // ...while the invitation dissolves upward
     setTimeout(() => setIntroLeaving(false), 360);
+    // Continuing from the intro IS the journey entry: INTRO_CONTINUED + SURVEY_START.
+    if (!hasContinued.current) { hasContinued.current = true; sendEvent("INTRO_CONTINUED"); }
+    if (!hasStarted.current) {
+      hasStarted.current = true;
+      // Journey-entry = the completion-timer origin. In a click handler, not render.
+      // eslint-disable-next-line react-hooks/purity
+      startRef.current = Date.now();
+      sendEvent("SURVEY_START");
+    }
   }
 
   const containerRef    = useRef<HTMLDivElement>(null);
@@ -616,7 +744,9 @@ export function ThemedSurvey(props: ThemedSurveyProps) {
   const startRef        = useRef(Date.now());
   const hasRendered     = useRef(false);
   const hasVisible      = useRef(false); // SURVEY_VISIBLE = genuine viewport entry
-  const hasStarted      = useRef(false);
+  const hasStarted      = useRef(false); // SURVEY_START = journey entry (fired once)
+  const hasIntroViewed  = useRef(false); // INTRO_VIEWED  = intro frame shown (once)
+  const hasContinued    = useRef(false); // INTRO_CONTINUED = continued into Q1 (once)
   const hasCompleted    = useRef(false);
 
   const q = props.questions[step];
@@ -678,6 +808,20 @@ export function ThemedSurvey(props: ThemedSurveyProps) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Phase 3 journey milestones at entry. When an intro frame is shown, it is
+  // INTRO_VIEWED here and SURVEY_START waits for the continue press. With no intro,
+  // Q1 is active immediately, so SURVEY_START fires now (its new "journey entry"
+  // definition — no longer "first answer selected").
+  useEffect(() => {
+    if (showIntro) {
+      if (!hasIntroViewed.current) { hasIntroViewed.current = true; sendEvent("INTRO_VIEWED"); }
+    } else if (!hasStarted.current) {
+      hasStarted.current = true;
+      sendEvent("SURVEY_START");
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // IntersectionObserver — run the countdown when in view, and fire SURVEY_VISIBLE
   // once on genuine viewport entry (the "viewable impression" + start of TTFI).
   useEffect(() => {
@@ -724,10 +868,11 @@ export function ThemedSurvey(props: ThemedSurveyProps) {
     if (intervalRef.current) clearInterval(intervalRef.current);
     // Hold the countdown entirely while the invitation is up — it only begins
     // once the fan presses "Have Your Say" (handleStartSurvey → introDismissed).
-    if (!isRunning || phase !== "question" || expired || !introDismissed) return;
+    // staticFrame (preview card) freezes it on the question frame — no ticking.
+    if (props.staticFrame || !isRunning || phase !== "question" || expired || !introDismissed) return;
     intervalRef.current = setInterval(() => setTimeLeft(t => t <= 1 ? 0 : t - 1), 1000);
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
-  }, [isRunning, phase, expired, introDismissed]);
+  }, [isRunning, phase, expired, introDismissed, props.staticFrame]);
 
   useEffect(() => {
     if (timeLeft !== 0 || expired || phase !== "question") return;
@@ -737,9 +882,11 @@ export function ThemedSurvey(props: ThemedSurveyProps) {
     return () => { if (pulseRef.current) clearInterval(pulseRef.current); };
   }, [timeLeft, phase, expired]);
 
-  function getSelectedBg(gridIdx: number) { return gridIdx <= 1 ? theme.reversedGradient : theme.selectedBg; }
+  function getSelectedBg(isTop: boolean) { return isTop ? theme.reversedGradient : theme.selectedBg; }
 
-  function handleSelect(gridIdx: number) {
+  // `ans` is the options-array index (0–3) of the tapped answer — the grid derives
+  // it from quadrantCells, so it is stable across the 2–4 option layouts.
+  function handleSelect(ans: number) {
     if (advancingRef.current || phase !== "question") return;
     advancingRef.current = true;
 
@@ -749,29 +896,19 @@ export function ThemedSurvey(props: ThemedSurveyProps) {
     if (pulseRef.current) clearInterval(pulseRef.current);
     setIsRunning(false);
 
-    const optionIdx = GRID_TO_ANS[gridIdx];
-    const option    = q.options[optionIdx];
+    const option = q.options[ans];
     if (!option) { advancingRef.current = false; return; }
 
     const newAnswers = { ...answers, [q.id]: option.id };
     setAnswers(newAnswers);
 
     // Persist this answer immediately (before advancing), so a later abandonment
-    // never discards it. step = the question index (0/1/2).
+    // never discards it. step = the question index (0–4; /api/answer accepts 0–4).
+    // SURVEY_START is NO LONGER fired here — it now marks journey entry (intro
+    // continue, or Q1 becoming active), handled above.
     sendAnswer(step, String(option.id));
 
-    // SURVEY_START: first answer
-    if (!hasStarted.current) {
-      hasStarted.current = true;
-      // Start the completion timer at first interaction. This runs in a click
-      // handler, not render, so Date.now() is fine — react-hooks/purity can't
-      // prove the callsite is outside render, hence the scoped disable.
-      // eslint-disable-next-line react-hooks/purity
-      startRef.current = Date.now();
-      sendEvent("SURVEY_START");
-    }
-
-    setSelectedIdx(gridIdx);
+    setSelectedIdx(ans);
     setPhase("selecting");
     setPulse(true);
     setTimeout(() => setPulse(false), 220);
@@ -789,6 +926,7 @@ export function ThemedSurvey(props: ThemedSurveyProps) {
             body: JSON.stringify({
               campaign_id:               props.campaignId,
               survey_id:                 props.surveyId,
+              session_id:                props.sessionId,
               publisher:                 props.publisher,
               placement:                 props.placement,
               placement_id:              props.placementId,
@@ -815,8 +953,11 @@ export function ThemedSurvey(props: ThemedSurveyProps) {
         setPhase("thankyou");
       } else {
         const next = step + 1;
+        // Reaching the 2nd–5th question (surveys now run 1–5 questions).
         if (next === 1) sendEvent("QUESTION_2_REACHED");
         if (next === 2) sendEvent("QUESTION_3_REACHED");
+        if (next === 3) sendEvent("QUESTION_4_REACHED");
+        if (next === 4) sendEvent("QUESTION_5_REACHED");
         setDone(d => d + 1);
         setStep(next);
         setSelectedIdx(null);
@@ -844,16 +985,22 @@ export function ThemedSurvey(props: ThemedSurveyProps) {
     }}>
       {/* Themed privacy overlay — rendered above everything else */}
       {showPrivacy && (
-        <ThemedPrivacyOverlay theme={theme} onClose={() => setShowPrivacy(false)} />
+        <ThemedPrivacyOverlay theme={theme} onClose={() => setShowPrivacy(false)} lang={props.surveyLanguage} />
       )}
 
       {/* Fan Invitation / Question Zero — sits over the (paused) survey, then
           dissolves upward while Q1 comes to life beneath it */}
       {(!introDismissed || introLeaving) && (
-        <InvitationScreen theme={theme} total={total} leaving={introLeaving} onStart={handleStartSurvey} />
+        <InvitationScreen theme={theme} total={total} leaving={introLeaving} onStart={handleStartSurvey}
+          title={introUseSurveyCopy ? props.introTitle : undefined}
+          body={introUseSurveyCopy ? props.introBody : undefined}
+          topic={introUseSurveyCopy ? props.introTopic : undefined}
+          surveyMeta={introUseSurveyCopy} />
       )}
 
-      {phase === "thankyou" && <ThankYou title={props.thankYouTitle} body={props.thankYouBody} theme={theme} />}
+      {phase === "thankyou" && (props.thankYouEnabled === false
+        ? <MinimalTerminal theme={theme} />
+        : <ThankYou title={props.thankYouTitle} body={props.thankYouBody} theme={theme} />)}
 
       <Header text={q?.text ?? ""} step={step} total={total}
         visible={textVisible && phase !== "thankyou"} theme={theme} />
@@ -864,23 +1011,22 @@ export function ThemedSurvey(props: ThemedSurveyProps) {
         display:"grid", gridTemplateColumns:"150px 150px",
         gridTemplateRows:`${ROW_H}px ${ROW_H}px`, gap:1, background:theme.gridLine,
       }}>
-        {[0, 1, 2, 3].map(gridIdx => {
-          const optionIdx = GRID_TO_ANS[gridIdx];
-          const option    = q?.options[optionIdx];
-          const isTopRow  = gridIdx <= 1;
+        {quadrantCells(q?.options.length ?? 0).map(cell => {
+          const option = q?.options[cell.ans];
           return (
-            <Quadrant key={gridIdx}
-              text={formatAnswer(option?.text ?? "", isTopRow)}
-              side={gridIdx % 2 === 0 ? "left" : "right"}
-              isSelected={selectedIdx === gridIdx}
-              isOther={selectedIdx !== null && selectedIdx !== gridIdx}
-              isHovered={hoveredIdx === gridIdx && phase === "question"}
+            <Quadrant key={cell.ans}
+              gridColumn={cell.col} gridRow={cell.row}
+              text={formatAnswer(option?.text ?? "", cell.isTop)}
+              side={cell.side}
+              isSelected={selectedIdx === cell.ans}
+              isOther={selectedIdx !== null && selectedIdx !== cell.ans}
+              isHovered={hoveredIdx === cell.ans && phase === "question"}
               visible={textVisible}
-              onSelect={() => handleSelect(gridIdx)}
-              onHover={() => phase === "question" && setHoveredIdx(gridIdx)}
+              onSelect={() => handleSelect(cell.ans)}
+              onHover={() => phase === "question" && setHoveredIdx(cell.ans)}
               onLeave={() => setHoveredIdx(null)}
               disabled={phase !== "question"}
-              selectedBg={getSelectedBg(gridIdx)}
+              selectedBg={getSelectedBg(cell.isTop)}
               theme={theme}
             />
           );

@@ -97,6 +97,11 @@ export interface LocalisedQuestion {
   id: string;
   text: LocalisedText;
   options: LocalisedOption[];
+  /** Comparability anchor for future cross-Survey (Study) analysis. Seeded to the
+   *  question's own id at authoring, so a Duplicate (which copies this jsonb verbatim)
+   *  links cloned questions for free. Older questions without it fall back to `id`.
+   *  IDENTITY ONLY — never assigned by AI/text similarity. */
+  canonical_question_key?: string;
 }
 
 /** Resolved flat shape returned from embed API — no localisation metadata exposed */

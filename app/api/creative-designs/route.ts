@@ -4,11 +4,12 @@ import { requireUser } from "@/lib/auth-server";
 import { toSlugPart } from "@/lib/naming";
 
 export async function GET(req: NextRequest) {
+  let session;
   try {
     // Publishers get read-only access — they can pick an existing design
     // on Campaigns/Research Projects, but authoring new ones (POST/PUT/
     // DELETE below, and the Creative Lab builder page) stays admin-only.
-    await requireUser(req, ["admin", "publisher"]);
+    session = await requireUser(req, ["admin", "publisher"]);
   } catch (err) {
     return err as Response;
   }
@@ -23,6 +24,20 @@ export async function GET(req: NextRequest) {
     .select("*")
     .is("deleted_at", null);
   if (!includeArchived) query = query.eq("status", "active");
+
+  // ── Publisher-specific variant visibility (trusted server boundary) ─────────
+  // A non-admin sees GLOBAL variants (publisher_org_id NULL) + variants owned by
+  // their platform-governed Current Organisation ONLY — never another publisher's
+  // private variants. Scoped by the governed Active Organisation Context
+  // (session.organisationId from requireUser) — NOT email/domain/name/role logic,
+  // NOT a Creative-local permission model. Fanometrix/internal (admin) is
+  // unrestricted. This is org-OWNERSHIP scoping (same pattern as surveys); it is
+  // NOT cross-org Creative sharing (explicitly out of V1 scope).
+  if (session.role !== "admin") {
+    query = session.organisationId
+      ? query.or(`publisher_org_id.is.null,publisher_org_id.eq.${session.organisationId}`)
+      : query.is("publisher_org_id", null);
+  }
 
   const { data, error } = await query.order("created_at", { ascending: false });
 

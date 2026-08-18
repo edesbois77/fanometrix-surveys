@@ -55,13 +55,22 @@ export type ProductAreaAccessTier =
   | "shared";               // open to every authenticated role
 
 /**
- * The protected Product Capabilities that actually exist as gates today. Only
- * "present-simulations" is currently a distinct capability gate. The governed
- * Survey Studio capability catalogue (create/request/discover/manage) is
- * referenced as the target but NOT enforced here — inventing gates that do not
- * exist would manufacture behaviour. Home is deliberately excluded (Workshop §10).
+ * The protected Product Capabilities in the governed catalogue.
+ *   • "present-simulations" — the original capability gate (DIRECT user grant +
+ *     admin super-ALLOW). Semantics/grant/parity UNCHANGED.
+ *   • "create-commissioned-research" — Survey Studio Create capability
+ *     (governed addition). "May a User who already has Create Product Access
+ *     (Q-09) create research for/on behalf of a THIRD PARTY, rather than being
+ *     restricted to FIRST-PARTY research for the Current Organisation?" It does
+ *     NOT grant Create Product Access — Q-09 remains a separate prerequisite
+ *     (Q-35-D09). Initial governed V1 policy is POLICY-DERIVED (no stored grant
+ *     column): contextual Fanometrix/admin → ALLOW; Publisher/other non-admin →
+ *     REFUSE. Introduced under explicit platform-authorisation authority; a
+ *     future selective non-admin grant is a later governed/contextual mechanism.
+ * Product ACCESS to Create/Request/Discover/Manage remains a Q-09 tier matter,
+ * NOT a capability. Home is deliberately excluded (Workshop §10).
  */
-export type ProductCapability = "present-simulations";
+export type ProductCapability = "present-simulations" | "create-commissioned-research";
 
 /** Role-derived Product Access grants — an exact mirror of the legacy middleware. */
 const PRODUCT_AREA_ROLES: Record<ProductAreaAccessTier, ReadonlySet<UserRole>> = {
@@ -103,6 +112,11 @@ export function resolveCapabilityAccess({ role, canPresentSimulations, capabilit
   switch (capability) {
     case "present-simulations":
       return role === "admin" || canPresentSimulations;
+    case "create-commissioned-research":
+      // Governed V1 policy — POLICY-DERIVED, no stored grant column. Contextual
+      // Fanometrix/admin → ALLOW; Publisher and all other non-admin → REFUSE.
+      // Independent of Product Access (Q-35-D09) and of canPresentSimulations.
+      return role === "admin";
   }
 }
 
@@ -164,6 +178,13 @@ export function legacyCapabilityAllows(role: UserRole, canPresentSimulations: bo
   switch (capability) {
     case "present-simulations":
       return role === "admin" || canPresentSimulations;
+    case "create-commissioned-research":
+      // NEW capability — it has NO legacy inline predecessor to mirror (before it,
+      // commissioned research was simply not offered via Create). Its oracle
+      // therefore states the governed V1 policy directly, so the exhaustive parity
+      // check verifies resolveCapabilityAccess conforms to the declared policy
+      // (admin ALLOW / else REFUSE) by identity — not a legacy migration.
+      return role === "admin";
   }
 }
 

@@ -19,9 +19,40 @@
 // so a minimal area (just a title + description) reads the same as a rich one
 // (status, primary action, meta row).
 
+import Link from "next/link";
 import { Eyebrow, StatusBadge } from "./Badges";
 import { BackLink } from "./Actions";
+import { Icon } from "./icons";
 import { type Tone } from "./tokens";
+
+// ── Breadcrumb ───────────────────────────────────────────────────────────────
+// Where am I in Survey Studio, and how do I get back up? A compact, secondary
+// ancestor trail. Ancestors (with `href`) are links with a clear hover; the final
+// item is the current resource — not a link, slightly stronger. A small chevron
+// separates items (never a heavy ">"). Long current names truncate gracefully.
+export type Crumb = { label: string; href?: string };
+
+export function Breadcrumb({ items, className = "" }: { items: Crumb[]; className?: string }) {
+  return (
+    <nav aria-label="Breadcrumb" className={`min-w-0 ${className}`}>
+      <ol className="flex items-center flex-wrap gap-x-1 gap-y-0.5 text-xs min-w-0">
+        {items.map((c, i) => {
+          const last = i === items.length - 1;
+          return (
+            <li key={`${c.label}-${i}`} className="inline-flex items-center gap-x-1 min-w-0">
+              {c.href && !last ? (
+                <Link href={c.href} className="transition-colors hover:text-[var(--text-primary)] focus-visible:text-[var(--text-primary)] rounded-sm truncate" style={{ color: "var(--text-tertiary)" }}>{c.label}</Link>
+              ) : (
+                <span aria-current={last ? "page" : undefined} className="truncate" style={{ color: last ? "var(--text-secondary)" : "var(--text-tertiary)", fontWeight: last ? 600 : 400 }}>{c.label}</span>
+              )}
+              {!last && <span className="flex-shrink-0" style={{ color: "var(--text-disabled)" }} aria-hidden="true"><Icon.chevronRight size={12} /></span>}
+            </li>
+          );
+        })}
+      </ol>
+    </nav>
+  );
+}
 
 export type WorkspaceHeaderStatus = {
   label: React.ReactNode;
@@ -58,6 +89,7 @@ function OrgIdentity({ org }: { org: WorkspaceHeaderOrg }) {
 }
 
 export function WorkspaceHeader({
+  breadcrumb,
   back,
   organisation,
   eyebrow,
@@ -68,6 +100,9 @@ export function WorkspaceHeader({
   secondaryActions,
   meta,
 }: {
+  /** Ancestor breadcrumb trail shown above the header. Preferred over `back`;
+   *  when set, the `back` link is not rendered (they'd be redundant). */
+  breadcrumb?: Crumb[];
   /** A "← Back" link to the parent page, shown above the header. */
   back?: { href: string; label: string };
   /**
@@ -95,7 +130,8 @@ export function WorkspaceHeader({
   return (
     <header className="flex items-start justify-between gap-4 flex-wrap">
       <div className="min-w-0 flex-1">
-        {back && <BackLink href={back.href} label={back.label} className="mb-2" />}
+        {breadcrumb && breadcrumb.length > 0 ? <Breadcrumb items={breadcrumb} className="mb-2.5" />
+          : back ? <BackLink href={back.href} label={back.label} className="mb-2" /> : null}
         {organisation && <OrgIdentity org={organisation} />}
         {eyebrow && <Eyebrow className="mb-1.5">{eyebrow}</Eyebrow>}
         <div className="flex items-center gap-2.5 flex-wrap min-w-0">

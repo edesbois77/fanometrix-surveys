@@ -6,7 +6,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { computeEffectiveStatus, type CampaignForStatus } from "@/lib/campaign-status";
 import { resolveQuestion, resolveText, type LangCode, type LocalisedQuestion, type LocalisedText } from "@/lib/survey-locale";
+import { resolveSystemThankYou, isSystemThankYouSurvey } from "@/lib/system-thankyou";
 import { buildEmbedThemeFromState, resolveBrandingLogos, type BuilderState, type BrandingConfig } from "@/lib/creative-theme-builder";
 import { coerceStackConfig, resolveEffectiveTopic } from "@/lib/stack-config";
 import type { EmbedTheme } from "@/app/embed/ThemedSurvey";
@@ -42,7 +44,11 @@ export async function GET(req: NextRequest) {
 
   const { data: campaign, error } = await supabase
     .from("campaigns")
-    .select("campaign_id, status, survey_language, creative_design, survey_id, research_project_id, topic")
+    // Lifecycle fields (start/end/target/target_mode/override) added so serve-time
+    // gating matches the trusted effective-status engine, not just stored status —
+    // a future-start, ended or stop-at-target campaign must stop serving even while
+    // stored status is still "live" (mirrors the group embed path).
+    .select("campaign_id, status, manual_status_override, start_date, end_date, target_responses, target_mode, archive_after_days, status_updated_at, country_code, survey_language, creative_design, survey_id, research_project_id, topic")
     .eq("campaign_id", campaignId)
     .is("deleted_at", null)
     .single();
@@ -51,8 +57,26 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Campaign not found" }, { status: 404, headers: NO_CACHE });
   }
 
-  if (campaign.status !== "live" && !preview) {
-    return NextResponse.json({ error: "Campaign is not live" }, { status: 404, headers: NO_CACHE });
+  // Effective-status gate (skipped for preview, which authors use to see drafts).
+  // Fast path: draft/paused/closed/archived can never be effectively live, so reject
+  // without a count query. For stored live/scheduled, compute effective status from a
+  // live response count so future-start (scheduled), past-end and stop-at-target
+  // campaigns stop serving. continue-mode campaigns over target stay live (the count
+  // does not close them — see lib/campaign-status.ts). This count matches the one the
+  // /api/submit ceiling uses (real responses only), so serve and submit agree.
+  if (!preview) {
+    if (campaign.status !== "live" && campaign.status !== "scheduled") {
+      return NextResponse.json({ error: "Campaign is not live" }, { status: 404, headers: NO_CACHE });
+    }
+    const { count } = await supabase
+      .from("responses")
+      .select("*", { count: "exact", head: true })
+      .eq("campaign_id", campaignId)
+      .eq("is_demo", false);
+    const effective = computeEffectiveStatus(campaign as CampaignForStatus, count ?? 0);
+    if (effective !== "live") {
+      return NextResponse.json({ error: "Campaign is not live" }, { status: 404, headers: NO_CACHE });
+    }
   }
 
   // Resolve inherited fields (survey, creative design) from the linked Research
@@ -94,7 +118,9 @@ export async function GET(req: NextRequest) {
 
   const { data: survey } = await supabase
     .from("surveys")
-    .select("id, status, questions, thank_you_title, thank_you_body")
+    // intro_* / thank_you_enabled = Phase 3 Survey-journey columns (migration 182);
+    // untyped client → `any`, degrade to undefined if not yet migrated.
+    .select("id, status, questions, thank_you_title, thank_you_body, intro_enabled, intro_title, intro_body, thank_you_enabled")
     .eq("id", effectiveSurveyId)
     .single();
 
@@ -119,14 +145,21 @@ export async function GET(req: NextRequest) {
   let creativeLayout: string | null = null;
   let stackConfig: unknown = null; // config jsonb — only meaningful for layout "stack"
   let effectiveTopic: string | null = null; // resolved default/override/cleared Topic
+  let renderer: string | null = null; // explicit renderer selector (config.renderer ?? layout)
   if (effectiveCreativeDesign) {
     const { data: design } = await supabaseAdmin
       .from("creative_designs")
-      .select("layout, builder_state, branding")
+      .select("layout, builder_state, branding, config")
       .eq("slug", effectiveCreativeDesign)
       .is("deleted_at", null)
       .single();
     creativeLayout = design?.layout ?? null;
+    // Durable, explicit renderer selector for the strangler: a design may pin a
+    // specific renderer via config.renderer (e.g. "studio-classic" — the refreshed
+    // Classic). Historical `classic` designs have no config.renderer, so they
+    // resolve to their layout and keep rendering via ClassicSurvey. NEVER keyed on
+    // layout alone, so historical traffic can never be redirected.
+    renderer = ((design?.config as Record<string, unknown> | null)?.renderer as string) ?? creativeLayout;
     // "invitation" is the timer creative with an intro screen — same palette
     // build; the client decides whether to show the intro from `layout`.
     if ((design?.layout === "timer" || design?.layout === "invitation") && design.builder_state) {
@@ -151,12 +184,20 @@ export async function GET(req: NextRequest) {
     creative_design:  effectiveCreativeDesign,
     custom_theme:    customTheme,
     layout:          creativeLayout,
+    renderer:        renderer,
     config:          stackConfig,
     // Effective Stack Topic: design default, unless the campaign overrode or cleared it.
     topic:           effectiveTopic,
     branding,
     questions,
-    thank_you_title: resolveText((survey.thank_you_title as LocalisedText | null) ?? {}, lang) || "Thank you!",
-    thank_you_body:  resolveText((survey.thank_you_body as LocalisedText | null) ?? {}, lang) || "Your anonymous feedback helps improve the football experience for fans everywhere.",
+    thank_you_title: isSystemThankYouSurvey(survey.intro_enabled as boolean | null) ? resolveSystemThankYou(lang).title : (resolveText((survey.thank_you_title as LocalisedText | null) ?? {}, lang) || "Thank you!"),
+    thank_you_body:  isSystemThankYouSurvey(survey.intro_enabled as boolean | null) ? resolveSystemThankYou(lang).body  : (resolveText((survey.thank_you_body as LocalisedText | null) ?? {}, lang) || "Your anonymous feedback helps improve the football experience for fans everywhere."),
+    thank_you_system: isSystemThankYouSurvey(survey.intro_enabled as boolean | null),
+    // Phase 3 Survey-journey fields, resolved to `lang` like the Thank-You copy.
+    // Raw tri-state (null for legacy). NULL→false would drop Stack's always-on intro.
+    intro_enabled:     (survey.intro_enabled as boolean | null) ?? null,
+    intro_title:       resolveText((survey.intro_title as LocalisedText | null) ?? {}, lang) || null,
+    intro_body:        resolveText((survey.intro_body  as LocalisedText | null) ?? {}, lang) || null,
+    thank_you_enabled: (survey.thank_you_enabled as boolean | null) ?? null,
   }, { headers: preview ? NO_CACHE : LIVE_CACHE });
 }

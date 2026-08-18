@@ -18,6 +18,8 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import type { ReactNode, CSSProperties } from "react";
 import { Space_Grotesk, Inter } from "next/font/google";
+import { resolveSystemPrivacy, privacyPolicyHref } from "@/lib/system-privacy";
+import { STACK_RESEARCH_START, stackThankYouStep, stackResearchCounter } from "./stack-frames";
 
 // Self-hosted via next/font (compile-time, same-origin, size-matched fallback),
 // exactly as ThemedSurvey does — avoids a flash-of-fallback on each impression.
@@ -76,6 +78,19 @@ export interface StackSurveyProps {
   // Optional subject shown as small gold metadata on the Intro (e.g. "Women's Football").
   topic?:         string | null;
   demographics?:  StackDemographics;
+
+  // ── Phase 3 Survey-journey props (additive) ──
+  // Survey-level intro toggle. Stack historically had an always-on intro at step 0;
+  // undefined preserves that (always shown). Explicit false SKIPS the intro and
+  // opens on the first journey step (Gender). Explicit true shows it with the
+  // authored copy below.
+  surveyIntroEnabled?: boolean;
+  // Already-resolved localised Intro copy; absent ⇒ existing hardcoded copy.
+  introTitle?:    string;
+  introBody?:     string;
+  // Thank-You toggle. undefined (default) = authored Thank-You (historical always-on);
+  // false = minimal "Response recorded" terminal. Completion still fires either way.
+  thankYouEnabled?: boolean;
 
   // Preview-only: render the creative starting on a given flow step (0-based).
   // Ignored in normal operation (defaults to the Intro). Lets the Creative Lab
@@ -242,6 +257,7 @@ export function StackSurvey(props: StackSurveyProps) {
     hoverVariant = "fade", topic = null,
     introVariant = "b", completionMode = "standard", panelUrl = null,
     demographics, previewStartStep, previewAnswerIndex, previewAnswerState,
+    surveyIntroEnabled, introTitle, introBody, thankYouEnabled,
     campaignId, surveyId, publisher, placement, placementId, creativeId,
     club, competition, country, segment, device, browser,
     groupId, countryCode, market, surveyLanguage, sessionId,
@@ -249,12 +265,21 @@ export function StackSurvey(props: StackSurveyProps) {
 
   const demo = { ...DEFAULT_DEMOGRAPHICS, ...(demographics ?? {}) };
   const nq = questions.length;
-  const RESEARCH_START = 3;              // step index of the first research question
-  const THANKYOU_STEP  = RESEARCH_START + nq;
-  const totalAnswerable = 2 + nq;        // gender + age + research questions
+  const RESEARCH_START = STACK_RESEARCH_START; // 0 Intro · 1 Gender · 2 Age · 3.. research
+  const THANKYOU_STEP  = stackThankYouStep(nq);
+
+  // Undefined preserves the historical always-on intro; explicit false skips it.
+  const introEnabled = surveyIntroEnabled ?? true;
+  // First journey step when there is no intro (Gender = step 1).
+  const FIRST_JOURNEY_STEP = 1;
+  // Authored intro copy with fallback to the historical hardcoded copy.
+  const introLead = introTitle ?? "Football fans deserve a voice.";
+  const introSub  = introBody  ?? "Help shape better football experiences by sharing yours.";
 
   const [step, setStep] = useState<number>(
-    previewStartStep != null ? Math.max(0, Math.min(previewStartStep, THANKYOU_STEP)) : 0
+    previewStartStep != null
+      ? Math.max(0, Math.min(previewStartStep, THANKYOU_STEP))
+      : (introEnabled ? 0 : FIRST_JOURNEY_STEP)
   );
   // The accepted answer currently pulsing, so we hold it visibly before advancing.
   const [accepted, setAccepted] = useState<{ step: number; idx: number } | null>(null);
@@ -267,7 +292,9 @@ export function StackSurvey(props: StackSurveyProps) {
   const ageRef       = useRef<string | null>(null);
   const hasRendered  = useRef(false);
   const hasVisible   = useRef(false);
-  const hasStarted   = useRef(false);
+  const hasStarted   = useRef(false);     // SURVEY_START = journey entry (once)
+  const hasIntroViewed = useRef(false);   // INTRO_VIEWED (once)
+  const hasContinued   = useRef(false);   // INTRO_CONTINUED (once)
   const hasCompleted = useRef(false);
 
   // ── Beacons (mirror ThemedSurvey; all no-ops in preview) ──────────────────────
@@ -317,13 +344,30 @@ export function StackSurvey(props: StackSurveyProps) {
     return () => obs.disconnect();
   }, [sendEvent, previewStartStep]);
 
+  // Phase 3 journey milestones at entry (mirrors ThemedSurvey). With the intro
+  // shown it is INTRO_VIEWED here and SURVEY_START waits for the Start press; with
+  // no intro the journey begins immediately, so SURVEY_START fires now.
+  useEffect(() => {
+    if (previewStartStep != null) return;   // gallery tiles are not impressions
+    if (introEnabled) {
+      if (!hasIntroViewed.current) { hasIntroViewed.current = true; sendEvent("INTRO_VIEWED"); }
+    } else if (!hasStarted.current) {
+      hasStarted.current = true;
+      // Journey-entry origin for the completion timer (effect, not render).
+      startRef.current = Date.now();
+      sendEvent("SURVEY_START");
+    }
+  }, [sendEvent, previewStartStep, introEnabled]);
+
   function handleStart() {
+    // Continuing from the intro IS the journey entry: INTRO_CONTINUED + SURVEY_START.
+    if (!hasContinued.current) { hasContinued.current = true; sendEvent("INTRO_CONTINUED"); }
     if (!hasStarted.current) {
       hasStarted.current = true;
       startRef.current = Date.now();
       sendEvent("SURVEY_START");
     }
-    setStep(1);
+    setStep(FIRST_JOURNEY_STEP);
   }
 
   async function submitResponse() {
@@ -334,7 +378,7 @@ export function StackSurvey(props: StackSurveyProps) {
     await fetch("/api/submit", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        campaign_id: campaignId, survey_id: surveyId,
+        campaign_id: campaignId, survey_id: surveyId, session_id: sessionId,
         publisher, placement, placement_id: placementId, creative_id: creativeId,
         club, competition,
         q1: a[questions[0]?.id] ?? null,
@@ -368,15 +412,17 @@ export function StackSurvey(props: StackSurveyProps) {
       const opt = q?.options[idx];
       if (opt) {
         answersRef.current[q.id] = opt.id;
-        sendAnswer(qi, String(opt.id)); // research answers only (q_index 0..2)
+        sendAnswer(qi, String(opt.id)); // research answers only (q_index 0..4)
       }
     }
 
     window.setTimeout(async () => {
       const next = step + 1;
-      // Fire research-question milestones as they are reached.
+      // Fire research-question milestones as they are reached (surveys run 1–5 Qs).
       if (next === RESEARCH_START + 1) sendEvent("QUESTION_2_REACHED");
       if (next === RESEARCH_START + 2) sendEvent("QUESTION_3_REACHED");
+      if (next === RESEARCH_START + 3) sendEvent("QUESTION_4_REACHED");
+      if (next === RESEARCH_START + 4) sendEvent("QUESTION_5_REACHED");
       if (step === THANKYOU_STEP - 1) await submitResponse();
       setAccepted(null);
       setStep(next);
@@ -420,9 +466,9 @@ export function StackSurvey(props: StackSurveyProps) {
         {renderAnswers(options)}
         {/* Independent link overlaying the final answer's bottom-right. stopPropagation
             keeps a Privacy tap from ever selecting the answer beneath it. */}
-        <a className="fmstk-privacy" href={`/${surveyLanguage || "en"}/privacy`}
+        <a className="fmstk-privacy" href={privacyPolicyHref(surveyLanguage)}
           target="_blank" rel="noopener"
-          onClick={(e) => e.stopPropagation()}>Privacy</a>
+          onClick={(e) => e.stopPropagation()}>{resolveSystemPrivacy(surveyLanguage).label}</a>
         <div className="fmstk-frame" />
       </>
     );
@@ -430,8 +476,12 @@ export function StackSurvey(props: StackSurveyProps) {
 
   let body: ReactNode;
   if (step === 0) {
-    const estSeconds = Math.max(15, Math.round((totalAnswerable * 4) / 5) * 5);
-    const particText = `~${estSeconds} Seconds · ${totalAnswerable} Questions · In banner`;
+    // Unified V1 estimate: ~5s per research question + 5s for the intro, min 10,
+    // to 5s (Gender/Age demographics and the terminal Thank-You are not counted —
+    // consistent with the other mechanics). The displayed count is the research
+    // question count (nq), the survey's actual questions.
+    const estSeconds = Math.max(10, 5 * nq + 5);
+    const particText = `~${estSeconds} seconds · ${nq} question${nq === 1 ? "" : "s"} · In banner`;
     const topicEl = topic
       ? <p className="fmstk-topic"><span className="fmstk-tk">Topic:</span> {topic}</p>
       : null;
@@ -441,16 +491,16 @@ export function StackSurvey(props: StackSurveyProps) {
       <div className="fmstk-mid fmstk-mid-b">
         {topicEl}
         <div className="fmstk-group">
-          <p className="fmstk-lead">Football fans deserve a voice.</p>
-          <p className="fmstk-sub">Help shape better football experiences by sharing yours.</p>
+          <p className="fmstk-lead">{introLead}</p>
+          <p className="fmstk-sub">{introSub}</p>
           <p className="fmstk-partic fmstk-partic-gold">{particText}</p>
         </div>
       </div>
     ) : (
       <div className="fmstk-mid">
         <div className="fmstk-group">
-          <p className="fmstk-lead">Football fans deserve a voice.</p>
-          <p className="fmstk-sub">Help shape better football experiences by sharing yours.</p>
+          <p className="fmstk-lead">{introLead}</p>
+          <p className="fmstk-sub">{introSub}</p>
           <p className="fmstk-partic">{particText}</p>
         </div>
         <span className="fmstk-sp" />
@@ -462,22 +512,27 @@ export function StackSurvey(props: StackSurveyProps) {
       <>
         <div className="fmstk-introcontent">{introMid}</div>
         <button className="fmstk-cta" type="button" onClick={handleStart} aria-label="Start survey">
-          Start survey <span className="fmstk-arw" aria-hidden>→</span>
+          Start Survey <span className="fmstk-arw" aria-hidden>→</span>
           <span className="fmstk-shine" aria-hidden />
         </button>
         <div className="fmstk-frame" />
       </>
     );
   } else if (step === 1) {
-    // Unified numbering across all answerable frames: Gender = 1 of N.
-    body = renderQuestionFrame(`Question 1 of ${totalAnswerable}`, demo.genderLabel, demo.genderOptions);
+    // Gender is a demographic frame — journey furniture, NOT a Survey question, so
+    // it carries a neutral label and never a "Question X of N" counter.
+    body = renderQuestionFrame("About you", demo.genderLabel, demo.genderOptions);
   } else if (step === 2) {
-    body = renderQuestionFrame(`Question 2 of ${totalAnswerable}`, demo.ageLabel, demo.ageOptions);
+    body = renderQuestionFrame("About you", demo.ageLabel, demo.ageOptions);
   } else if (step < THANKYOU_STEP) {
     const qi = step - RESEARCH_START;
     const q = questions[qi];
+    // Counter is over SURVEY questions only: research question qi → "Question qi+1 of nq".
+    // In the Studio preview the questions ARE the live draft (rendered inline), so nq
+    // is the live count and the counter is correct without any override.
+    const { position, total } = stackResearchCounter(qi, nq);
     body = renderQuestionFrame(
-      `Question ${qi + 3} of ${totalAnswerable}`,
+      `Question ${position} of ${total}`,
       q?.text ?? "",
       (q?.options ?? []).map(o => o.text),
     );
@@ -509,6 +564,14 @@ export function StackSurvey(props: StackSurveyProps) {
         )}
         <div className="fmstk-frame" />
       </>
+    );
+  } else if (thankYouEnabled === false) {
+    // Authored Thank-You suppressed — minimal system acknowledgement. Submit +
+    // SURVEY_COMPLETED already fired on the final answer (see submitResponse).
+    body = (
+      <div className="fmstk-ty">
+        <p className="fmstk-ty-title" style={{ fontSize: 16, fontWeight: 500 }}>Response recorded</p>
+      </div>
     );
   } else {
     body = (

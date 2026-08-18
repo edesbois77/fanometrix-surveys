@@ -144,7 +144,17 @@ export async function GET(req: NextRequest) {
     date_from, date_to, scopedCampaignIds,
   };
 
-  const TYPES = ["SURVEY_RENDER", "SURVEY_VISIBLE", "SURVEY_START", "QUESTION_2_REACHED", "QUESTION_3_REACHED", "SURVEY_COMPLETED"];
+  // Surveys now run 1–5 questions, so the mid-funnel is however many
+  // QUESTION_n_REACHED stages the survey actually emitted, not a fixed Q2/Q3.
+  // We always query Q2–Q5; the ones a survey never reached simply count zero and
+  // the higher stages are only surfaced when present, so a 1–3-question survey's
+  // funnel is unchanged. Order is stable; counts are keyed by type below rather
+  // than by position, so adding stages here cannot shift an existing field.
+  const TYPES = [
+    "SURVEY_RENDER", "SURVEY_VISIBLE", "SURVEY_START",
+    "QUESTION_2_REACHED", "QUESTION_3_REACHED", "QUESTION_4_REACHED", "QUESTION_5_REACHED",
+    "SURVEY_COMPLETED",
+  ];
 
   const [results, timing] = await Promise.all([
     (async (): Promise<(number | null)[]> => {
@@ -164,13 +174,24 @@ export async function GET(req: NextRequest) {
     }),
   ]);
 
+  // Keyed by type so the payload never depends on TYPES ordering.
+  const count = (t: string): number | null => results[TYPES.indexOf(t)] ?? null;
+
+  // Q4/Q5 are additive: only present in the payload when the survey actually
+  // reached them (count > 0). Existing consumers read the fixed renders/viewable/
+  // starts/q2_reached/q3_reached/completed shape and are untouched.
+  const q4 = count("QUESTION_4_REACHED");
+  const q5 = count("QUESTION_5_REACHED");
+
   return NextResponse.json({
-    renders:    results[0],  // SURVEY_RENDER = loads / impressions
-    viewable:   results[1],  // SURVEY_VISIBLE = viewable impressions
-    starts:     results[2],
-    q2_reached: results[3],
-    q3_reached: results[4],
-    completed:  results[5],
+    renders:    count("SURVEY_RENDER"),   // loads / impressions
+    viewable:   count("SURVEY_VISIBLE"),  // viewable impressions
+    starts:     count("SURVEY_START"),
+    q2_reached: count("QUESTION_2_REACHED"),
+    q3_reached: count("QUESTION_3_REACHED"),
+    ...(q4 && q4 > 0 ? { q4_reached: q4 } : {}),
+    ...(q5 && q5 > 0 ? { q5_reached: q5 } : {}),
+    completed:  count("SURVEY_COMPLETED"),
     // True when at least one count could not be computed, so the dashboard can
     // explain the "—"s rather than leaving them ambiguous.
     degraded:   results.some(r => r === null),

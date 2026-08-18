@@ -28,11 +28,13 @@ import {
   fetchEventBuckets,
   fetchFirstEventAt,
   fetchLastEventAt,
+  fetchLateAnswers,
   fetchResponses,
   fetchSurveyQuestions,
   firstViewableHour,
   type CampaignRow,
   type EventBucket,
+  type LateAnswerRow,
   type ResponseRow,
   type CreativeDesignRow,
   type SurveyQuestion,
@@ -340,7 +342,13 @@ export async function buildAudienceIntelligenceReport(
   // ── Survey answers ────────────────────────────────────────────────────────
   const surveyIds = [...new Set(meta.map((m) => m.survey_id).filter((x): x is string => !!x))];
   const questionSets = await fetchSurveyQuestions(surveyIds);
-  const questions = buildQuestions(questionSets, responses, byCampaign);
+  // Q4/Q5 answers are not on `responses` — they live only in response_answers.
+  // Fetch them (aggregate, session-keyed) only when a survey in scope actually
+  // has more than three questions, so a 1–3-question report issues no extra
+  // query and its answer distributions are byte-for-byte unchanged.
+  const maxQuestionCount = [...questionSets.values()].reduce((n, qs) => Math.max(n, qs.length), 0);
+  const lateAnswers = maxQuestionCount > 3 ? await fetchLateAnswers(ids, from) : [];
+  const questions = buildQuestions(questionSets, responses, byCampaign, lateAnswers);
 
   // ── Narrative ─────────────────────────────────────────────────────────────
   const stillLive = meta.some((m) => m.status === "live");
@@ -759,6 +767,7 @@ function buildQuestions(
   questionSets: Map<string, SurveyQuestion[]>,
   responses: ResponseRow[],
   byCampaign: Map<string, CampaignMeta>,
+  lateAnswers: LateAnswerRow[],
 ): QuestionDistribution[] {
   // Surveys in one report are expected to be question-identical (a v2 copy of
   // the same instrument is still the same instrument). Take the longest set as
@@ -770,7 +779,7 @@ function buildQuestions(
 
   const markets = [...new Set([...byCampaign.values()].map((m) => m.market))].sort();
 
-  return canonical.slice(0, QUESTION_KEYS.length).map((q, qi) => {
+  const base = canonical.slice(0, QUESTION_KEYS.length).map((q, qi) => {
     const key = QUESTION_KEYS[qi];
     const optionLabels = q.options.map((o) => ({ id: o.id, label: text(o.text) }));
 
@@ -831,6 +840,114 @@ function buildQuestions(
       notableDifferences,
     };
   });
+
+  // Q4/Q5 (question_index >= 3) are additive: a survey now runs 1–5 questions and
+  // Q3 is no longer inherently the last. Their answers are not on `responses`, so
+  // they are sourced from the per-answer store (fetchLateAnswers). For a 1–3-
+  // question survey this slice is empty and `base` is returned unchanged.
+  const width = Math.min(canonical.length, QUESTION_KEYS.length + 2); // hard cap at 5
+  const late = canonical
+    .slice(QUESTION_KEYS.length, width)
+    .map((q, i) =>
+      lateQuestionDistribution(q, i + QUESTION_KEYS.length, canonical.length - 1, lateAnswers, byCampaign, markets),
+    );
+
+  return [...base, ...late];
+}
+
+/** A Q4/Q5 answer distribution, built from the per-answer store rather than from
+ *  `responses` (which has no q4/q5 columns and no key to join them per row).
+ *
+ *  Restricted to sessions that completed the survey — those that answered its
+ *  final question — so this question's base matches the completed-response basis
+ *  of Q1–Q3 rather than counting partials. Market is attributed by campaign,
+ *  exactly as the funnel and the Q1–Q3 distributions do. The per-answer store is
+ *  a distinct population from `responses`, so completed-session counts here can
+ *  differ slightly from responses.length; every share within this question is
+ *  computed consistently from the one source, so the distribution is internally
+ *  sound. */
+function lateQuestionDistribution(
+  q: SurveyQuestion,
+  questionIndex: number,
+  finalIndex: number,
+  lateAnswers: LateAnswerRow[],
+  byCampaign: Map<string, CampaignMeta>,
+  markets: string[],
+): QuestionDistribution {
+  // Completed sessions (answered the final question) and the market each is in.
+  const sessionMarket = new Map<string, string>();
+  for (const a of lateAnswers) {
+    if (a.question_index !== finalIndex || !a.answer_value) continue;
+    const market = byCampaign.get(a.campaign_id)?.market;
+    if (market != null) sessionMarket.set(a.session_id, market);
+  }
+
+  // The option each completed session chose for THIS question.
+  const optionBySession = new Map<string, string>();
+  for (const a of lateAnswers) {
+    if (a.question_index !== questionIndex || !a.answer_value) continue;
+    if (!sessionMarket.has(a.session_id)) continue;
+    optionBySession.set(a.session_id, a.answer_value);
+  }
+
+  const optionLabels = q.options.map((o) => ({ id: o.id, label: text(o.text) }));
+  const completedSessions = [...sessionMarket.keys()];
+  const sessionsInMarket = (market: string) =>
+    completedSessions.filter((s) => sessionMarket.get(s) === market);
+
+  const tally = (sessions: string[]) => {
+    const total = sessions.length;
+    return optionLabels.map((o) => {
+      const count = sessions.filter((s) => optionBySession.get(s) === String(o.id)).length;
+      return { id: o.id, label: o.label, count, share: total > 0 ? count / total : 0 };
+    });
+  };
+
+  const overall = tally(completedSessions);
+
+  const byMarket = markets.map((market) => {
+    const sessions = sessionsInMarket(market);
+    return {
+      market,
+      sampleSize: sessions.length,
+      belowThreshold: sessions.length < MIN_REPORTABLE_SAMPLE,
+      options: tally(sessions),
+    };
+  });
+
+  const notableDifferences: NotableDifference[] = [];
+  for (const m of byMarket) {
+    if (m.belowThreshold) continue;
+    const inMarket = sessionsInMarket(m.market);
+    const rest = completedSessions.filter((s) => sessionMarket.get(s) !== m.market);
+    if (rest.length < MIN_REPORTABLE_SAMPLE) continue;
+
+    for (const o of optionLabels) {
+      const xIn = inMarket.filter((s) => optionBySession.get(s) === String(o.id)).length;
+      const xOut = rest.filter((s) => optionBySession.get(s) === String(o.id)).length;
+      const test = compareProportions(xOut, rest.length, xIn, inMarket.length);
+      if (test.inconclusive) continue;
+      const direction = test.p2 > test.p1 ? "more likely" : "less likely";
+      notableDifferences.push({
+        market: m.market,
+        optionLabel: o.label,
+        share: test.p2,
+        comparisonShare: test.p1,
+        sampleSize: inMarket.length,
+        confidence: test.confidence,
+        statement: `Fans in ${m.market} were ${direction} to choose "${o.label}" than fans elsewhere in the campaign (${Math.round(test.p2 * 100)}% against ${Math.round(test.p1 * 100)}%).`,
+      });
+    }
+  }
+
+  return {
+    id: q.id,
+    text: text(q.text),
+    sampleSize: completedSessions.length,
+    options: overall,
+    byMarket,
+    notableDifferences,
+  };
 }
 
 // ── Narrative generation ─────────────────────────────────────────────────────

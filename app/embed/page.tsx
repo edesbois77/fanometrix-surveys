@@ -1,10 +1,12 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback, Suspense } from "react";
+import { useState, useEffect, useCallback, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { ThemedSurvey, type EmbedTheme } from "./ThemedSurvey";
 import { ClassicSurvey } from "./ClassicSurvey";
+import { StudioClassicSurvey } from "./StudioClassicSurvey";
 import { StackSurvey } from "./StackSurvey";
+import { parseStackPreviewFrame, resolveStackPreviewStep } from "./stack-frames";
 import { coerceStackConfig, DEFAULT_STACK_CONFIG, type StackConfig } from "@/lib/stack-config";
 
 const NAVY = "#071B2F";
@@ -154,6 +156,18 @@ function EmbedSurvey() {
   const [thankYouTitle,  setThankYouTitle]  = useState("Thank you!");
   const [thankYouBody,   setThankYouBody]   = useState("Your anonymous feedback helps improve the football experience for fans everywhere.");
 
+  // ── Phase 3 Survey-journey fields (resolved server-side; see the embed routes) ──
+  // surveyIntroEnabled: NULL/false ⇒ no survey-level intro. thankYouEnabled:
+  // undefined ⇒ enabled (historical default), false ⇒ suppressed. introTitle/Body
+  // are already-resolved localised strings (undefined ⇒ renderer fallback copy).
+  // Tri-state: undefined = legacy (renderer picks its historical default — Stack
+  // keeps its always-on intro, Timer/Studio Classic show none); true/false = a
+  // Studio Survey-journey decision. Never coerce NULL→false here.
+  const [surveyIntroEnabled, setSurveyIntroEnabled] = useState<boolean | undefined>(undefined);
+  const [introTitle,         setIntroTitle]         = useState<string | undefined>(undefined);
+  const [introBody,          setIntroBody]          = useState<string | undefined>(undefined);
+  const [thankYouEnabled,    setThankYouEnabled]    = useState<boolean | undefined>(undefined);
+
   const [resolvedCampaignId, setResolvedCampaignId] = useState<string>(campaign);
   const [groupReady,         setGroupReady]         = useState(!groupSlug);
   const [creativeDesign,     setCreativeDesign]     = useState<string | null>(null);
@@ -162,6 +176,10 @@ function EmbedSurvey() {
   // server-side. Only "invitation" changes behaviour here (shows the intro
   // screen before Q1); the rest is inferred from customTheme presence below.
   const [resolvedLayout,     setResolvedLayout]     = useState<string | null>(null);
+  // Explicit renderer selector resolved server-side (config.renderer ?? layout).
+  // "studio-classic" dispatches to the refreshed StudioClassicSurvey; historical
+  // classic designs resolve to "classic" → the unchanged ClassicSurvey.
+  const [resolvedRenderer,   setResolvedRenderer]   = useState<string | null>(null);
   // Stack-only config resolved server-side from creative_designs.config (null for
   // non-stack designs, and until the config column is migrated → falls back to
   // approved defaults). Preview URL params still override it for the Studio/QA.
@@ -175,7 +193,10 @@ function EmbedSurvey() {
   const [resolvedCountryCode,  setResolvedCountryCode]  = useState<string | null>(countryParam || null);
   const [resolvedMarket,       setResolvedMarket]       = useState<string | null>(marketParam);
 
-  const sessionId = useRef<string>(typeof crypto !== "undefined" ? crypto.randomUUID() : "");
+  // A stable per-mount session id (generated once, never changes). Held in lazy
+  // useState rather than a ref so it can be read during render without the
+  // ref-in-render lint, with identical set-once semantics.
+  const [sessionId] = useState<string>(() => (typeof crypto !== "undefined" ? crypto.randomUUID() : ""));
 
   useEffect(() => {
     setDevice(detectDevice());
@@ -206,9 +227,14 @@ function EmbedSurvey() {
           setCreativeDesign(data.creative_design ?? null);
           setCustomTheme(data.custom_theme ?? null);
           setResolvedLayout(data.layout ?? null);
+          setResolvedRenderer(data.renderer ?? null);
           setStackConfig(coerceStackConfig(data.config));
           setCampaignTopic(data.topic ?? null);
           setBranding(data.branding ?? []);
+          setSurveyIntroEnabled(data.intro_enabled ?? undefined);
+          setIntroTitle(data.intro_title ?? undefined);
+          setIntroBody(data.intro_body ?? undefined);
+          setThankYouEnabled(data.thank_you_enabled ?? undefined);
         }
         setGroupReady(!!data?.campaign_id);
       })
@@ -234,9 +260,14 @@ function EmbedSurvey() {
           setCreativeDesign(data.creative_design ?? null);
           setCustomTheme(data.custom_theme ?? null);
           setResolvedLayout(data.layout ?? null);
+          setResolvedRenderer(data.renderer ?? null);
           setStackConfig(coerceStackConfig(data.config));
           setCampaignTopic(data.topic ?? null);
           setBranding(data.branding ?? []);
+          setSurveyIntroEnabled(data.intro_enabled ?? undefined);
+          setIntroTitle(data.intro_title ?? undefined);
+          setIntroBody(data.intro_body ?? undefined);
+          setThankYouEnabled(data.thank_you_enabled ?? undefined);
         }
       })
       .catch(() => {/* keep fallback questions */});
@@ -255,9 +286,14 @@ function EmbedSurvey() {
           setThankYouTitle(data.thank_you_title);
           setThankYouBody(data.thank_you_body);
           setResolvedSurveyLang(urlLang ?? "en");
+          setSurveyIntroEnabled(data.intro_enabled ?? undefined);
+          setIntroTitle(data.intro_title ?? undefined);
+          setIntroBody(data.intro_body ?? undefined);
+          setThankYouEnabled(data.thank_you_enabled ?? undefined);
         }
       })
       .catch(() => {/* keep fallback questions */});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [surveyId, groupSlug, hasCampaignSlug]);
 
   if ((groupSlug && !groupReady) || questions.length === 0) {
@@ -271,6 +307,12 @@ function EmbedSurvey() {
   const isStack = resolvedLayout === "stack" || (isPreview && params.get("layout") === "stack");
   if (isStack) {
     const reportedStackId = creativeIdParam ?? creativeDesign;
+    // Whether this Stack impression is backed by a REAL survey (live campaign, or a
+    // Survey-stage draft preview via ?survey=<id>&preview=1&layout=stack) rather than
+    // the design-level sample. Drives both the question source and whether the
+    // survey's intro/thank-you journey fields apply (sample keeps its own defaults).
+    const stackUsesRealSurvey = resolvedLayout === "stack"
+      || (!!surveyId && !groupSlug && !hasCampaignSlug);
     // Preview-only viewing aids (Creative Lab / verification): jump to a frame,
     // freeze an answer state, or load long/translated sample copy. All gated on
     // isPreview so live impressions are never affected.
@@ -280,7 +322,20 @@ function EmbedSurvey() {
     const pvLong  = isPreview && params.get("plong") === "1";
     const astate  = isPreview ? params.get("astate") : null;
     const frameQ  = isPreview ? params.get("frame") : null;
+    const fqQ     = isPreview ? params.get("fq")    : null;
     const aidxQ   = isPreview ? params.get("aidx")  : null;
+    // Resolve the SEMANTIC preview frame (intro/question/thankyou) against THIS
+    // renderer's own question count — the effective questions array below. A
+    // question frame clamps to the newest available Survey question and never
+    // becomes Thank You, even if the persisted survey is behind the live draft.
+    // A raw numeric `frame` (the design-level static card) keeps its old meaning.
+    const effQuestions = pvLong ? STACK_PREVIEW_LONG_QUESTIONS
+      : stackUsesRealSurvey ? questions
+      : STACK_PREVIEW_QUESTIONS;
+    const semanticFrame = parseStackPreviewFrame(frameQ, fqQ);
+    const previewStartStep = semanticFrame != null
+      ? resolveStackPreviewStep(semanticFrame, effQuestions.length)
+      : (frameQ != null ? Number(frameQ) : undefined);
     const hoverParam = params.get("hover");
     const effHover = hoverParam === "swipe" ? "swipe" : hoverParam === "fade" ? "fade" : cfg.hoverVariant;
     const completionParam = isPreview ? params.get("completion") : null;
@@ -291,19 +346,21 @@ function EmbedSurvey() {
     const introV = introParam === "a" ? "a" : introParam === "b" ? "b" : undefined;
     return (
       <StackSurvey
-        questions={pvLong ? STACK_PREVIEW_LONG_QUESTIONS
-          : resolvedLayout === "stack" ? questions   /* live campaign → its survey's questions */
-          : STACK_PREVIEW_QUESTIONS                    /* design-level preview → sample */}
+        questions={effQuestions}                       /* live campaign / draft preview → real survey; else sample */
         demographics={pvLong ? STACK_PREVIEW_LONG_DEMO : undefined}
         thankYouTitle={thankYouTitle}
         thankYouBody={thankYouBody}
         isPreview={isPreview}
+        surveyIntroEnabled={stackUsesRealSurvey ? surveyIntroEnabled : undefined}
+        introTitle={stackUsesRealSurvey ? introTitle : undefined}
+        introBody={stackUsesRealSurvey ? introBody : undefined}
+        thankYouEnabled={stackUsesRealSurvey ? thankYouEnabled : undefined}
         hoverVariant={effHover}
         introVariant={introV}
         completionMode={effCompletion}
         panelUrl={cfg.panelUrl}
         topic={params.get("topic") ?? campaignTopic ?? (pvLong ? "Frauenfußball · Weltmeisterschaft" : null)}
-        previewStartStep={frameQ != null ? Number(frameQ) : undefined}
+        previewStartStep={previewStartStep}
         previewAnswerState={astate === "hover" || astate === "accepted" ? astate : undefined}
         previewAnswerIndex={aidxQ != null ? Number(aidxQ) : undefined}
         campaignId={resolvedCampaignId}
@@ -322,7 +379,7 @@ function EmbedSurvey() {
         countryCode={resolvedCountryCode}
         market={resolvedMarket}
         surveyLanguage={resolvedSurveyLang}
-        sessionId={sessionId.current}
+        sessionId={sessionId}
       />
     );
   }
@@ -349,6 +406,10 @@ function EmbedSurvey() {
         thankYouBody={thankYouBody}
         isPreview={isPreview}
         intro={resolvedLayout === "invitation"}
+        surveyIntroEnabled={surveyIntroEnabled}
+        introTitle={introTitle}
+        introBody={introBody}
+        thankYouEnabled={thankYouEnabled}
         campaignId={resolvedCampaignId}
         surveyId={surveyId}
         publisher={publisher}
@@ -365,7 +426,48 @@ function EmbedSurvey() {
         countryCode={resolvedCountryCode}
         market={resolvedMarket}
         surveyLanguage={resolvedSurveyLang}
-        sessionId={sessionId.current}
+        sessionId={sessionId}
+      />
+    );
+  }
+
+  // Refreshed Studio Classic is dispatched ONLY for the explicit studio-classic
+  // renderer identity; historical `classic` (resolvedRenderer "classic"/null)
+  // keeps rendering via the unchanged, frozen ClassicSurvey. They are now rendered
+  // by SEPARATE elements because only StudioClassicSurvey declares the Phase 3
+  // Survey-journey props (surveyIntroEnabled/introTitle/introBody/thankYouEnabled) —
+  // ClassicSurvey must NOT receive them.
+  if (resolvedRenderer === "studio-classic") {
+    return (
+      <StudioClassicSurvey
+        branding={branding}
+        questions={questions}
+        thankYouTitle={thankYouTitle}
+        thankYouBody={thankYouBody}
+        isPreview={isPreview}
+        surveyIntroEnabled={surveyIntroEnabled}
+        introTitle={introTitle}
+        introBody={introBody}
+        thankYouEnabled={thankYouEnabled}
+        campaignId={resolvedCampaignId}
+        surveyId={surveyId}
+        questionSetId={questionSetId}
+        publisher={publisher}
+        placement={placement}
+        placementId={placementId}
+        creativeId={reportedCreativeId}
+        club={club}
+        competition={competition}
+        country={country}
+        segment={segment}
+        device={device}
+        browser={browser}
+        groupId={resolvedGroupId}
+        countryCode={resolvedCountryCode}
+        market={resolvedMarket}
+        surveyLanguage={resolvedSurveyLang}
+        sessionId={sessionId}
+        urlLang={urlLang}
       />
     );
   }
@@ -394,7 +496,7 @@ function EmbedSurvey() {
       countryCode={resolvedCountryCode}
       market={resolvedMarket}
       surveyLanguage={resolvedSurveyLang}
-      sessionId={sessionId.current}
+      sessionId={sessionId}
       urlLang={urlLang}
     />
   );

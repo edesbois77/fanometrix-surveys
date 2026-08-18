@@ -24,6 +24,9 @@ export type EventBucket = {
 export type ResponseRow = {
   id: string;
   campaign_id: string;
+  // Join key to response_answers for Q4/Q5 (migration 184). NULL for legacy /
+  // ≤3-question rows, whose answers all live in q1/q2/q3.
+  session_id: string | null;
   q1: string | null;
   q2: string | null;
   q3: string | null;
@@ -299,10 +302,51 @@ export async function fetchResponses(
     let q = supabaseAdmin
       .from("responses")
       .select(
-        "id, campaign_id, q1, q2, q3, country, country_code, created_at, publisher, placement, device, browser, survey_language, response_duration_seconds",
+        "id, campaign_id, session_id, q1, q2, q3, country, country_code, created_at, publisher, placement, device, browser, survey_language, response_duration_seconds",
       )
       .in("campaign_id", campaignIds)
       .order("created_at")
+      .range(from, to);
+    if (dataFrom) q = q.gte("created_at", dataFrom);
+    return q;
+  });
+}
+
+/** One persisted answer to a question BEYOND Q3 (question_index >= 3).
+ *
+ *  Surveys now run 1–5 questions (SURVEY_LIMITS.MAX_QUESTIONS), but `responses`
+ *  only ever carried q1/q2/q3 columns and no more will be added. Q4/Q5 answers
+ *  live solely in response_answers (migrations 147 + 183), keyed by session_id,
+ *  one row per (session, question_index). This is the only place the report
+ *  engine can read them. */
+export type LateAnswerRow = {
+  campaign_id: string;
+  session_id: string;
+  question_index: number;
+  answer_value: string | null;
+};
+
+/** Q4/Q5 answers (question_index >= 3) for the campaigns in scope, from
+ *  response_answers. Only call this when a survey in scope actually has more than
+ *  three questions — a 1–3-question report must issue no extra query and behave
+ *  exactly as before. Session-keyed: since migration 184 added responses.session_id,
+ *  these CAN be joined back to a specific `responses` row (session_id) for the
+ *  per-respondent Responses CSV, as well as feeding aggregate distributions. */
+export async function fetchLateAnswers(
+  campaignIds: string[],
+  dataFrom: string | null,
+): Promise<LateAnswerRow[]> {
+  if (campaignIds.length === 0) return [];
+  return pageAll<LateAnswerRow>((from, to) => {
+    // response_answers is not in the report's generated types surface; the shape
+    // is pinned by LateAnswerRow above and the columns are all long-standing
+    // (migrations 147/183), so a narrow select is safe.
+    let q = supabaseAdmin
+      .from("response_answers")
+      .select("campaign_id, session_id, question_index, answer_value")
+      .in("campaign_id", campaignIds)
+      .gte("question_index", 3)
+      .order("session_id")
       .range(from, to);
     if (dataFrom) q = q.gte("created_at", dataFrom);
     return q;

@@ -21,8 +21,10 @@ import { supabase } from "@/lib/supabase";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { validateSurvey } from "@/lib/survey-validation";
 import { resolveQuestion, resolveText, type LangCode, type LocalisedQuestion, type LocalisedText } from "@/lib/survey-locale";
+import { resolveSystemThankYou, isSystemThankYouSurvey } from "@/lib/system-thankyou";
 import { buildEmbedThemeFromState, resolveBrandingLogos, type BuilderState, type BrandingConfig } from "@/lib/creative-theme-builder";
 import { coerceStackConfig, resolveEffectiveTopic } from "@/lib/stack-config";
+import { campaignStartInstant, campaignEndInstant } from "@/lib/campaign-time";
 import type { EmbedTheme } from "@/app/embed/ThemedSurvey";
 
 export async function GET(req: NextRequest) {
@@ -167,12 +169,21 @@ export async function GET(req: NextRequest) {
   const surveyIdsNeeded = Array.from(new Set(
     campaigns.map(effectiveSurveyId).filter((id): id is string => !!id)
   ));
-  type SurveyRow = { id: string; name: string; questions: unknown[]; thank_you_title: LocalisedText; thank_you_body: LocalisedText };
+  type SurveyRow = {
+    id: string; name: string; questions: unknown[];
+    thank_you_title: LocalisedText; thank_you_body: LocalisedText;
+    // Phase 3 Survey-journey columns (migration 182); untyped client → resolve to
+    // undefined if the column is not yet present.
+    intro_enabled?: boolean | null;
+    intro_title?: LocalisedText | null;
+    intro_body?: LocalisedText | null;
+    thank_you_enabled?: boolean | null;
+  };
   const surveysById: Record<string, SurveyRow> = {};
   if (surveyIdsNeeded.length > 0) {
     const { data: surveys } = await supabase
       .from("surveys")
-      .select("id, name, questions, thank_you_title, thank_you_body")
+      .select("id, name, questions, thank_you_title, thank_you_body, intro_enabled, intro_title, intro_body, thank_you_enabled")
       .in("id", surveyIdsNeeded);
     for (const s of (surveys ?? []) as SurveyRow[]) surveysById[s.id] = s;
   }
@@ -182,11 +193,13 @@ export async function GET(req: NextRequest) {
     const c = campaigns.find(x => x.id === m.campaign_id);
     if (!c) return false;
 
-    // Campaign must be live, in date range, not deleted
+    // Campaign must be live, in date range, not deleted. Date boundaries are in the
+    // member's MARKET timezone (start 00:01 / end 23:59 local), consistent with the
+    // single-campaign serve and status engine.
     if (c.deleted_at) return false;
     if (c.status !== "live") return false;
-    if (c.start_date && new Date(`${c.start_date}T00:00:00`) > now) return false;
-    if (c.end_date   && new Date(`${c.end_date}T23:59:59`)   < now) return false;
+    if (c.start_date && campaignStartInstant(c.start_date, c.country_code) > now) return false;
+    if (c.end_date   && campaignEndInstant(c.end_date, c.country_code)     < now) return false;
 
     // Country filter — case-insensitive ISO code match
     if (country && c.country_code) {
@@ -248,6 +261,10 @@ export async function GET(req: NextRequest) {
     questions: LocalisedQuestion[];
     thank_you_title: LocalisedText;
     thank_you_body: LocalisedText;
+    intro_enabled?: boolean | null;
+    intro_title?: LocalisedText | null;
+    intro_body?: LocalisedText | null;
+    thank_you_enabled?: boolean | null;
   } | null;
 
   // Language priority: explicit URL param > campaign survey_language > en
@@ -261,14 +278,18 @@ export async function GET(req: NextRequest) {
   let creativeLayout: string | null = null;
   let stackConfig: unknown = null; // config jsonb — only meaningful for layout "stack"
   let effectiveTopic: string | null = null; // resolved default/override/cleared Topic
+  let renderer: string | null = null; // explicit renderer selector (config.renderer ?? layout)
   if (resolvedDesign) {
     const { data: design } = await supabaseAdmin
       .from("creative_designs")
-      .select("layout, builder_state, branding")
+      .select("layout, builder_state, branding, config")
       .eq("slug", resolvedDesign)
       .is("deleted_at", null)
       .single();
     creativeLayout = design?.layout ?? null;
+    // Explicit renderer selector (strangler): config.renderer pins a specific
+    // renderer (e.g. "studio-classic"); historical designs → their layout.
+    renderer = ((design?.config as Record<string, unknown> | null)?.renderer as string) ?? creativeLayout;
     // "invitation" is the timer creative with an intro screen — same palette
     // build; the client decides whether to show the intro from `layout`.
     if ((design?.layout === "timer" || design?.layout === "invitation") && design.builder_state) {
@@ -294,12 +315,19 @@ export async function GET(req: NextRequest) {
     creative_design:  resolvedDesign,
     custom_theme:    customTheme,
     layout:          creativeLayout,
+    renderer:        renderer,
     config:          stackConfig,
     // Effective Stack Topic: design default, unless the campaign overrode or cleared it.
     topic:           effectiveTopic,
     branding,
     questions,
-    thank_you_title: resolveText(survey?.thank_you_title ?? {}, lang) || "Thank you!",
-    thank_you_body:  resolveText(survey?.thank_you_body ?? {}, lang) || "Your anonymous feedback helps improve the football experience for fans everywhere.",
+    thank_you_title: isSystemThankYouSurvey(survey?.intro_enabled) ? resolveSystemThankYou(lang).title : (resolveText(survey?.thank_you_title ?? {}, lang) || "Thank you!"),
+    thank_you_body:  isSystemThankYouSurvey(survey?.intro_enabled) ? resolveSystemThankYou(lang).body  : (resolveText(survey?.thank_you_body ?? {}, lang) || "Your anonymous feedback helps improve the football experience for fans everywhere."),
+    thank_you_system: isSystemThankYouSurvey(survey?.intro_enabled),
+    // Phase 3 Survey-journey fields, resolved to `lang` like the Thank-You copy.
+    intro_enabled:     survey?.intro_enabled ?? null, // raw tri-state; NULL→false would drop Stack's always-on intro
+    intro_title:       resolveText(survey?.intro_title ?? {}, lang) || null,
+    intro_body:        resolveText(survey?.intro_body  ?? {}, lang) || null,
+    thank_you_enabled: survey?.thank_you_enabled ?? null,
   });
 }

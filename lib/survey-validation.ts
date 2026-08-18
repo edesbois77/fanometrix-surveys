@@ -15,12 +15,35 @@
  */
 
 export const SURVEY_LIMITS = {
-  MAX_QUESTIONS:  3,
+  // Phase 3 (Survey Studio): the product journey is optional Intro → 1–5 Questions
+  // → optional Thank You. Question count is a SURVEY product rule (not a Creative
+  // rule). MIN/MAX_OPTIONS = 2–4, portable across Countdown / Stack / Studio Classic.
+  MIN_QUESTIONS:  1,
+  MAX_QUESTIONS:  5,
+  MIN_OPTIONS:    2,
   MAX_OPTIONS:    4,
   MAX_Q_CHARS:    70,
   MAX_OPT_CHARS:  32,
   MAX_TY_TITLE:   40,
   MAX_TY_BODY:    90,
+  // Survey-level Intro copy limits (mirror the Thank-You limits).
+  MAX_INTRO_TITLE: 40,
+  MAX_INTRO_BODY:  90,
+} as const;
+
+// ── Studio authoring guidance (multilingual-safe) ────────────────────────────
+// SURVEY_LIMITS above is the RENDERER / historical compatibility CEILING (what a
+// renderer tolerates and what old surveys were authored against — never lowered,
+// so no historical content is retroactively invalidated). STUDIO_AUTHORING_LIMITS
+// is the tighter guidance for NEW Survey Studio authoring only: English source
+// text kept short enough that natural translation expansion (e.g. German ~+35%)
+// still fits the tightest V1 renderer (Countdown's 2-line question clamp and
+// answer font-shrink). Enforced in the Studio editor UI (maxLength + counters);
+// the shared server validateSurvey keeps SURVEY_LIMITS so existing drafts and
+// historical rows stay valid.
+export const STUDIO_AUTHORING_LIMITS = {
+  MAX_Q_CHARS:   45,
+  MAX_OPT_CHARS:  24,
 } as const;
 
 type AnyQuestion = {
@@ -33,6 +56,8 @@ export type SurveyForValidation = {
   questions?:       AnyQuestion[] | null;
   thank_you_title?: string | Record<string, string> | null;
   thank_you_body?:  string | Record<string, string> | null;
+  intro_title?:     string | Record<string, string> | null;
+  intro_body?:      string | Record<string, string> | null;
 };
 
 /** Extract the English validation text from either question shape */
@@ -62,7 +87,7 @@ function localisedText(v: string | Record<string, string> | null | undefined): s
  */
 export function validateSurvey(survey: SurveyForValidation): string[] {
   const errors: string[] = [];
-  const { MAX_QUESTIONS, MAX_OPTIONS, MAX_Q_CHARS, MAX_OPT_CHARS, MAX_TY_TITLE, MAX_TY_BODY } = SURVEY_LIMITS;
+  const { MAX_QUESTIONS, MAX_OPTIONS, MAX_Q_CHARS, MAX_OPT_CHARS, MAX_TY_TITLE, MAX_TY_BODY, MAX_INTRO_TITLE, MAX_INTRO_BODY } = SURVEY_LIMITS;
 
   if (!survey.name?.trim()) {
     errors.push("Survey name is required.");
@@ -109,6 +134,15 @@ export function validateSurvey(survey: SurveyForValidation): string[] {
     errors.push(`Thank-you message exceeds ${MAX_TY_BODY} characters.`);
   }
 
+  // Intro copy is optional; when present the English text must fit the frame.
+  // (Whether an Intro is shown is a Survey journey toggle, not validated here.)
+  if (localisedText(survey.intro_title).length > MAX_INTRO_TITLE) {
+    errors.push(`Intro headline exceeds ${MAX_INTRO_TITLE} characters.`);
+  }
+  if (localisedText(survey.intro_body).length > MAX_INTRO_BODY) {
+    errors.push(`Intro message exceeds ${MAX_INTRO_BODY} characters.`);
+  }
+
   return errors;
 }
 
@@ -133,4 +167,28 @@ export function nullifyBlankUuids(payload: Record<string, unknown>): Record<stri
     if (out[field] === "") out[field] = null;
   }
   return out;
+}
+
+/** A fetched organisation row, minimally, for reference validation. */
+export type OrgRefRow = { id: string; type: string; deleted_at: string | null };
+
+/**
+ * Validate Brand/Agency attribution references against the CORRECT organisation
+ * type. Pure — `rows` are the organisations fetched for the referenced ids. Guards
+ * the trusted boundary against a client posting an arbitrary UUID, a wrong-type org
+ * (e.g. a publisher org as "Brand"), or a soft-deleted org. Null/blank references
+ * are fine (attribution is optional). Returns an error message, or null when valid.
+ *
+ * Brands/agencies are GLOBAL reference data (visible to every authenticated user),
+ * so there is no per-organisation access check to make — only type/existence.
+ */
+export function brandAgencyRefError(brandOrgId: unknown, agencyOrgId: unknown, rows: OrgRefRow[]): string | null {
+  const byId = new Map(rows.map((r) => [r.id, r]));
+  const check = (id: unknown, type: "brand" | "agency", label: string): string | null => {
+    if (typeof id !== "string" || id === "") return null; // absent / cleared — allowed
+    const row = byId.get(id);
+    if (!row || row.deleted_at || row.type !== type) return `Invalid ${label} selection.`;
+    return null;
+  };
+  return check(brandOrgId, "brand", "Brand") ?? check(agencyOrgId, "agency", "Agency");
 }

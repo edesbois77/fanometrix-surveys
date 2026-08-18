@@ -15,6 +15,14 @@
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import type { SurveyResponseRow } from "@/lib/analysis/survey-observations";
 
+/** A reconstructed respondent, carrying the full ordered answer set a survey can
+ *  now hold (1–5 questions). `SurveyResponseRow` (owned by survey-observations.ts)
+ *  still declares only q1..q3, so q4/q5 are added here structurally: the extra
+ *  keys are inert for any consumer that reads only q1..q3, and become the answers
+ *  for a 4–5-question survey once that consumer widens. Assignable to
+ *  SurveyResponseRow[] wherever the population is passed on. */
+type ReconstructedRow = SurveyResponseRow & { q4?: string | null; q5?: string | null };
+
 const PAGE = 1000;
 const COLS = "id, q1, q2, q3, country, fan_segment";
 
@@ -33,7 +41,7 @@ export async function projectDeploymentCampaigns(projectId: string): Promise<str
  *  This is the going-forward Findings population: a respondent who answered Q1
  *  and stopped is one row with q1 set and q2/q3 null. */
 async function answerStoreRows(campaignSlugs: string[]): Promise<SurveyResponseRow[]> {
-  const bySession = new Map<string, SurveyResponseRow>();
+  const bySession = new Map<string, ReconstructedRow>();
   for (let from = 0; ; from += PAGE) {
     const { data } = await supabaseAdmin
       .from("response_answers").select("session_id, question_index, answer_value, country, fan_segment")
@@ -41,10 +49,17 @@ async function answerStoreRows(campaignSlugs: string[]): Promise<SurveyResponseR
     const rows = (data ?? []) as Record<string, unknown>[];
     for (const r of rows) {
       const sid = r.session_id as string;
-      const row = bySession.get(sid) ?? { q1: null, q2: null, q3: null, country: null, fan_segment: null };
+      const row = bySession.get(sid) ?? { q1: null, q2: null, q3: null, q4: null, q5: null, country: null, fan_segment: null };
       const value = (r.answer_value as string | null) ?? null;
       const qi = r.question_index as number;
-      if (qi === 0) row.q1 = value; else if (qi === 1) row.q2 = value; else if (qi === 2) row.q3 = value;
+      // 0/1/2 unchanged; 3/4 are the additive Q4/Q5 answers (migration 183) that
+      // exist only in this per-answer store, so a 4–5-question survey's full
+      // ordered set is reconstructed here.
+      if (qi === 0) row.q1 = value;
+      else if (qi === 1) row.q2 = value;
+      else if (qi === 2) row.q3 = value;
+      else if (qi === 3) row.q4 = value;
+      else if (qi === 4) row.q5 = value;
       if (!row.country && r.country) row.country = r.country as string;
       if (!row.fan_segment && r.fan_segment) row.fan_segment = r.fan_segment as string;
       bySession.set(sid, row);

@@ -39,3 +39,11 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# local scratch / working files (never deploy)
+scratch*.mts
+scratch*.ts
+*.scratch.*
+
+# client deliverables, evidence/calibration packs & generated export artifacts (never deploy)
+/exports/

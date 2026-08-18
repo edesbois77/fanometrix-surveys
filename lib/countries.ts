@@ -6,20 +6,26 @@
 
 export type Country = { code: string; name: string };
 
+// Order matters: this is the display order of the Market chips. The leading block
+// is the priority market order; the remainder follows.
 export const COUNTRIES: Country[] = [
   { code: "GB", name: "United Kingdom" },
   { code: "DE", name: "Germany" },
-  { code: "SE", name: "Sweden" },
-  { code: "IN", name: "India" },
   { code: "FR", name: "France" },
-  { code: "ES", name: "Spain" },
   { code: "IT", name: "Italy" },
-  { code: "NL", name: "Netherlands" },
+  { code: "ES", name: "Spain" },
   { code: "US", name: "United States" },
   { code: "BR", name: "Brazil" },
+  { code: "MX", name: "Mexico" },
+  { code: "NL", name: "Netherlands" },
+  { code: "SE", name: "Sweden" },
+  { code: "PL", name: "Poland" },
+  { code: "AR", name: "Argentina" },
+  { code: "CA", name: "Canada" },
+  // Remaining markets
+  { code: "IN", name: "India" },
   { code: "PT", name: "Portugal" },
   { code: "BE", name: "Belgium" },
-  { code: "PL", name: "Poland" },
   { code: "NG", name: "Nigeria" },
   { code: "EG", name: "Egypt" },
   { code: "ID", name: "Indonesia" },

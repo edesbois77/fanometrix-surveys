@@ -1,3 +1,5 @@
+import { campaignStartInstant, campaignEndInstant } from "@/lib/campaign-time";
+
 export type CampaignStatus =
   | "draft"
   | "scheduled"
@@ -24,6 +26,17 @@ export type CampaignForStatus = {
   target_responses: number | null;
   archive_after_days: number | null;
   status_updated_at?: string | null;
+  // Market/country of the Campaign — resolves the timezone its calendar day is
+  // defined in (start 00:01 / end 23:59 LOCAL). Absent/unmapped → UTC (the prior
+  // behaviour), so legacy callers that don't select it are unaffected.
+  country_code?: string | null;
+  // Migration 186. "stop" = the target is a hard ceiling that auto-closes the
+  // campaign; "continue" = collect past the target (target is a progress marker
+  // only). SAFETY DEFAULT: when absent/undefined (a caller that hasn't selected the
+  // column, or a pre-migration row) it behaves as it always did — a target closes
+  // the campaign — so only an EXPLICIT "continue" changes behaviour. Migration 186
+  // backfills existing targeted rows to "stop", preserving historical behaviour.
+  target_mode?: string | null;
 };
 
 // ─── Rich status result ────────────────────────────────────────────────────────
@@ -78,11 +91,12 @@ export function computeStatusWithReason(
     return { effective: "closed", reason: null, isAutoTransition: false };
   }
 
-  // Stored is "scheduled" or "live" — check auto-transitions
-  // Append explicit time so dates are interpreted in local time, not UTC midnight.
-  // Start = 00:00:00 (beginning of day), End = 23:59:59 (end of day).
-  const start = campaign.start_date ? new Date(`${campaign.start_date}T00:00:00`) : null;
-  const end   = campaign.end_date   ? new Date(`${campaign.end_date}T23:59:59`)   : null;
+  // Stored is "scheduled" or "live" — check auto-transitions.
+  // Boundaries are defined in the MARKET's timezone (settled): start = 00:01 local,
+  // end = 23:59 local, resolved via the governed country→IANA mapping (DST-aware).
+  // Unmapped/absent country_code → UTC, matching the prior behaviour.
+  const start = campaign.start_date ? campaignStartInstant(campaign.start_date, campaign.country_code) : null;
+  const end   = campaign.end_date   ? campaignEndInstant(campaign.end_date, campaign.country_code)     : null;
 
   if (start && now < start) {
     return {
@@ -92,7 +106,14 @@ export function computeStatusWithReason(
     };
   }
 
-  if (campaign.target_responses !== null && responseCount >= campaign.target_responses) {
+  // Auto-close at target ONLY for stop-mode campaigns. "continue" collects past the
+  // target (the number is a progress marker, not a ceiling). Absent target_mode
+  // defaults to the historical stop-at-target behaviour (see CampaignForStatus).
+  if (
+    campaign.target_mode !== "continue" &&
+    campaign.target_responses !== null &&
+    responseCount >= campaign.target_responses
+  ) {
     return {
       effective: "closed",
       reason: `Closed automatically because target responses reached (${responseCount.toLocaleString()}/${campaign.target_responses.toLocaleString()})`,

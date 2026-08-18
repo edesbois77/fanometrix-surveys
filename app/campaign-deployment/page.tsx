@@ -54,7 +54,7 @@ const INSTRUCTIONS = `1. Place the iframe inside a 300x250 MPU creative slot.
 // (below) and the in-project Campaign Dashboard (Deployment section). When a
 // campaignId is supplied the campaign is fixed, so the selector is hidden;
 // `embedded` drops the standalone back link (the workspace breadcrumb covers it).
-export function DeploymentBuilder({ campaignId, returnTo, embedded = false }: { campaignId?: string; returnTo?: string; embedded?: boolean }) {
+export function DeploymentBuilder({ campaignId, returnTo, embedded = false, hideSummary = false }: { campaignId?: string; returnTo?: string; embedded?: boolean; hideSummary?: boolean }) {
   const [campaigns,       setCampaigns]       = useState<Campaign[]>([]);
   const [orgs,            setOrgs]            = useState<{ id: string; name: string }[]>([]);
   const [selectedId,      setSelectedId]      = useState("");          // campaign UUID
@@ -198,7 +198,7 @@ export function DeploymentBuilder({ campaignId, returnTo, embedded = false }: { 
           </a>
         )}
         {!embedded && <h1 className="text-2xl font-bold text-gray-900 mb-1">Deployment</h1>}
-        <p className="text-sm text-gray-400 mb-6">Configure your embed and copy the tag to your ad server.</p>
+        {!hideSummary && <p className="text-sm text-gray-400 mb-6">Configure your embed and copy the tag to your ad server.</p>}
 
         {/*
           Mobile:  flex-col, sections stack vertically, full width
@@ -209,7 +209,9 @@ export function DeploymentBuilder({ campaignId, returnTo, embedded = false }: { 
           {/* ── Left config panel ── */}
           <div className="lg:col-span-2 space-y-4">
 
-            {/* Campaign */}
+            {/* Campaign — hidden when the host (Survey Studio) supplies its own
+                campaign header, so the workspace isn't double-headed. */}
+            {!hideSummary && (
             <div className="bg-white border border-gray-100 rounded-xl p-5 shadow-sm space-y-4">
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Campaign</p>
 
@@ -267,6 +269,7 @@ export function DeploymentBuilder({ campaignId, returnTo, embedded = false }: { 
                 </div>
               )}
             </div>
+            )}
 
             {/* Placement */}
             <div className="bg-white border border-gray-100 rounded-xl p-5 shadow-sm space-y-4">

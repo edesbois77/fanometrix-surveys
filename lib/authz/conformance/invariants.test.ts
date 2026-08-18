@@ -148,6 +148,26 @@ test("Q-10 — Product Capability Access is independent of Product Access [close
   // Product access without the grant does NOT confer the capability.
   assert.equal(resolveCapabilityAccess({ role: "brand", canPresentSimulations: false, capability: "present-simulations" }), false);
 });
+// Survey Studio Create capability (governed addition): policy-derived, separate
+// from Q-09, admin-ALLOW / non-admin-REFUSE, fail-closed, no stored grant column.
+test("Q-10 — create-commissioned-research: governed V1 policy, separate from Q-09, fail-closed [Survey Studio Create]", () => {
+  const cap = "create-commissioned-research" as const;
+  // Initial governed V1 policy: contextual Fanometrix/admin ALLOW; else REFUSE.
+  assert.equal(resolveCapabilityAccess({ role: "admin",     canPresentSimulations: false, capability: cap }), true);
+  assert.equal(resolveCapabilityAccess({ role: "publisher", canPresentSimulations: true,  capability: cap }), false);
+  assert.equal(resolveCapabilityAccess({ role: "brand",     canPresentSimulations: true,  capability: cap }), false);
+  assert.equal(resolveCapabilityAccess({ role: "agency",    canPresentSimulations: true,  capability: cap }), false);
+  // Separation from Q-09: Create Product Access (admin-and-publisher) does NOT
+  // confer the capability for a publisher.
+  assert.equal(resolveProductAccess({ role: "publisher", tier: "admin-and-publisher" }), true);
+  assert.equal(resolveCapabilityAccess({ role: "publisher", canPresentSimulations: false, capability: cap }), false);
+  // No stored direct grant participates (V1 policy-derived): the present-simulations
+  // flag never changes the outcome for this capability.
+  assert.equal(
+    resolveCapabilityAccess({ role: "publisher", canPresentSimulations: true, capability: cap }),
+    resolveCapabilityAccess({ role: "publisher", canPresentSimulations: false, capability: cap }),
+  );
+});
 // IW-3 enforce cut-over: Product Access authoritative via the governed model at
 // the requireUser seam; Product Capability Access authoritative via hasCapability;
 // middleware model-driven + projection-only (SG-3). Verified against wired sources.

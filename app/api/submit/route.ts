@@ -15,6 +15,11 @@ export async function POST(req: NextRequest) {
 
   const {
     campaign_id, survey_id, question_set_id,
+    // Phase 3: the embed session id (also sent to /api/answer + /api/events). Stored
+    // so a completed response can be joined to response_answers for Q4/Q5 in
+    // 4–5-question surveys. Absent from older cached embeds → stored NULL (no change
+    // for existing 1–3-question campaigns, whose answers all live in q1/q2/q3).
+    session_id,
     q1, q2, q3,
     country, fan_segment,
     publisher, placement, placement_id, creative_id,
@@ -39,7 +44,7 @@ export async function POST(req: NextRequest) {
   // ── Look up campaign ────────────────────────────────────────────────────────
   const { data: campaign, error: campaignError } = await supabase
     .from("campaigns")
-    .select("id, research_project_id, survey_id, brand_org_id, campaign_name, status, manual_status_override, start_date, end_date, target_responses, archive_after_days, is_simulated")
+    .select("id, research_project_id, survey_id, brand_org_id, campaign_name, status, manual_status_override, start_date, end_date, target_responses, target_mode, archive_after_days, country_code, is_simulated")
     .eq("campaign_id", campaign_id as string)
     .single();
 
@@ -118,6 +123,26 @@ export async function POST(req: NextRequest) {
     const { accepting, reason } = getAcceptingStatus(campaign as CampaignForStatus, count ?? 0);
 
     if (!accepting) {
+      // Graceful close for a reached hard ceiling (stop mode, at/over target). The
+      // fan finished the survey; return 200 so EVERY renderer shows the Thank You
+      // rather than a "tap to retry" error (StudioClassic/Classic key on res.ok),
+      // and record nothing beyond the target. Their partial answers in
+      // response_answers are retained independently. This also covers the read-time
+      // already-over case; the atomic insert guard below covers the live race.
+      if (
+        campaign.target_mode !== "continue" &&
+        campaign.target_responses != null &&
+        (count ?? 0) >= (campaign.target_responses as number)
+      ) {
+        await logAttempt({
+          campaign_id: campaign_id as string, campaign_name: campaignName,
+          publisher: publisher as string | null, manual_status: manualStatus,
+          effective_status: detail.effective, http_code: 200,
+          result: "failed", reason: "Target ceiling reached (graceful close)", is_test: !!is_demo,
+        });
+        return NextResponse.json({ recorded: false, collection_closed: true }, { status: 200 });
+      }
+
       const statusMessages: Record<string, string> = {
         "Campaign is Draft":           "This survey is not currently live. The campaign is still in Draft.",
         "Campaign is Scheduled":       "This survey is not currently live. The campaign has not started yet.",
@@ -159,8 +184,9 @@ export async function POST(req: NextRequest) {
   effectiveSurveyId = effectiveSurveyId ?? (survey_id as string | null) ?? null;
 
   // ── Insert response ────────────────────────────────────────────────────────
-  const { error } = await supabase.from("responses").insert([{
+  const row: Record<string, unknown> = {
     campaign_id, survey_id: effectiveSurveyId, question_set_id,
+    session_id:      (session_id as string | null) ?? null,
     q1, q2, q3,
     country, fan_segment,
     // Explicitly-asked demographics (Stack Gender/Age). Null for creatives that
@@ -178,17 +204,58 @@ export async function POST(req: NextRequest) {
     country_code:    country_code    ?? null,
     market:          market          ?? null,
     survey_language: survey_language ?? null,
-  }]);
+  };
 
-  if (error) {
-    console.error("[submit] Supabase insert error:", error);
-    await logAttempt({
-      campaign_id: campaign_id as string, campaign_name: campaignName,
-      publisher: publisher as string | null, manual_status: manualStatus,
-      effective_status: effectiveStatus, http_code: 500,
-      result: "failed", reason: "Database insert failed", is_test: !!is_demo,
-    });
-    return NextResponse.json({ error: "Failed to save response. Please try again." }, { status: 500 });
+  // A stop-mode campaign with a target has a HARD ceiling: route its inserts through
+  // the atomic guard (migration 187) so concurrent completions can never overshoot
+  // the target (no N+1). Every other campaign — no target, continue-mode, demo, and
+  // ALL historical / fan-invitation traffic — keeps the plain insert, byte-for-byte
+  // unchanged, so this cannot alter their behaviour.
+  const enforceCeiling =
+    campaign.target_mode !== "continue" && campaign.target_responses != null && !is_demo;
+
+  if (enforceCeiling) {
+    // jsonb_populate_record would NULL the defaulted id/created_at, so supply them.
+    const payload = { ...row, id: crypto.randomUUID(), created_at: new Date().toISOString() };
+    const { data: outcome, error: rpcError } = await supabase.rpc(
+      "fx_submit_response_if_under_ceiling",
+      { p_campaign_id: campaign_id as string, p_target: campaign.target_responses as number, p_payload: payload }
+    );
+    if (rpcError) {
+      console.error("[submit] Atomic ceiling RPC error:", rpcError);
+      await logAttempt({
+        campaign_id: campaign_id as string, campaign_name: campaignName,
+        publisher: publisher as string | null, manual_status: manualStatus,
+        effective_status: effectiveStatus, http_code: 500,
+        result: "failed", reason: "Database insert failed", is_test: !!is_demo,
+      });
+      return NextResponse.json({ error: "Failed to save response. Please try again." }, { status: 500 });
+    }
+    if (outcome === "ceiling_reached") {
+      // Lost the race: the campaign just hit its target. Graceful close (200) —
+      // the fan sees the Thank You, nothing is recorded past the ceiling, and any
+      // partial answers already in response_answers are retained.
+      await logAttempt({
+        campaign_id: campaign_id as string, campaign_name: campaignName,
+        publisher: publisher as string | null, manual_status: manualStatus,
+        effective_status: effectiveStatus, http_code: 200,
+        result: "failed", reason: "Target ceiling reached (graceful close)", is_test: !!is_demo,
+      });
+      return NextResponse.json({ recorded: false, collection_closed: true }, { status: 200 });
+    }
+    // outcome === "inserted" → fall through to the success path.
+  } else {
+    const { error } = await supabase.from("responses").insert([row]);
+    if (error) {
+      console.error("[submit] Supabase insert error:", error);
+      await logAttempt({
+        campaign_id: campaign_id as string, campaign_name: campaignName,
+        publisher: publisher as string | null, manual_status: manualStatus,
+        effective_status: effectiveStatus, http_code: 500,
+        result: "failed", reason: "Database insert failed", is_test: !!is_demo,
+      });
+      return NextResponse.json({ error: "Failed to save response. Please try again." }, { status: 500 });
+    }
   }
 
   // Research Target check — best-effort, never fails the submission itself.
