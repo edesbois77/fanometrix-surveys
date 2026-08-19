@@ -28,7 +28,7 @@ import { normaliseQuestions } from "@/lib/studio/survey-results-resolve";
 import { resolveDiscoverResults } from "@/lib/studio/dashboard-results";
 import { resolveSurveySegmentEvidence } from "@/lib/studio/survey-segments-resolve";
 import { buildSurveyFindings, findingsContext, FINDING_MIN_BASE, type SurveyQuestionEvidence, type SurveyFinding } from "@/lib/studio/survey-findings-engine";
-import { eventCountsFor, HISTORICAL_ANSWER_EVENTS, historicalAnswersHourly, foldHourToDay, mergeCountMaps } from "@/lib/studio/dashboard-metrics";
+import { historicalAnswersDaily, foldHourToDay, mergeCountMaps } from "@/lib/studio/dashboard-metrics";
 import { DISCOVER_BASE, surveyDashboardHref, studyDashboardHref } from "@/lib/studio/discover-nav";
 import {
   selectInsights, classifyAccount, selectActivity, selectLiveSurveys, selectExplore, partitionAnswerModes,
@@ -74,13 +74,14 @@ export async function GET(req: NextRequest) {
   const now = new Date(nowMs);
 
   // ── Governed batched reads (no N+1; all scoped to the entitled universe) ────
-  // Total answers reuses the product's AUTHORITATIVE per-mode answer semantics
-  // (lib/studio/dashboard-metrics), batched: studio-native answers = a scoped
-  // response_answers count; historical answers = the progression-event union
-  // (answeredFromProgression), never mixed (a survey is wholly one mode). The two
-  // reads below get (a) the studio-native answer count and (b) which authorised
-  // slugs are studio-native (present in response_answers). Historical slugs then
-  // get ONE progression-count RPC (below) — no per-survey resolution.
+  // "Total answers" = the number of STORED ANSWER RECORDS. Per-mode, never mixed and
+  // never inferred: studio-native slugs count rows in response_answers; historical
+  // slugs count the real recorded values in the legacy positional columns
+  // (responses.q1/q2/q3). It is NO LONGER the progression-event union — those events
+  // are a lossy inference from delivery telemetry with no answer value behind them,
+  // and reporting them as "answers" is precisely the substitution this repair removes.
+  // The two reads below get (a) the studio-native answer count and (b) which
+  // authorised slugs are studio-native (present in response_answers).
   const slugs = scope.authorisedCampaignSlugs;
   const [createdRes, campRes, statsRes, analysisRes, studyRes, studioCountRes, studioSlugRes] = await Promise.all([
     supabaseAdmin.from("surveys").select("id, created_at").in("id", surveyIds).is("deleted_at", null),
@@ -98,15 +99,19 @@ export async function GET(req: NextRequest) {
     slugs.length ? supabaseAdmin.from("response_answers").select("campaign_id").in("campaign_id", slugs).eq("question_index", 0).eq("is_demo", false) : Promise.resolve({ data: [] as { campaign_id: string }[] }),
   ]);
 
-  // Total answers = studio-native count + historical progression union (per-mode,
-  // no double-count). Historical slugs = authorised slugs with NO response_answers.
+  // Historical slugs = authorised slugs with NO response_answers.
   const studioAnswers = (studioCountRes as { count: number | null }).count ?? 0;
   const studioNativeSlugs = ((studioSlugRes.data ?? []) as { campaign_id: string }[]).map((r) => r.campaign_id);
   const { studioSlugs, historicalSlugs } = partitionAnswerModes(slugs, studioNativeSlugs);
   let historicalAnswers = 0;
   if (historicalSlugs.length) {
-    const histCounts = await eventCountsFor(historicalSlugs); // ONE progression-count RPC
-    historicalAnswers = HISTORICAL_ANSWER_EVENTS.reduce((sum, t) => sum + (histCounts.get(t) ?? 0), 0);
+    // Real recorded answers only: one count per legacy positional column. A
+    // historical survey never stored Q4/Q5 anywhere, so none is invented.
+    const legacyCounts = await Promise.all(["q1", "q2", "q3"].map((col) =>
+      supabaseAdmin.from("responses").select("id", { count: "exact", head: true })
+        .in("campaign_id", historicalSlugs).eq("is_demo", false).not(col, "is", null)
+        .then((r) => r.count ?? 0)));
+    historicalAnswers = legacyCounts.reduce((a, b) => a + b, 0);
   }
   const answersTotal = studioAnswers + historicalAnswers;
   const createdMsById = new Map<string, number>((createdRes.data ?? []).map((r) => [r.id as string, msOf(r.created_at as string | null)]));
@@ -307,22 +312,21 @@ export async function GET(req: NextRequest) {
   // The SAME per-mode split as Total Answers so the chart reconciles with the metric:
   //   • studio-native → dashboard_answer_series (applied migration 196; real
   //     created_at, is_demo=false; bounded to the last 90 days),
-  //   • historical    → the progression-event day series (dashboard_event_series),
+  //   • historical    → the real recorded answers on `responses` (historicalAnswersDaily),
   // merged and turned into a continuous zero-filled daily axis. Real timestamps only;
-  // days with no answers are genuine zeros. Both RPC sets fire ONLY when that mode has
-  // slugs, so a studio-only scope costs one RPC and a historical-only scope five —
-  // never per-survey. Legacy surveys without timestamped events simply don't appear
-  // (never fabricated dates); the section hides when there is no timestamped activity.
+  // days with no answers are genuine zeros. Each mode's read fires ONLY when that mode
+  // has slugs — never per-survey. Rows without a timestamp simply don't appear (never
+  // a fabricated date); the section hides when there is no timestamped activity.
   const windowFromIso = new Date(nowMs - ACTIVITY_WINDOW_DAYS * 24 * 60 * 60 * 1000).toISOString();
-  const [studioDayRows, histHourly] = await Promise.all([
+  const [studioDayRows, histDaily] = await Promise.all([
     studioSlugs.length
       ? supabaseAdmin.rpc("dashboard_answer_series", { p_campaign_ids: studioSlugs, p_from: windowFromIso, p_to: null, p_question_index: null }).then((r) => (r.error ? [] : (r.data ?? [])))
       : Promise.resolve([] as { bucket_hour: string; event_count: number }[]),
-    historicalSlugs.length ? historicalAnswersHourly(historicalSlugs) : Promise.resolve({} as Record<string, number>),
+    historicalSlugs.length ? historicalAnswersDaily(historicalSlugs, windowFromIso) : Promise.resolve({} as Record<string, number>),
   ]);
   const answerDay = mergeCountMaps(
     foldHourToDay(studioDayRows as { bucket_hour: string; event_count: number }[]),
-    foldHourToDay(Object.entries(histHourly).map(([bucket_hour, event_count]) => ({ bucket_hour, event_count }))),
+    histDaily,   // already keyed by UTC day
   );
   const activityPoints = buildDailyActivity(answerDay, nowMs);
   // Only surface the chart when the DEFAULT window has genuinely informative activity

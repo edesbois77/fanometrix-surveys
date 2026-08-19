@@ -20,6 +20,11 @@ import type { ReactNode, CSSProperties } from "react";
 import { Space_Grotesk, Inter } from "next/font/google";
 import { resolveSystemPrivacy, privacyPolicyHref } from "@/lib/system-privacy";
 import { STACK_RESEARCH_START, stackThankYouStep, stackResearchCounter } from "./stack-frames";
+import { questionShownEvent } from "@/lib/survey-events";
+import {
+  sendEvent as beacon, recordAnswer, submitResponse,
+  type EmbedAnswer, type EmbedEvidenceContext,
+} from "./evidence";
 
 // Self-hosted via next/font (compile-time, same-origin, size-matched fallback),
 // exactly as ThemedSurvey does — avoids a flash-of-fallback on each impression.
@@ -37,7 +42,9 @@ const GRID     = "rgba(215,184,122,0.12)"; // fine answer separators (quadrant g
 const LOGO_SRC = "/Fanometrix_Logo.png";   // gold master wordmark (Thank You only)
 
 type EmbedOption   = { id: number; text: string };
-type EmbedQuestion = { id: string; text: string; options: EmbedOption[] };
+// Identity (`id`, and `canonical_question_key` where the survey carries one) travels
+// with every question so each recorded answer names the question it belongs to.
+type EmbedQuestion = { id: string; text: string; options: EmbedOption[]; canonical_question_key?: string };
 
 export type StackHoverVariant = "fade" | "swipe";
 
@@ -292,37 +299,44 @@ export function StackSurvey(props: StackSurveyProps) {
   const ageRef       = useRef<string | null>(null);
   const hasRendered  = useRef(false);
   const hasVisible   = useRef(false);
-  const hasStarted   = useRef(false);     // SURVEY_START = journey entry (once)
+  const hasShownQ1   = useRef(false);     // QUESTION_1_SHOWN = Q1 displayed (once)
+  const hasStarted   = useRef(false);     // SURVEY_START = first answer selected (once)
   const hasIntroViewed = useRef(false);   // INTRO_VIEWED (once)
   const hasContinued   = useRef(false);   // INTRO_CONTINUED (once)
   const hasCompleted = useRef(false);
 
-  // ── Beacons (mirror ThemedSurvey; all no-ops in preview) ──────────────────────
-  const sendEvent = useCallback((eventType: string) => {
-    if (isPreview) return;
-    fetch("/api/events", {
-      method: "POST", headers: { "Content-Type": "application/json" }, keepalive: true,
-      body: JSON.stringify({
-        session_id: sessionId, event_type: eventType,
-        campaign_id: campaignId || null, publisher: publisher || null,
-        placement: placement || null, placement_id: placementId || null,
-        creative_id: creativeId || null, country: country || null,
-        device: device || null, browser: browser || null,
-      }),
-    }).catch(() => {});
-  }, [isPreview, sessionId, campaignId, publisher, placement, placementId, creativeId, country, device, browser]);
+  // ── The shared evidence contract (app/embed/evidence.ts) ──────────────────
+  // Identical to every other production renderer.
+  const evidenceCtx = useCallback((): EmbedEvidenceContext => ({
+    isPreview,
+    sessionId,
+    campaignId,
+    surveyId,
+    publisher, placement, placementId, creativeId,
+    country, segment, market,
+    device, browser,
+    renderer: "stack",
+  }), [isPreview, sessionId, campaignId, surveyId, publisher, placement, placementId, creativeId, country, segment, market, device, browser]);
 
-  const sendAnswer = useCallback((questionIndex: number, answerValue: string) => {
-    if (isPreview) return;
-    fetch("/api/answer", {
-      method: "POST", headers: { "Content-Type": "application/json" }, keepalive: true,
-      body: JSON.stringify({
-        session_id: sessionId, campaign_id: campaignId || null, survey_id: surveyId || null,
-        question_index: questionIndex, answer_value: answerValue,
-        country: country || null, fan_segment: segment || null, market: market || null,
-      }),
-    }).catch(() => {});
-  }, [isPreview, sessionId, campaignId, surveyId, country, segment, market]);
+  const sendEvent = useCallback((eventType: string) => {
+    beacon(evidenceCtx(), eventType);
+  }, [evidenceCtx]);
+
+  /** The full ordered RESEARCH answer set, for the completion backfill. Gender and
+   *  Age are journey furniture (they land on responses.gender / age_band) and are
+   *  never questions, so they never appear here or occupy a question index. */
+  const answerSet = useCallback((): EmbedAnswer[] => {
+    const given = answersRef.current;
+    return questions
+      .map((q, qi) => ({ q, qi }))
+      .filter(({ q }) => given[q.id] != null)
+      .map(({ q, qi }) => ({
+        questionIndex: qi,
+        answerValue: String(given[q.id]),
+        questionId: q.id,
+        canonicalQuestionKey: q.canonical_question_key ?? null,
+      }));
+  }, [questions]);
 
   // SURVEY_RENDER once on mount (an impression), regardless of viewport.
   useEffect(() => {
@@ -344,56 +358,63 @@ export function StackSurvey(props: StackSurveyProps) {
     return () => obs.disconnect();
   }, [sendEvent, previewStartStep]);
 
-  // Phase 3 journey milestones at entry (mirrors ThemedSurvey). With the intro
-  // shown it is INTRO_VIEWED here and SURVEY_START waits for the Start press; with
-  // no intro the journey begins immediately, so SURVEY_START fires now.
+  // Journey milestones at entry. With the intro shown it is INTRO_VIEWED here.
+  // NOTE: unlike the other creatives, entering this journey does NOT display Q1 —
+  // the Gender and Age frames come first. QUESTION_1_SHOWN therefore fires from the
+  // step watcher below, when the first RESEARCH question is actually on screen.
+  // SURVEY_START is reserved for the first ANSWER (its historical meaning).
   useEffect(() => {
     if (previewStartStep != null) return;   // gallery tiles are not impressions
     if (introEnabled) {
       if (!hasIntroViewed.current) { hasIntroViewed.current = true; sendEvent("INTRO_VIEWED"); }
-    } else if (!hasStarted.current) {
-      hasStarted.current = true;
+    } else if (startRef.current === 0) {
       // Journey-entry origin for the completion timer (effect, not render).
       startRef.current = Date.now();
-      sendEvent("SURVEY_START");
     }
   }, [sendEvent, previewStartStep, introEnabled]);
 
-  function handleStart() {
-    // Continuing from the intro IS the journey entry: INTRO_CONTINUED + SURVEY_START.
-    if (!hasContinued.current) { hasContinued.current = true; sendEvent("INTRO_CONTINUED"); }
-    if (!hasStarted.current) {
-      hasStarted.current = true;
-      startRef.current = Date.now();
-      sendEvent("SURVEY_START");
+  // Q1 DISPLAYED — the first research frame, after the demographic furniture.
+  useEffect(() => {
+    if (previewStartStep != null) return;
+    if (step >= RESEARCH_START && step < THANKYOU_STEP && !hasShownQ1.current) {
+      hasShownQ1.current = true;
+      sendEvent(questionShownEvent(0));
     }
+  }, [step, sendEvent, previewStartStep, RESEARCH_START, THANKYOU_STEP]);
+
+  function handleStart() {
+    // Continuing from the intro moves into the journey (Gender first, not Q1).
+    if (!hasContinued.current) { hasContinued.current = true; sendEvent("INTRO_CONTINUED"); }
+    if (startRef.current === 0) startRef.current = Date.now();
     setStep(FIRST_JOURNEY_STEP);
   }
 
-  async function submitResponse() {
+  async function submitCompletedResponse() {
     if (isPreview) return;
     // eslint-disable-next-line react-hooks/purity
     const duration = Math.round((Date.now() - startRef.current) / 1000);
     const a = answersRef.current;
-    await fetch("/api/submit", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        campaign_id: campaignId, survey_id: surveyId, session_id: sessionId,
-        publisher, placement, placement_id: placementId, creative_id: creativeId,
-        club, competition,
-        q1: a[questions[0]?.id] ?? null,
-        q2: a[questions[1]?.id] ?? null,
-        q3: a[questions[2]?.id] ?? null,
-        country, fan_segment: segment, device, browser,
-        response_duration_seconds: duration,
-        group_id: groupId, country_code: countryCode, market, survey_language: surveyLanguage,
-        // Demographics collected by the Stack flow. /api/submit persists these to
-        // responses.gender / responses.age_band (dimensions alongside the q1–q3
-        // research answers) — not as extra "questions".
-        gender: genderRef.current, age: ageRef.current,
-      }),
-    }).catch(() => {});
-    if (!hasCompleted.current) { hasCompleted.current = true; sendEvent("SURVEY_COMPLETED"); }
+    // SURVEY_COMPLETED is emitted by submitResponse() and ONLY once the server has
+    // confirmed the response was written — this creative previously fired it
+    // unconditionally, so a failed submit still produced a "completion".
+    const outcome = await submitResponse(evidenceCtx(), {
+      campaign_id: campaignId, survey_id: surveyId,
+      publisher, placement, placement_id: placementId, creative_id: creativeId,
+      club, competition,
+      // Legacy positional projection only; `answers` is authoritative and is the
+      // only representation that can carry Q4/Q5.
+      q1: a[questions[0]?.id] ?? null,
+      q2: a[questions[1]?.id] ?? null,
+      q3: a[questions[2]?.id] ?? null,
+      country, fan_segment: segment, device, browser,
+      response_duration_seconds: duration,
+      group_id: groupId, country_code: countryCode, market, survey_language: surveyLanguage,
+      // Demographics collected by the Stack flow. /api/submit persists these to
+      // responses.gender / responses.age_band (dimensions alongside the research
+      // answers) — they are NOT questions and never occupy a question index.
+      gender: genderRef.current, age: ageRef.current,
+    }, answerSet());
+    hasCompleted.current = outcome.recorded;
   }
 
   // Select an answer on the current frame -> accepted -> hold -> advance.
@@ -403,27 +424,36 @@ export function StackSurvey(props: StackSurveyProps) {
     setAccepted({ step, idx });
 
     if (step === 1) {
+      // Journey furniture, not a survey question — lands on responses.gender.
       genderRef.current = value;
     } else if (step === 2) {
+      // Journey furniture, not a survey question — lands on responses.age_band.
       ageRef.current = value;
     } else {
-      const qi = step - RESEARCH_START;
+      const qi = step - RESEARCH_START;   // 0-based RESEARCH index, never the frame
       const q = questions[qi];
       const opt = q?.options[idx];
       if (opt) {
         answersRef.current[q.id] = opt.id;
-        sendAnswer(qi, String(opt.id)); // research answers only (q_index 0..4)
+        // SURVEY_START fires on the FIRST research answer (historical meaning).
+        const isFirstAnswer = !hasStarted.current;
+        if (isFirstAnswer) hasStarted.current = true;
+        void recordAnswer(evidenceCtx(), {
+          questionIndex: qi,
+          answerValue: String(opt.id),
+          questionId: q.id,
+          canonicalQuestionKey: q.canonical_question_key ?? null,
+        }, isFirstAnswer);
       }
     }
 
     window.setTimeout(async () => {
       const next = step + 1;
-      // Fire research-question milestones as they are reached (surveys run 1–5 Qs).
-      if (next === RESEARCH_START + 1) sendEvent("QUESTION_2_REACHED");
-      if (next === RESEARCH_START + 2) sendEvent("QUESTION_3_REACHED");
-      if (next === RESEARCH_START + 3) sendEvent("QUESTION_4_REACHED");
-      if (next === RESEARCH_START + 4) sendEvent("QUESTION_5_REACHED");
-      if (step === THANKYOU_STEP - 1) await submitResponse();
+      // The next RESEARCH question is now displayed (generic over 1-5 questions).
+      // Demographic frames are skipped: next-RESEARCH_START is the question index.
+      const nextQi = next - RESEARCH_START;
+      if (nextQi >= 1 && nextQi < nq) sendEvent(questionShownEvent(nextQi));
+      if (step === THANKYOU_STEP - 1) await submitCompletedResponse();
       setAccepted(null);
       setStep(next);
       advancingRef.current = false;

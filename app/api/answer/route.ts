@@ -1,21 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase-admin";
 import { allowSessionEvent } from "@/lib/embed-throttle";
+import { MAX_BODY_BYTES, parseAnswerRequest } from "@/lib/survey-answer-request";
+import { resolveCampaignEvidenceContext } from "@/lib/survey-evidence-context";
+import { persistAnswers } from "@/lib/survey-answer-store";
 
-// Persist a single survey answer the moment it is selected — the Fanometrix
-// evidence principle: an answer given is a valid data point, kept even if the
-// respondent abandons later. Upserts one row per (session, question) into
-// response_answers via the service role (server-only write). `responses` and the
-// completion flow are untouched; this runs ALONGSIDE them.
+// Persist a single survey answer the moment it is selected — the Fanometrix evidence
+// principle: an answer given is a valid data point, kept even if the respondent
+// abandons later. Upserts one row per (session, question) into `response_answers`,
+// which is the AUTHORITATIVE individual-answer store for 1–5 question surveys.
 //
-// Mirrors /api/events for validation, size guard and per-session throttle.
-const MAX_SESSION_LEN = 64;
-const MAX_FIELD_LEN = 200;
-const MAX_BODY_BYTES = 4096;
-
-function malformedOptional(v: unknown): boolean {
-  return v != null && (typeof v !== "string" || v.length > MAX_FIELD_LEN);
-}
+// PUBLIC, session-less by design: there is no respondent account. Reachability is
+// declared in lib/public-routes.ts and enforced by middleware.ts — this route was
+// unreachable (401 / 302) from the day it shipped, which is why response_answers
+// stayed empty. Protection lives here instead: body-size guard, strict validation,
+// a campaign existence check, and a per-session throttle.
+//
+// The response is meaningful: the embed checks it, retries once on a transient
+// failure, and reports ANSWER_SAVE_FAILED if the answer could not be stored. A
+// failed save must never again look like a success.
 
 export async function POST(req: NextRequest) {
   const declaredLen = Number(req.headers.get("content-length") ?? 0);
@@ -23,55 +25,49 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Payload too large" }, { status: 413 });
   }
 
-  let body: Record<string, unknown>;
+  let body: unknown;
   try { body = await req.json(); }
   catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }); }
 
-  const { session_id, campaign_id, survey_id, question_index, answer_value, country, fan_segment, market } = body;
-
-  if (!session_id || typeof session_id !== "string" || session_id.length > MAX_SESSION_LEN) {
-    return NextResponse.json({ error: "session_id is required" }, { status: 400 });
+  const parsed = parseAnswerRequest(body);
+  if (!parsed.ok) {
+    return NextResponse.json({ error: parsed.error }, { status: parsed.status });
   }
-  if (!campaign_id || typeof campaign_id !== "string" || campaign_id.length > MAX_FIELD_LEN) {
-    return NextResponse.json({ error: "campaign_id is required" }, { status: 400 });
-  }
-  // Phase 3: surveys run 1–5 questions, so the generic per-answer store accepts
-  // question_index 0–4 (widened from 0–2; DB CHECK widened in migration 183).
-  // Historical 3-question surveys only ever send 0–2, so this is purely additive.
-  const qIndex = Number(question_index);
-  if (!Number.isInteger(qIndex) || qIndex < 0 || qIndex > 4) {
-    return NextResponse.json({ error: "Invalid question_index" }, { status: 400 });
-  }
-  if (typeof answer_value !== "string" || answer_value.length === 0 || answer_value.length > MAX_FIELD_LEN) {
-    return NextResponse.json({ error: "answer_value is required" }, { status: 400 });
-  }
-  if ([survey_id, country, fan_segment, market].some(malformedOptional)) {
-    return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
-  }
+  const { sessionId, campaignId, answer, client } = parsed.value;
 
   // Per-session throttle (abuse protection; shares the session budget with events).
-  if (!allowSessionEvent(session_id)) {
+  if (!allowSessionEvent(sessionId)) {
     return NextResponse.json({ error: "Too many events for this session" }, { status: 429 });
   }
 
-  const { error } = await supabaseAdmin
-    .from("response_answers")
-    .upsert({
-      session_id,
-      campaign_id,
-      survey_id:      (survey_id      as string | null) ?? null,
-      question_index: qIndex,
-      answer_value,
-      country:        (country        as string | null) ?? null,
-      fan_segment:    (fan_segment    as string | null) ?? null,
-      market:         (market         as string | null) ?? null,
-      updated_at:     new Date().toISOString(),
-    }, { onConflict: "session_id,question_index" });
+  // The campaign is the attribution root. An answer against a slug that resolves to
+  // nothing cannot be attributed to a survey, publisher or market, so it is refused
+  // rather than stored as an orphan — the same stance /api/submit takes.
+  const ctx = await resolveCampaignEvidenceContext(campaignId);
+  if (!ctx) {
+    return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
+  }
 
-  if (error) {
-    console.error("[answer] Upsert error:", error);
+  const result = await persistAnswers([{
+    sessionId,
+    questionIndex: answer.questionIndex,
+    answerValue: answer.answerValue,
+    questionId: answer.questionId,
+    canonicalQuestionKey: answer.canonicalQuestionKey,
+  }], ctx, client);
+
+  if (result.error) {
+    // Logged with the identifying context so a recurrence is diagnosable from the
+    // function logs alone, but never echoed to the respondent.
+    console.error("[answer] Upsert failed:", {
+      campaign_id: ctx.campaignId,
+      survey_id: ctx.surveyId,
+      question_index: answer.questionIndex,
+      degraded: result.degraded,
+      error: result.error,
+    });
     return NextResponse.json({ error: "Failed to record answer" }, { status: 500 });
   }
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, saved: result.saved });
 }

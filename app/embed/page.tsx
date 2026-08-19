@@ -119,7 +119,15 @@ function detectBrowser(): string {
 // it owns its own event tracking and submit call, not shared with this parent.
 
 export type EmbedOption = { id: number; text: string };
-export type Question = { id: string; text: string; options: EmbedOption[] };
+// `id` and `canonical_question_key` are the question's IDENTITY, resolved server-side
+// and recorded against every answer — so reordering or re-wording a survey's questions
+// can never make historical answers ambiguous. Position alone is not an identity.
+export type Question = {
+  id: string;
+  text: string;
+  options: EmbedOption[];
+  canonical_question_key?: string;
+};
 
 function EmbedSurvey() {
   const params = useSearchParams();

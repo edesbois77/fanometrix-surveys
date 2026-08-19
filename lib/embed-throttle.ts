@@ -9,14 +9,20 @@
 //   • It is keyed by the survey SESSION id, never by IP. Mobile fans on the same
 //     publisher (LiveScore, FotMob, …) routinely share a carrier-NAT IP, so an
 //     IP limit would blanket-block real traffic. A session_id is unique per
-//     impression; a genuine session fires <=6 events, so a per-session cap has no
-//     effect on real users.
+//     impression; a genuine 1-5 question journey fires at most ~26 requests, so a
+//     per-session cap has no effect on real users.
 //
 // The window/cap are deliberately generous: they only ever catch a session that
 // is emitting an order of magnitude more events than the survey can produce.
 
 const WINDOW_MS = 10 * 60_000; // ~ a survey session's lifetime
-const MAX_EVENTS = 30;         // real sessions fire <=6; 30 is pure headroom
+// A fully engaged 5-question journey now costs far more than the ~6 beacons this cap
+// was sized for: render + visible + intro viewed/continued + Q1 shown + 4 reached +
+// start + 5 answered + completed = 16 events, PLUS 5 answer saves (which share this
+// bucket) and their retries. That is ~21-26 for a legitimate respondent, so 30 was
+// close enough to the ceiling to start dropping real evidence. 120 keeps a wide
+// margin over any real journey while still stopping a client hammering one instance.
+const MAX_EVENTS = 120;
 const MAX_KEYS = 50_000;       // hard memory ceiling for the bucket map
 
 type Bucket = { count: number; resetAt: number };
