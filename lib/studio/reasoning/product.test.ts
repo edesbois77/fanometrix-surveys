@@ -20,6 +20,54 @@ const baseOut = (over: Partial<ReasonerOutput>): ReasonerOutput => ({
   executiveStory: { headline: "Strong fit leads at 31.6%", summary: "Strong fit is 31.6%, Never noticed 27%.", evidenceRefs: ["e1", "e2"] },
   insights: [], supportingObservations: [], tensions: [], openQuestions: [], cannotConclude: ["No causal claims possible."], ...over,
 });
+const insight = (id: string, title: string, ref: string, statement = "A distinct pattern in the evidence."): ReasonerOutput["insights"][number] =>
+  ({ id, title, type: "synthesis", statement, whyItMatters: "it matters to the decision", evidenceRefs: [ref], counterEvidenceRefs: [], confidence: "moderate", caveat: "" });
+
+// ── Insight materiality / coverage (methodology recalibration) ────────────────
+test("rich evidence: more than 2 DISTINCT insights survive (the ceiling is not the limiter)", () => {
+  const { pkg, ctxInput: ci } = ctxInput();
+  const { product: p } = shapeIntelligence(baseOut({ insights: [
+    insight("a", "Strong fit is the leading perception", "e1"),
+    insight("b", "A quarter have never noticed the sponsor", "e2"),
+    insight("c", "Rewards top the sponsor wish-list", "e3"),
+  ] }), pkg, ci);
+  assert.equal(p.keyInsights.length, 3, "three distinct evidence-backed insights all surface");
+});
+
+test("thin evidence is NOT padded — one insight in, one out", () => {
+  const { pkg, ctxInput: ci } = ctxInput();
+  const { product: p } = shapeIntelligence(baseOut({ insights: [insight("a", "Strong fit leads perception", "e1")] }), pkg, ci);
+  assert.equal(p.keyInsights.length, 1, "shaping never manufactures insights to hit a number");
+});
+
+test("overlapping insights are de-duplicated (same story + subset evidence → one card)", () => {
+  const { pkg, ctxInput: ci } = ctxInput();
+  const { product: p } = shapeIntelligence(baseOut({ insights: [
+    insight("a", "Strong fit leads perception", "e1", "31.6% see a strong fit."),
+    insight("b", "Perception is led by strong fit", "e1", "31.6% strong fit."),
+  ] }), pkg, ci);
+  assert.equal(p.keyInsights.length, 1, "a restatement resting on the same evidence is dropped");
+  assert.equal(p.keyInsights[0].id, "a", "the first (stronger-ranked) is kept");
+});
+
+test("DISTINCT market/device patterns are NOT collapsed even with an identical title (different evidence protects them)", () => {
+  const { pkg, ctxInput: ci } = ctxInput();
+  const { product: p } = shapeIntelligence(baseOut({ insights: [
+    insight("a", "Market awareness pattern", "e1", "A notable share see a strong fit."),
+    insight("b", "Market awareness pattern", "e2", "A notable share never noticed the sponsor."),
+  ] }), pkg, ci);
+  assert.equal(p.keyInsights.length, 2, "different underlying evidence ⇒ genuinely distinct ⇒ both kept");
+});
+
+test("evidence verification is unchanged: a fabricated number in an insight is still rejected (never rendered)", () => {
+  const { pkg, ctxInput: ci } = ctxInput();
+  const { product: p } = shapeIntelligence(baseOut({ insights: [
+    insight("a", "Strong fit leads", "e1", "31.6% see a strong fit."),
+    { id: "f", title: "Fabricated", type: "synthesis", statement: "88% love it.", whyItMatters: "x", evidenceRefs: ["e1"], counterEvidenceRefs: [], confidence: "high", caveat: "" },
+  ] }), pkg, ci);
+  assert.equal(p.keyInsights.length, 1, "the fabricated insight is dropped");
+  assert.ok(!JSON.stringify(p).includes("88%"), "fabricated figure never reaches the product");
+});
 
 test("authority tiers: synthesis/interpretation → key insights, implication → 'to consider'", () => {
   const { pkg, ctxInput: ci } = ctxInput();

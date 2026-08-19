@@ -38,8 +38,37 @@ export type ProductIntelligence = {
 export type DroppedClaim = { where: string; reasons: string[] };
 export type ShapedResult = { product: ProductIntelligence; dropped: DroppedClaim[] };
 
-const KEY_MAX = 4, CONSIDER_MAX = 3, OBS_MAX = 4, TENSION_MAX = 2;
+// KEY_MAX is a safety CEILING, not a target: the model's own materiality (prompted to
+// surface every distinct evidence-supported pattern, never to pad) governs the actual
+// count. The ceiling only guards against a runaway list; a thin survey still returns few.
+const KEY_MAX = 6, CONSIDER_MAX = 3, OBS_MAX = 4, TENSION_MAX = 3;
 const AUTH_OF: Record<InsightType, AuthorityTier> = { synthesis: "synthesis", interpretation: "interpretation", implication: "hypothesis" };
+
+/** Content words for overlap comparison (drop short/common tokens). */
+const contentWords = (s: string): Set<string> =>
+  new Set((s ?? "").toLowerCase().replace(/[^a-z0-9 ]/g, " ").split(/\s+/).filter((w) => w.length > 3));
+const jaccard = (a: Set<string>, b: Set<string>): number => {
+  if (a.size === 0 || b.size === 0) return 0;
+  const inter = [...a].filter((x) => b.has(x)).length;
+  return inter / new Set([...a, ...b]).size;
+};
+const evidenceLabelSet = (pi: ProductInsight): Set<string> => new Set(pi.evidence.map((e) => e.label));
+const isSubset = (a: Set<string>, b: Set<string>): boolean => a.size > 0 && [...a].every((x) => b.has(x));
+
+/** CONSERVATIVE de-duplication: drop a later insight only when it BOTH restates an
+ *  earlier one's takeaway (high word overlap) AND rests on a subset of the same evidence.
+ *  Distinct patterns cite different evidence, so market/device/question patterns are never
+ *  collapsed; only genuine restatements are removed. Keeps the first (stronger-ranked). */
+function dedupeInsights(list: ProductInsight[]): ProductInsight[] {
+  const kept: ProductInsight[] = [];
+  for (const c of list) {
+    const cWords = contentWords(c.takeaway);
+    const cRefs = evidenceLabelSet(c);
+    const dup = kept.some((k) => jaccard(contentWords(k.takeaway), cWords) >= 0.6 && isSubset(cRefs, evidenceLabelSet(k)));
+    if (!dup) kept.push(c);
+  }
+  return kept;
+}
 
 function buildRefDisplay(pkg: ReasonerPackage): Map<string, EvidenceLine> {
   const m = new Map<string, EvidenceLine>();
@@ -116,8 +145,8 @@ export function shapeIntelligence(out: ReasonerOutput, pkg: ReasonerPackage, ctx
     product: {
       displayable,
       story,
-      keyInsights: keyInsights.slice(0, KEY_MAX),
-      toConsider: toConsider.slice(0, CONSIDER_MAX),
+      keyInsights: dedupeInsights(keyInsights).slice(0, KEY_MAX),
+      toConsider: dedupeInsights(toConsider).slice(0, CONSIDER_MAX),
       observations: observations.slice(0, OBS_MAX),
       tensions: tensions.slice(0, TENSION_MAX),
       cannotConclude: (out.cannotConclude ?? []).slice(0, 6),

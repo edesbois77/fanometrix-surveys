@@ -9,7 +9,7 @@ import { IntelligenceError } from "@/lib/intelligence/types";
 
 export const REASONER_MODEL = "o3";
 export const REASONER_SCHEMA_VERSION = "reasoner-schema-v1";
-export const REASONER_PROMPT_VERSION = "reasoner-proto-v2";
+export const REASONER_PROMPT_VERSION = "reasoner-proto-v3";
 
 export type ReasonerUsage = { promptTokens?: number; completionTokens?: number; totalTokens?: number; reasoningTokens?: number };
 export type ReasonerCallResult = { parsed: unknown; usage: ReasonerUsage; latencyMs: number; model: string };
