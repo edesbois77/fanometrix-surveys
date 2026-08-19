@@ -33,7 +33,7 @@ export function evidenceClassOf(e: Record<string, unknown>): EvidenceClass {
 }
 
 export type FindingStatus = "draft" | "published";
-export type FindingOrigin = "manual" | "analysis_proposal";
+export type FindingOrigin = "manual" | "analysis_proposal" | "research_intelligence";
 export const FINDING_STATUS: FindingStatus[] = ["draft", "published"];
 
 const HEADLINE_MAX = 200;

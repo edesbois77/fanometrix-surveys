@@ -14,7 +14,9 @@ import type { SegmentDerivedItem } from "@/lib/studio/study-segments";
 import { validateFindingEditorial, selectFindingEvidence, assertPublishable, evidenceView, findingCard, sourceSurveys, type FrozenEvidence, type EvidenceView, type FindingCard } from "@/lib/studio/study-finding";
 
 type Access = "ok" | "forbidden" | "not_found";
-export type FindingRow = { id: string; study_id: string; headline: string; commentary: string | null; status: string; origin_type: string; origin_analysis_proposal_id: string | null; created_by: string | null; created_at: string; updated_by: string | null; updated_at: string | null; published_by: string | null; published_at: string | null };
+export type FindingRow = { id: string; study_id: string; headline: string; commentary: string | null; status: string; origin_type: string; origin_analysis_proposal_id: string | null; created_by: string | null; created_at: string; updated_by: string | null; updated_at: string | null; published_by: string | null; published_at: string | null;
+  /** Research Intelligence provenance (Stage C2) — set only for origin_type='research_intelligence'. */
+  ri_source_kind?: string | null; ri_source_id?: string | null; ri_evidence_fingerprint?: string | null; ri_insight_id?: string | null; ri_authority?: string | null };
 export type EvidenceRow = { id: string; finding_id: string; position: number; evidence_ref: string; evidence_snapshot: FrozenEvidence; created_at: string };
 export type Result<T> = { ok: boolean; status: number; data?: T; error?: string };
 
@@ -127,6 +129,95 @@ export async function createManualFinding(
   // A manual Finding is from ONE governed BASE result (Results tab); tag + freeze it.
   const ev = await insertEvidence((finding as FindingRow).id, [{ evidenceClass: "base", ...item }]);
   if (!ev.ok) { await supabaseAdmin.from("study_findings").delete().eq("id", (finding as FindingRow).id); return { ok: false, status: 500, error: `Evidence persistence failed: ${ev.error}` }; }
+  const evidence = (await supabaseAdmin.from("study_finding_evidence").select("*").eq("finding_id", (finding as FindingRow).id).order("position", { ascending: true })).data as EvidenceRow[];
+  return { ok: true, status: 201, data: { finding: finding as FindingRow, evidence } };
+}
+
+// ── Accept a VERIFIED Research Intelligence insight as a DRAFT Finding (C2) ────
+// The human-acceptance step for a Report review candidate. It re-resolves the CURRENT
+// verified artefact for the source (never trusting client-supplied evidence/refs), FAILS
+// CLOSED if the evidence has moved on (the candidate's fingerprint no longer matches — a
+// stale insight can NEVER be silently accepted as current), freezes the EXACT governed
+// evidence the insight was verified against (via the same selectFindingEvidence path as
+// proposals), and writes a DRAFT finding with full provenance. It NEVER publishes and NEVER
+// calls a model. Publishing remains a separate, explicit human action.
+export async function createFindingFromResearchInsight(
+  session: AuthedUser, studyId: string,
+  ref: { sourceKind: "survey" | "study"; sourceId: string; insightId: string; evidenceFingerprint: string },
+  editorial: { headline?: unknown; commentary?: unknown },
+): Promise<Result<{ finding: FindingRow; evidence: EvidenceRow[] }>> {
+  const { access } = await authoriseStudy(session, studyId);
+  if (access === "forbidden") return { ok: false, status: 403, error: "Forbidden" };
+  if (access === "not_found") return { ok: false, status: 404, error: "Study not found" };
+  // A Study report may only draw on its OWN study or that study's member surveys.
+  if (ref.sourceKind === "study" && ref.sourceId !== studyId) return { ok: false, status: 400, error: "Insight is not from this study." };
+  if (ref.sourceKind === "survey") {
+    const { data: sv } = await supabaseAdmin.from("surveys").select("id").eq("id", ref.sourceId).eq("study_id", studyId).is("deleted_at", null).maybeSingle();
+    if (!sv) return { ok: false, status: 400, error: "Insight is not from a survey in this study." };
+  }
+
+  // Lazy-load the RI reader + adapter (keeps this service free of the reasoning stack at import).
+  const { getCurrentResearchArtefact } = await import("@/lib/research-intelligence/read");
+  const { researchSourceFor } = await import("@/lib/research-intelligence/source");
+  const source = researchSourceFor(ref.sourceKind, ref.sourceId);
+  if (!source) return { ok: false, status: 400, error: "Unknown source." };
+  const artefact = await getCurrentResearchArtefact(source);
+  // STALENESS: no current verified artefact, or the evidence fingerprint has moved on since
+  // the candidate was shown → refuse. The reviewer must act on the CURRENT research, never a
+  // superseded one.
+  if (!artefact) return { ok: false, status: 409, error: "This research is no longer current — re-open the candidates to see the latest." };
+  if (artefact.evidenceFingerprint !== ref.evidenceFingerprint) return { ok: false, status: 409, error: "The evidence has changed since this candidate was shown — a newer research read is available. Re-open the candidates." };
+
+  const insight = [...(artefact.product.keyInsights ?? []), ...(artefact.product.toConsider ?? [])].find((i) => i.id === ref.insightId);
+  if (!insight) return { ok: false, status: 404, error: "Insight not found in the current research." };
+
+  // FALLBACK for pre-C2 artefacts (generated before original refs were persisted): the exact
+  // governed evidence cannot be frozen, so acceptance is refused rather than freezing an
+  // incomplete finding. Regenerating the analysis produces a ref-bearing artefact.
+  const refs = Array.isArray(insight.evidenceRefs) ? insight.evidenceRefs : [];
+  if (refs.length === 0) return { ok: false, status: 422, error: "This research was produced before evidence provenance was recorded; re-run the analysis to add it to findings." };
+
+  // Idempotency-as-success: the accepted-identity unique index means a repeat accept returns
+  // the existing draft rather than duplicating.
+  const { data: existing } = await supabaseAdmin.from("study_findings").select("*")
+    .eq("study_id", studyId).eq("origin_type", "research_intelligence")
+    .eq("ri_source_kind", ref.sourceKind).eq("ri_source_id", ref.sourceId)
+    .eq("ri_evidence_fingerprint", ref.evidenceFingerprint).eq("ri_insight_id", ref.insightId).maybeSingle();
+  if (existing) {
+    const ev = (await supabaseAdmin.from("study_finding_evidence").select("*").eq("finding_id", (existing as FindingRow).id).order("position", { ascending: true })).data as EvidenceRow[];
+    return { ok: true, status: 200, data: { finding: existing as FindingRow, evidence: ev ?? [] } };
+  }
+
+  // Freeze the EXACT governed evidence the insight was verified against, from the source
+  // run's IMMUTABLE snapshot — identical mechanism to a proposal-derived finding.
+  const auth = await source.resolveRun(artefact.analysisRunId ?? "");
+  if (!auth) return { ok: false, status: 409, error: "The source analysis is no longer available." };
+  const sel = selectFindingEvidence(refs, auth.snapshot as RunSnapshot);
+  if (!sel.ok) {
+    if (sel.missing.length) console.warn(`[findings] RI insight ${ref.insightId}: unresolved evidence refs`, sel.missing);
+    return { ok: false, status: 422, error: EVIDENCE_UNRESOLVED_MSG };
+  }
+
+  // Editorial defaults to the insight's own (already-verified) wording; the reviewer edits later.
+  const ed = validateFindingEditorial({
+    headline: editorial.headline ?? insight.takeaway,
+    commentary: editorial.commentary ?? [insight.explanation, insight.whyItMatters].filter(Boolean).join(" "),
+  });
+  if (!ed.ok) return { ok: false, status: 400, error: ed.error };
+
+  const { data: finding, error: fErr } = await supabaseAdmin.from("study_findings").insert({
+    study_id: studyId, headline: ed.headline, commentary: ed.commentary, status: "draft",
+    origin_type: "research_intelligence", origin_analysis_proposal_id: null, created_by: session.workEmail ?? null,
+    ri_source_kind: ref.sourceKind, ri_source_id: ref.sourceId, ri_evidence_fingerprint: ref.evidenceFingerprint,
+    ri_insight_id: ref.insightId, ri_authority: insight.authority,
+  }).select("*").single();
+  if (fErr || !finding) return { ok: false, status: 409, error: fErr?.message ?? "Could not create finding." };
+
+  const ev = await insertEvidence((finding as FindingRow).id, sel.evidence);
+  if (!ev.ok) {
+    await supabaseAdmin.from("study_findings").delete().eq("id", (finding as FindingRow).id);
+    return { ok: false, status: 500, error: `Evidence persistence failed: ${ev.error}` };
+  }
   const evidence = (await supabaseAdmin.from("study_finding_evidence").select("*").eq("finding_id", (finding as FindingRow).id).order("position", { ascending: true })).data as EvidenceRow[];
   return { ok: true, status: 201, data: { finding: finding as FindingRow, evidence } };
 }

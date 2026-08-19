@@ -102,6 +102,34 @@ export async function getResearchIntelligence(
   }
 }
 
+/** The CURRENT verified artefact for a source — product PLUS the identity/provenance a
+ *  consumer needs (evidence fingerprint + the analysis run whose immutable snapshot the
+ *  evidence came from). Same fingerprint + current-methodology guard as getResearchIntelligence,
+ *  but not exposure-gated: callers are already server-side authorised for the source (e.g.
+ *  admin-only Study curation). Used by Stage C2 Report candidate derivation + acceptance so
+ *  an accepted finding can freeze the exact governed evidence. Never throws. */
+export async function getCurrentResearchArtefact(
+  source: ResearchSource,
+): Promise<{ evidenceFingerprint: string; analysisRunId: string | null; product: ProductIntelligence } | null> {
+  try {
+    const current = await source.resolveCurrent();
+    if (!current) return null;
+    const identity = currentMethodologyIdentity(source.kind, source.sourceId, current.evidenceFingerprint);
+    const { data: row } = await supabaseAdmin
+      .from(RESEARCH_INTELLIGENCE_TABLE)
+      .select("product, displayable, status, analysis_run_id")
+      .eq("source_kind", identity.source_kind).eq("source_id", identity.source_id)
+      .eq("evidence_fingerprint", identity.evidence_fingerprint)
+      .eq("prompt_version", identity.prompt_version).eq("schema_version", identity.schema_version)
+      .eq("model", identity.model).maybeSingle();
+    const r = row as { product?: ProductIntelligence | null; displayable?: boolean; status?: string; analysis_run_id?: string | null } | null;
+    if (!r || r.status !== "completed" || r.displayable !== true || !r.product) return null;
+    return { evidenceFingerprint: current.evidenceFingerprint, analysisRunId: r.analysis_run_id ?? null, product: r.product };
+  } catch {
+    return null;
+  }
+}
+
 /** Survey convenience wrapper — unchanged call-site contract for the Findings read. */
 export function getSurveyResearchIntelligence(
   surveyId: string,

@@ -80,6 +80,18 @@ test("authority tiers: synthesis/interpretation → key insights, implication �
   assert.deepEqual(p.toConsider.map((i) => i.authority), ["hypothesis"]);
 });
 
+test("C2 provenance: an insight carries the ORIGINAL governed refs (not the short ids) so an accepted finding can freeze the exact verified evidence", () => {
+  const { pkg, ctxInput: ci } = ctxInput();
+  const { product: p } = shapeIntelligence(baseOut({ insights: [
+    { id: "s", title: "t", type: "synthesis", statement: "Strong fit 31.6% vs Never noticed 27%.", whyItMatters: "x", evidenceRefs: ["e1", "e2"], counterEvidenceRefs: ["e3"], confidence: "high", caveat: "" },
+  ] }), pkg, ci);
+  const insight = p.keyInsights[0];
+  // The SNAP evidence items carry original refs r1/r2/r3; the model cited the short ids e1/e2/e3.
+  assert.deepEqual(insight.evidenceRefs, ["r1", "r2"], "evidenceRefs resolve short ids → original governed refs");
+  assert.deepEqual(insight.counterEvidenceRefs, ["r3"], "counterEvidenceRefs resolve too");
+  assert.ok(!insight.evidenceRefs.includes("e1"), "short ids are not persisted as the freeze key");
+});
+
 test("citation resolution: evidence ids become human-readable lines (no raw ids leak)", () => {
   const { pkg, ctxInput: ci } = ctxInput();
   const { product: p } = shapeIntelligence(baseOut({ insights: [

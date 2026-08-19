@@ -12,14 +12,20 @@ type EvidenceView = { position: number; ref: string; evidenceClass: "base" | "de
 type Source = { id: string; name: string };
 type Card0 = { id: string; headline: string; status: string; originType: string; evidenceCount: number; createdBy: string | null; createdAt: string; publishedBy: string | null; publishedAt: string | null; sources: Source[]; headEvidence: EvidenceView | null };
 type Detail = { finding: { id: string; headline: string; commentary: string | null; status: string; origin_type: string; created_by: string | null; created_at: string; published_by: string | null; published_at: string | null }; evidence: EvidenceView[]; sources: Source[] };
+type EvLine = { question: string; label: string; percentage: number | null; base: number | null };
+type Candidate = { sourceKind: "survey" | "study"; sourceId: string; sourceTitle: string; evidenceFingerprint: string; insightId: string; authority: "measured" | "synthesis" | "interpretation" | "hypothesis"; section: "key_insight" | "consideration"; takeaway: string; statement: string; whyItMatters: string; caveat: string; confidence: string; evidence: EvLine[]; counterEvidence: EvLine[]; canFreeze: boolean; alreadyAccepted: boolean };
 
 const num = (n: number) => n.toLocaleString();
 const pct = (p: number | null) => (p == null ? "—" : `${Math.round(p * 100)}%`);
 const when = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString(undefined, { dateStyle: "medium" }) : "");
+// One authority vocabulary across surfaces — never a Reports-specific one.
+const AUTHORITY_LABEL: Record<Candidate["authority"], string> = { measured: "Measured", synthesis: "Synthesis", interpretation: "Interpretation", hypothesis: "Worth considering" };
 
 export function StudyFindings({ studyId }: { studyId: string }) {
   const [cards, setCards] = useState<Card0[] | null | "error">(null);
   const [openId, setOpenId] = useState<string | null>(null);
+  const [candidates, setCandidates] = useState<Candidate[]>([]);
+  const [dismissed, setDismissed] = useState<Set<string>>(new Set());
 
   const load = useCallback(async () => {
     try {
@@ -28,10 +34,19 @@ export function StudyFindings({ studyId }: { studyId: string }) {
       const j = await r.json();
       setCards(j.findings as Card0[]);
     } catch { setCards("error"); }
+    // Research candidates are a read-time projection of verified intelligence; failure is
+    // non-fatal (findings still render). Never blocks the page.
+    try {
+      const rc = await fetch(`/api/studio/studies/${studyId}/findings/candidates`);
+      if (rc.ok) { const jc = await rc.json(); setCandidates((jc.candidates ?? []) as Candidate[]); }
+    } catch { /* candidates are optional */ }
   }, [studyId]);
 
   // eslint-disable-next-line react-hooks/set-state-in-effect -- memoised loader
   useEffect(() => { load(); }, [load]);
+
+  const candIdentity = (c: Candidate) => `${c.sourceKind}|${c.sourceId}|${c.evidenceFingerprint}|${c.insightId}`;
+  const pending = candidates.filter((c) => !c.alreadyAccepted && !dismissed.has(candIdentity(c)));
 
   if (cards == null) return <div className="space-y-3"><Skeleton className="h-24" /><Skeleton className="h-24" /></div>;
   if (cards === "error") return <Card><p className="text-sm" style={{ color: "var(--text-secondary)" }}>Findings are unavailable for this study.</p></Card>;
@@ -44,13 +59,79 @@ export function StudyFindings({ studyId }: { studyId: string }) {
       <p className="text-xs" style={{ color: "var(--text-tertiary)" }}>
         Findings are human-owned research conclusions backed by frozen evidence. <strong style={{ color: "var(--text-secondary)" }}>Drafts</strong> are still in review and can be edited. <strong style={{ color: "var(--text-secondary)" }}>Published</strong> findings are approved as this study&apos;s governed intelligence. Add them from an analysis proposal, or from a result in Results. Publishing never changes the evidence.
       </p>
-      {cards.length === 0 && <Card><p className="text-sm" style={{ color: "var(--text-secondary)" }}>No findings yet. In Analysis, add a proposal to your findings — or use &ldquo;＋ Finding&rdquo; on a result in Results.</p></Card>}
+      {cards.length === 0 && pending.length === 0 && <Card><p className="text-sm" style={{ color: "var(--text-secondary)" }}>No findings yet. In Analysis, add a proposal to your findings — or use &ldquo;＋ Finding&rdquo; on a result in Results.</p></Card>}
+
+      {pending.length > 0 && (
+        <CandidatesSection
+          studyId={studyId}
+          candidates={pending}
+          onAccepted={load}
+          onDismiss={(c) => setDismissed((prev) => new Set(prev).add(candIdentity(c)))}
+        />
+      )}
 
       {drafts.length > 0 && <Section title={`Drafts (${drafts.length}) · in review`} cards={drafts} onOpen={setOpenId} />}
       {published.length > 0 && <Section title={`Published (${published.length}) · approved intelligence`} cards={published} onOpen={setOpenId} />}
 
       {openId && <FindingDetail studyId={studyId} findingId={openId} onClose={() => setOpenId(null)} onChanged={load} />}
     </div>
+  );
+}
+
+// ── Suggested from research (Stage C2) — verified RI candidates for human review ──
+// Each card is a VERIFIED insight (rejected/overreaching ones never reach here). Accepting
+// creates a DRAFT finding (never published); the analyst still publishes explicitly. Nothing
+// here auto-accepts or auto-publishes. Authority is shown in the shared vocabulary.
+function CandidatesSection({ studyId, candidates, onAccepted, onDismiss }: { studyId: string; candidates: Candidate[]; onAccepted: () => void; onDismiss: (c: Candidate) => void }) {
+  const [busy, setBusy] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const accept = async (c: Candidate) => {
+    setBusy(c.insightId); setErr(null);
+    try {
+      const r = await fetch(`/api/studio/studies/${studyId}/findings`, {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ origin: "research_intelligence", sourceKind: c.sourceKind, sourceId: c.sourceId, insightId: c.insightId, evidenceFingerprint: c.evidenceFingerprint }),
+      });
+      if (!r.ok) { const j = await r.json().catch(() => ({})); setErr(j.error ?? "Could not add to findings."); return; }
+      onAccepted();
+    } catch { setErr("Could not add to findings."); }
+    finally { setBusy(null); }
+  };
+  return (
+    <section>
+      <p className="text-[11px] font-semibold uppercase tracking-[0.06em] mb-1" style={{ color: "var(--accent-gold)" }}>Suggested from research</p>
+      <p className="text-xs mb-2.5" style={{ color: "var(--text-tertiary)" }}>Verified research reads you can add to this study&apos;s findings. Adding creates a draft you review and publish — nothing is published automatically.</p>
+      {err && <p className="text-xs mb-2" style={{ color: "#B4694C" }}>{err}</p>}
+      <div className="space-y-3">
+        {candidates.map((c) => (
+          <Card key={`${c.sourceKind}-${c.insightId}`} padding="md">
+            <div className="flex items-center gap-2 mb-1 flex-wrap">
+              <StatusBadge label={AUTHORITY_LABEL[c.authority]} tone={c.authority === "measured" ? "accent" : c.authority === "hypothesis" ? "warning" : "info"} />
+              <span className="text-[11px]" style={{ color: "var(--text-tertiary)" }}>{c.sourceKind === "study" ? "Study" : "Survey"}: {c.sourceTitle}</span>
+              {c.section === "consideration" && <span className="text-[11px]" style={{ color: "var(--text-tertiary)" }}>· to consider</span>}
+            </div>
+            <p className="text-[15px] font-semibold leading-snug" style={{ color: "var(--text-primary)" }}>{c.takeaway}</p>
+            {c.whyItMatters && <p className="text-[13px] mt-1 leading-relaxed" style={{ color: "var(--text-secondary)" }}>{c.whyItMatters}</p>}
+            {c.evidence.length > 0 && (
+              <div className="mt-2 space-y-1">
+                {c.evidence.map((e, i) => (
+                  <div key={i} className="flex items-baseline gap-2 flex-wrap text-xs" style={{ color: "var(--text-tertiary)" }}>
+                    {e.percentage != null && <span className="font-bold fx-tabular-nums" style={{ color: "var(--text-primary)" }}>{e.percentage}%</span>}
+                    <span>{e.label}</span>{e.question && <span>· {e.question}{e.base != null ? ` (n=${num(e.base)})` : ""}</span>}
+                  </div>
+                ))}
+              </div>
+            )}
+            {c.caveat && <p className="text-[11px] mt-1.5" style={{ color: "#8A6A2F" }}>{c.caveat}</p>}
+            <div className="flex items-center gap-2 mt-3">
+              <Button onClick={() => accept(c)} variant="primary" size="sm" disabled={busy === c.insightId || !c.canFreeze}>{busy === c.insightId ? "Adding…" : "Add to findings"}</Button>
+              <Button onClick={() => onDismiss(c)} variant="ghost" size="sm" disabled={busy === c.insightId}>Dismiss</Button>
+              {!c.canFreeze && <span className="text-[11px]" style={{ color: "var(--text-tertiary)" }}>Re-run the analysis to add this.</span>}
+            </div>
+          </Card>
+        ))}
+      </div>
+    </section>
   );
 }
 

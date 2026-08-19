@@ -21,6 +21,11 @@ export type ProductInsight = {
   id: string; authority: AuthorityTier; takeaway: string; explanation: string;
   whyItMatters: string; confidence: string; caveat: string;
   evidence: EvidenceLine[]; counterEvidence: EvidenceLine[];
+  /** The ORIGINAL governed evidence refs this insight was verified against (not the
+   *  ephemeral short ids). Persisted so a downstream consumer (Stage C2 Reports) can
+   *  freeze the EXACT same governed evidence via the existing selectFindingEvidence path.
+   *  Provenance only — never rendered to end users. Absent on pre-C2 artefacts. */
+  evidenceRefs: string[]; counterEvidenceRefs: string[];
 };
 export type ProductIntelligence = {
   displayable: boolean;
@@ -80,6 +85,19 @@ function buildRefDisplay(pkg: ReasonerPackage): Map<string, EvidenceLine> {
 const resolveLines = (refs: string[], disp: Map<string, EvidenceLine>): EvidenceLine[] =>
   [...new Set(refs)].map((r) => disp.get(r)).filter((x): x is EvidenceLine => !!x);
 
+/** Short citation id (e1/d1/s1) → the ORIGINAL governed ref (e.g. study#..|q#..|opt#..).
+ *  The package retains both; this recovers the durable refs the model cited so an accepted
+ *  Report finding can freeze exactly the governed evidence the insight was verified against. */
+function buildRefIndex(pkg: ReasonerPackage): Map<string, string> {
+  const m = new Map<string, string>();
+  for (const q of pkg.questions) for (const o of q.options) m.set(o.id, o.ref);
+  for (const d of pkg.derivedFacts) m.set(d.id, d.ref);
+  for (const s of pkg.segmentFacts) m.set(s.id, s.ref);
+  return m;
+}
+const resolveRefs = (refs: string[], idx: Map<string, string>): string[] =>
+  [...new Set(refs)].map((r) => idx.get(r)).filter((x): x is string => !!x);
+
 /** Was the ONLY problem a stray recommendation? Then it is safe to re-tier to a
  *  hypothesis rather than drop it (authority-matching). Any harder overreach (causal,
  *  significance, respondent-level, cross-question, fabricated number) is NOT re-tierable. */
@@ -88,6 +106,7 @@ const prescriptionOnly = (reasons: string[]) => reasons.length > 0 && reasons.ev
 export function shapeIntelligence(out: ReasonerOutput, pkg: ReasonerPackage, ctxInput: { validRefs: Set<string>; numbersByRef: Map<string, number[]>; groupedShareRefs: Set<string>; refToQuestion: Map<string, string> }): ShapedResult {
   const ctx: ClaimContext = buildClaimContext(ctxInput);
   const disp = buildRefDisplay(pkg);
+  const refIdx = buildRefIndex(pkg);
   const dropped: DroppedClaim[] = [];
 
   // ── Executive story: the headline must be defensible on its own. ──────────────
@@ -136,6 +155,7 @@ export function shapeIntelligence(out: ReasonerOutput, pkg: ReasonerPackage, ctx
       id: i.id, authority: AUTH_OF[type], takeaway: i.title, explanation: i.statement,
       whyItMatters, confidence: i.confidence, caveat: i.caveat,
       evidence: resolveLines(i.evidenceRefs ?? [], disp), counterEvidence: resolveLines(i.counterEvidenceRefs ?? [], disp),
+      evidenceRefs: resolveRefs(i.evidenceRefs ?? [], refIdx), counterEvidenceRefs: resolveRefs(i.counterEvidenceRefs ?? [], refIdx),
     };
     (type === "implication" ? toConsider : keyInsights).push(pi);
   }
