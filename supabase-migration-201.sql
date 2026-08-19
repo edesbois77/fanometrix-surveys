@@ -1,4 +1,7 @@
--- Migration 200: Research Reasoner — verified research intelligence runs.
+-- Migration 201: Research Reasoner — verified research intelligence runs.
+-- (Renumbered from 200 to resolve a number collision: migration 200 is the legitimate,
+--  production-applied `response_answers` authoritative-answer-store migration. This file
+--  and its SQL are otherwise unchanged; only the number moved to the next free slot, 201.)
 --
 -- Domain table for the gated Research Reasoning layer. Records ONE model-powered,
 -- verifier-checked research interpretation produced ASYNCHRONOUSLY alongside an
