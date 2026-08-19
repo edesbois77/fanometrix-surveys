@@ -64,6 +64,25 @@ test("§D/§F Core failure (DB throws) → null (product falls back), never thro
   });
 });
 
+test("coverage: snapshot derived+segment facts are ingested as OBSERVED, 'divided' deduped", async () => {
+  latestRun = { id: "R1", evidence_snapshot: {
+    study: { id: "S", objective: "o" },
+    evidence: [
+      { ref: "e:1", canonicalQuestionKey: "q1", question: "Which offer?", scope: "combined", optionId: "1", optionLabel: "Rewards", count: 66, base: 196, percentage: 33.7 },
+      { ref: "e:2", canonicalQuestionKey: "q1", question: "Which offer?", scope: "combined", optionId: "2", optionLabel: "Grassroots", count: 48, base: 196, percentage: 24.5 },
+      { ref: "e:3", canonicalQuestionKey: "q1", question: "Which offer?", scope: "combined", optionId: "3", optionLabel: "Access", count: 41, base: 196, percentage: 20.9 },
+    ],
+    derived: [{ ref: "d:leader:q1", kind: "leader", canonicalQuestionKey: "q1", question: "Which offer?", label: "…", value: 9.2, unit: "pp", inputRefs: ["e:1", "e:2"], detail: { leader: "Rewards", leaderPct: 33.7, second: "Grassroots", secondPct: 24.5 } }],
+    segmentDerived: [{ ref: "s:1", kind: "seg_concentration", canonicalQuestionKey: "q1", question: "Which offer?", dimension: "market", label: "Rewards chosen by 45% of Germany vs 33.7% overall", value: 11.3, unit: "pp", inputRefs: [], detail: {} }],
+  } };
+  const p = await mod.getSurveyCoreIntelligence("SV", true);
+  assert.ok(p);
+  assert.ok(p!.findings.some((f) => f.id === "d:leader:q1" && f.basis === "observed"), "leader fact ingested as observed");
+  assert.ok(p!.findings.some((f) => f.id === "s:1" && f.basis === "observed"), "segment fact ingested as observed");
+  assert.ok(!p!.findings.some((f) => /is divided/i.test(f.title) && f.question === "Which offer?"), "generic 'divided' for that question is deduped");
+  assert.ok(!p!.findings.some((f) => f.basis === "governed"), "no governed authority invented");
+});
+
 test("§C no completed run / empty snapshot → null (safe)", async () => {
   latestRun = null;
   assert.equal(await mod.getSurveyCoreIntelligence("SV", true), null);

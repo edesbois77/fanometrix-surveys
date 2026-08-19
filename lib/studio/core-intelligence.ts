@@ -53,11 +53,30 @@ export async function getSurveyCoreIntelligence(
     const { studioToDiscoveryInput } = await import("@/lib/core/studio/adapter");
     const { runAnalysis } = await import("@/lib/core/pipeline/analyse");
     const { projectAnalysis } = await import("@/lib/core/studio/projection");
+    const { projectSnapshotFacts } = await import("@/lib/studio/snapshot-facts");
 
     const governed = studioEvidenceToGovernedInput(snapshot as never, { kind: "survey", id: surveyId });
     const result = runAnalysis(studioToDiscoveryInput(governed)); // NO model proposer → deterministic
     const projection = projectAnalysis(result);
-    return projection.findings.length ? projection : null;
+
+    // Coverage: also surface the GOVERNED deterministic facts the immutable snapshot
+    // already carries (leader ranks + segment observations) as OBSERVED findings —
+    // never as authority. Drop the generic "divided" distribution finding for a
+    // question that now has a richer leader fact (presentation dedup; evidence intact).
+    const snap = projectSnapshotFacts(snapshot as never);
+    const isDivided = (f: { title: string }) => /is divided|no single answer stands out/i.test(f.title);
+    const deduped = projection.findings.filter((f) => !(isDivided(f) && f.question != null && snap.leaderQuestions.has(f.question)));
+    const merged = [...deduped, ...snap.findings];
+    if (!merged.length) return null;
+    return {
+      ...projection,
+      findings: merged,
+      counts: {
+        key: merged.filter((f) => f.tier === "key").length,
+        supporting: merged.filter((f) => f.tier === "supporting").length,
+        context: merged.filter((f) => f.tier === "context").length,
+      },
+    };
   } catch {
     return null; // failure-isolated — product keeps its existing analysis/findings
   }

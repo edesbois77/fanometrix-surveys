@@ -43,6 +43,7 @@ export type SurveyResultsViewModel =
     };
 
 const BASIS_RANK: Record<CoreFindingBasis, number> = { governed: 0, observed: 1, exploratory: 2 };
+const TIER_RANK: Record<CoreFinding["tier"], number> = { key: 0, supporting: 1, context: 2 };
 
 /** Numeric value of a "65%" style statistic, for choosing the stronger side of a
  *  complementary governed pair. Missing/unparseable → -1 (never wins). */
@@ -89,18 +90,26 @@ export function composeSurveyResults(input: {
 
   // Key findings: Core "key" tier, governed leads, capped for selectivity. An
   // EXPLORATORY reading can never be a key finding (the projection already re-tiers it).
-  const key = findings
-    .filter((f) => f.tier === "key" && f.basis !== "exploratory")
-    .sort((a, b) => BASIS_RANK[a.basis] - BASIS_RANK[b.basis])
-    .slice(0, KEY_CAP)
-    .map(toFinding);
+  // What stands out: governed KEY findings lead. If there are none, the strongest
+  // OBSERVED supporting findings (leader ranks + notable segment observations) lead
+  // instead — so the page surfaces real facts rather than only "nothing dominates".
+  // A governed key finding always outranks an observed one; exploratory never leads.
+  const hasKey = findings.some((f) => f.tier === "key" && f.basis !== "exploratory");
+  const standTier: CoreFinding["tier"] | null = hasKey ? "key"
+    : findings.some((f) => f.tier === "supporting") ? "supporting" : null;
+  const key = standTier
+    ? findings.filter((f) => f.tier === standTier && f.basis !== "exploratory")
+        .sort((a, b) => BASIS_RANK[a.basis] - BASIS_RANK[b.basis])
+        .slice(0, KEY_CAP)
+        .map(toFinding)
+    : [];
 
-  // Worth noting: everything not led with, subordinate, capped — including any
-  // exploratory reading (never above the measured findings).
+  // Worth noting: everything not led with, subordinate, capped — highest tier first,
+  // then governed before observed before exploratory.
   const keyIds = new Set(key.map((k) => k.id));
   const worthNoting = findings
     .filter((f) => !keyIds.has(f.id))
-    .sort((a, b) => BASIS_RANK[a.basis] - BASIS_RANK[b.basis])
+    .sort((a, b) => TIER_RANK[a.tier] - TIER_RANK[b.tier] || BASIS_RANK[a.basis] - BASIS_RANK[b.basis])
     .slice(0, NOTE_CAP)
     .map(toFinding);
 
