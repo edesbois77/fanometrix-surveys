@@ -93,9 +93,60 @@ export function surveyResearchSource(surveyId: string): ResearchSource {
   };
 }
 
-/** Build the ResearchSource for a given kind. Stage A wires only 'survey'; unknown/reserved
- *  kinds return null so callers fail safe rather than guess. */
+// ── Study source ─────────────────────────────────────────────────────────────
+// Authoritative evidence for a Study = its study_analysis_runs row: the immutable
+// evidence_snapshot (which spreads the same StudyAnalysisEvidence payload — evidence[] /
+// derived[] / segmentDerived[] / study meta — that surveys produce) + the evidence_hash
+// fingerprint (sha256 of the canonical governed evidence, stable across the narrative/
+// themes update). Structurally identical to the survey adapter; the only differences are
+// the table and that source_id is the study id. It fabricates NO semantics: the same
+// evidence-package builder + reasoner + verifier + shaper consume it unchanged, and the
+// builder's combined-only filter means Study reasoning sees the governed cross-survey
+// COMBINED evidence, never incomparable per-survey rows.
+export function studyResearchSource(studyId: string): ResearchSource {
+  return {
+    kind: "study",
+    sourceId: studyId,
+    async resolveCurrent() {
+      const { data } = await supabaseAdmin
+        .from("study_analysis_runs")
+        .select("id, evidence_hash")
+        .eq("study_id", studyId).eq("status", "completed")
+        .order("created_at", { ascending: false }).limit(1).maybeSingle();
+      const row = data as { id?: string; evidence_hash?: string | null } | null;
+      if (!row?.id || !row.evidence_hash) return null; // no run, or no fingerprint → nothing reusable
+      return { analysisRunId: row.id, evidenceFingerprint: row.evidence_hash };
+    },
+    async resolveRun(analysisRunId: string) {
+      const { data, error } = await supabaseAdmin
+        .from("study_analysis_runs")
+        .select("id, study_id, evidence_snapshot, evidence_hash")
+        .eq("id", analysisRunId).single();
+      if (error || !data) return null;
+      const row = data as {
+        id: string;
+        study_id: string;
+        evidence_snapshot?: ({ evidence?: unknown[] } & Record<string, unknown>) | null;
+        evidence_hash?: string | null;
+      };
+      const snapshot = row.evidence_snapshot ?? null;
+      if (!snapshot || !Array.isArray(snapshot.evidence) || snapshot.evidence.length === 0) return null;
+      if (!row.evidence_hash) return null; // no fingerprint ⇒ no stable identity ⇒ do not persist
+      return {
+        sourceKind: "study",
+        sourceId: row.study_id,
+        analysisRunId: row.id,
+        evidenceFingerprint: row.evidence_hash,
+        snapshot,
+      };
+    },
+  };
+}
+
+/** Build the ResearchSource for a given kind. Stage A/C1 wire 'survey' and 'study'; the
+ *  remaining reserved kinds return null so callers fail safe rather than guess. */
 export function researchSourceFor(kind: ResearchSourceKind, sourceId: string): ResearchSource | null {
   if (kind === "survey") return surveyResearchSource(sourceId);
-  return null; // study / report / comparison — reserved, not wired in Stage A
+  if (kind === "study") return studyResearchSource(sourceId);
+  return null; // report / comparison — reserved, not wired yet
 }

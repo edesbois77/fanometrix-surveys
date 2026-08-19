@@ -2,6 +2,6 @@
 // importing the handler's heavy dependencies (the reasoning stack + OpenAI).
 export const RESEARCH_REASONER_JOB = "research.reasoner";
 
-/** Source of an authoritative Studio analysis run the reasoner analyses. Only 'survey'
- *  for the first gated integration. */
-export type ResearchReasonerSourceKind = "survey";
+/** Source of an authoritative Studio analysis run the reasoner analyses. 'survey' (Stage A/B)
+ *  and 'study' (Stage C1) are wired; 'report'/'comparison' remain reserved. */
+export type ResearchReasonerSourceKind = "survey" | "study";

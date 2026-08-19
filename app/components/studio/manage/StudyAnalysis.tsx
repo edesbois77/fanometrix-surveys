@@ -8,6 +8,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Card, Button, StatusBadge, Skeleton } from "@/app/components/workspace-ui";
+import { ResearchIntelligenceView } from "@/app/components/studio/discover/ResearchIntelligenceView";
+import type { ProductIntelligence } from "@/lib/research-intelligence/product";
 
 type EvidenceItem = {
   ref: string; question: string; scope: "combined" | "survey"; surveyName: string | null;
@@ -24,7 +26,7 @@ type Proposal = { id: string; type: string; displayType?: string; priority: "key
 type Narrative = { headline: string; summary: string; evidenceRefs: string[] };
 type Theme = { id: string; title: string; interpretation: string; proposalIds: string[]; evidenceRefs: string[]; importance: "primary" | "secondary"; relationToObjective: string };
 type Coverage = { surveys: number; questions: number; evidencePoints: number };
-type Payload = { run: Run | null; proposals: Proposal[]; narrative: Narrative | null; themes: Theme[]; coverage: Coverage | null; history: { id: string; status: string; created_at: string; proposal_count: number }[]; stale: { objectiveChanged: boolean; membershipChanged: boolean } | null };
+type Payload = { run: Run | null; proposals: Proposal[]; narrative: Narrative | null; themes: Theme[]; coverage: Coverage | null; history: { id: string; status: string; created_at: string; proposal_count: number }[]; stale: { objectiveChanged: boolean; membershipChanged: boolean } | null; researchIntelligence?: ProductIntelligence | null };
 
 const pct = (p: number | null) => (p == null ? "—" : `${Math.round(p * 100)}%`);
 const num = (n: number) => n.toLocaleString();
@@ -134,6 +136,19 @@ export function StudyAnalysis({ studyId, onViewFindings }: { studyId: string; on
       )}
 
       {running && <AnalysisLoading />}
+
+      {/* RESEARCH INTELLIGENCE (Stage C1) — the shared, VERIFIED reasoner read over this
+          study's governed combined evidence, when a displayable artefact exists. Additive:
+          it never removes the review workflow below, and when absent the existing
+          deterministic analysis stands unchanged (no blank page). */}
+      {!running && data.researchIntelligence && (
+        <ResearchIntelligenceView
+          intel={data.researchIntelligence}
+          context="final"
+          answers={run?.evidence_snapshot?.study?.completedResponses ?? 0}
+          respondents={run?.evidence_snapshot?.study?.completedResponses ?? 0}
+        />
+      )}
 
       {/* WHAT THE RESEARCH SAYS — the AI's overall read, more prominent than any one card */}
       {!running && data.narrative && (
