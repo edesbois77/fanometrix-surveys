@@ -1,0 +1,128 @@
+// ── Research Reasoner — verified output → product intelligence (ISOLATED shape) ─
+// Turns the RAW reasoner output into the product contract the Findings UI renders,
+// enforcing three things deterministically:
+//   • SOFTEN policy (§10): a claim whose language overreaches its evidence is either
+//     RE-TIERED to a lower authority (a stray recommendation becomes a hypothesis) or,
+//     when safe softening cannot preserve meaning, DROPPED — never laundered.
+//   • Citation resolution (§11): every evidence ref (e1/d1/s1) becomes a human-readable
+//     evidence line (question + option + %/base, or the governed fact label). Internal
+//     ids never reach the user.
+//   • Authority contract (§12): measured / synthesis / interpretation / hypothesis are
+//     kept visibly distinct; UNSUPPORTED never appears.
+// If the executive story cannot be defended, `displayable=false` and the product falls
+// back to the deterministic Findings experience.
+import type { ReasonerOutput, InsightType } from "./reasoning-schema";
+import type { ReasonerPackage } from "./evidence-package";
+import { buildClaimContext, verifyClaimText, type ClaimContext } from "./verifier";
+
+export type AuthorityTier = "measured" | "synthesis" | "interpretation" | "hypothesis";
+export type EvidenceLine = { question: string; label: string; percentage: number | null; base: number | null };
+export type ProductInsight = {
+  id: string; authority: AuthorityTier; takeaway: string; explanation: string;
+  whyItMatters: string; confidence: string; caveat: string;
+  evidence: EvidenceLine[]; counterEvidence: EvidenceLine[];
+};
+export type ProductIntelligence = {
+  displayable: boolean;
+  story: { headline: string; summary: string | null } | null;
+  keyInsights: ProductInsight[];      // synthesis + interpretation (2-4)
+  toConsider: ProductInsight[];       // implications / hypotheses
+  observations: { statement: string; evidence: EvidenceLine[] }[];
+  tensions: { statement: string; evidence: EvidenceLine[] }[];
+  cannotConclude: string[];
+  openQuestions: string[];
+};
+/** Audit record of what the soften/verify policy removed & why. Kept SEPARATE from the
+ *  client-facing product so a rejected claim's text (a fabrication) is never shipped to
+ *  the browser — it is persisted only in the run's audit. */
+export type DroppedClaim = { where: string; reasons: string[] };
+export type ShapedResult = { product: ProductIntelligence; dropped: DroppedClaim[] };
+
+const KEY_MAX = 4, CONSIDER_MAX = 3, OBS_MAX = 4, TENSION_MAX = 2;
+const AUTH_OF: Record<InsightType, AuthorityTier> = { synthesis: "synthesis", interpretation: "interpretation", implication: "hypothesis" };
+
+function buildRefDisplay(pkg: ReasonerPackage): Map<string, EvidenceLine> {
+  const m = new Map<string, EvidenceLine>();
+  for (const q of pkg.questions) for (const o of q.options) m.set(o.id, { question: q.text, label: o.label, percentage: o.pct, base: q.base });
+  for (const d of pkg.derivedFacts) m.set(d.id, { question: "", label: d.label, percentage: null, base: null });
+  for (const s of pkg.segmentFacts) m.set(s.id, { question: "", label: s.label, percentage: null, base: null });
+  return m;
+}
+const resolveLines = (refs: string[], disp: Map<string, EvidenceLine>): EvidenceLine[] =>
+  [...new Set(refs)].map((r) => disp.get(r)).filter((x): x is EvidenceLine => !!x);
+
+/** Was the ONLY problem a stray recommendation? Then it is safe to re-tier to a
+ *  hypothesis rather than drop it (authority-matching). Any harder overreach (causal,
+ *  significance, respondent-level, cross-question, fabricated number) is NOT re-tierable. */
+const prescriptionOnly = (reasons: string[]) => reasons.length > 0 && reasons.every((r) => /prescriptive recommendation/i.test(r));
+
+export function shapeIntelligence(out: ReasonerOutput, pkg: ReasonerPackage, ctxInput: { validRefs: Set<string>; numbersByRef: Map<string, number[]>; groupedShareRefs: Set<string>; refToQuestion: Map<string, string> }): ShapedResult {
+  const ctx: ClaimContext = buildClaimContext(ctxInput);
+  const disp = buildRefDisplay(pkg);
+  const dropped: DroppedClaim[] = [];
+
+  // ── Executive story: the headline must be defensible on its own. ──────────────
+  const headline = out.executiveStory?.headline ?? "";
+  const summary = out.executiveStory?.summary ?? "";
+  // The headline must be fully clean (PASS) to display the reasoned experience — a soft
+  // (banned-language) or fabricated headline is never shown raw; the product falls back to
+  // the deterministic experience instead. The summary is kept only if it too is clean.
+  const hv = verifyClaimText(ctx, headline, out.executiveStory?.evidenceRefs ?? [], { requireRefs: false });
+  let story: ProductIntelligence["story"] = null;
+  if (hv.verdict !== "PASS") {
+    dropped.push({ where: "executiveStory (headline)", reasons: hv.reasons });
+  } else {
+    const sv = verifyClaimText(ctx, summary, out.executiveStory?.evidenceRefs ?? [], { requireRefs: true });
+    story = { headline, summary: sv.verdict === "PASS" ? summary : null };
+    if (sv.verdict !== "PASS") dropped.push({ where: "executiveStory (summary)", reasons: sv.reasons });
+  }
+  const displayable = story !== null;
+
+  // ── Insights → key insights (synthesis/interpretation) or "to consider" (implication) ──
+  const keyInsights: ProductInsight[] = [];
+  const toConsider: ProductInsight[] = [];
+  for (const i of out.insights ?? []) {
+    const text = `${i.title}. ${i.statement} ${i.whyItMatters} ${i.caveat}`;
+    const v = verifyClaimText(ctx, text, [...(i.evidenceRefs ?? []), ...(i.counterEvidenceRefs ?? [])], { requireRefs: true, type: i.type });
+    let type = i.type;
+    if (v.verdict === "REJECT") { dropped.push({ where: `insight:${i.id}`, reasons: v.reasons }); continue; }
+    if (v.verdict === "SOFTEN") {
+      if (prescriptionOnly(v.reasons) && i.type !== "implication") type = "implication"; // re-tier, don't launder
+      else { dropped.push({ where: `insight:${i.id}`, reasons: v.reasons }); continue; }
+    }
+    const pi: ProductInsight = {
+      id: i.id, authority: AUTH_OF[type], takeaway: i.title, explanation: i.statement,
+      whyItMatters: i.whyItMatters, confidence: i.confidence, caveat: i.caveat,
+      evidence: resolveLines(i.evidenceRefs ?? [], disp), counterEvidence: resolveLines(i.counterEvidenceRefs ?? [], disp),
+    };
+    (type === "implication" ? toConsider : keyInsights).push(pi);
+  }
+
+  // ── Measured observations + tensions: keep only clean ones. ───────────────────
+  const observations: ProductIntelligence["observations"] = [];
+  (out.supportingObservations ?? []).forEach((o, k) => {
+    const v = verifyClaimText(ctx, o.statement, o.evidenceRefs ?? [], { requireRefs: true });
+    if (v.verdict === "PASS") observations.push({ statement: o.statement, evidence: resolveLines(o.evidenceRefs ?? [], disp) });
+    else dropped.push({ where: `observation#${k}`, reasons: v.reasons });
+  });
+  const tensions: ProductIntelligence["tensions"] = [];
+  (out.tensions ?? []).forEach((t, k) => {
+    const v = verifyClaimText(ctx, t.statement, t.evidenceRefs ?? [], { requireRefs: true });
+    if (v.verdict === "PASS") tensions.push({ statement: t.statement, evidence: resolveLines(t.evidenceRefs ?? [], disp) });
+    else dropped.push({ where: `tension#${k}`, reasons: v.reasons });
+  });
+
+  return {
+    product: {
+      displayable,
+      story,
+      keyInsights: keyInsights.slice(0, KEY_MAX),
+      toConsider: toConsider.slice(0, CONSIDER_MAX),
+      observations: observations.slice(0, OBS_MAX),
+      tensions: tensions.slice(0, TENSION_MAX),
+      cannotConclude: (out.cannotConclude ?? []).slice(0, 6),
+      openQuestions: (out.openQuestions ?? []).slice(0, 6),
+    },
+    dropped,
+  };
+}

@@ -17,6 +17,8 @@ import type { SurveyFinding, SurveyFindingType, SurveyFindingsContext } from "@/
 import type { SurveyAnalysisView, AnalysisFinding } from "@/lib/studio/survey-analysis-service";
 import type { CoreFindingsProjection, CoreFindingBasis } from "@/lib/core/studio/projection";
 import { composeSurveyResults, type ResultsFinding } from "@/lib/studio/survey-results-compose";
+import type { ProductIntelligence } from "@/lib/studio/reasoning/product";
+import { ResearchIntelligenceView } from "@/app/components/studio/discover/ResearchIntelligenceView";
 
 const nf = (n: number) => n.toLocaleString();
 
@@ -311,7 +313,7 @@ function DeterministicView({ findings, context, answers, respondents, mode, canG
 }
 
 export function SurveyFindingsView({
-  findings, context, answers, respondents, mode, analysis, coreIntelligence, canGenerate, analyseBusy, onAnalyse, onViewResults,
+  findings, context, answers, respondents, mode, analysis, coreIntelligence, researchIntelligence, canGenerate, analyseBusy, onAnalyse, onViewResults,
 }: {
   findings: SurveyFinding[];
   context: SurveyFindingsContext;
@@ -323,12 +325,24 @@ export function SurveyFindingsView({
    *  view composes ONE coherent intelligence experience; when absent it falls back to
    *  the unchanged legacy analysis/findings — so the flag rolls back cleanly. */
   coreIntelligence?: CoreFindingsProjection | null;
+  /** Gated Research Reasoner (verified). When a DISPLAYABLE artefact is present it leads
+   *  with the connected research story; when absent everything below is unchanged — so the
+   *  reasoning flag rolls back to the deterministic experience cleanly. */
+  researchIntelligence?: ProductIntelligence | null;
   /** Authorised (canManageSurvey) + eligible + no completed analysis → show the CTA. */
   canGenerate?: boolean;
   analyseBusy?: boolean;
   onAnalyse?: () => void;
   onViewResults?: () => void;
 }) {
+  // Gated Research Reasoner leads when a VERIFIED, displayable artefact exists — the
+  // connected research story the deterministic layer cannot assemble. It is additive and
+  // fully reversible: if it is absent/non-displayable we fall through to the EXISTING
+  // deterministic experience unchanged (the safe fallback).
+  if (researchIntelligence?.displayable) {
+    return <ResearchIntelligenceView intel={researchIntelligence} context={context} answers={answers} respondents={respondents} />;
+  }
+
   // Stage 7: compose the three analytical layers into ONE story. With Core intelligence
   // present the composed "intelligence" experience leads (Core owns findings; the AI
   // narrative becomes a subordinate summary; redundant cards are gone). Without it, the

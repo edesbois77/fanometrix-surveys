@@ -7,6 +7,8 @@ import "@/lib/jobs/handlers/analysis-run";
 import "@/lib/jobs/handlers/source-findings-extract";
 // Stage 5C: shadow-only Analytical Core (default OFF; never authoritative).
 import "@/lib/jobs/handlers/analytical-core-shadow";
+// Gated Research Reasoner (default OFF; verifier-checked; never authoritative).
+import "@/lib/jobs/handlers/research-reasoner";
 // ORG-005 G-3 (W7): resource/scope lifecycle reconciliation (§9-D). Registering
 // the handler makes `resource-lifecycle-reconcile` resolvable by the worker.
 import "@/lib/authz/resource-lifecycle";
