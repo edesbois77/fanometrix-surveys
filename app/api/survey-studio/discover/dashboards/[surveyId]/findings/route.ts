@@ -21,7 +21,9 @@ import {
 } from "@/lib/studio/survey-findings-engine";
 import { getCurrentSurveyAnalysis, type SurveyAnalysisView } from "@/lib/studio/survey-analysis-service";
 import { getSurveyCoreIntelligence, coreReadVisibleFor } from "@/lib/studio/core-intelligence";
+import { getSurveyResearchIntelligence, researchReasonerVisibleFor } from "@/lib/studio/research-intelligence";
 import type { CoreFindingsProjection } from "@/lib/core/studio/projection";
+import type { ProductIntelligence } from "@/lib/studio/reasoning/product";
 
 export type FindingsResponse =
   | { authorised: false }
@@ -44,6 +46,12 @@ export type FindingsResponse =
        *  caller is entitled to the AI analysis scope. ADDITIVE + subordinate — never
        *  replaces `analysis`/`findings`; the product falls back to those if null. */
       coreIntelligence: CoreFindingsProjection | null;
+      /** Gated Research Reasoner: verified, model-produced research intelligence for this
+       *  survey's CURRENT analysis run, or null. Present only when RESEARCH_REASONER_ENABLED
+       *  is on (or caller is admin) AND the caller is entitled to the AI analysis scope AND
+       *  a verified, displayable artefact exists for the latest run. ADDITIVE + subordinate:
+       *  the deterministic `findings`/`coreIntelligence` experience is the fallback when null. */
+      researchIntelligence: ProductIntelligence | null;
       /** Whether this survey has enough evidence to be analysed (authoritative rule). */
       analysisEligible: boolean;
       /** Whether the CURRENT caller may generate analysis (canManageSurvey — owner/admin)
@@ -138,6 +146,15 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ surv
     ? await getSurveyCoreIntelligence(surveyId, coreReadVisibleFor(session))
     : null;
 
+  // Gated Research Reasoner (async-generated, verifier-checked) — ADDITIVE. Exposure =
+  // its OWN distinct flag (researchReasonerVisibleFor: admins always, else RESEARCH_
+  // REASONER_ENABLED). Reuses the SAME entitlement decision as the AI analysis (only when
+  // `analysis` is visible). Pure READ of the persisted verified artefact — the model is
+  // NEVER invoked here; failure-isolated: null ⇒ the product falls back to deterministic.
+  const researchIntelligence = analysis != null
+    ? await getSurveyResearchIntelligence(surveyId, researchReasonerVisibleFor(session))
+    : null;
+
   // Analyse-in-Discover opportunity — authoritative eligibility + the EXISTING
   // Manage authority (canManageSurvey). Read-only: no model is invoked here.
   const maxBase = results.questions.reduce((m, q) => Math.max(m, q.base), 0);
@@ -154,6 +171,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ surv
     findings,
     analysis,
     coreIntelligence,
+    researchIntelligence,
     analysisEligible,
     canGenerate,
   } satisfies FindingsResponse);

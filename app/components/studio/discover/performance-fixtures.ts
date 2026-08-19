@@ -223,6 +223,7 @@ export function findingsPreview(state: PreviewState): Extract<FindingsResponse, 
     survey: { id: "preview", name: "Preview survey", questionCount: questions.length },
     context, counts: { answers, respondents, questions: questions.length }, mode: results.mode, findings, analysis,
     coreIntelligence: null,
+    researchIntelligence: null,
     analysisEligible,
     // In preview, treat the viewer as authorised so the restrained CTA is reviewable
     // wherever the survey is eligible and has no completed analysis.

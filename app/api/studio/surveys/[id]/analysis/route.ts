@@ -10,6 +10,7 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 import { canManageSurvey } from "@/lib/studio/collection-health";
 import { analyseSurvey, getSurveyAnalysisMeta, resolveSurveyAnalysisEligibility } from "@/lib/studio/survey-analysis-service";
 import { enqueueCoreShadow } from "@/lib/studio/analytical-core-shadow";
+import { enqueueResearchReasoner } from "@/lib/studio/research-reasoner";
 
 async function authoriseManage(req: NextRequest, id: string): Promise<{ session: AuthedUser } | { error: NextResponse }> {
   let session: AuthedUser;
@@ -46,5 +47,9 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   // SHADOW (Stage 5C): flag-gated (default OFF), never-throws mirror of a completed
   // authoritative run — cannot affect this response or the authoritative analysis.
   if (outcome.run.status === "completed") await enqueueCoreShadow({ sourceKind: "survey", analysisRunId: outcome.run.id });
+  // RESEARCH REASONER (gated integration): flag-gated (default OFF), never-throws async
+  // reasoning over the completed run's immutable snapshot — cannot affect this response
+  // or the authoritative analysis; Findings falls back to deterministic if it never lands.
+  if (outcome.run.status === "completed") await enqueueResearchReasoner({ sourceKind: "survey", analysisRunId: outcome.run.id });
   return NextResponse.json({ status: outcome.run.status, generatedAt: outcome.run.completed_at });
 }
