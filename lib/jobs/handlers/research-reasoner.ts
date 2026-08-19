@@ -37,7 +37,21 @@ async function run(ctx: JobContext): Promise<void> {
 
   // Lazy-load the reasoning stack (+ OpenAI caller) only when a job actually runs.
   const { generateResearchIntelligence } = await import("@/lib/studio/reasoning/service");
-  const { makeDefaultReasonerCaller } = await import("@/lib/studio/reasoning/model");
+  const { makeDefaultReasonerCaller, REASONER_PROMPT_VERSION, REASONER_SCHEMA_VERSION } = await import("@/lib/studio/reasoning/model");
+
+  // COST IDEMPOTENCY (§16): reason ONCE per (analysis run + prompt/schema version +
+  // evidence fingerprint). If a completed artefact already exists for this exact
+  // combination, skip the (expensive) model call entirely — a re-enqueue or a retry after
+  // a previous success must not re-run o3. A new analysis is a new run id, and a version /
+  // snapshot change fails the match below, so a genuinely new state still regenerates.
+  const { data: existing } = await supabaseAdmin
+    .from("research_reasoner_runs").select("status, versions, evidence_fingerprint").eq("analysis_run_id", analysisRunId).maybeSingle();
+  const ex = existing as { status?: string; versions?: { prompt?: string; schema?: string }; evidence_fingerprint?: string | null } | null;
+  if (ex && ex.status === "completed" && ex.evidence_fingerprint === evidenceHash
+      && ex.versions?.prompt === REASONER_PROMPT_VERSION && ex.versions?.schema === REASONER_SCHEMA_VERSION) {
+    ctx.log(`Research reasoning already present for run ${analysisRunId} (versions + fingerprint match) — skipping model call.`);
+    return;
+  }
   // Deterministic product context for the package ("what our system currently surfaces").
   let coreFindings: { basis: string; takeaway?: string; title: string; statistic?: string }[] = [];
   try {
