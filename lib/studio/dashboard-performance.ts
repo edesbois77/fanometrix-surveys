@@ -18,6 +18,7 @@
 import { plannedProgress, type CampaignProgressRow } from "@/lib/studio/collection-health";
 import type { DashboardManifest, ValidatedFilters } from "@/lib/studio/dashboard-manifest";
 import type { Insight } from "@/lib/studio/dashboard-insights";
+import { questionShownEvent } from "@/lib/survey-events";
 
 /** Events-based timing (avg only; median deferred). Nulls render as "—". */
 export type PerformanceTiming = {
@@ -45,11 +46,14 @@ export type JourneyStage = {
   question?: string | null;
 };
 
-/** Canonical "reached/shown" event for a 0-indexed question: Q1=SURVEY_START,
- *  Qk=QUESTION_k_REACHED (mirrors survey-results.ts shownEventFor). */
-export function questionReachEvent(questionIndex: number): string {
-  return questionIndex === 0 ? "SURVEY_START" : `QUESTION_${questionIndex + 1}_REACHED`;
-}
+/** Canonical "reached/shown" event for a 0-indexed question: Q1=QUESTION_1_SHOWN,
+ *  Qk=QUESTION_k_REACHED. Delegates to the ONE event vocabulary, so this funnel and
+ *  the Results engine can never disagree about what "reached Q1" means.
+ *
+ *  It used to map Q1 to SURVEY_START, which counts respondents who ANSWERED Q1 — so
+ *  the first funnel stage silently reported answerers as viewers and Q1 could never
+ *  show any drop-off at all. */
+export { questionShownEvent as questionReachEvent } from "@/lib/survey-events";
 
 export function buildJourneyStages(
   eventCounts: Map<string, number>,
@@ -61,7 +65,7 @@ export function buildJourneyStages(
 
   const raw: { key: string; label: string; count: number; question?: string | null }[] = [];
   for (let qi = 0; qi < n; qi++) {
-    raw.push({ key: `q${qi + 1}`, label: `Q${qi + 1}`, count: int(eventCounts.get(questionReachEvent(qi))), question: questionLabels?.[qi] ?? null });
+    raw.push({ key: `q${qi + 1}`, label: `Q${qi + 1}`, count: int(eventCounts.get(questionShownEvent(qi))), question: questionLabels?.[qi] ?? null });
   }
   raw.push({ key: "completed", label: "Completed", count: int(eventCounts.get("SURVEY_COMPLETED")) });
 

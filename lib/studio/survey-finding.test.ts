@@ -26,7 +26,7 @@ const BRAND: LocalisedQuestion = {
 function resolvedQuestions(displayLang = "en") {
   // 4 answered Q1 (3 Nike, 1 Adidas); shown Q1 = 5 (one saw but didn't answer).
   return buildQuestionResults([BRAND],
-    mapShownCounts([{ event_type: "SURVEY_START", event_count: 5 }], 1),
+    mapShownCounts([{ event_type: "QUESTION_1_SHOWN", event_count: 5 }], 1),
     aggregateAnswers([
       { question_index: 0, answer_value: "0" },
       { question_index: 0, answer_value: "0" },

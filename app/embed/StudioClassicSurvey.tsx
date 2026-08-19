@@ -27,6 +27,11 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import type { Question } from "./page";
 import { resolveSystemPrivacy, privacyPolicyHref } from "@/lib/system-privacy";
+import { questionShownEvent } from "@/lib/survey-events";
+import {
+  sendEvent as beacon, recordAnswer, submitResponse,
+  type EmbedAnswer, type EmbedEvidenceContext,
+} from "./evidence";
 
 const NAVY = "#0B1E33";
 const GOLD = "#D7B87A";
@@ -195,7 +200,8 @@ export function StudioClassicSurvey(props: StudioClassicSurveyProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const hasRendered = useRef(false);
   const hasVisible = useRef(false);
-  const hasStarted = useRef(false);       // SURVEY_START = journey entry (once)
+  const hasShownQ1 = useRef(false);       // QUESTION_1_SHOWN = Q1 displayed (once)
+  const hasStarted = useRef(false);       // SURVEY_START = first answer selected (once)
   const hasIntroViewed = useRef(false);   // INTRO_VIEWED (once)
   const hasContinued = useRef(false);     // INTRO_CONTINUED (once)
   const hasCompleted = useRef(false);
@@ -207,30 +213,33 @@ export function StudioClassicSurvey(props: StudioClassicSurveyProps) {
   useEffect(() => { deviceRef.current = device; }, [device]);
   useEffect(() => { browserRef.current = browser; }, [browser]);
 
-  const sendEvent = useCallback((eventType: string) => {
-    if (isPreview) return;
-    fetch("/api/events", {
-      method: "POST", headers: { "Content-Type": "application/json" }, keepalive: true,
-      body: JSON.stringify({
-        session_id: sessionId, event_type: eventType, campaign_id: campaignIdRef.current || null,
-        publisher: publisher || null, placement: placement || null, placement_id: placementId || null,
-        creative_id: creativeId || null, country: country || null,
-        device: deviceRef.current || null, browser: browserRef.current || null,
-      }),
-    }).catch(() => {/* non-fatal */});
-  }, [isPreview, sessionId, publisher, placement, placementId, creativeId, country]);
+  // ── The shared evidence contract (app/embed/evidence.ts) ──────────────────
+  // Every production renderer records through the same functions, so "what a
+  // survey records" is one definition rather than four similar ones.
+  const evidenceCtx = useCallback((): EmbedEvidenceContext => ({
+    isPreview,
+    sessionId,
+    campaignId: campaignIdRef.current || campaignId,
+    surveyId,
+    publisher, placement, placementId, creativeId,
+    country, segment, market,
+    device: deviceRef.current,
+    browser: browserRef.current,
+    renderer: "studio-classic",
+  }), [isPreview, sessionId, campaignId, surveyId, publisher, placement, placementId, creativeId, country, segment, market]);
 
-  const sendAnswer = useCallback((questionIndex: number, answerValue: string) => {
-    if (isPreview) return;
-    fetch("/api/answer", {
-      method: "POST", headers: { "Content-Type": "application/json" }, keepalive: true,
-      body: JSON.stringify({
-        session_id: sessionId, campaign_id: campaignId || null, survey_id: surveyId || null,
-        question_index: questionIndex, answer_value: answerValue,
-        country: country || null, fan_segment: segment || null, market: market || null,
-      }),
-    }).catch(() => {/* non-fatal */});
-  }, [isPreview, sessionId, campaignId, surveyId, country, segment, market]);
+  const sendEvent = useCallback((eventType: string) => {
+    beacon(evidenceCtx(), eventType);
+  }, [evidenceCtx]);
+
+  /** The full ordered answer set, for the completion backfill. */
+  const answerSet = useCallback((given: Record<string, number>): EmbedAnswer[] =>
+    questions.map((q, qi) => ({ q, qi })).filter(({ q }) => given[q.id] != null).map(({ q, qi }) => ({
+      questionIndex: qi,
+      answerValue: String(given[q.id]),
+      questionId: q.id,
+      canonicalQuestionKey: q.canonical_question_key ?? null,
+    })), [questions]);
 
   useEffect(() => {
     const el = rootRef.current;
@@ -246,28 +255,30 @@ export function StudioClassicSurvey(props: StudioClassicSurveyProps) {
     if (questions.length > 0 && !hasRendered.current) { hasRendered.current = true; sendEvent("SURVEY_RENDER"); }
   }, [questions.length, sendEvent]);
 
-  // Phase 3 journey milestones at entry. With the intro shown it is INTRO_VIEWED
-  // here and SURVEY_START waits for the Start press; with no intro, Q1 is active
-  // immediately so SURVEY_START fires now (its new "journey entry" definition).
+  // Journey milestones at entry. With the intro shown it is INTRO_VIEWED here and
+  // Q1 is not yet displayed; with no intro, Q1 is active immediately.
+  // NOTE: this fires QUESTION_1_SHOWN, not SURVEY_START. SURVEY_START keeps its
+  // historical "first answer selected" meaning (see lib/survey-events.ts) so the
+  // 1.1M rows of history and the "Q1 Answered" metric stay valid.
   useEffect(() => {
     if (isPreview) return;
     if (introActive) {
       if (!hasIntroViewed.current) { hasIntroViewed.current = true; sendEvent("INTRO_VIEWED"); }
-    } else if (!hasStarted.current) {
-      hasStarted.current = true;
+    } else if (!hasShownQ1.current) {
+      hasShownQ1.current = true;
       // Journey-entry origin for the completion timer (effect, not render).
       startRef.current = Date.now();
-      sendEvent("SURVEY_START");
+      sendEvent(questionShownEvent(0));
     }
   }, [isPreview, introActive, sendEvent]);
 
   function handleStartSurvey() {
-    // Continuing from the intro IS the journey entry: INTRO_CONTINUED + SURVEY_START.
+    // Continuing from the intro displays Q1: INTRO_CONTINUED + QUESTION_1_SHOWN.
     if (!hasContinued.current) { hasContinued.current = true; sendEvent("INTRO_CONTINUED"); }
-    if (!hasStarted.current) {
-      hasStarted.current = true;
+    if (!hasShownQ1.current) {
+      hasShownQ1.current = true;
       startRef.current = Date.now();
-      sendEvent("SURVEY_START");
+      sendEvent(questionShownEvent(0));
     }
     setIntroActive(false);
   }
@@ -283,18 +294,31 @@ export function StudioClassicSurvey(props: StudioClassicSurveyProps) {
     const newAnswers = { ...answers, [q.id]: optId };
     setAnswers(newAnswers);
     setAdvancing(true);
-    // step = question index 0–4; /api/answer accepts 0–4. SURVEY_START is no longer
-    // fired here — it now marks journey entry (intro continue, or Q1 active).
-    sendAnswer(step, String(optId));
+
+    // Record the answer the moment it is selected: SURVEY_START on the first answer
+    // (its historical meaning), QUESTION_n_ANSWERED always, and the durable row in
+    // response_answers. The save retries once and reports ANSWER_SAVE_FAILED if it
+    // still cannot be stored — a failed save is never treated as success again.
+    const isFirstAnswer = !hasStarted.current;
+    if (isFirstAnswer) {
+      hasStarted.current = true;
+      // Fallback timer origin if Q1-shown never ran (e.g. a preview-seeded frame).
+      // In a click handler, not render — react-hooks/purity false-positives here.
+      // eslint-disable-next-line react-hooks/purity
+      if (startRef.current === 0) startRef.current = Date.now();
+    }
+    void recordAnswer(evidenceCtx(), {
+      questionIndex: step,
+      answerValue: String(optId),
+      questionId: q.id,
+      canonicalQuestionKey: q.canonical_question_key ?? null,
+    }, isFirstAnswer);
 
     setTimeout(async () => {
       if (!isLast) {
         const nextStep = step + 1;
-        // Reaching the 2nd–5th question (surveys now run 1–5 questions).
-        if (nextStep === 1) sendEvent("QUESTION_2_REACHED");
-        if (nextStep === 2) sendEvent("QUESTION_3_REACHED");
-        if (nextStep === 3) sendEvent("QUESTION_4_REACHED");
-        if (nextStep === 4) sendEvent("QUESTION_5_REACHED");
+        // The next question is now DISPLAYED (generic over 1-5 questions).
+        sendEvent(questionShownEvent(nextStep));
         setStep(nextStep);
         setAdvancing(false);
         return;
@@ -303,32 +327,26 @@ export function StudioClassicSurvey(props: StudioClassicSurveyProps) {
 
       setStatus("submitting");
       const duration = Math.round((Date.now() - startRef.current) / 1000);
-      // q1/q2/q3 legacy completion cache (first three) — unchanged from the classic
-      // creative; Q4/Q5 capture is the separate Phase 6 response-model work.
+      // q1/q2/q3 are a LEGACY compatibility projection only. `answers` below is the
+      // authoritative set and is the only representation that can carry Q4/Q5.
       const q1ans = newAnswers[questions[0]?.id] ?? null;
       const q2ans = newAnswers[questions[1]?.id] ?? null;
       const q3ans = newAnswers[questions[2]?.id] ?? null;
-      try {
-        const res = await fetch("/api/submit", {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            campaign_id: campaignId, survey_id: surveyId, question_set_id: questionSetId, session_id: sessionId,
-            publisher, placement, placement_id: placementId, creative_id: creativeId, club, competition,
-            q1: q1ans, q2: q2ans, q3: q3ans, country: country || null, fan_segment: segment,
-            device, browser, response_duration_seconds: duration, group_id: groupId,
-            country_code: countryCode, market, survey_language: surveyLanguage,
-          }),
-        });
-        if (res.ok) { hasCompleted.current = true; sendEvent("SURVEY_COMPLETED"); setStatus("success"); }
-        else {
-          const json = await res.json().catch(() => ({}));
-          const msg = json.error ?? "Something went wrong, tap an answer to try again.";
-          console.error("[Fanometrix embed] Submission failed:", res.status, msg);
-          setErrorMsg(msg); setStatus("error");
-        }
-      } catch (err) {
-        console.error("[Fanometrix embed] Network error:", err);
-        setErrorMsg("Network error, please check your connection and try again."); setStatus("error");
+
+      const outcome = await submitResponse(evidenceCtx(), {
+        campaign_id: campaignId, survey_id: surveyId, question_set_id: questionSetId,
+        publisher, placement, placement_id: placementId, creative_id: creativeId, club, competition,
+        q1: q1ans, q2: q2ans, q3: q3ans, country: country || null, fan_segment: segment,
+        device, browser, response_duration_seconds: duration, group_id: groupId,
+        country_code: countryCode, market, survey_language: surveyLanguage,
+      }, answerSet(newAnswers));
+
+      if (outcome.ok) {
+        hasCompleted.current = outcome.recorded;
+        setStatus("success");
+      } else {
+        setErrorMsg(outcome.error ?? "Something went wrong, tap an answer to try again.");
+        setStatus("error");
       }
       setAdvancing(false);
     }, 340);

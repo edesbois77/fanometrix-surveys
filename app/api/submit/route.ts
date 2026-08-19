@@ -8,6 +8,9 @@ import {
   type CampaignForStatus,
 } from "@/lib/campaign-status";
 import { checkResearchTargetReached } from "@/lib/research-project-target-check";
+import { parseSubmitAnswers } from "@/lib/survey-answer-request";
+import { resolveCampaignEvidenceContext } from "@/lib/survey-evidence-context";
+import { persistAnswers } from "@/lib/survey-answer-store";
 
 export async function POST(req: NextRequest) {
   const raw = await req.json();
@@ -20,6 +23,11 @@ export async function POST(req: NextRequest) {
     // 4–5-question surveys. Absent from older cached embeds → stored NULL (no change
     // for existing 1–3-question campaigns, whose answers all live in q1/q2/q3).
     session_id,
+    // The GENERIC answer set: one entry per answered research question, carrying the
+    // question's identity as well as its position. This is the only representation
+    // that can express Q4/Q5, and it is re-asserted here as a BACKFILL so a completed
+    // survey always holds every answer even if a per-selection save was lost.
+    answers,
     q1, q2, q3,
     country, fan_segment,
     publisher, placement, placement_id, creative_id,
@@ -105,6 +113,45 @@ export async function POST(req: NextRequest) {
       result: "failed", reason: "Campaign is simulated", is_test: !!is_demo,
     });
     return NextResponse.json({ error: "This campaign belongs to a simulated research project and cannot accept real submissions." }, { status: 403 });
+  }
+
+  // ── Persist the full answer set (backfill) ─────────────────────────────────
+  // Runs BEFORE the status/ceiling gate on purpose: the answers were genuinely
+  // given, and the Fanometrix evidence principle keeps them even when the
+  // completion itself is refused (closed campaign, target ceiling reached).
+  // Idempotent — upsert on (session_id, question_index) — so re-asserting answers
+  // already written by /api/answer can never inflate an answer count.
+  const parsedAnswers = parseSubmitAnswers(answers);
+  if (parsedAnswers.length > 0 && typeof session_id === "string" && session_id) {
+    const ctx = await resolveCampaignEvidenceContext(campaign_id as string);
+    if (ctx) {
+      const backfill = await persistAnswers(
+        parsedAnswers.map((a) => ({
+          sessionId: session_id,
+          questionIndex: a.questionIndex,
+          answerValue: a.answerValue,
+          questionId: a.questionId,
+          canonicalQuestionKey: a.canonicalQuestionKey,
+        })),
+        ctx,
+        {
+          country: (country as string | null) ?? null,
+          fanSegment: (fan_segment as string | null) ?? null,
+          market: (market as string | null) ?? null,
+          placement: (placement as string | null) ?? null,
+          placementId: (placement_id as string | null) ?? null,
+          creativeId: (creative_id as string | null) ?? null,
+          isDemo: !!is_demo,
+        },
+      );
+      // Never fails the submission — a completion is the most valuable event in the
+      // funnel — but it must be visible, not swallowed.
+      if (backfill.error) {
+        console.error("[submit] Answer backfill failed:", {
+          campaign_id, session_id, answers: parsedAnswers.length, error: backfill.error,
+        });
+      }
+    }
   }
 
   // ── Status check ────────────────────────────────────────────────────────────

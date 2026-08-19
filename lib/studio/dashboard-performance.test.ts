@@ -10,13 +10,16 @@ const counts = (o: Record<string, number>) => new Map(Object.entries(o));
 const EMPTY_MANIFEST: DashboardManifest = { dimensions: [] };
 
 // ── Question journey (dynamic 1–5, question-level) ───────────────────────────
-test("questionReachEvent: Q1=SURVEY_START, Qk=QUESTION_k_REACHED", () => {
-  assert.equal(questionReachEvent(0), "SURVEY_START");
+test("questionReachEvent: Q1=QUESTION_1_SHOWN, Qk=QUESTION_k_REACHED", () => {
+  // Q1 "reached" must mean Q1 was DISPLAYED. It used to map to SURVEY_START, which
+  // counts respondents who ANSWERED Q1 — so the first stage reported answerers as
+  // viewers and Q1 could never show any drop-off.
+  assert.equal(questionReachEvent(0), "QUESTION_1_SHOWN");
   assert.equal(questionReachEvent(4), "QUESTION_5_REACHED");
 });
 
 test("journey is question-level (Q1..Qn, Completed) — Opened/exposure not in the funnel", () => {
-  const s = buildJourneyStages(counts({ SURVEY_VISIBLE: 63000, SURVEY_START: 91, QUESTION_2_REACHED: 91, QUESTION_3_REACHED: 81, SURVEY_COMPLETED: 78 }), 3);
+  const s = buildJourneyStages(counts({ SURVEY_VISIBLE: 63000, SURVEY_START: 91, QUESTION_1_SHOWN: 91, QUESTION_2_REACHED: 91, QUESTION_3_REACHED: 81, SURVEY_COMPLETED: 78 }), 3);
   assert.deepEqual(s.map((x) => x.label), ["Q1", "Q2", "Q3", "Completed"]);
   assert.equal(s[0].count, 91);            // Q1 = started (base), not the 63k viewable
   assert.equal(s[0].ofStarted, 1);
@@ -24,7 +27,7 @@ test("journey is question-level (Q1..Qn, Completed) — Opened/exposure not in t
 
 test("journey 1 through 5 questions; final stage is Completed", () => {
   for (const n of [1, 2, 3, 4, 5]) {
-    const s = buildJourneyStages(counts({ SURVEY_START: 100 }), n);
+    const s = buildJourneyStages(counts({ SURVEY_START: 100, QUESTION_1_SHOWN: 100 }), n);
     assert.equal(s.length, n + 1);
     assert.equal(s[s.length - 1].label, "Completed");
     assert.equal(s.filter((x) => x.key.startsWith("q")).length, n);
@@ -32,7 +35,7 @@ test("journey 1 through 5 questions; final stage is Completed", () => {
 });
 
 test("journey drop-off + share of started", () => {
-  const s = buildJourneyStages(counts({ SURVEY_START: 1000, QUESTION_2_REACHED: 800, QUESTION_3_REACHED: 600, SURVEY_COMPLETED: 500 }), 3);
+  const s = buildJourneyStages(counts({ SURVEY_START: 1000, QUESTION_1_SHOWN: 1000, QUESTION_2_REACHED: 800, QUESTION_3_REACHED: 600, SURVEY_COMPLETED: 500 }), 3);
   assert.equal(s.find((x) => x.label === "Q2")!.ofStarted, 0.8);
   assert.equal(s.find((x) => x.label === "Q2")!.dropFromPrev, 0.2);
   assert.equal(s.find((x) => x.label === "Q2")!.droppedCount, 200);
@@ -61,6 +64,7 @@ function baseInput(over: Partial<AssembleInput> = {}): AssembleInput {
       { event_type: "SURVEY_RENDER", event_count: 200000 },
       { event_type: "SURVEY_VISIBLE", event_count: 150000 },
       { event_type: "SURVEY_START", event_count: 4000 },
+      { event_type: "QUESTION_1_SHOWN", event_count: 4000 },
       { event_type: "QUESTION_2_REACHED", event_count: 3600 },
       { event_type: "QUESTION_3_REACHED", event_count: 3200 },
       { event_type: "QUESTION_4_REACHED", event_count: 2800 },
@@ -93,7 +97,7 @@ test("partial respondents contribute evidence even with ZERO completions", () =>
   // 900 started, answered Q1/Q2, nobody completed → still 1600 answers of research value.
   const d = assemblePerformance(baseInput({
     survey: { id: "s", name: "s", status: null, questionCount: 2 },
-    eventCounts: [{ event_type: "SURVEY_START", event_count: 900 }, { event_type: "SURVEY_COMPLETED", event_count: 0 }],
+    eventCounts: [{ event_type: "SURVEY_START", event_count: 900 }, { event_type: "QUESTION_1_SHOWN", event_count: 900 }, { event_type: "SURVEY_COMPLETED", event_count: 0 }],
     perQuestionAnswers: [900, 700],
     progressRows: [{ target_responses: null, response_count: 0 }],
   }));

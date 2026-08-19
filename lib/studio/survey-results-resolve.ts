@@ -7,7 +7,6 @@
 
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import type { AuthedUser } from "@/lib/auth-server";
-import { STUDIO_SLUG_PREFIX } from "@/lib/studio/campaign-generation";
 import { canManageSurvey } from "@/lib/studio/collection-health";
 import {
   mapShownCounts, aggregateAnswers, buildQuestionResults, filterCampaignSlugs, buildFilterOptions, legacyAnswerRows,
@@ -119,10 +118,17 @@ export async function resolveSurveyResults(
   filters: ResultsFilters,
   displayLanguageParam?: string | null,
 ): Promise<ResolvedResults> {
+  // The survey's TRUTHFUL campaign universe: every non-deleted campaign that serves
+  // it, Studio-generated or legacy. It used to be filtered to the `studio_` slug
+  // prefix while studio-native MODE was detected by survey_id — so a survey whose
+  // answers arrived through a legacy campaign took the studio-native branch and then
+  // found no campaigns to read, reporting ZERO for every question. That mismatch was
+  // latent only because response_answers was empty; it becomes reachable the moment
+  // answer capture works, so it is corrected here.
   const { data: campaignRows } = await supabaseAdmin
     .from("campaigns")
     .select("campaign_id, publisher_org_id, market, country_code, survey_language")
-    .eq("survey_id", survey.id).like("campaign_id", `${STUDIO_SLUG_PREFIX}%`).is("deleted_at", null);
+    .eq("survey_id", survey.id).is("deleted_at", null);
   const campaigns = (campaignRows ?? []) as FilterableCampaign[];
   const { data: orgRows } = await supabaseAdmin.from("organisations").select("id, name").in("id", [...new Set(campaigns.map((c) => c.publisher_org_id).filter(Boolean))] as string[]);
   const orgName = new Map((orgRows ?? []).map((o) => [o.id as string, o.name as string]));

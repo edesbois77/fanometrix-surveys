@@ -13,6 +13,11 @@
 // neither creative shares state/closures with the parent EmbedSurvey.
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { questionShownEvent } from "@/lib/survey-events";
+import {
+  sendEvent as beacon, recordAnswer, submitResponse,
+  type EmbedAnswer, type EmbedEvidenceContext,
+} from "./evidence";
 import type { Question } from "./page";
 
 const NAVY = "#071B2F";
@@ -412,49 +417,33 @@ export function ClassicSurvey(props: ClassicSurveyProps) {
   useEffect(() => { deviceRef.current = device; }, [device]);
   useEffect(() => { browserRef.current = browser; }, [browser]);
 
-  const sendEvent = useCallback((eventType: string) => {
-    if (isPreview) return;
-    fetch("/api/events", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      keepalive: true,
-      body: JSON.stringify({
-        session_id: sessionId,
-        event_type: eventType,
-        campaign_id: campaignIdRef.current || null,
-        publisher: publisher || null,
-        placement: placement || null,
-        placement_id: placementId || null,
-        creative_id: creativeId || null,
-        country: country || null,
-        device: deviceRef.current || null,
-        browser: browserRef.current || null,
-      }),
-    }).catch(() => {/* non-fatal */});
-  }, [isPreview, sessionId, publisher, placement, placementId, creativeId, country]);
+  // ── The shared evidence contract (app/embed/evidence.ts) ──────────────────
+  // Identical to every other production renderer, so this frozen legacy creative
+  // cannot drift from the Survey Studio ones again.
+  const evidenceCtx = useCallback((): EmbedEvidenceContext => ({
+    isPreview,
+    sessionId,
+    campaignId: campaignIdRef.current || campaignId,
+    surveyId,
+    publisher, placement, placementId, creativeId,
+    country, segment, market,
+    device: deviceRef.current,
+    browser: browserRef.current,
+    renderer: "classic",
+  }), [isPreview, sessionId, campaignId, surveyId, publisher, placement, placementId, creativeId, country, segment, market]);
 
-  // Persist each answer the moment it is chosen — the Fanometrix evidence
-  // principle: an answer given is a valid data point, kept even if the respondent
-  // abandons before completing. Runs alongside /api/submit; non-fatal, skipped in
-  // preview.
-  const sendAnswer = useCallback((questionIndex: number, answerValue: string) => {
-    if (isPreview) return;
-    fetch("/api/answer", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      keepalive: true,
-      body: JSON.stringify({
-        session_id:     sessionId,
-        campaign_id:    campaignId   || null,
-        survey_id:      surveyId     || null,
-        question_index: questionIndex,
-        answer_value:   answerValue,
-        country:        country      || null,
-        fan_segment:    segment      || null,
-        market:         market       || null,
-      }),
-    }).catch(() => {/* non-fatal */});
-  }, [isPreview, sessionId, campaignId, surveyId, country, segment, market]);
+  const sendEvent = useCallback((eventType: string) => {
+    beacon(evidenceCtx(), eventType);
+  }, [evidenceCtx]);
+
+  /** The full ordered answer set, for the completion backfill. */
+  const answerSet = useCallback((given: Record<string, number>): EmbedAnswer[] =>
+    questions.map((q, qi) => ({ q, qi })).filter(({ q }) => given[q.id] != null).map(({ q, qi }) => ({
+      questionIndex: qi,
+      answerValue: String(given[q.id]),
+      questionId: q.id,
+      canonicalQuestionKey: q.canonical_question_key ?? null,
+    })), [questions]);
 
   // SURVEY_VISIBLE: fire once when the survey genuinely enters the viewport.
   // Distinct from SURVEY_RENDER (data-load): this is the "became visible to the
@@ -474,11 +463,14 @@ export function ClassicSurvey(props: ClassicSurveyProps) {
     return () => obs.disconnect();
   }, [isPreview, sendEvent]);
 
-  // SURVEY_RENDER: fire once when questions are loaded.
+  // SURVEY_RENDER: fire once when questions are loaded. This creative has no intro
+  // frame, so Q1 is on screen at the same moment — QUESTION_1_SHOWN is emitted here.
+  // (SURVEY_START still means the FIRST ANSWER, unchanged since June 2026.)
   useEffect(() => {
     if (questions.length > 0 && !hasRendered.current) {
       hasRendered.current = true;
       sendEvent("SURVEY_RENDER");
+      sendEvent(questionShownEvent(0));
     }
   }, [questions.length, sendEvent]);
 
@@ -506,24 +498,28 @@ export function ClassicSurvey(props: ClassicSurveyProps) {
     setAdvancing(true);
 
     // Persist this answer immediately (before advancing), so a later abandonment
-    // never discards it. step = the question index (0/1/2).
-    sendAnswer(step, String(optId));
-
-    // SURVEY_START: first answer ever
-    if (!hasStarted.current) {
+    // never discards it. SURVEY_START fires on the FIRST answer — its original and
+    // unchanged meaning. step = the 0-based research-question index.
+    const isFirstAnswer = !hasStarted.current;
+    if (isFirstAnswer) {
       hasStarted.current = true;
       // Start the completion timer at first interaction. Runs in a click
       // handler, not render — react-hooks/purity false-positives on Date.now().
       // eslint-disable-next-line react-hooks/purity
       startRef.current = Date.now();
-      sendEvent("SURVEY_START");
     }
+    void recordAnswer(evidenceCtx(), {
+      questionIndex: step,
+      answerValue: String(optId),
+      questionId: q.id,
+      canonicalQuestionKey: q.canonical_question_key ?? null,
+    }, isFirstAnswer);
 
     setTimeout(async () => {
       if (!isLast) {
         const nextStep = step + 1;
-        if (nextStep === 1) sendEvent("QUESTION_2_REACHED");
-        if (nextStep === 2) sendEvent("QUESTION_3_REACHED");
+        // Generic over 1-5 questions (this creative used to stop emitting at Q3).
+        sendEvent(questionShownEvent(nextStep));
         setStep(nextStep);
         setAdvancing(false);
         return;
@@ -539,52 +535,40 @@ export function ClassicSurvey(props: ClassicSurveyProps) {
       setStatus("submitting");
       const duration = Math.round((Date.now() - startRef.current) / 1000);
 
+      // Legacy positional projection only; `answers` is authoritative.
       const q1ans = newAnswers[questions[0]?.id] ?? null;
       const q2ans = newAnswers[questions[1]?.id] ?? null;
       const q3ans = newAnswers[questions[2]?.id] ?? null;
 
-      try {
-        const res = await fetch("/api/submit", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            campaign_id: campaignId,
-            survey_id: surveyId,
-            question_set_id: questionSetId,
-            publisher,
-            placement,
-            placement_id: placementId,
-            creative_id: creativeId,
-            club,
-            competition,
-            q1: q1ans,
-            q2: q2ans,
-            q3: q3ans,
-            country: country || null,
-            fan_segment: segment,
-            device,
-            browser,
-            response_duration_seconds: duration,
-            group_id: groupId,
-            country_code: countryCode,
-            market,
-            survey_language: surveyLanguage,
-          }),
-        });
-        if (res.ok) {
-          hasCompleted.current = true;
-          sendEvent("SURVEY_COMPLETED");
-          setStatus("success");
-        } else {
-          const json = await res.json().catch(() => ({}));
-          const msg = json.error ?? "Something went wrong, tap an answer to try again.";
-          console.error("[Fanometrix embed] Submission failed:", res.status, msg);
-          setErrorMsg(msg);
-          setStatus("error");
-        }
-      } catch (err) {
-        console.error("[Fanometrix embed] Network error:", err);
-        setErrorMsg("Network error, please check your connection and try again.");
+      const outcome = await submitResponse(evidenceCtx(), {
+        campaign_id: campaignId,
+        survey_id: surveyId,
+        question_set_id: questionSetId,
+        publisher,
+        placement,
+        placement_id: placementId,
+        creative_id: creativeId,
+        club,
+        competition,
+        q1: q1ans,
+        q2: q2ans,
+        q3: q3ans,
+        country: country || null,
+        fan_segment: segment,
+        device,
+        browser,
+        response_duration_seconds: duration,
+        group_id: groupId,
+        country_code: countryCode,
+        market,
+        survey_language: surveyLanguage,
+      }, answerSet(newAnswers));
+
+      if (outcome.ok) {
+        hasCompleted.current = outcome.recorded;
+        setStatus("success");
+      } else {
+        setErrorMsg(outcome.error ?? "Something went wrong, tap an answer to try again.");
         setStatus("error");
       }
       setAdvancing(false);

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { resolveProductAccess } from "@/lib/authz/product-access";
+import { PUBLIC_API_PREFIXES, SURVEYS_ALLOWED_PREFIXES } from "@/lib/public-routes";
 // ORG-005 IW-3 / SG-3: middleware is a PROJECTION only (coarse Edge routing). The
 // authoritative Product Access gate is the governed model at the requireUser
 // server seam; this layer consults the SAME governed model so the projection can
@@ -10,10 +11,8 @@ import { resolveProductAccess } from "@/lib/authz/product-access";
 const MARKETING_ORIGIN = process.env.NEXT_PUBLIC_MARKETING_URL ?? "https://fanometrix-surveys.vercel.app";
 const APP_ORIGIN       = process.env.NEXT_PUBLIC_APP_URL       ?? "https://fanometrix-surveys.vercel.app";
 
-// Paths served exclusively on surveys.fanometrix.com
-const SURVEYS_ALLOWED_PREFIXES = [
-  "/embed", "/privacy", "/api/embed", "/api/submit", "/api/reporting", "/api/events",
-];
+// Paths served exclusively on surveys.fanometrix.com — see lib/public-routes.ts,
+// which is the single declaration of the public (session-less) route surface.
 
 // Exact paths that require no authentication (platform / app domain)
 const PUBLIC_PATHS = new Set([
@@ -31,21 +30,9 @@ const PUBLIC_PATHS = new Set([
   "/trust/responsible-reddit-data",
 ]);
 
-// API paths excluded from the normal user-SESSION auth below. "Public" here
-// means "not gated by a browser session" — NOT "unauthenticated". Machine-to-
-// machine routes on this list (e.g. /api/cron) enforce their own credential
-// check inside the handler:
-//   • /api/cron — the pg_cron worker; validates a CRON_SECRET bearer token
-//     (see app/api/cron/jobs/tick/route.ts + lib/jobs/cron-auth.ts). It has no
-//     user session, so the session gate would 401 it before it could run; it
-//     must bypass that gate but is never callable without the secret.
-// "/api/reports" is the partner Audience Intelligence Report's own API (unlock
-// + CSV downloads). It has no platform session — the recipient is a publisher
-// contact, not a Fanometrix user — and enforces its own per-report password
-// challenge inside each handler (lib/reports/access.ts). Same pattern as
-// /api/cron: exempt from the session gate, never callable without its own
-// credential.
-const PUBLIC_API_PREFIXES = ["/api/auth", "/api/submit", "/api/reporting", "/api/embed", "/api/access-requests", "/api/publisher", "/api/dashboard", "/api/events", "/api/cron", "/api/reports"];
+// API paths excluded from the normal user-SESSION auth below live in
+// lib/public-routes.ts (imported above) so the three places a public survey write
+// path must be declared cannot drift apart again.
 
 // Routes restricted to brand/agency (not accessible at this stage — redirect to /insights)
 const BRAND_AGENCY_RESTRICTED = [
@@ -267,6 +254,10 @@ export const config = {
   // this middleware for nothing; excluding them removes one Edge Middleware
   // invocation per request on the highest-volume paths in the product.
   //
+  // "/api/answer" belongs to that same public set and is excluded for the same
+  // reason. It is anchored exactly (api/answer$|api/answer/) so no future
+  // "/api/answer-*" admin route could inherit the exclusion by accident.
+  //
   // Anchoring matters: exclude `embed` only as a complete segment (embed$|embed/)
   // so the ADMIN-ONLY /embed-test route (and any future /embed-* admin route)
   // still passes through the auth gate. `api/embed/` covers the public embed
@@ -279,6 +270,6 @@ export const config = {
   // the auth gate below would 307 /robots.txt to /login and crawlers could never
   // read it. Added alongside the Stage 5 crawler controls.
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|robots.txt|embed$|embed/|api/embed/|api/events$|api/events/|api/submit$|api/submit/|.*\\.png$|.*\\.jpg$|.*\\.jpeg$|.*\\.svg$|.*\\.ico$|.*\\.gif$|.*\\.webp$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|robots.txt|embed$|embed/|api/embed/|api/events$|api/events/|api/submit$|api/submit/|api/answer$|api/answer/|.*\\.png$|.*\\.jpg$|.*\\.jpeg$|.*\\.svg$|.*\\.ico$|.*\\.gif$|.*\\.webp$).*)",
   ],
 };

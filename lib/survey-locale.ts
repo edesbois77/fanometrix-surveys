@@ -123,6 +123,11 @@ export interface ResolvedQuestion {
   id: string;
   text: string;
   options: { id: number; text: string }[];
+  /** Cross-survey comparability anchor, passed through so the embed can record WHICH
+   *  question was answered rather than only its position. Absent on surveys authored
+   *  before the anchor existed — readers fall back to `id`. Identity only; carries no
+   *  localisation metadata and no authored content. */
+  canonical_question_key?: string;
 }
 
 /** Minimal shape needed to check/resolve a survey's localisation state. */
@@ -162,7 +167,9 @@ export function resolveText(lt: LocalisedText, lang: LangCode): string {
 
 /**
  * Resolve a full LocalisedQuestion to a plain {id, text, options} shape
- * ready for the embed to render.
+ * ready for the embed to render. The question's identity (`id` and, where present,
+ * `canonical_question_key`) travels with it so each recorded answer names the
+ * question it belongs to — position alone is not a durable identity.
  */
 export function resolveQuestion(q: LocalisedQuestion, lang: LangCode): ResolvedQuestion {
   return {
@@ -172,6 +179,7 @@ export function resolveQuestion(q: LocalisedQuestion, lang: LangCode): ResolvedQ
       id:   o.id,
       text: resolveText(o.text, lang),
     })),
+    ...(q.canonical_question_key ? { canonical_question_key: q.canonical_question_key } : {}),
   };
 }
 
