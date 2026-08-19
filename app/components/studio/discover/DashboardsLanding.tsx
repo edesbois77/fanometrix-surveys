@@ -16,6 +16,7 @@ import {
 import { StudioIcon } from "@/app/components/studio/studio-icons";
 import { DISCOVER_BASE } from "@/lib/studio/discover-nav";
 import { useDashboardsContext } from "./useDashboardsContext";
+import { PortfolioIntelligencePanel } from "./PortfolioIntelligencePanel";
 import type { LandingStudy, LandingSurvey } from "@/app/api/survey-studio/discover/dashboards/context/route";
 
 // Research OBJECTS now live at their own top-level Discover destinations (not under
@@ -148,6 +149,10 @@ export function DashboardsLanding({ previewData, section = "all" }: {
           )}
         </section>
       )}
+
+      {/* Stage 8: access-scoped multi-survey Core intelligence. Self-fetches and
+          self-hides for ordinary users / when nothing is measured. Live mode only. */}
+      {showSurveys && previewData == null && <PortfolioIntelligencePanel />}
 
       {showSurveys && data.surveys.length > 0 && (
         <section className={showStudies ? "mt-10" : "mt-6"}>

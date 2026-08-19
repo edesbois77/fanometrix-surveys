@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { requireUser } from "@/lib/auth-server";
 import { validateSurvey, nullifyBlankUuids, brandAgencyRefError, type OrgRefRow } from "@/lib/survey-validation";
+import { governSurveyQuestions } from "@/lib/studio/scale-templates";
 import { logActivity } from "@/lib/research-project-activity";
 import { purposeAllowedForCreate, isThirdPartyPurpose } from "@/lib/survey-purpose";
 import { canCreateCommissionedResearch } from "@/lib/survey-create-capability";
@@ -185,6 +186,10 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
       // Coerce blank Brand/Agency ("") to null — same uuid guard as the
       // create route, so an edit that clears those pickers also saves.
+      // Stage 5D: re-establish governed semantics SERVER-SIDE from scale_template
+      // alone (client-sent polarity/ordinal is never trusted). Lock-safe: the
+      // research-definition signature ignores these metadata fields.
+      if ("questions" in contentRest) contentRest.questions = governSurveyQuestions(contentRest.questions);
       patch = { ...nullifyBlankUuids(contentRest), ...(safeStatus ? { status: safeStatus } : {}), updated_at: now };
     }
   }

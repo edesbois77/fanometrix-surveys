@@ -23,6 +23,7 @@ import { resolveDiscoverResults } from "@/lib/studio/dashboard-results";
 import { resolveSurveySegmentEvidence } from "@/lib/studio/survey-segments-resolve";
 import { buildSegmentDerived } from "@/lib/studio/study-segments";
 import { buildSurveyAnalysisEvidence, surveyAnalysisEligibility, type SurveyAnalysisScope } from "@/lib/studio/survey-analysis-evidence";
+import { resolveInstrumentSemantics } from "@/lib/studio/scale-templates";
 import {
   validateProposals, validateNarrative, validateThemes, canonicalEvidenceString, dedupeProposals,
   ARTIFACT_KINDS, type StudyAnalysisEvidence, type StudyAnalysisProposal, type StudyNarrative, type StudyTheme,
@@ -166,7 +167,9 @@ async function resolveSurveyEvidence(surveyId: string, surveyRow: { name?: unkno
     : (typeof surveyRow.description === "string" && surveyRow.description.trim()) ? surveyRow.description.trim() : null);
 
   const scope: SurveyAnalysisScope = { surveyId, surveyName: (surveyRow.name as string) || "Untitled survey", objective, completedResponses, mode: results.mode };
-  return { payload: buildSurveyAnalysisEvidence(scope, results.questions, segmentDerived), objective, campaignScope };
+  // Stage 5D: capture the instrument's governed semantics into the immutable snapshot.
+  const semanticsByQuestionId = resolveInstrumentSemantics(questions);
+  return { payload: buildSurveyAnalysisEvidence(scope, results.questions, segmentDerived, semanticsByQuestionId), objective, campaignScope };
 }
 
 /**

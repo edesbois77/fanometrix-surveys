@@ -90,6 +90,12 @@ export interface LocalisedOption {
   /** Stable 1-based integer — stored in responses for language-independent reporting */
   id: number;
   text: LocalisedText;
+  // ── Governed semantic metadata (Stage 5D) — established ONLY by a scale template
+  //    chosen at authoring (never from wording/order/AI). Absent = normal state. ──
+  /** Scale rank of this option on an ordered scale (higher = more positive). */
+  ordinal_position?: number;
+  /** Governed semantic region of this option on an ordered scale. */
+  polarity?: "positive" | "neutral" | "negative";
 }
 
 export interface LocalisedQuestion {
@@ -102,6 +108,14 @@ export interface LocalisedQuestion {
    *  links cloned questions for free. Older questions without it fall back to `id`.
    *  IDENTITY ONLY — never assigned by AI/text similarity. */
   canonical_question_key?: string;
+  // ── Governed semantic metadata (Stage 5D) — set server-side from `scale_template`
+  //    alone; see lib/studio/scale-templates.ts. Absent = no governed scale. ──
+  /** How this question is measured. "ordinal" when a governed ordered scale applies. */
+  scale_type?: "nominal" | "ordinal" | "binary" | "interval";
+  /** The construct the chosen scale measures (e.g. "satisfaction"); per-question. */
+  construct_key?: string;
+  /** The scale template key that established these semantics (audit/provenance). */
+  scale_template?: string;
 }
 
 /** Resolved flat shape returned from embed API — no localisation metadata exposed */

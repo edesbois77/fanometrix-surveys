@@ -19,6 +19,7 @@
 import type { LocalisedQuestion, LocalisedText, LangCode } from "@/lib/survey-locale";
 import { StudioIcon } from "../../studio-icons";
 import { STUDIO_AUTHORING_LIMITS } from "./types";
+import { listScaleTemplates, getScaleTemplate } from "@/lib/studio/scale-templates";
 
 const INPUT_CLS =
   "w-full px-3 py-2 text-sm rounded-[var(--radius-control)] border transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#D7B87A]";
@@ -164,6 +165,31 @@ export function QuestionEditor({
   const setOptionText = (optId: number, next: LocalisedText) =>
     onChange({ ...question, options: options.map((o) => (o.id === optId ? { ...o, text: next } : o)) });
 
+  // ── Answer scale (Stage 5D governed semantics) ─────────────────────────────
+  // The author explicitly declares whether the answers form a recognised ordered
+  // scale. This is the ONLY way governed semantics are established — the client just
+  // records the chosen `scale_template` (and prefills empty answer wording from it);
+  // the SERVER derives scaleType/polarity/order on save. Choosing a scale never
+  // reorders answers, so each answer keeps its slot (and thus its polarity/rank).
+  const scaleOptions = listScaleTemplates().filter((t) => t.optionCount === options.length);
+  const applyScale = (key: string) => {
+    if (!key) {
+      // Back to Custom — drop the governed scale (server strips the rest on save).
+      const next = { ...question }; delete next.scale_template; delete next.scale_type; delete next.construct_key;
+      onChange({ ...next, options: options.map((o) => { const oo = { ...o }; delete oo.ordinal_position; delete oo.polarity; return oo; }) });
+      return;
+    }
+    const t = getScaleTemplate(key);
+    if (!t) return;
+    // Prefill only EMPTY English labels — never overwrite the author's own wording.
+    const nextOptions = options.map((o, i) => {
+      const cur = (o.text.en ?? "").trim();
+      return cur ? o : { ...o, text: { ...o.text, en: t.positions[i]?.defaultText ?? "" } };
+    });
+    onChange({ ...question, scale_template: key, options: nextOptions });
+  };
+  const activeScale = getScaleTemplate(question.scale_template);
+
   return (
     <div className="space-y-6">
       {/* Header row: numeric position + reorder / delete (structural — lockable) */}
@@ -201,6 +227,35 @@ export function QuestionEditor({
         attention={incomplete}
         disabled={locked}
       />
+
+      {/* Answer scale — optional. Declares that the answers form a recognised ordered
+          scale, so analysis can read them as a measurement (not just labels). Only
+          scales matching this question's answer count are offered; Custom = no scale. */}
+      {scaleOptions.length > 0 && (
+        <div>
+          <label htmlFor={`scale-${question.id}`} className="block text-sm font-semibold mb-1" style={{ color: "var(--text-primary)" }}>
+            Answer scale <span className="font-normal" style={{ color: "var(--text-tertiary)" }}>(optional)</span>
+          </label>
+          <select
+            id={`scale-${question.id}`}
+            value={question.scale_template ?? ""}
+            onChange={(e) => applyScale(e.target.value)}
+            disabled={locked}
+            className={INPUT_CLS}
+            style={{ ...INPUT_STYLE, ...(locked ? { opacity: 0.6, cursor: "not-allowed" } : {}) }}
+          >
+            <option value="">Custom answers (no scale)</option>
+            {scaleOptions.map((t) => (
+              <option key={t.key} value={t.key}>{t.label}</option>
+            ))}
+          </select>
+          <p className="text-xs mt-1 leading-snug" style={{ color: "var(--text-tertiary)" }}>
+            {activeScale
+              ? "Answers are ordered from most positive (first) to most negative (last). You can reword them; the scale order stays."
+              : "Pick a scale if these answers are an ordered rating (e.g. satisfaction). Otherwise leave as Custom."}
+          </p>
+        </div>
+      )}
 
       {/* Answers — a fixed set of answer fields governed by the selected Creative
           (the current V1 family authors four). There is deliberately no routine

@@ -1,0 +1,283 @@
+{
+  "benchmark_id": "fedex-ucl-001",
+  "source_study": "FedEx UCL Sponsorship 26/27",
+  "source_file": "FedEx-UCL-Study-Survey-Results.csv",
+  "source_hash": "sha256:__set_at_load__",
+  "version": "1.0.0",
+  "not_in_source": [
+    "country / market segmentation",
+    "respondent-level (per-person) responses / cross-tabs between questions"
+  ],
+  "selectivity": {
+    "max_headline_findings": 7,
+    "note": "A concise executive analysis captures ~5 primary findings; up to ~2 further findings only if they add material information. More findings is not better (Principle 10)."
+  },
+  "allowed_groupings": [
+    {
+      "value": 64.6,
+      "components": [
+        { "question": "q_fit", "option": "strong_fit" },
+        { "question": "q_fit", "option": "relevant_unclear" }
+      ],
+      "question_span": 1,
+      "concept": "perceives at least some relevance between FedEx and the UEFA Champions League"
+    }
+  ],
+  "forbidden_groupings": [
+    {
+      "value": 55.8,
+      "components": [
+        { "question": "q_fit", "option": "relevant_unclear" },
+        { "question": "q_fit", "option": "never_noticed" }
+      ],
+      "question_span": 1,
+      "reason": "'Relevant but unclear' (31.0%) and 'Never noticed' (24.8%) are different constructs. They may both inform a broader clarity/visibility insight, but adding them and relabelling as a single '55.8% have a visibility problem' is unjustified arithmetic (Principle 2)."
+    },
+    {
+      "value": 69.3,
+      "components": [
+        { "question": "q_offer", "option": "rewards" },
+        { "question": "q_help", "option": "experiences_access" }
+      ],
+      "question_span": 2,
+      "reason": "36.5% (Q2 Rewards) and 32.8% (Q3 Access to experiences) come from different questions and cannot be summed into a respondent-level '69.3% prefer rewards and experiences' measure (Principle 3 / Principle 8)."
+    }
+  ],
+  "must_find": [
+    {
+      "id": "mf-1",
+      "expected_priority": 1,
+      "concept": "FedEx has a meaningful relevance foundation as a Champions League sponsor (about two-thirds perceive at least some relevance), but clarity and visibility limit how strongly the sponsorship lands. The story is the structure of the distribution, not the 2.6pp gap between the top two options.",
+      "rationale": "Strong natural fit (33.6%) and Relevant but unclear (31.0%) both encode perceived relevance, so 64.6% perceive at least some relevance; only 33.6% call it a strong natural fit and 24.8% have never noticed FedEx.",
+      "evidence_requirements": [
+        { "question": "q_fit", "option": "strong_fit", "value": 33.6 },
+        { "question": "q_fit", "option": "relevant_unclear", "value": 31.0 },
+        { "question": "q_fit", "option": "brand_visibility", "value": 10.6 },
+        { "question": "q_fit", "option": "never_noticed", "value": 24.8 }
+      ],
+      "acceptable_interpretations": [
+        "Approximately two-thirds (64.6%) see at least some relevance between FedEx and the competition, but only 33.6% describe it as a strong natural fit.",
+        "The opportunity is more about clarifying and strengthening the expression/visibility of the sponsorship than establishing relevance from scratch."
+      ],
+      "required_caveats": [
+        "Do not treat the 2.6pp difference between 'Strong natural fit' and 'Relevant but unclear' as the main story.",
+        "Do not claim that improving visibility or clarity WILL CAUSE improved sponsorship perception — the survey does not demonstrate that causal effect."
+      ],
+      "forbidden_extensions": ["mns-1", "mns-2", "mns-3", "mns-4"]
+    },
+    {
+      "id": "mf-2",
+      "expected_priority": 2,
+      "concept": "Tangible rewards and benefits are the clearest general fan expectation of sponsors — not merely the largest option, but materially ahead (about 14.6pp) of three alternatives clustered around one-fifth.",
+      "evidence_requirements": [
+        { "question": "q_offer", "option": "rewards", "value": 36.5 },
+        { "question": "q_offer", "option": "experiences", "value": 21.9 },
+        { "question": "q_offer", "option": "access", "value": 21.5 },
+        { "question": "q_offer", "option": "grassroots", "value": 20.1 }
+      ],
+      "acceptable_interpretations": [
+        "Fans appear particularly receptive to sponsorship providing direct/tangible value.",
+        "Rewards and benefits stands materially ahead of the other options rather than narrowly leading."
+      ],
+      "required_caveats": [
+        "Do not turn this into a causal claim about what will improve sponsorship performance."
+      ],
+      "forbidden_extensions": ["mns-4"]
+    },
+    {
+      "id": "mf-3",
+      "expected_priority": 3,
+      "concept": "When asked specifically how FedEx could help fans, access to experiences emerges as the leading opportunity (about 8.3pp ahead of the next option).",
+      "evidence_requirements": [
+        { "question": "q_help", "option": "experiences_access", "value": 32.8 },
+        { "question": "q_help", "option": "connecting", "value": 24.5 },
+        { "question": "q_help", "option": "communities", "value": 21.5 },
+        { "question": "q_help", "option": "content", "value": 21.2 }
+      ],
+      "acceptable_interpretations": [
+        "Access to experiences is the leading FedEx-specific opportunity/preference."
+      ],
+      "required_caveats": [
+        "This supports a preference/opportunity, NOT that providing experiences will improve sponsorship perception."
+      ],
+      "forbidden_extensions": ["mns-4"]
+    },
+    {
+      "id": "mf-4",
+      "expected_priority": 4,
+      "concept": "Cross-question synthesis: across both activation questions fans consistently favour forms of sponsorship that provide tangible value or access — rewards and benefits lead general sponsor expectations (Q2), while access to experiences leads the FedEx-specific question (Q3).",
+      "rationale": "This tests legitimate cross-question SYNTHESIS while forbidding cross-question ARITHMETIC.",
+      "evidence_requirements": [
+        { "question": "q_offer", "option": "rewards", "value": 36.5 },
+        { "question": "q_help", "option": "experiences_access", "value": 32.8 }
+      ],
+      "acceptable_interpretations": [
+        "A FedEx activation strategy involving access, rewards or fan benefits appears more aligned with measured preferences than relying only on passive brand presence."
+      ],
+      "required_caveats": [
+        "36.5% and 32.8% MUST NOT be added together — they are from separate questions and are not a respondent-level combined measure.",
+        "Do not claim such a strategy is proven to improve sponsorship effectiveness."
+      ],
+      "forbidden_extensions": ["mns-5", "mns-6", "mns-4"]
+    },
+    {
+      "id": "mf-5",
+      "expected_priority": 5,
+      "concept": "Respondents occupy materially different states of sponsorship recognition and understanding (strong perceived fit / relevance but unclear / primarily brand visibility / non-recognition), which may create different communications and activation challenges — rather than a simple likes-vs-dislikes split.",
+      "evidence_requirements": [
+        { "question": "q_fit", "option": "strong_fit", "value": 33.6 },
+        { "question": "q_fit", "option": "relevant_unclear", "value": 31.0 },
+        { "question": "q_fit", "option": "brand_visibility", "value": 10.6 },
+        { "question": "q_fit", "option": "never_noticed", "value": 24.8 }
+      ],
+      "acceptable_interpretations": [
+        "The distribution suggests distinct states of recognition/understanding, not a binary attitude."
+      ],
+      "required_caveats": [
+        "Do not describe these as demonstrated stages of a journey/funnel through which respondents progress — the study is cross-sectional and shows no progression."
+      ],
+      "forbidden_extensions": ["mns-8"]
+    }
+  ],
+  "may_find": [
+    {
+      "id": "may-1",
+      "concept": "Survey 1 vs Survey v2 differ notably on some options, e.g. Investment in grassroots (Survey 1 24.5% vs Survey v2 9.0%, ~15.5pp).",
+      "evidence_requirements": [
+        { "question": "q_offer", "option": "grassroots" }
+      ],
+      "conditions": [
+        "Acceptable to report as a difference between samples/waves, with appropriate sample/base handling.",
+        "Only surface a survey-to-survey difference if it meets the eventual Fanometrix materiality standard — do not comment merely because two percentages differ."
+      ],
+      "forbidden_extensions": ["mns-7"],
+      "default_priority": "secondary"
+    },
+    {
+      "id": "may-2",
+      "concept": "Composition of the 64.6% relevance grouping — roughly half describe a strong natural fit and roughly half find the relevance unclear — as SUPPORTING evidence for mf-1.",
+      "evidence_requirements": [
+        { "question": "q_fit", "option": "strong_fit", "value": 33.6 },
+        { "question": "q_fit", "option": "relevant_unclear", "value": 31.0 }
+      ],
+      "conditions": ["Normally supporting evidence for mf-1 rather than a separate headline finding."],
+      "forbidden_extensions": [],
+      "default_priority": "supporting"
+    },
+    {
+      "id": "may-3",
+      "concept": "Mostly brand visibility (10.6%) is a valid result; generally low analytical priority unless the research objective makes passive brand visibility particularly relevant.",
+      "evidence_requirements": [
+        { "question": "q_fit", "option": "brand_visibility", "value": 10.6 }
+      ],
+      "conditions": ["Low priority unless the objective elevates passive brand visibility."],
+      "forbidden_extensions": [],
+      "default_priority": "low"
+    }
+  ],
+  "must_not_say": [
+    {
+      "id": "mns-1",
+      "failure_type": "overstated_lead",
+      "prohibited_concept": "Strong natural fit is the dominant perception of FedEx.",
+      "example_claim": "Strong natural fit is the dominant perception of FedEx.",
+      "reason": "33.6% is the largest single category but only 2.6pp ahead of 'Relevant but unclear'. 'Dominant' materially exaggerates the distribution.",
+      "rule_violated": "P5",
+      "detector": "lexical_must_not_say (overstated_lead) + arithmetic (2.6pp lead)",
+      "scoreability": "deterministic"
+    },
+    {
+      "id": "mns-2",
+      "failure_type": "ignores_option_semantics",
+      "prohibited_concept": "Only 33.6% see FedEx as relevant to the Champions League.",
+      "example_claim": "Only 33.6% see FedEx as relevant to the Champions League.",
+      "reason": "Ignores the 31.0% who describe FedEx as 'Relevant but unclear'; a capable system understands the answer-option semantics (64.6% see at least some relevance).",
+      "rule_violated": "P1",
+      "detector": null,
+      "scoreability": "model-assisted"
+    },
+    {
+      "id": "mns-3",
+      "failure_type": "arbitrary_arithmetic_grouping",
+      "prohibited_concept": "55.8% have a visibility problem (adding 'Relevant but unclear' + 'Never noticed').",
+      "example_claim": "55.8% of fans have a visibility problem.",
+      "reason": "Improperly adds two different constructs (31.0% + 24.8%) and relabels the sum. Semantic grouping is not permission for arbitrary arithmetic.",
+      "rule_violated": "P2",
+      "detector": "arithmetic_validity (forbidden_grouping 55.8)",
+      "scoreability": "deterministic"
+    },
+    {
+      "id": "mns-4",
+      "failure_type": "unsupported_causation",
+      "prohibited_concept": "FedEx should use experiences because this will improve sponsorship perception.",
+      "example_claim": "FedEx should provide experiences because this will improve sponsorship perception.",
+      "reason": "The survey measures what fans say FedEx could do, not the causal effect of doing it on sponsorship perception.",
+      "rule_violated": "P7",
+      "detector": "lexical_must_not_say (unsupported_causation)",
+      "scoreability": "deterministic"
+    },
+    {
+      "id": "mns-5",
+      "failure_type": "cross_question_arithmetic",
+      "prohibited_concept": "Rewards and experiences are preferred by 69.3% of fans (36.5% + 32.8%).",
+      "example_claim": "Rewards and experiences are preferred by 69.3% of fans.",
+      "reason": "36.5% is from Q2 and 32.8% from Q3; separate-question percentages cannot be summed to manufacture a respondent-level measure.",
+      "rule_violated": "P3",
+      "detector": "arithmetic_validity (forbidden_grouping 69.3 / cross_question_sum)",
+      "scoreability": "deterministic"
+    },
+    {
+      "id": "mns-6",
+      "failure_type": "false_direct_comparison",
+      "prohibited_concept": "Fans prefer experiential sponsorship over grassroots investment.",
+      "example_claim": "Fans prefer experiences over grassroots investment.",
+      "reason": "'Access to experiences' (Q3) and 'Investment in grassroots' (Q2) are in different questions and were not directly competing answer options. Thematic synthesis is allowed; false direct comparison is not.",
+      "rule_violated": "P3",
+      "detector": null,
+      "scoreability": "model-assisted"
+    },
+    {
+      "id": "mns-7",
+      "failure_type": "unsupported_trend",
+      "prohibited_concept": "Interest in grassroots support has collapsed / is declining.",
+      "example_claim": "Interest in grassroots support has collapsed.",
+      "reason": "Survey 1 and Survey v2 differ, but without established longitudinal comparability this is a difference between samples/waves, not a trend.",
+      "rule_violated": "P9",
+      "detector": "lexical_must_not_say (unsupported_trend)",
+      "scoreability": "deterministic"
+    },
+    {
+      "id": "mns-8",
+      "failure_type": "unsupported_respondent_inference",
+      "prohibited_concept": "Fans who recognise the FedEx sponsorship are more likely to want experiences.",
+      "example_claim": "Fans who recognise the sponsorship are more likely to want experiences.",
+      "reason": "The source contains aggregated question results; it cannot establish respondent-level relationships between Q1 and Q3. Requires governed respondent-level cross-tab evidence.",
+      "rule_violated": "P8",
+      "detector": "lexical (respondent-correlation phrasing) — precision aid only",
+      "scoreability": "model-assisted"
+    },
+    {
+      "id": "mns-9",
+      "failure_type": "not_assessable_from_source",
+      "prohibited_concept": "Country-level conclusions (e.g. different leading perceptions in France, UK, Germany, Spain) scored as supported by THIS benchmark.",
+      "example_claim": "In Germany, fans mostly have not noticed FedEx.",
+      "reason": "The exported benchmark CSV contains no country segmentation. Such claims are NOT ASSESSABLE from Benchmark 001's source. Do not auto-label them false (governed evidence may exist elsewhere), and do not score them as supported unless the country source data is incorporated into the benchmark.",
+      "rule_violated": "not_in_source",
+      "detector": "not_in_source_claims (flag as NOT ASSESSABLE)",
+      "scoreability": "deterministic"
+    }
+  ],
+  "expected_hierarchy": ["mf-1", "mf-2", "mf-3", "mf-4", "mf-5"],
+  "principles": [
+    { "id": "P1", "title": "Understand semantics before arithmetic", "statement": "Answer options are not merely independent percentages; the system must understand what they mean." },
+    { "id": "P2", "title": "Semantic grouping requires conceptual justification", "statement": "Categories may be combined only when they share a grouped meaning (e.g. both encode relevance), never merely because doing so produces an interesting number." },
+    { "id": "P3", "title": "Arithmetic grouping and thematic synthesis are different operations", "statement": "Same-question, same-construct percentages may be summed (33.6% + 31.0% = 64.6%); cross-question themes may be synthesised but their percentages must never be combined." },
+    { "id": "P4", "title": "A result is not automatically a finding", "statement": "'The largest response is 33.6%' is a result; the structure and meaning of the whole distribution may contain the actual finding." },
+    { "id": "P5", "title": "Size of lead matters", "statement": "Being numerically first does not justify 'dominant', 'clear winner', 'overwhelming' or 'strong preference'; the whole distribution and the size of the gap matter." },
+    { "id": "P6", "title": "Search for the research story across evidence", "statement": "Identify legitimate relationships between evidence from different questions where constructs reinforce one another; do not analyse every question as an isolated island." },
+    { "id": "P7", "title": "Preference does not prove outcome", "statement": "'What fans want' does not establish 'what will improve sponsorship effectiveness'; finding, implication and recommendation must remain distinguishable." },
+    { "id": "P8", "title": "Aggregate evidence cannot establish respondent relationships", "statement": "Never infer 'people who answered X also answered Y' without respondent-level evidence." },
+    { "id": "P9", "title": "Differences between surveys are not automatically trends", "statement": "Temporal/change language requires appropriate study design and comparability." },
+    { "id": "P10", "title": "Optimise for explanatory value, not quantity", "statement": "Identify the smallest set of findings that explains the important research story; weak-but-valid commentary should be suppressible." }
+  ]
+}

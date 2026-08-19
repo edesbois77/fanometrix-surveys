@@ -20,6 +20,8 @@ import {
   type SurveyFinding, type SurveyFindingsContext, type SurveyQuestionEvidence,
 } from "@/lib/studio/survey-findings-engine";
 import { getCurrentSurveyAnalysis, type SurveyAnalysisView } from "@/lib/studio/survey-analysis-service";
+import { getSurveyCoreIntelligence, coreReadVisibleFor } from "@/lib/studio/core-intelligence";
+import type { CoreFindingsProjection } from "@/lib/core/studio/projection";
 
 export type FindingsResponse =
   | { authorised: false }
@@ -34,6 +36,11 @@ export type FindingsResponse =
       /** Current (latest completed) AI research synthesis, or null. READ ONLY — the
        *  model is NEVER invoked from Discover; this is a cache read. */
       analysis: SurveyAnalysisView | null;
+      /** Stage 6 (controlled read): Core-derived product findings for this survey, or
+       *  null. Present only when ANALYTICAL_CORE_PRODUCT_READ_ENABLED is on AND the
+       *  caller is entitled to the AI analysis scope. ADDITIVE + subordinate — never
+       *  replaces `analysis`/`findings`; the product falls back to those if null. */
+      coreIntelligence: CoreFindingsProjection | null;
       /** Whether this survey has enough evidence to be analysed (authoritative rule). */
       analysisEligible: boolean;
       /** Whether the CURRENT caller may generate analysis (canManageSurvey — owner/admin)
@@ -116,6 +123,15 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ surv
     authorisedCampaignIds: scope.authorisedCampaignIds,
   });
 
+  // Stage 6/8 controlled read — Core-derived findings, ADDITIVE. Exposure = internal
+  // admins always, everyone else the global flag (coreReadVisibleFor). Reuses the SAME
+  // entitlement decision as the AI analysis (only when `analysis` is visible → the
+  // caller is entitled to the whole scope AND a completed run exists). Deterministic +
+  // failure-isolated: null ⇒ the product simply omits it.
+  const coreIntelligence = analysis != null
+    ? await getSurveyCoreIntelligence(surveyId, coreReadVisibleFor(session))
+    : null;
+
   // Analyse-in-Discover opportunity — authoritative eligibility + the EXISTING
   // Manage authority (canManageSurvey). Read-only: no model is invoked here.
   const maxBase = results.questions.reduce((m, q) => Math.max(m, q.base), 0);
@@ -131,6 +147,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ surv
     mode: results.mode,
     findings,
     analysis,
+    coreIntelligence,
     analysisEligible,
     canGenerate,
   } satisfies FindingsResponse);

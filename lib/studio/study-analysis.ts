@@ -31,6 +31,15 @@ export type EvidenceItem = {
   base: number;                 // the answered base for THIS statistic (never the study total)
   percentage: number | null;
   resultMode: ResultMode | null;
+  // ── Governed semantic metadata (Stage 5D) — captured from the INSTRUMENT at
+  //    analysis time so the immutable snapshot preserves the semantic state, and the
+  //    Core shadow adapter can map it faithfully. Absent when the question declares no
+  //    governed scale (never inferred). scaleType/constructKey repeat per option row
+  //    of a question (question-level facts); ordinalPosition/polarity are per option. ──
+  scaleType?: "nominal" | "ordinal" | "binary" | "interval";
+  constructKey?: string;
+  ordinalPosition?: number;
+  polarity?: "positive" | "neutral" | "negative";
 };
 
 export type StudyAnalysisEvidence = {

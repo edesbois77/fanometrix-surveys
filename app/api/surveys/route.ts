@@ -3,6 +3,7 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 import { requireUser } from "@/lib/auth-server";
 import { nullifyBlankUuids, brandAgencyRefError, type OrgRefRow } from "@/lib/survey-validation";
 import { grantSurveyDataEntitlement } from "@/lib/studio/data-entitlement";
+import { governSurveyQuestions } from "@/lib/studio/scale-templates";
 import { ANALYSIS_MIN_BASE, surveyAnalysisEligibility } from "@/lib/studio/survey-analysis-evidence";
 
 export async function GET(req: NextRequest) {
@@ -132,6 +133,10 @@ export async function POST(req: NextRequest) {
   // (its form default), which Postgres rejects for a uuid — coerce blank
   // ids to null so leaving Brand/Agency unset saves cleanly.
   const cleaned = nullifyBlankUuids(rest);
+  // Stage 5D: governed semantic metadata is (re)established SERVER-SIDE from each
+  // question's declared scale_template alone — any client-sent polarity/ordinal is
+  // discarded, and questions without a valid template carry no semantics.
+  if ("questions" in cleaned) cleaned.questions = governSurveyQuestions(cleaned.questions);
 
   // Brand/Agency references (if any) must resolve to a real, non-deleted org of the
   // correct type — never an arbitrary UUID or a wrong-type org. Attribution ≠ access.
