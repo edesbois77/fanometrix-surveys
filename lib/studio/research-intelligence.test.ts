@@ -40,6 +40,38 @@ test("visibility: admins always; everyone else only when the flag is on (initial
   assert.equal(mod.researchReasonerVisibleFor({ role: "brand" }, { RESEARCH_REASONER_ENABLED: "true" }), true);
 });
 
+// ── Targeted preview allow-list (flag stays OFF for everyone else) ────────────
+const ENV = (emails?: string, flag?: string) => ({ ...(emails != null ? { RESEARCH_REASONER_PREVIEW_EMAILS: emails } : {}), ...(flag != null ? { RESEARCH_REASONER_ENABLED: flag } : {}) });
+
+test("A. allow-listed publisher + flag OFF → visible", () => {
+  assert.equal(mod.researchReasonerVisibleFor({ role: "publisher", workEmail: "ed@fanometrix.com" }, ENV("ed@fanometrix.com")), true);
+});
+test("B. NON-listed publisher + flag OFF → NOT visible (deterministic)", () => {
+  assert.equal(mod.researchReasonerVisibleFor({ role: "publisher", workEmail: "someone@else.com" }, ENV("ed@fanometrix.com")), false);
+});
+test("C. genuine admin + flag OFF → visible (unchanged, allow-list irrelevant)", () => {
+  assert.equal(mod.researchReasonerVisibleFor({ role: "admin", workEmail: "not@listed.com" }, ENV("ed@fanometrix.com")), true);
+});
+test("D. flag ON → visible for everyone (unchanged)", () => {
+  assert.equal(mod.researchReasonerVisibleFor({ role: "publisher", workEmail: "someone@else.com" }, ENV(undefined, "true")), true);
+});
+test("E. empty / unset allow-list → NO preview access (fail closed)", () => {
+  assert.equal(mod.researchReasonerVisibleFor({ role: "publisher", workEmail: "ed@fanometrix.com" }, {}), false);
+  assert.equal(mod.researchReasonerVisibleFor({ role: "publisher", workEmail: "ed@fanometrix.com" }, ENV("")), false);
+  assert.equal(mod.researchReasonerVisibleFor({ role: "publisher", workEmail: "ed@fanometrix.com" }, ENV("   ,  ")), false);
+});
+test("F. whitespace + case-insensitive matching on both sides", () => {
+  assert.equal(mod.researchReasonerVisibleFor({ role: "publisher", workEmail: "  ED@Fanometrix.COM " }, ENV(" a@b.com , Ed@Fanometrix.com ,c@d.com")), true);
+  assert.equal(mod.researchReasonerPreviewEmails(ENV(" A@B.com , c@D.com ")).has("a@b.com"), true);
+});
+test("G. only the AUTHENTICATED work email counts — a missing/blank email cannot gain preview access", () => {
+  // The function reads session.workEmail (set server-side by requireUser), never a
+  // client value. No email / blank email → fail closed even if the allow-list is set.
+  assert.equal(mod.researchReasonerVisibleFor({ role: "publisher", workEmail: null }, ENV("ed@fanometrix.com")), false);
+  assert.equal(mod.researchReasonerVisibleFor({ role: "publisher", workEmail: "" }, ENV("ed@fanometrix.com")), false);
+  assert.equal(mod.researchReasonerVisibleFor({ role: "publisher" }, ENV("ed@fanometrix.com")), false);
+});
+
 test("disabled → null, and NO database read/generation happens", async () => {
   const r = await mod.getSurveyResearchIntelligence("S1", false);
   assert.equal(r, null);
