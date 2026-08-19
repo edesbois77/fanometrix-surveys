@@ -16,6 +16,16 @@
 // never inflate an answer count. Re-selecting a different option before completing
 // updates that one row in place and leaves `created_at` (first selection) intact.
 //
+// NULL-PRESERVING UPSERT: an upsert writes every column it is GIVEN, so a later
+// write that merely lacks a field would blank whatever an earlier write had stored.
+// That is a real hazard here because the completion backfill runs from /api/submit,
+// whose payload is not identical to the per-selection payload — it cost us the
+// `renderer` of every completed journey until this was fixed. Optional metadata is
+// therefore OMITTED from the payload when it has no value, rather than sent as null:
+// PostgREST's ON CONFLICT DO UPDATE only touches the columns present in the body, so
+// an omitted column keeps whatever it already held. Richer metadata written at
+// selection time always survives completion, whatever the completion payload carries.
+//
 // MIGRATION TOLERANCE: the richer columns come from migration 200, which is applied
 // by hand. This module probes once per process: if the extended write is rejected
 // for an unknown column, it falls back to the migration-147 column set and keeps
@@ -87,21 +97,53 @@ function baseRow(a: AnswerInput, ctx: CampaignEvidenceContext, client: AnswerCli
   };
 }
 
-/** The migration-200 additions that make a row self-describing. */
-function extendedRow(a: AnswerInput, ctx: CampaignEvidenceContext, client: AnswerClientContext, nowIso: string) {
-  return {
-    ...baseRow(a, ctx, client, nowIso),
-    question_id: a.questionId ?? null,
-    canonical_question_key: a.canonicalQuestionKey ?? null,
+/** Optional metadata columns (migration 200). Each is omitted when it has no value,
+ *  so a later, sparser write can never blank a richer earlier one. */
+const OPTIONAL_COLUMNS = [
+  "question_id", "canonical_question_key", "group_id", "publisher",
+  "placement", "placement_id", "creative_id", "renderer",
+  "survey_language", "country_code",
+] as const;
+
+/** The migration-200 additions that make a row self-describing. Values that are
+ *  null/undefined are left OUT of the object entirely — see NULL-PRESERVING UPSERT. */
+function extendedValues(a: AnswerInput, ctx: CampaignEvidenceContext, client: AnswerClientContext): Record<string, string> {
+  const candidate: Record<string, string | null | undefined> = {
+    question_id: a.questionId,
+    canonical_question_key: a.canonicalQuestionKey,
     group_id: ctx.groupId,
     publisher: ctx.publisher,
-    placement: client.placement ?? null,
-    placement_id: client.placementId ?? null,
-    creative_id: client.creativeId ?? null,
-    renderer: client.renderer ?? null,
+    placement: client.placement,
+    placement_id: client.placementId,
+    creative_id: client.creativeId,
+    renderer: client.renderer,
     survey_language: ctx.surveyLanguage,
     country_code: ctx.countryCode,
   };
+  const out: Record<string, string> = {};
+  for (const col of OPTIONAL_COLUMNS) {
+    const v = candidate[col];
+    if (v != null && v !== "") out[col] = v;
+  }
+  return out;
+}
+
+/**
+ * PostgREST requires every object in a bulk upsert to carry the SAME keys, so the
+ * payload uses the union of the optional columns any row in this batch supplies.
+ * A batch always shares one campaign context and one client context, so the union is
+ * in practice the per-row set; using the union keeps the request valid if a caller
+ * ever mixes rows, and a row lacking a unioned key sends null for it only when some
+ * sibling row genuinely had a value — never spontaneously.
+ */
+function buildRows(answers: AnswerInput[], ctx: CampaignEvidenceContext, client: AnswerClientContext, nowIso: string) {
+  const perRow = answers.map((a) => extendedValues(a, ctx, client));
+  const union = [...new Set(perRow.flatMap((r) => Object.keys(r)))];
+  return answers.map((a, i) => {
+    const row: Record<string, unknown> = { ...baseRow(a, ctx, client, nowIso) };
+    for (const col of union) row[col] = perRow[i][col] ?? null;
+    return row;
+  });
 }
 
 /**
@@ -121,7 +163,7 @@ export async function persistAnswers(
   if (extendedColumns !== false) {
     const { error } = await supabaseAdmin
       .from("response_answers")
-      .upsert(answers.map((a) => extendedRow(a, ctx, client, nowIso)), opts);
+      .upsert(buildRows(answers, ctx, client, nowIso), opts);
     if (!error) {
       extendedColumns = true;
       return { saved: answers.length, error: null, degraded: false };

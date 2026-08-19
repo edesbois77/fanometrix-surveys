@@ -179,6 +179,10 @@ export async function submitResponse(
       body: JSON.stringify({
         ...payload,
         session_id: ctx.sessionId,
+        // Which creative produced this completion. Carried so the backfill writes the
+        // same context the per-selection saves did (the store also preserves an
+        // existing value when a payload omits it — belt and braces).
+        renderer: ctx.renderer,
         // The generic answer set — the only representation that can carry Q4/Q5.
         answers: answers.map((a) => ({
           question_index: a.questionIndex,

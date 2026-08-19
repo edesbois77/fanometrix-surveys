@@ -287,6 +287,29 @@ export function StudioClassicSurvey(props: StudioClassicSurveyProps) {
   const isLast = step === questions.length - 1;
   const progressPct = status === "success" ? 100 : ((step + 1) / Math.max(1, questions.length)) * 100;
 
+  // ── Four-answer density ────────────────────────────────────────────────────
+  // The frame is a fixed 300x250 MPU with overflow:hidden. At the standard metrics a
+  // four-answer question needs 158px of answer area but only 120px exists, so the
+  // fourth bar rendered 16px BELOW the frame and was invisible and unclickable —
+  // silently reducing every four-answer question to three. (Authoring allows four:
+  // SURVEY_LIMITS.MAX_OPTIONS = 4.)
+  //
+  // The vertical, full-width answer-bar design is preserved exactly; only the metrics
+  // tighten, and ONLY when the current question actually has four answers. Two- and
+  // three-answer questions render byte-identically to before.
+  const dense = (q?.options?.length ?? 0) >= 4;
+  const optGap      = dense ? 5    : 6;
+  const optPadV     = dense ? 6    : 9;
+  const optPadH     = dense ? 11   : 12;
+  const optRadius   = dense ? 9    : 10;
+  const optFont     = dense ? 11   : 11.5;
+  const dotOuter    = dense ? 13   : 15;
+  const dotInner    = dense ? 5    : 5;
+  const qMinHeight  = dense ? 32   : 38;
+  const qMarginBtm  = dense ? 8    : 10;
+  const qFont       = dense ? 12.5 : 13.5;
+  const contentPadT = dense ? 10   : 13;
+
   function openPrivacy() { setPrivacySlide(0); setShowPrivacy(true); }
 
   function handleSelect(optId: number) {
@@ -408,18 +431,18 @@ export function StudioClassicSurvey(props: StudioClassicSurveyProps) {
             <div style={{ height: "100%", width: `${progressPct}%`, background: accent, transition: "width 0.3s ease" }} />
           </div>
 
-          <div style={{ flex: 1, background: "#fff", padding: "13px 14px 0", display: "flex", flexDirection: "column", minHeight: 0, overflow: "hidden", boxSizing: "border-box" }}>
+          <div style={{ flex: 1, background: "#fff", padding: `${contentPadT}px 14px 0`, display: "flex", flexDirection: "column", minHeight: 0, overflow: "hidden", boxSizing: "border-box" }}>
             {/* Question — stronger typography + hierarchy */}
-            <div style={{ minHeight: 38, flexShrink: 0, marginBottom: 10 }}>
+            <div style={{ minHeight: qMinHeight, flexShrink: 0, marginBottom: qMarginBtm }}>
               {status === "error" ? (
                 <p style={{ color: "#DC2626", fontSize: 11, fontWeight: 600, lineHeight: 1.35, margin: 0 }}>{errorMsg}</p>
               ) : (
-                <p style={{ color: NAVY, fontSize: 13.5, fontWeight: 800, lineHeight: 1.28, margin: 0, letterSpacing: "-0.01em" }}>{q?.text ?? ""}</p>
+                <p style={{ color: NAVY, fontSize: qFont, fontWeight: 800, lineHeight: 1.28, margin: 0, letterSpacing: "-0.01em" }}>{q?.text ?? ""}</p>
               )}
             </div>
 
             {/* Answer cards — cleaner rows, clear hover/selected */}
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: optGap }}>
               {(q?.options ?? []).map((opt) => {
                 const isSel = q ? answers[q.id] === opt.id : false;
                 const isHover = hovered === opt.id && !advancing;
@@ -434,7 +457,8 @@ export function StudioClassicSurvey(props: StudioClassicSurveyProps) {
                     onClick={() => handleSelect(opt.id)}
                     onKeyDown={(e) => e.key === " " && handleSelect(opt.id)}
                     style={{
-                      display: "flex", alignItems: "center", gap: 10, padding: "9px 12px", borderRadius: 10,
+                      display: "flex", alignItems: "center", gap: dense ? 9 : 10,
+                      padding: `${optPadV}px ${optPadH}px`, borderRadius: optRadius,
                       background: isSel ? `${accent}18` : isHover ? "#F3F4F6" : "#FAFBFC",
                       border: `1.5px solid ${isSel ? accent : isHover ? "#D8DCE2" : "#EAECEF"}`,
                       boxShadow: isSel ? `0 2px 8px ${accent}33` : "none",
@@ -442,10 +466,10 @@ export function StudioClassicSurvey(props: StudioClassicSurveyProps) {
                       transition: "box-shadow 0.15s, background 0.15s, border-color 0.15s",
                     }}
                   >
-                    <div style={{ width: 15, height: 15, borderRadius: "50%", border: `2px solid ${isSel ? accent : "#B3B9C2"}`, background: isSel ? accent : "transparent", flexShrink: 0, boxSizing: "border-box", display: "flex", alignItems: "center", justifyContent: "center", transition: "background 0.15s, border-color 0.15s" }}>
-                      {isSel && <div style={{ width: 5, height: 5, borderRadius: "50%", background: NAVY }} />}
+                    <div style={{ width: dotOuter, height: dotOuter, borderRadius: "50%", border: `2px solid ${isSel ? accent : "#B3B9C2"}`, background: isSel ? accent : "transparent", flexShrink: 0, boxSizing: "border-box", display: "flex", alignItems: "center", justifyContent: "center", transition: "background 0.15s, border-color 0.15s" }}>
+                      {isSel && <div style={{ width: dotInner, height: dotInner, borderRadius: "50%", background: NAVY }} />}
                     </div>
-                    <span style={{ color: NAVY, fontSize: 11.5, fontWeight: 600, lineHeight: 1.15 }}>{opt.text}</span>
+                    <span style={{ color: NAVY, fontSize: optFont, fontWeight: 600, lineHeight: 1.15 }}>{opt.text}</span>
                   </div>
                 );
               })}

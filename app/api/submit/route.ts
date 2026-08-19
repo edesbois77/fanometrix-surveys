@@ -36,6 +36,9 @@ export async function POST(req: NextRequest) {
     is_demo,
     // Group + market context — populated when served via a campaign group embed
     group_id, country_code, market, survey_language,
+    // Which embed renderer produced this completion (themed | classic |
+    // studio-classic | stack). Recorded on the backfilled answers.
+    renderer,
     // Demographic answers — asked explicitly by the Stack creative's Gender/Age
     // frames and stored as dimensions on the response (columns exist since
     // migration 002). Absent for creatives that don't ask them (Classic/Timer).
@@ -141,6 +144,7 @@ export async function POST(req: NextRequest) {
           placement: (placement as string | null) ?? null,
           placementId: (placement_id as string | null) ?? null,
           creativeId: (creative_id as string | null) ?? null,
+          renderer: (renderer as string | null) ?? null,
           isDemo: !!is_demo,
         },
       );
