@@ -66,7 +66,17 @@ function KeyFindingCard({ f, big, onViewResults }: { f: ResultsFinding; big?: bo
         <StatusBadge label={meta.label} tone={meta.tone} />
         {f.statistic && <span className="text-base font-bold fx-tabular-nums" style={{ color: "var(--text-primary)" }}>{f.statistic}</span>}
       </div>
-      <p className={big ? "text-lg font-semibold leading-snug" : "text-[15px] font-semibold leading-snug"} style={{ color: "var(--text-primary)" }}>{f.title}</p>
+      {/* Takeaway → evidence: when a short human takeaway exists it leads, and the precise
+          measured statement (`title`) becomes the supporting evidence line beneath it.
+          Otherwise the measured statement is itself the headline (unchanged). */}
+      {f.takeaway ? (
+        <>
+          <p className={big ? "text-lg font-semibold leading-snug" : "text-[15px] font-semibold leading-snug"} style={{ color: "var(--text-primary)" }}>{f.takeaway}</p>
+          <p className="text-[13px] mt-1 leading-snug" style={{ color: "var(--text-secondary)" }}>{f.title}</p>
+        </>
+      ) : (
+        <p className={big ? "text-lg font-semibold leading-snug" : "text-[15px] font-semibold leading-snug"} style={{ color: "var(--text-primary)" }}>{f.title}</p>
+      )}
       {f.question && <p className="text-xs mt-1" style={{ color: "var(--text-tertiary)" }}>From: {f.question}</p>}
       {f.caveat && <p className="text-[11px] mt-1.5" style={{ color: "#8A6A2F" }}>{f.caveat}</p>}
       {hasNumbers && (

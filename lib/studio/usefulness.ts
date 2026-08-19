@@ -39,6 +39,28 @@ export function segmentUsefulness(kind: string, value: number): number {
   return withMagnitude(base, Math.abs(Number.isFinite(value) ? value : 0));
 }
 
+// ── Segment-dimension presentation priority (STEP 7) ─────────────────────────
+// A segment difference by WHO the respondents are (their market / country / the
+// publisher who reached them) is a research finding a decision-maker acts on. A
+// difference by HOW the survey was delivered (device) is usually a delivery artefact,
+// not a commercial insight. So technical dimensions are de-prioritised for headline
+// space — but NEVER suppressed: an exceptionally strong technical effect (a large
+// concentration/spread) still climbs back over the bar on its own magnitude, and the
+// finding always remains in Results. Presentation priority only; no analytical change.
+// The vocabulary is the domain's own closed SegmentDimension enum (study-segments.ts),
+// so this generalises across surveys and invents no per-survey meaning.
+const TECHNICAL_DIMENSIONS = new Set<string>(["device"]);
+export const TECHNICAL_DIMENSION_PENALTY = 40;
+
+/** Segment usefulness adjusted for dimension identity: research/audience dimensions
+ *  keep full weight; technical delivery dimensions (device) are lowered so they cannot
+ *  crowd out a materially stronger research finding, unless their raw magnitude is
+ *  exceptional. Floored above zero so a technical finding is ranked, never dropped. */
+export function segmentUsefulnessForDimension(kind: string, value: number, dimension?: string): number {
+  const base = segmentUsefulness(kind, value);
+  return TECHNICAL_DIMENSIONS.has(dimension ?? "") ? Math.max(5, base - TECHNICAL_DIMENSION_PENALTY) : base;
+}
+
 /** Fallback usefulness for a finding whose raw signals aren't attached (Core-produced
  *  findings): governed leads everything; a model-origin reading is subordinate;
  *  everything else is routine observed context (below any material segment). */
