@@ -33,6 +33,11 @@ export type CoreFinding = {
   question?: string;               // the survey question it concerns
   caveats: string[];
   evidence: CoreEvidenceRef[];     // the base figures it rests on (full traceability)
+  /** Product-presentation usefulness (higher = more worth scarce headline space). A
+   *  PRESENTATION hint only — never truth/authority. Set by the product layer where
+   *  the raw signals live (leader margin / segment magnitude); undefined → the
+   *  composer applies a default from basis. See lib/studio/usefulness.ts. */
+  usefulness?: number;
 };
 
 export type CoreFindingsProjection = {

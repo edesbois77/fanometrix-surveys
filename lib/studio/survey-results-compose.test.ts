@@ -2,6 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { composeSurveyResults, KEY_CAP, NOTE_CAP } from "./survey-results-compose";
+import { leaderUsefulness, segmentUsefulness } from "./usefulness";
 import type { CoreFindingsProjection, CoreFinding } from "@/lib/core/studio/projection";
 import type { SurveyAnalysisView } from "@/lib/studio/survey-analysis-service";
 
@@ -64,12 +65,12 @@ test("§F nothing leads (only contextual observations) → honest empty message 
   assert.ok(vm.worthNoting.length >= 1, "observations still surfaced honestly");
 });
 
-test("§G historic (observed-only, no governed) survey is still useful", () => {
+test("§G historic (observed-only, no governed) survey is still useful — a dominant lead headlines", () => {
   const vm = composeSurveyResults({ core: projection([
-    finding({ id: "lead", tier: "key", basis: "observed", statistic: "60%" }),
+    finding({ id: "lead", tier: "key", basis: "observed", statistic: "60%", usefulness: leaderUsefulness(40) }),
   ]), analysis: null });
   if (vm.mode !== "intelligence") throw new Error("intelligence");
-  assert.equal(vm.keyFindings.length, 1, "descriptive lead surfaces");
+  assert.equal(vm.keyFindings.length, 1, "a genuinely dominant descriptive lead surfaces");
   assert.equal(vm.keyFindings[0].basis, "observed");
 });
 
@@ -114,16 +115,17 @@ test("complementary collapse only groups the SAME question — different questio
   assert.equal(vm.keyFindings.length, 2, "different questions each keep a headline");
 });
 
-test("coverage: no governed key, but OBSERVED supporting findings → they LEAD (not the empty message)", () => {
+test("§4/§5 a material segment leads 'What stands out'; a mundane topline leader stays subordinate", () => {
   const vm = composeSurveyResults({ core: projection([
-    finding({ id: "lead", tier: "supporting", basis: "observed", statistic: "34%", title: "Rewards is the most-selected" }),
-    finding({ id: "seg", tier: "supporting", basis: "observed", title: "Germany stands out (41% never noticed)" }),
+    finding({ id: "seg", tier: "supporting", basis: "observed", title: "Germany stands out (41% never noticed)", usefulness: segmentUsefulness("seg_concentration", 16) }),
+    finding({ id: "lead", tier: "supporting", basis: "observed", statistic: "34%", title: "Rewards is the most-selected", usefulness: leaderUsefulness(3) }),
     finding({ id: "min", tier: "context", basis: "observed", title: "27% never noticed" }),
   ]), analysis: null });
   if (vm.mode !== "intelligence") throw new Error("intelligence");
-  assert.equal(vm.emptyMessage, null, "no deflating empty message when supporting facts exist");
-  assert.equal(vm.keyFindings.length, 2, "supporting facts lead 'What stands out'");
-  assert.ok(vm.keyFindings.every((f) => f.basis === "observed"));
+  assert.equal(vm.emptyMessage, null, "a material segment prevents the deflating empty message");
+  assert.ok(vm.keyFindings.some((f) => f.id === "seg"), "the material segment leads 'What stands out'");
+  assert.ok(!vm.keyFindings.some((f) => f.id === "lead"), "a mundane topline leader does NOT headline");
+  assert.ok(vm.worthNoting.some((f) => f.id === "lead"), "the mundane leader is subordinate under 'worth noting'");
 });
 
 test("§K a governed key finding still OUTRANKS observed supporting facts", () => {
