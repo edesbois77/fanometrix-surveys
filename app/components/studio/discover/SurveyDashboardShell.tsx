@@ -170,7 +170,7 @@ export function SurveyDashboardShell({
         ) : view === "findings" ? (
           isPreview ? (
             previewFindings ? (
-              <SurveyFindingsView findings={previewFindings.findings} context={previewFindings.context} answers={previewFindings.counts.answers} mode={previewFindings.mode} analysis={previewFindings.analysis} coreIntelligence={previewFindings.coreIntelligence} canGenerate={previewFindings.canGenerate} onAnalyse={() => {}} onViewResults={() => changeView("results")} />
+              <SurveyFindingsView findings={previewFindings.findings} context={previewFindings.context} answers={previewFindings.counts.answers} respondents={previewFindings.counts.respondents} mode={previewFindings.mode} analysis={previewFindings.analysis} coreIntelligence={previewFindings.coreIntelligence} canGenerate={previewFindings.canGenerate} onAnalyse={() => {}} onViewResults={() => changeView("results")} />
             ) : <EmptyState title="No findings" description="No findings to preview." />
           ) : liveFindings.loading ? (
             <PageLoadingState lines={2} />
@@ -179,7 +179,7 @@ export function SurveyDashboardShell({
           ) : liveFindings.data.authorised === false ? (
             <EmptyState title="Findings aren't available" description="Your organisation isn't entitled to this survey's data." />
           ) : (
-            <SurveyFindingsView findings={liveFindings.data.findings} context={liveFindings.data.context} answers={liveFindings.data.counts.answers} mode={liveFindings.data.mode} analysis={liveFindings.data.analysis} coreIntelligence={liveFindings.data.coreIntelligence} canGenerate={liveFindings.data.canGenerate} analyseBusy={analysisBusy} onAnalyse={generateAnalysis} onViewResults={() => changeView("results")} />
+            <SurveyFindingsView findings={liveFindings.data.findings} context={liveFindings.data.context} answers={liveFindings.data.counts.answers} respondents={liveFindings.data.counts.respondents} mode={liveFindings.data.mode} analysis={liveFindings.data.analysis} coreIntelligence={liveFindings.data.coreIntelligence} canGenerate={liveFindings.data.canGenerate} analyseBusy={analysisBusy} onAnalyse={generateAnalysis} onViewResults={() => changeView("results")} />
           )
         ) : isPreview ? (
           resultsData ? <ResultsView results={resultsData} /> : <EmptyState title="No results" description="No answers have been collected yet." />

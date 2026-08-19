@@ -211,6 +211,7 @@ export function findingsPreview(state: PreviewState): Extract<FindingsResponse, 
   }));
   const findings = buildSurveyFindings({ surveyName: "Preview survey", mode: results.mode, questions, segments: findingsSegments(state) });
   const answers = questions.reduce((a, q) => a + q.base, 0);
+  const respondents = questions.reduce((m, q) => Math.max(m, q.base), 0);
   // Emerging while collecting; Final once closed (historical/exposure-heavy).
   const live = state === "healthy" || state === "heavy-partial" || state === "dropoff" || state === "multi";
   const context = findingsContext({ hasLiveCampaign: live, totalAnswered: answers });
@@ -220,7 +221,7 @@ export function findingsPreview(state: PreviewState): Extract<FindingsResponse, 
   return {
     authorised: true, filterRejected: false,
     survey: { id: "preview", name: "Preview survey", questionCount: questions.length },
-    context, counts: { answers, questions: questions.length }, mode: results.mode, findings, analysis,
+    context, counts: { answers, respondents, questions: questions.length }, mode: results.mode, findings, analysis,
     coreIntelligence: null,
     analysisEligible,
     // In preview, treat the viewer as authorised so the restrained CTA is reviewable

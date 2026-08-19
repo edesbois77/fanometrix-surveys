@@ -53,10 +53,10 @@ test("§C/§D key + worth-noting are capped so contextual noise never overwhelms
   assert.ok(vm.worthNoting.length <= NOTE_CAP, `worthNoting ≤ ${NOTE_CAP}`);
 });
 
-test("§F no key finding → honest empty message + observations still shown", () => {
+test("§F nothing leads (only contextual observations) → honest empty message + observations shown", () => {
   const vm = composeSurveyResults({ core: projection([
     finding({ id: "c1", tier: "context", basis: "observed" }),
-    finding({ id: "c2", tier: "supporting", basis: "observed" }),
+    finding({ id: "c2", tier: "context", basis: "observed" }),
   ]), analysis: null });
   if (vm.mode !== "intelligence") throw new Error("intelligence");
   assert.equal(vm.keyFindings.length, 0);
@@ -112,6 +112,37 @@ test("complementary collapse only groups the SAME question — different questio
   ]), analysis: null });
   if (vm.mode !== "intelligence") throw new Error("intelligence");
   assert.equal(vm.keyFindings.length, 2, "different questions each keep a headline");
+});
+
+test("coverage: no governed key, but OBSERVED supporting findings → they LEAD (not the empty message)", () => {
+  const vm = composeSurveyResults({ core: projection([
+    finding({ id: "lead", tier: "supporting", basis: "observed", statistic: "34%", title: "Rewards is the most-selected" }),
+    finding({ id: "seg", tier: "supporting", basis: "observed", title: "Germany stands out (41% never noticed)" }),
+    finding({ id: "min", tier: "context", basis: "observed", title: "27% never noticed" }),
+  ]), analysis: null });
+  if (vm.mode !== "intelligence") throw new Error("intelligence");
+  assert.equal(vm.emptyMessage, null, "no deflating empty message when supporting facts exist");
+  assert.equal(vm.keyFindings.length, 2, "supporting facts lead 'What stands out'");
+  assert.ok(vm.keyFindings.every((f) => f.basis === "observed"));
+});
+
+test("§K a governed key finding still OUTRANKS observed supporting facts", () => {
+  const vm = composeSurveyResults({ core: projection([
+    finding({ id: "gov", tier: "key", basis: "governed", statistic: "65%", title: "65% ...", question: "Qgov" }),
+    finding({ id: "obs", tier: "supporting", basis: "observed", title: "Rewards most-selected" }),
+  ]), analysis: null });
+  if (vm.mode !== "intelligence") throw new Error("intelligence");
+  assert.equal(vm.keyFindings[0].basis, "governed", "governed leads");
+  assert.ok(vm.worthNoting.some((f) => f.id === "obs"), "observed is subordinate");
+});
+
+test("coverage: truly nothing (only context) → honest empty message", () => {
+  const vm = composeSurveyResults({ core: projection([
+    finding({ id: "c1", tier: "context", basis: "observed", title: "spread" }),
+  ]), analysis: null });
+  if (vm.mode !== "intelligence") throw new Error("intelligence");
+  assert.equal(vm.keyFindings.length, 0);
+  assert.match(vm.emptyMessage ?? "", /no single result dominates/i);
 });
 
 test("§M no engine jargon leaks through composition", () => {

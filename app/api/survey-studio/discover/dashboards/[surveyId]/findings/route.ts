@@ -30,7 +30,10 @@ export type FindingsResponse =
       filterRejected: boolean;
       survey: { id: string; name: string; questionCount: number };
       context: SurveyFindingsContext;
-      counts: { answers: number; questions: number };
+      /** `answers` = total question-answers (Σ per-question base); `respondents` =
+       *  people who answered (max per-question base). They are NOT the same number —
+       *  a respondent answers multiple questions. */
+      counts: { answers: number; respondents: number; questions: number };
       mode: ResultsMode;
       findings: SurveyFinding[];
       /** Current (latest completed) AI research synthesis, or null. READ ONLY — the
@@ -103,6 +106,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ surv
     options: q.options,
   }));
   const totalAnswered = questionEvidence.reduce((a, q) => a + q.base, 0);
+  // Respondents ≈ the most-answered question's base (everyone who answered at least
+  // the first question). Distinct from `totalAnswered` (answers across all questions).
+  const respondents = questionEvidence.reduce((m, q) => Math.max(m, q.base), 0);
 
   const findings = buildSurveyFindings({
     surveyName: survey.name,
@@ -143,7 +149,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ surv
     filterRejected,
     survey: { id: survey.id, name: survey.name, questionCount: survey.questions.length },
     context,
-    counts: { answers: totalAnswered, questions: survey.questions.length },
+    counts: { answers: totalAnswered, respondents, questions: survey.questions.length },
     mode: results.mode,
     findings,
     analysis,

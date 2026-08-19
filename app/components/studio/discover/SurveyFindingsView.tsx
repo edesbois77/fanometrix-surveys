@@ -25,16 +25,20 @@ const TYPE_TONE: Record<SurveyFindingType, Tone> = {
   pattern: "info", market: "info", device: "neutral", completion: "warning",
 };
 
-function ContextStrip({ context, answers }: { context: SurveyFindingsContext; answers: number }) {
+function ContextStrip({ context, answers, respondents }: { context: SurveyFindingsContext; answers: number; respondents?: number }) {
   if (context === "none") return null;
   const emerging = context === "emerging";
+  // Respondents ≠ answers: a respondent answers several questions. Lead with
+  // respondents (people) and note the answer count, so neither is misread as the other.
+  const r = respondents ?? answers;
+  const scope = `${nf(r)} respondent${r === 1 ? "" : "s"}${answers > r ? ` (${nf(answers)} answers across the questions)` : ""}`;
   return (
     <div className="flex items-center gap-2.5 flex-wrap">
       <StatusBadge label={emerging ? "Emerging findings" : "Final findings"} tone={emerging ? "info" : "neutral"} dot />
       <p className="text-xs" style={{ color: "var(--text-tertiary)" }}>
         {emerging
-          ? `Based on ${nf(answers)} answer${answers === 1 ? "" : "s"} collected so far. Findings may change as more responses are received.`
-          : `Based on the completed research dataset (${nf(answers)} answer${answers === 1 ? "" : "s"}).`}
+          ? `Based on ${scope} collected so far. Findings may change as more responses are received.`
+          : `Based on the completed research dataset — ${scope}.`}
       </p>
     </div>
   );
@@ -95,14 +99,14 @@ function KeyFindingCard({ f, big, onViewResults }: { f: ResultsFinding; big?: bo
   );
 }
 
-function IntelligenceView({ vm, context, answers, canGenerate, analyseBusy, onAnalyse, onViewResults }: {
+function IntelligenceView({ vm, context, answers, respondents, canGenerate, analyseBusy, onAnalyse, onViewResults }: {
   vm: Extract<ReturnType<typeof composeSurveyResults>, { mode: "intelligence" }>;
-  context: SurveyFindingsContext; answers: number;
+  context: SurveyFindingsContext; answers: number; respondents?: number;
   canGenerate?: boolean; analyseBusy?: boolean; onAnalyse?: () => void; onViewResults?: () => void;
 }) {
   return (
     <div className="space-y-7">
-      <ContextStrip context={context} answers={answers} />
+      <ContextStrip context={context} answers={answers} respondents={respondents} />
       {canGenerate && <AnalyseOpportunity busy={analyseBusy} onAnalyse={onAnalyse} />}
 
       {/* A — What should I know? The strongest findings lead. */}
@@ -164,8 +168,8 @@ function AnalysisFindingCard({ f, onViewResults }: { f: AnalysisFinding; onViewR
   );
 }
 
-function SynthesisView({ analysis, context, answers, onViewResults }: {
-  analysis: SurveyAnalysisView; context: SurveyFindingsContext; answers: number; onViewResults?: () => void;
+function SynthesisView({ analysis, context, answers, respondents, onViewResults }: {
+  analysis: SurveyAnalysisView; context: SurveyFindingsContext; answers: number; respondents?: number; onViewResults?: () => void;
 }) {
   const byId = new Map(analysis.findings.map((f) => [f.id, f]));
   const grouped = new Set<string>();
@@ -178,7 +182,7 @@ function SynthesisView({ analysis, context, answers, onViewResults }: {
 
   return (
     <div className="space-y-6">
-      <ContextStrip context={context} answers={answers} />
+      <ContextStrip context={context} answers={answers} respondents={respondents} />
 
       {analysis.narrative && (
         <div className="rounded-[var(--radius-panel)] border p-5 md:p-6" style={{ borderColor: "var(--accent-gold)", background: "var(--surface)", boxShadow: "var(--shadow-sm)" }}>
@@ -252,15 +256,15 @@ function AnalyseOpportunity({ busy, onAnalyse }: { busy?: boolean; onAnalyse?: (
   );
 }
 
-function DeterministicView({ findings, context, answers, mode, canGenerate, analyseBusy, onAnalyse, onViewResults }: {
-  findings: SurveyFinding[]; context: SurveyFindingsContext; answers: number;
+function DeterministicView({ findings, context, answers, respondents, mode, canGenerate, analyseBusy, onAnalyse, onViewResults }: {
+  findings: SurveyFinding[]; context: SurveyFindingsContext; answers: number; respondents?: number;
   mode: "studio_native" | "historical_completed_only";
   canGenerate?: boolean; analyseBusy?: boolean; onAnalyse?: () => void; onViewResults?: () => void;
 }) {
   if (findings.length === 0) {
     return (
       <div className="space-y-4">
-        <ContextStrip context={context} answers={answers} />
+        <ContextStrip context={context} answers={answers} respondents={respondents} />
         {canGenerate && <AnalyseOpportunity busy={analyseBusy} onAnalyse={onAnalyse} />}
         <EmptyState
           icon={<StudioIcon.discover size={22} />}
@@ -275,7 +279,7 @@ function DeterministicView({ findings, context, answers, mode, canGenerate, anal
   const [primary, ...rest] = findings;
   return (
     <div className="space-y-5">
-      <ContextStrip context={context} answers={answers} />
+      <ContextStrip context={context} answers={answers} respondents={respondents} />
       {canGenerate && <AnalyseOpportunity busy={analyseBusy} onAnalyse={onAnalyse} />}
       <div className="rounded-[var(--radius-panel)] border p-5 md:p-6" style={{ borderColor: "var(--accent-gold)", background: "var(--surface)", boxShadow: "var(--shadow-sm)" }}>
         <p className="text-[10px] font-semibold uppercase tracking-[0.08em] mb-2" style={{ color: "var(--text-tertiary)" }}>What the research says</p>
@@ -297,11 +301,12 @@ function DeterministicView({ findings, context, answers, mode, canGenerate, anal
 }
 
 export function SurveyFindingsView({
-  findings, context, answers, mode, analysis, coreIntelligence, canGenerate, analyseBusy, onAnalyse, onViewResults,
+  findings, context, answers, respondents, mode, analysis, coreIntelligence, canGenerate, analyseBusy, onAnalyse, onViewResults,
 }: {
   findings: SurveyFinding[];
   context: SurveyFindingsContext;
   answers: number;
+  respondents?: number;
   mode: "studio_native" | "historical_completed_only";
   analysis?: SurveyAnalysisView | null;
   /** Stage 6/7 (controlled read): Core-derived findings. When present (flag on), the
@@ -320,13 +325,13 @@ export function SurveyFindingsView({
   // model is "legacy" and we render the EXISTING experience byte-for-byte unchanged.
   const vm = composeSurveyResults({ core: coreIntelligence, analysis });
   if (vm.mode === "intelligence") {
-    return <IntelligenceView vm={vm} context={context} answers={answers} canGenerate={canGenerate} analyseBusy={analyseBusy} onAnalyse={onAnalyse} onViewResults={onViewResults} />;
+    return <IntelligenceView vm={vm} context={context} answers={answers} respondents={respondents} canGenerate={canGenerate} analyseBusy={analyseBusy} onAnalyse={onAnalyse} onViewResults={onViewResults} />;
   }
 
   // ── Legacy experience (flag off / no Core / Core failure) — UNCHANGED ─────────
   // STATE 2 — a completed synthesis with at least a narrative or a finding.
   if (analysis && (analysis.narrative || analysis.findings.length > 0)) {
-    return <SynthesisView analysis={analysis} context={context} answers={answers} onViewResults={onViewResults} />;
+    return <SynthesisView analysis={analysis} context={context} answers={answers} respondents={respondents} onViewResults={onViewResults} />;
   }
   // NO STRONG CONCLUSIONS — a run COMPLETED but found nothing worth a confident
   // conclusion. Say so plainly; the deterministic results remain the honest read.
@@ -338,7 +343,7 @@ export function SurveyFindingsView({
           We analysed this survey and found no strong overarching conclusion yet. The results below tell the story.
         </p>
       )}
-      <DeterministicView findings={findings} context={context} answers={answers} mode={mode} canGenerate={canGenerate} analyseBusy={analyseBusy} onAnalyse={onAnalyse} onViewResults={onViewResults} />
+      <DeterministicView findings={findings} context={context} answers={answers} respondents={respondents} mode={mode} canGenerate={canGenerate} analyseBusy={analyseBusy} onAnalyse={onAnalyse} onViewResults={onViewResults} />
     </>
   );
 }
