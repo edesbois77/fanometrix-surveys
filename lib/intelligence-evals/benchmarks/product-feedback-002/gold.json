@@ -1,0 +1,50 @@
+{
+  "benchmark_id": "product-feedback-002",
+  "version": "1.0.0",
+  "methodology_version": "Fanometrix Standard v1.2",
+  "created": "2026-08-19",
+  "blind_statement": "This Gold Standard was authored from the frozen source data and Standard v1.2 research methodology ONLY. The Analytical Core was NOT run, and no Core-generated candidate, grouping, ranking or interpretation was inspected, before this Gold was frozen. It scores concepts/evidence/authority/hierarchy, never wording.",
+  "n": 320,
+  "principles": [
+    "Ordinal response categories may be collapsed only across ADJACENT positions on the same measured dimension and in the same polarity (top-two-box, bottom-two-box) — never across polarity, and a mid-scale 'neither' is not part of either pole.",
+    "Nominal categories may be combined only when they share a governed grouped meaning; distinct causes/blockers are distinct constructs.",
+    "Same-question same-construct percentages may be summed; cross-question percentages may be synthesised narratively but never summed.",
+    "Aggregate distributions do not license respondent-level co-occurrence claims (who-also-did-what) without respondent-level evidence.",
+    "The largest single option is not automatically the story."
+  ],
+  "allowed_groupings": [
+    { "id": "sat_top2", "components": ["q_satisfaction:very_satisfied", "q_satisfaction:satisfied"], "value": 66.9, "concept": "satisfied (top-two-box on an ordinal satisfaction scale)", "why": "Both are adjacent positive positions on one satisfaction dimension." },
+    { "id": "sat_bottom2", "components": ["q_satisfaction:dissatisfied", "q_satisfaction:very_dissatisfied"], "value": 16.25, "concept": "dissatisfied (bottom-two-box)", "why": "Adjacent negative positions on one dimension." },
+    { "id": "rec_top2", "components": ["q_recommend:definitely", "q_recommend:probably"], "value": 66.25, "concept": "likely to recommend (top-two-box)", "why": "Adjacent positive positions on one recommendation-likelihood dimension." }
+  ],
+  "forbidden_groupings": [
+    { "id": "sat_plus_neutral", "components": ["q_satisfaction:satisfied", "q_satisfaction:neutral"], "value": 53.75, "reason": "'Satisfied' and 'Neither' are DIFFERENT positions; relabelling their union as 'satisfied'/'positive' over-claims — a mid-scale neither is not satisfaction. Same dimension is necessary but not sufficient; the collapse must respect the threshold/polarity." },
+    { "id": "top_plus_bottom", "components": ["q_satisfaction:very_satisfied", "q_satisfaction:very_dissatisfied"], "value": 36.25, "reason": "Combining opposite poles of one ordinal scale is a polarity error — the union denotes no coherent construct." },
+    { "id": "connectivity_plus_app", "components": ["q_blocker:connectivity", "q_blocker:app_issues"], "value": 45.0, "reason": "'Bluetooth dropouts' and 'Companion app bugs' are distinct blockers (different constructs); relabelling their sum as 'software/technical problems' is a cross-construct substitution." },
+    { "id": "cross_question_positive", "components": ["q_satisfaction:satisfied", "q_recommend:probably"], "value": null, "reason": "Cross-question percentages must never be summed." }
+  ],
+  "must_find": [
+    { "id": "mf-1", "concept": "About two-thirds of buyers are satisfied (top-two-box 66.9%), but only ~30% are VERY satisfied — a solid but not euphoric satisfaction base.", "evidence": ["q_satisfaction:very_satisfied", "q_satisfaction:satisfied"], "expected_priority": "primary", "acceptable_interpretations": ["Approximately two-thirds are satisfied (very satisfied + satisfied).", "Satisfaction is solid but the intensity skews to merely 'satisfied' rather than 'very satisfied'."], "required_caveats": ["Do not treat the 6.9pp gap between 'Satisfied' (36.9%) and 'Very satisfied' (30.0%) as the story.", "Disclose the composition (how much is very-satisfied vs satisfied)."], "prohibited_extensions": ["Reporting only the largest single box (37% satisfied).", "Counting 'Neither' as satisfied."] },
+    { "id": "mf-2", "concept": "Two-thirds are likely to recommend (top-two-box 66.25%).", "evidence": ["q_recommend:definitely", "q_recommend:probably"], "expected_priority": "secondary", "acceptable_interpretations": ["Roughly two-thirds would recommend (definitely + probably)."], "required_caveats": ["Advocacy skews to 'probably' rather than 'definitely'."], "prohibited_extensions": ["Claiming recommenders are the satisfied respondents (respondent-level)."] },
+    { "id": "mf-3", "concept": "There is no single dominant usage blocker — battery (28.75%), comfort (26.25%), app bugs (23.1%) and connectivity (21.9%) are closely spread; the leader is only 2.5pp ahead.", "evidence": ["q_blocker:battery_life", "q_blocker:comfort", "q_blocker:connectivity", "q_blocker:app_issues"], "expected_priority": "secondary", "acceptable_interpretations": ["Blockers are spread with no clear front-runner.", "The product has several comparably-sized friction points rather than one dominant defect."], "required_caveats": ["Do not present battery as THE problem — its 2.5pp lead is within noise."], "prohibited_extensions": ["'Battery life is the dominant/main blocker.'", "Merging blockers into a 'technical problems' super-category."] },
+    { "id": "mf-4", "concept": "A non-trivial dissatisfied minority (bottom-two-box 16.25%) represents a churn/retention risk.", "evidence": ["q_satisfaction:dissatisfied", "q_satisfaction:very_dissatisfied"], "expected_priority": "contextual", "acceptable_interpretations": ["About one in six are dissatisfied."], "required_caveats": ["A minority, not the headline."], "prohibited_extensions": ["Inflating to include 'Neither'."] }
+  ],
+  "may_find": [
+    { "id": "may-1", "concept": "The product scores positively on TWO independent dimensions (satisfaction ~2/3, recommendation ~2/3) — a coherent positive-sentiment story.", "evidence": ["q_satisfaction:very_satisfied", "q_satisfaction:satisfied", "q_recommend:definitely", "q_recommend:probably"], "expected_priority": "secondary", "conditions": ["Must be a narrative synthesis of two aggregate findings — NOT a summed percentage and NOT a respondent-level claim."] },
+    { "id": "may-2", "concept": "A sizeable 'Neither' share (16.9%) sits between the satisfied majority and dissatisfied minority.", "evidence": ["q_satisfaction:neutral"], "expected_priority": "contextual", "conditions": ["Low priority; a fence-sitting middle, not satisfaction."] }
+  ],
+  "must_not_say": [
+    { "id": "mns-1", "prohibited_concept": "Only 37% of buyers are satisfied.", "failure_type": "ignores ordinal top-two-box semantics", "rule": "principles[0]", "tier": "model_assisted" },
+    { "id": "mns-2", "prohibited_concept": "84% are positive / satisfied (satisfied + neither).", "failure_type": "same-dimension threshold violation (neither is not satisfied)", "rule": "forbidden_groupings.sat_plus_neutral", "tier": "deterministic_where_metadata" },
+    { "id": "mns-3", "prohibited_concept": "45% cite software/technical problems (connectivity + app).", "failure_type": "cross-construct nominal relabel", "rule": "forbidden_groupings.connectivity_plus_app", "tier": "deterministic" },
+    { "id": "mns-4", "prohibited_concept": "Battery life is the dominant/main blocker.", "failure_type": "overstated leadership (2.5pp)", "rule": "principles[4]", "tier": "deterministic_heuristic" },
+    { "id": "mns-5", "prohibited_concept": "Satisfied buyers are the ones who recommend.", "failure_type": "respondent-level inference from aggregates", "rule": "principles[3]", "tier": "model_assisted" },
+    { "id": "mns-6", "prohibited_concept": "Combining satisfaction and recommendation into one percentage.", "failure_type": "cross-question arithmetic", "rule": "principles[2]", "tier": "deterministic" }
+  ],
+  "expected_hierarchy": {
+    "primary": ["mf-1"],
+    "secondary": ["mf-2", "mf-3", "may-1"],
+    "contextual": ["mf-4", "may-2"],
+    "rejected_or_suppressed": ["sat_plus_neutral", "top_plus_bottom", "connectivity_plus_app", "cross_question_positive", "battery_dominant"]
+  }
+}

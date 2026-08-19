@@ -13,7 +13,7 @@ import {
   mapShownCounts, aggregateAnswers, buildQuestionResults, filterCampaignSlugs, buildFilterOptions, legacyAnswerRows,
   type AnswerRow, type FilterableCampaign, type ResultsFilters, type QuestionResult, type FilterOptions,
 } from "@/lib/studio/survey-results";
-import type { LocalisedQuestion, LocalisedText } from "@/lib/survey-locale";
+import type { LocalisedQuestion, LocalisedOption, LocalisedText } from "@/lib/survey-locale";
 
 /** Studio-native = question-level from response_answers; historical = legacy completed
  *  q1/q2/q3 from responses. Deterministic precedence; the two are NEVER summed. */
@@ -49,14 +49,28 @@ export function normaliseQuestions(raw: unknown): LocalisedQuestion[] {
     const options = Array.isArray(qq.options)
       ? qq.options.map((o, oi) => {
           if (typeof o === "string") return { id: oi, text: { en: o } as LocalisedText };
-          const oo = o as { id?: unknown; text?: unknown };
-          return { id: typeof oo.id === "number" ? oo.id : oi, text: typeof oo.text === "string" ? { en: oo.text } : ((oo.text as LocalisedText) ?? {}) };
+          const oo = o as { id?: unknown; text?: unknown; ordinal_position?: unknown; polarity?: unknown };
+          // Preserve governed option semantics (Stage 5D) — set server-side from a
+          // scale template; carried verbatim so analysis evidence can read them.
+          const sem: { ordinal_position?: number; polarity?: LocalisedOption["polarity"] } = {
+            ...(typeof oo.ordinal_position === "number" ? { ordinal_position: oo.ordinal_position } : {}),
+            ...(oo.polarity === "positive" || oo.polarity === "neutral" || oo.polarity === "negative" ? { polarity: oo.polarity } : {}),
+          };
+          return { id: typeof oo.id === "number" ? oo.id : oi, text: typeof oo.text === "string" ? { en: oo.text } : ((oo.text as LocalisedText) ?? {}), ...sem };
         })
       : [];
     // Preserve the identity anchor (never rewritten): used by Study Results to group
     // questions across Surveys. Absent → canonicalQuestionKey() falls back to the id.
     const cqk = (q as { canonical_question_key?: unknown }).canonical_question_key;
-    return { id: String(qq.id ?? qi), text, options, ...(typeof cqk === "string" && cqk ? { canonical_question_key: cqk } : {}) };
+    // Preserve governed QUESTION semantics (Stage 5D).
+    const qsem = q as { scale_type?: unknown; construct_key?: unknown; scale_template?: unknown };
+    const scaleType = qsem.scale_type;
+    const governedQ: { scale_type?: LocalisedQuestion["scale_type"]; construct_key?: string; scale_template?: string } = {
+      ...(scaleType === "nominal" || scaleType === "ordinal" || scaleType === "binary" || scaleType === "interval" ? { scale_type: scaleType } : {}),
+      ...(typeof qsem.construct_key === "string" && qsem.construct_key ? { construct_key: qsem.construct_key } : {}),
+      ...(typeof qsem.scale_template === "string" && qsem.scale_template ? { scale_template: qsem.scale_template } : {}),
+    };
+    return { id: String(qq.id ?? qi), text, options, ...(typeof cqk === "string" && cqk ? { canonical_question_key: cqk } : {}), ...governedQ };
   });
 }
 

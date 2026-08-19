@@ -14,6 +14,7 @@ import type { StudyResultGroup } from "./study-results";
 import { evidenceRef, type EvidenceItem, type StudyAnalysisEvidence } from "./study-analysis";
 import { buildDerivedEvidence } from "./study-derived-evidence";
 import type { SegmentDerivedItem } from "./study-segments";
+import type { ResolvedQuestionSemantics } from "./scale-templates";
 
 // A question below this answered base is excluded from the analysis evidence, so a
 // weak-base question can never be promoted into a strong AI finding (segment facts
@@ -50,6 +51,9 @@ export function buildSurveyAnalysisEvidence(
   scope: SurveyAnalysisScope,
   questions: QuestionResultView[],
   segmentDerived: SegmentDerivedItem[] = [],
+  /** Governed instrument semantics keyed by question id (Stage 5D). Only questions
+   *  with a governed scale appear; the rest carry no semantics (never inferred). */
+  semanticsByQuestionId: Record<string, ResolvedQuestionSemantics> = {},
 ): StudyAnalysisEvidence {
   const qs = questions.filter((q) => q.base >= ANALYSIS_MIN_BASE && q.options.length > 0);
   const resultMode = toResultMode(scope.mode);
@@ -73,12 +77,19 @@ export function buildSurveyAnalysisEvidence(
   // Base evidence — the single honest scope (combined = THIS survey), survey# refs.
   const evidence: EvidenceItem[] = [];
   for (const q of qs) {
+    const qSem = semanticsByQuestionId[q.questionId];
     for (const o of q.options) {
+      const oSem = qSem?.options[o.optionId];
       evidence.push({
         ref: evidenceRef(scope.surveyId, q.questionId, o.optionId, "combined", null, "survey"),
         canonicalQuestionKey: q.questionId, question: q.text, comparability: "combined",
         scope: "combined", surveyId: null, surveyName: null, questionId: q.questionId, questionIndex: q.questionIndex,
         optionId: o.optionId, optionLabel: o.label, count: o.count, base: q.base, percentage: o.percentage, resultMode,
+        // Governed semantics (Stage 5D): question-level scaleType/constructKey +
+        // per-option ordinalPosition/polarity, present only for governed-scale questions.
+        ...(qSem ? { scaleType: qSem.scaleType, ...(qSem.constructKey ? { constructKey: qSem.constructKey } : {}) } : {}),
+        ...(oSem?.ordinalPosition != null ? { ordinalPosition: oSem.ordinalPosition } : {}),
+        ...(oSem?.polarity ? { polarity: oSem.polarity } : {}),
       });
     }
   }

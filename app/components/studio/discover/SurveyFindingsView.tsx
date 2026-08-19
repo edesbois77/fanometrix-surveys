@@ -10,10 +10,13 @@
 // "AI-generated". Numbers are server-owned; every finding traces to validated
 // evidence. This component only PRESENTS; it never invokes any model.
 
+import { useState } from "react";
 import { Card, StatusBadge, EmptyState, Button, type Tone } from "@/app/components/workspace-ui";
 import { StudioIcon } from "@/app/components/studio/studio-icons";
 import type { SurveyFinding, SurveyFindingType, SurveyFindingsContext } from "@/lib/studio/survey-findings-engine";
 import type { SurveyAnalysisView, AnalysisFinding } from "@/lib/studio/survey-analysis-service";
+import type { CoreFindingsProjection, CoreFindingBasis } from "@/lib/core/studio/projection";
+import { composeSurveyResults, type ResultsFinding } from "@/lib/studio/survey-results-compose";
 
 const nf = (n: number) => n.toLocaleString();
 
@@ -33,6 +36,107 @@ function ContextStrip({ context, answers }: { context: SurveyFindingsContext; an
           ? `Based on ${nf(answers)} answer${answers === 1 ? "" : "s"} collected so far. Findings may change as more responses are received.`
           : `Based on the completed research dataset (${nf(answers)} answer${answers === 1 ? "" : "s"}).`}
       </p>
+    </div>
+  );
+}
+
+// ── Stage 7 — one coherent survey-intelligence experience ────────────────────
+// Product language for analytical basis (never the raw authority enum). A "Measured"
+// finding is a governed scale grouping (confident); "Observed" is a plain measured
+// fact; "Worth exploring" is a subordinate model-origin reading — visibly NOT equal
+// to a measured finding. Every finding discloses its underlying figures on request.
+const BASIS_META: Record<CoreFindingBasis, { label: string; tone: Tone }> = {
+  governed: { label: "Measured", tone: "accent" },
+  observed: { label: "Observed", tone: "neutral" },
+  exploratory: { label: "Worth exploring", tone: "info" },
+};
+
+// A single finding with progressive disclosure: headline → the numbers behind it.
+function KeyFindingCard({ f, big, onViewResults }: { f: ResultsFinding; big?: boolean; onViewResults?: () => void }) {
+  const [open, setOpen] = useState(false);
+  const meta = BASIS_META[f.basis];
+  const hasNumbers = f.evidence.length > 0;
+  return (
+    <Card padding="md">
+      <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+        <StatusBadge label={meta.label} tone={meta.tone} />
+        {f.statistic && <span className="text-base font-bold fx-tabular-nums" style={{ color: "var(--text-primary)" }}>{f.statistic}</span>}
+      </div>
+      <p className={big ? "text-lg font-semibold leading-snug" : "text-[15px] font-semibold leading-snug"} style={{ color: "var(--text-primary)" }}>{f.title}</p>
+      {f.question && <p className="text-xs mt-1" style={{ color: "var(--text-tertiary)" }}>From: {f.question}</p>}
+      {f.caveat && <p className="text-[11px] mt-1.5" style={{ color: "#8A6A2F" }}>{f.caveat}</p>}
+      {hasNumbers && (
+        <div className="mt-2.5">
+          <button
+            type="button" onClick={() => setOpen((v) => !v)} aria-expanded={open}
+            className="inline-flex items-center gap-1 text-xs font-semibold" style={{ color: "var(--accent-ink)" }}
+          >
+            {open ? "Hide the numbers" : "Show the numbers"}
+            <span aria-hidden style={{ transform: open ? "rotate(90deg)" : "none", transition: "transform .15s" }}><StudioIcon.arrowRight size={12} /></span>
+          </button>
+          {open && (
+            <div className="mt-2.5 space-y-1.5">
+              {f.evidence.map((e, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <span className="text-xs flex-1 min-w-0 truncate" style={{ color: "var(--text-secondary)" }}>{e.option ?? "—"}</span>
+                  <span className="h-1.5 rounded-full" style={{ width: `${Math.max(2, Math.min(100, e.percentage ?? 0)) * 0.9}px`, background: "var(--accent-gold)", opacity: 0.55 }} aria-hidden />
+                  <span className="text-[11px] fx-tabular-nums w-10 text-right" style={{ color: "var(--text-tertiary)" }}>{e.percentage != null ? `${e.percentage}%` : "—"}</span>
+                </div>
+              ))}
+              <p className="text-[11px] fx-tabular-nums pt-0.5" style={{ color: "var(--text-tertiary)" }}>
+                n={nf(f.evidence[0]?.base ?? 0)}
+                {onViewResults && <> · <button type="button" onClick={onViewResults} className="font-semibold" style={{ color: "var(--accent-ink)" }}>View in Results</button></>}
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function IntelligenceView({ vm, context, answers, canGenerate, analyseBusy, onAnalyse, onViewResults }: {
+  vm: Extract<ReturnType<typeof composeSurveyResults>, { mode: "intelligence" }>;
+  context: SurveyFindingsContext; answers: number;
+  canGenerate?: boolean; analyseBusy?: boolean; onAnalyse?: () => void; onViewResults?: () => void;
+}) {
+  return (
+    <div className="space-y-7">
+      <ContextStrip context={context} answers={answers} />
+      {canGenerate && <AnalyseOpportunity busy={analyseBusy} onAnalyse={onAnalyse} />}
+
+      {/* A — What should I know? The strongest findings lead. */}
+      {vm.keyFindings.length > 0 ? (
+        <section>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.06em] mb-2.5" style={{ color: "var(--text-tertiary)" }}>What stands out</p>
+          <div className="space-y-3">{vm.keyFindings.map((f) => <KeyFindingCard key={f.id} f={f} big onViewResults={onViewResults} />)}</div>
+        </section>
+      ) : (
+        <div className="rounded-[var(--radius-panel)] border p-5" style={{ borderColor: "var(--border-default)", background: "var(--surface-sunken)" }}>
+          <p className="text-[15px] font-semibold leading-snug" style={{ color: "var(--text-primary)" }}>{vm.emptyMessage}</p>
+        </div>
+      )}
+
+      {/* C — What might this mean? Subordinate interpretive summary (never a headline). */}
+      {vm.interpretation && (
+        <section>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.06em] mb-2" style={{ color: "var(--text-tertiary)" }}>What this might mean</p>
+          <div className="rounded-[var(--radius-panel)] border p-4 md:p-5" style={{ borderColor: "var(--border-default)", background: "var(--surface)" }}>
+            <p className="text-sm leading-relaxed" style={{ color: "var(--text-secondary)", whiteSpace: "pre-line" }}>{vm.interpretation}</p>
+            <p className="text-[11px] mt-2" style={{ color: "var(--text-tertiary)" }}>An interpretation of the findings above — the measured figures remain the primary read.</p>
+          </div>
+        </section>
+      )}
+
+      {/* D — What else is interesting? Subordinate observations. */}
+      {vm.worthNoting.length > 0 && (
+        <section>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.06em] mb-2.5" style={{ color: "var(--text-tertiary)" }}>Also worth noting</p>
+          <div className="space-y-3">{vm.worthNoting.map((f) => <KeyFindingCard key={f.id} f={f} onViewResults={onViewResults} />)}</div>
+        </section>
+      )}
+
+      <p className="text-[11px]" style={{ color: "var(--text-tertiary)" }}>Every figure is drawn from this survey&rsquo;s collected answers; open Results to see the full distributions.</p>
     </div>
   );
 }
@@ -193,30 +297,40 @@ function DeterministicView({ findings, context, answers, mode, canGenerate, anal
 }
 
 export function SurveyFindingsView({
-  findings, context, answers, mode, analysis, canGenerate, analyseBusy, onAnalyse, onViewResults,
+  findings, context, answers, mode, analysis, coreIntelligence, canGenerate, analyseBusy, onAnalyse, onViewResults,
 }: {
   findings: SurveyFinding[];
   context: SurveyFindingsContext;
   answers: number;
   mode: "studio_native" | "historical_completed_only";
   analysis?: SurveyAnalysisView | null;
+  /** Stage 6/7 (controlled read): Core-derived findings. When present (flag on), the
+   *  view composes ONE coherent intelligence experience; when absent it falls back to
+   *  the unchanged legacy analysis/findings — so the flag rolls back cleanly. */
+  coreIntelligence?: CoreFindingsProjection | null;
   /** Authorised (canManageSurvey) + eligible + no completed analysis → show the CTA. */
   canGenerate?: boolean;
   analyseBusy?: boolean;
   onAnalyse?: () => void;
   onViewResults?: () => void;
 }) {
+  // Stage 7: compose the three analytical layers into ONE story. With Core intelligence
+  // present the composed "intelligence" experience leads (Core owns findings; the AI
+  // narrative becomes a subordinate summary; redundant cards are gone). Without it, the
+  // model is "legacy" and we render the EXISTING experience byte-for-byte unchanged.
+  const vm = composeSurveyResults({ core: coreIntelligence, analysis });
+  if (vm.mode === "intelligence") {
+    return <IntelligenceView vm={vm} context={context} answers={answers} canGenerate={canGenerate} analyseBusy={analyseBusy} onAnalyse={onAnalyse} onViewResults={onViewResults} />;
+  }
+
+  // ── Legacy experience (flag off / no Core / Core failure) — UNCHANGED ─────────
   // STATE 2 — a completed synthesis with at least a narrative or a finding.
   if (analysis && (analysis.narrative || analysis.findings.length > 0)) {
     return <SynthesisView analysis={analysis} context={context} answers={answers} onViewResults={onViewResults} />;
   }
   // NO STRONG CONCLUSIONS — a run COMPLETED but found nothing worth a confident
-  // conclusion. Say so plainly (never a manufactured finding); the deterministic
-  // results below remain the honest read.
+  // conclusion. Say so plainly; the deterministic results remain the honest read.
   const noStrong = analysis?.noStrongConclusions === true;
-  // STATE 1 / STATE 3 — deterministic baseline (also the fallback when the latest
-  // run failed and there is no previously valid analysis). The Analyse opportunity
-  // appears only for an authorised, eligible survey with no analysis yet.
   return (
     <>
       {noStrong && (

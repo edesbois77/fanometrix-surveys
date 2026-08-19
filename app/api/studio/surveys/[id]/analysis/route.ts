@@ -9,6 +9,7 @@ import { requireUser, type AuthedUser } from "@/lib/auth-server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { canManageSurvey } from "@/lib/studio/collection-health";
 import { analyseSurvey, getSurveyAnalysisMeta, resolveSurveyAnalysisEligibility } from "@/lib/studio/survey-analysis-service";
+import { enqueueCoreShadow } from "@/lib/studio/analytical-core-shadow";
 
 async function authoriseManage(req: NextRequest, id: string): Promise<{ session: AuthedUser } | { error: NextResponse }> {
   let session: AuthedUser;
@@ -42,5 +43,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   if (!outcome.run) {
     return NextResponse.json({ status: "empty", error: "This survey has not collected enough answers to analyse yet." }, { status: 200 });
   }
+  // SHADOW (Stage 5C): flag-gated (default OFF), never-throws mirror of a completed
+  // authoritative run — cannot affect this response or the authoritative analysis.
+  if (outcome.run.status === "completed") await enqueueCoreShadow({ sourceKind: "survey", analysisRunId: outcome.run.id });
   return NextResponse.json({ status: outcome.run.status, generatedAt: outcome.run.completed_at });
 }

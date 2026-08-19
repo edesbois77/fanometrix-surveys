@@ -1,0 +1,73 @@
+{
+  "benchmark_id": "transit-003",
+  "version": "1.0.0",
+  "methodology_version": "Fanometrix Standard v1.2",
+  "created": "2026-08-19",
+  "blind_statement": "Authored from the frozen source + governed overlay + Standard v1.2 only. The Analytical Core was NOT run and no Core candidate/grouping/ranking/interpretation was inspected before this Gold was frozen. Author-independence caveat: the same programme author who built the 5R.9R repair authored this benchmark, so this is a process-blind (freeze-before-run) test, not an author-independent one; true independence needs a third-party author.",
+  "n": 410,
+  "principles": [
+    "Ordinal categories collapse only across adjacent positions of one polarity; a neutral 'mixed' midpoint is neither positive nor negative.",
+    "Distinct nominal reasons are distinct constructs; combining them is a cross-construct substitution.",
+    "Same-question same-construct percentages may be summed; cross-question percentages may be synthesised but never summed.",
+    "Aggregate distributions do not license respondent-level co-occurrence claims.",
+    "The largest single option is not automatically the story; a slim majority with a large dissenting minority is a fragile, not a strong, result."
+  ],
+  "allowed_groupings": [
+    { "id": "rel_top", "components": ["q_reliability:very_reliable", "q_reliability:reliable"], "value": 56.8, "concept": "find MetroLink reliable (positive region)" },
+    { "id": "rel_bottom", "components": ["q_reliability:unreliable", "q_reliability:very_unreliable"], "value": 24.4, "concept": "find MetroLink unreliable (negative region)" },
+    { "id": "rec_top", "components": ["q_recommend:definitely", "q_recommend:likely"], "value": 57.8, "concept": "likely to recommend (positive region)" },
+    { "id": "rec_bottom", "components": ["q_recommend:unlikely", "q_recommend:definitely_not"], "value": 42.2, "concept": "unlikely to recommend (negative region)" }
+  ],
+  "forbidden_groupings": [
+    { "id": "rel_plus_mixed", "components": ["q_reliability:reliable", "q_reliability:mixed"], "value": 55.1, "reason": "'Mixed / it depends' is the neutral midpoint, not reliability; relabelling the union as 'reliable' crosses the neutral boundary." },
+    { "id": "rel_poles", "components": ["q_reliability:very_reliable", "q_reliability:very_unreliable"], "value": 30.0, "reason": "Opposite poles of one scale denote no coherent construct." },
+    { "id": "rel_noncontig", "components": ["q_reliability:very_reliable", "q_reliability:unreliable"], "value": 35.4, "reason": "Non-contiguous ordinal positions (5 and 2)." },
+    { "id": "reason_practical", "components": ["q_reason:cost", "q_reason:convenience"], "value": 37.1, "reason": "'Cheaper' and 'Convenient' are distinct governed reasons; relabelling as 'practical reasons' is a cross-construct substitution." },
+    { "id": "cross_question", "components": ["q_reliability:reliable", "q_recommend:likely"], "value": null, "reason": "Cross-question percentages must never be summed." }
+  ],
+  "must_find": [
+    { "id": "mf-1", "concept": "A slim majority find MetroLink reliable (positive region 56.8%), but only ~20% find it VERY reliable — reliability is adequate, not strong.", "evidence": ["q_reliability:very_reliable", "q_reliability:reliable"], "expected_priority": "primary", "required_caveats": ["Only 20.5% say 'Very reliable'; the majority is soft.", "Do not read a slim majority as strong reliability."], "prohibited_extensions": ["Reporting only the largest single box (36% reliable).", "Counting 'Mixed' as reliable."] },
+    { "id": "mf-2", "concept": "A substantial dissatisfied minority find it unreliable (negative region 24.4%) — a retention/quality risk.", "evidence": ["q_reliability:unreliable", "q_reliability:very_unreliable"], "expected_priority": "secondary", "prohibited_extensions": ["Inflating to include 'Mixed'."] },
+    { "id": "mf-3", "concept": "Advocacy is split: 57.8% likely to recommend but a large 42.2% would not — reputational fragility.", "evidence": ["q_recommend:definitely", "q_recommend:likely", "q_recommend:unlikely", "q_recommend:definitely_not"], "expected_priority": "secondary", "prohibited_extensions": ["Claiming the recommenders are the reliability-satisfied respondents (respondent-level)."] },
+    { "id": "mf-4", "concept": "No single dominant usage reason — cost (27.3%), no-car (23.9%) and speed (22.4%) are closely spread; cost leads by only 3.4pp, and much usage is necessity (no car), not preference.", "evidence": ["q_reason:cost", "q_reason:no_car", "q_reason:speed", "q_reason:environmental", "q_reason:convenience"], "expected_priority": "secondary", "prohibited_extensions": ["'Cost is the main/dominant reason.'", "Merging reasons into a 'practical reasons' super-category."] }
+  ],
+  "may_find": [
+    { "id": "may-1", "concept": "Reliability and recommendation are both slim-majority positive — a coherent 'adequate but fragile' story (aggregate synthesis, not respondent-level, no summed percentage).", "evidence": ["q_reliability:reliable", "q_recommend:likely"], "expected_priority": "secondary" },
+    { "id": "may-2", "concept": "A sizeable 'Mixed' reliability group (18.8%) sits on the fence.", "evidence": ["q_reliability:mixed"], "expected_priority": "contextual" }
+  ],
+  "must_not_say": [
+    { "id": "mns-1", "prohibited_concept": "36% find MetroLink reliable.", "failure_type": "ignores ordinal positive region", "tier": "model_assisted" },
+    { "id": "mns-2", "prohibited_concept": "76% are positive (reliable + mixed).", "failure_type": "crosses neutral boundary", "rule": "forbidden_groupings.rel_plus_mixed", "tier": "deterministic_where_metadata" },
+    { "id": "mns-3", "prohibited_concept": "30% hold strong reliability opinions (very reliable + very unreliable).", "failure_type": "opposite-pole grouping", "rule": "forbidden_groupings.rel_poles", "tier": "deterministic_where_metadata" },
+    { "id": "mns-4", "prohibited_concept": "Cost is the dominant reason for using MetroLink.", "failure_type": "overstated leadership (3.4pp)", "tier": "deterministic_heuristic" },
+    { "id": "mns-5", "prohibited_concept": "37% cite practical reasons (cost + convenience).", "failure_type": "cross-construct nominal relabel", "rule": "forbidden_groupings.reason_practical", "tier": "deterministic" },
+    { "id": "mns-6", "prohibited_concept": "Reliability-satisfied commuters are the ones who recommend.", "failure_type": "respondent-level inference", "tier": "model_assisted" },
+    { "id": "mns-7", "prohibited_concept": "Improving reliability will increase recommendations.", "failure_type": "unsupported causation", "tier": "model_assisted" },
+    { "id": "mns-8", "prohibited_concept": "Combining reliability and recommendation into one percentage.", "failure_type": "cross-question arithmetic", "tier": "deterministic" }
+  ],
+  "expected_hierarchy": {
+    "primary": ["mf-1"],
+    "secondary": ["mf-2", "mf-3", "mf-4", "may-1"],
+    "contextual": ["may-2"],
+    "rejected_or_suppressed": ["rel_plus_mixed", "rel_poles", "rel_noncontig", "reason_practical", "cross_question", "cost_dominant"]
+  },
+  "acceptance_criteria": {
+    "safety_critical": [
+      "no forbidden ordinal grouping receives DERIVED authority",
+      "cross-question arithmetic rejected before semantics",
+      "cross-construct grouping cannot become DERIVED",
+      "model-only novel quantitative interpretation cannot become Primary",
+      "alternative-explanation/construct-mismatch alone does not suppress a valid observation"
+    ],
+    "recall": [
+      "valid upper-threshold recodes (rel_top, rec_top) generated + DERIVED",
+      "valid lower-threshold recodes (rel_bottom, rec_bottom) generated + DERIVED",
+      "threshold candidate generation is magnitude-independent"
+    ],
+    "quality": [
+      "Primary substantially matches the Gold central story (reliability positive region)",
+      "no candidate explosion / largest-number-first regression",
+      "authoritative hierarchy stable across 5 runs"
+    ]
+  }
+}
