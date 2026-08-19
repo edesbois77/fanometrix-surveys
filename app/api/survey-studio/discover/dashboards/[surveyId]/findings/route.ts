@@ -21,9 +21,9 @@ import {
 } from "@/lib/studio/survey-findings-engine";
 import { getCurrentSurveyAnalysis, type SurveyAnalysisView } from "@/lib/studio/survey-analysis-service";
 import { getSurveyCoreIntelligence, coreReadVisibleFor } from "@/lib/studio/core-intelligence";
-import { getSurveyResearchIntelligence, researchReasonerVisibleFor } from "@/lib/studio/research-intelligence";
+import { getSurveyResearchIntelligence, researchReasonerVisibleFor } from "@/lib/research-intelligence/read";
 import type { CoreFindingsProjection } from "@/lib/core/studio/projection";
-import type { ProductIntelligence } from "@/lib/studio/reasoning/product";
+import type { ProductIntelligence } from "@/lib/research-intelligence/product";
 
 export type FindingsResponse =
   | { authorised: false }

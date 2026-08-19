@@ -7,7 +7,7 @@
 // run id makes a double trigger / retry idempotent, and (with the domain table's unique
 // key) means opening Findings never enqueues.
 import { enqueueJob } from "@/lib/jobs/enqueue";
-import { researchReasonerEnabled } from "@/lib/studio/research-intelligence";
+import { researchReasonerEnabled } from "@/lib/research-intelligence/read";
 import { RESEARCH_REASONER_JOB, type ResearchReasonerSourceKind } from "@/lib/jobs/handlers/research-reasoner.constants";
 
 /** Fire-and-forget: enqueue a reasoning run for an authoritative analysis run. When the

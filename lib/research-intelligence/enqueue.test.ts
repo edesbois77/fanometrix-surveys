@@ -14,8 +14,8 @@ mock.module("@/lib/jobs/enqueue", {
   },
 });
 
-let mod: typeof import("./research-reasoner");
-before(async () => { mod = await import("./research-reasoner"); });
+let mod: typeof import("./enqueue");
+before(async () => { mod = await import("./enqueue"); });
 afterEach(() => { calls = []; });
 
 test("flag absent / false → NO enqueue (Studio analysis path untouched)", async () => {
