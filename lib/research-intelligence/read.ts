@@ -6,7 +6,7 @@
 // — opening Findings only ever READS an existing row, so it can never trigger o3.
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import type { ProductIntelligence } from "@/lib/research-intelligence/product";
-import { surveyResearchSource, type ResearchSource } from "@/lib/research-intelligence/source";
+import { surveyResearchSource, studyResearchSource, type ResearchSource } from "@/lib/research-intelligence/source";
 import {
   RESEARCH_INTELLIGENCE_TABLE, currentMethodologyIdentity,
 } from "@/lib/research-intelligence/persistence";
@@ -108,4 +108,16 @@ export function getSurveyResearchIntelligence(
   enabled: boolean,
 ): Promise<ProductIntelligence | null> {
   return getResearchIntelligence(surveyResearchSource(surveyId), enabled);
+}
+
+/** Study convenience wrapper (Stage C1) — the SAME source-agnostic read over the study
+ *  adapter. `enabled` is the caller's exposure decision; Study access itself is already
+ *  gated upstream (admin-only Study curation), so a caller who cannot reach the Study never
+ *  reaches this. Fingerprint-keyed, version-guarded, fail-closed — identical semantics to
+ *  the survey read. */
+export function getStudyResearchIntelligence(
+  studyId: string,
+  enabled: boolean,
+): Promise<ProductIntelligence | null> {
+  return getResearchIntelligence(studyResearchSource(studyId), enabled);
 }

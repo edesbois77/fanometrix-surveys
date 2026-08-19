@@ -64,9 +64,10 @@ test("resolveRun: missing snapshot / empty evidence / missing fingerprint → nu
   assert.equal(await s.resolveRun("NO_FP"), null);
 });
 
-test("researchSourceFor: 'survey' is wired; reserved kinds return null (fail safe, not guess)", () => {
+test("researchSourceFor: 'survey' + 'study' are wired; remaining reserved kinds return null (fail safe, not guess)", () => {
   assert.ok(mod.researchSourceFor("survey", "S1"));
-  assert.equal(mod.researchSourceFor("study", "X"), null);
+  const study = mod.researchSourceFor("study", "STUDY1");
+  assert.ok(study && study.kind === "study" && study.sourceId === "STUDY1");
   assert.equal(mod.researchSourceFor("report", "X"), null);
   assert.equal(mod.researchSourceFor("comparison", "X"), null);
 });
