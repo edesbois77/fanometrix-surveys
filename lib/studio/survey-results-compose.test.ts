@@ -1,7 +1,7 @@
 // ── Stage 7 — one coherent results experience: composition (pure) ────────────
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { composeSurveyResults, KEY_CAP, NOTE_CAP } from "./survey-results-compose";
+import { composeSurveyResults, KEY_CAP, NOTE_CAP, NOTE_MIN } from "./survey-results-compose";
 import { leaderUsefulness, segmentUsefulness } from "./usefulness";
 import type { CoreFindingsProjection, CoreFinding } from "@/lib/core/studio/projection";
 import type { SurveyAnalysisView } from "@/lib/studio/survey-analysis-service";
@@ -54,7 +54,9 @@ test("§C/§D key + worth-noting are capped so contextual noise never overwhelms
   assert.ok(vm.worthNoting.length <= NOTE_CAP, `worthNoting ≤ ${NOTE_CAP}`);
 });
 
-test("§F nothing leads (only contextual observations) → honest empty message + observations shown", () => {
+test("§F nothing leads and only routine trivia remains → honest empty message, and NOT padded", () => {
+  // Bare context observations (below the worth-noting floor) are trivia; a restrained
+  // page shows the empty message and does NOT fill "worth noting" just to use the slots.
   const vm = composeSurveyResults({ core: projection([
     finding({ id: "c1", tier: "context", basis: "observed" }),
     finding({ id: "c2", tier: "context", basis: "observed" }),
@@ -62,7 +64,7 @@ test("§F nothing leads (only contextual observations) → honest empty message 
   if (vm.mode !== "intelligence") throw new Error("intelligence");
   assert.equal(vm.keyFindings.length, 0);
   assert.match(vm.emptyMessage ?? "", /no single result dominates/i);
-  assert.ok(vm.worthNoting.length >= 1, "observations still surfaced honestly");
+  assert.equal(vm.worthNoting.length, 0, "routine trivia is not padded into 'worth noting'");
 });
 
 test("§G historic (observed-only, no governed) survey is still useful — a dominant lead headlines", () => {
@@ -131,7 +133,7 @@ test("§4/§5 a material segment leads 'What stands out'; a mundane topline lead
 test("§K a governed key finding still OUTRANKS observed supporting facts", () => {
   const vm = composeSurveyResults({ core: projection([
     finding({ id: "gov", tier: "key", basis: "governed", statistic: "65%", title: "65% ...", question: "Qgov" }),
-    finding({ id: "obs", tier: "supporting", basis: "observed", title: "Rewards most-selected" }),
+    finding({ id: "obs", tier: "supporting", basis: "observed", title: "Rewards most-selected", usefulness: leaderUsefulness(9) }),
   ]), analysis: null });
   if (vm.mode !== "intelligence") throw new Error("intelligence");
   assert.equal(vm.keyFindings[0].basis, "governed", "governed leads");
@@ -145,6 +147,61 @@ test("coverage: truly nothing (only context) → honest empty message", () => {
   if (vm.mode !== "intelligence") throw new Error("intelligence");
   assert.equal(vm.keyFindings.length, 0);
   assert.match(vm.emptyMessage ?? "", /no single result dominates/i);
+});
+
+// ── Executive storytelling pass ──────────────────────────────────────────────
+test("executive caps: at most 3 lead + 2 worth-noting, even with many strong findings", () => {
+  const many = [
+    ...Array.from({ length: 6 }, (_, i) => finding({ id: `k${i}`, tier: "key", basis: "governed", statistic: `${90 - i}%`, question: `Q${i}` })),
+    ...Array.from({ length: 6 }, (_, i) => finding({ id: `s${i}`, tier: "supporting", basis: "observed", title: `seg ${i}`, usefulness: 60 - i })),
+  ];
+  const vm = composeSurveyResults({ core: projection(many), analysis: null });
+  if (vm.mode !== "intelligence") throw new Error("intelligence");
+  assert.ok(vm.keyFindings.length <= KEY_CAP && vm.keyFindings.length === 3, "≤3 lead");
+  assert.ok(vm.worthNoting.length <= NOTE_CAP && vm.worthNoting.length === 2, "≤2 worth-noting");
+  assert.ok(vm.keyFindings.length + vm.worthNoting.length <= 5, "reading burden stays small");
+});
+
+test("no padding: a worth-noting slot stays empty rather than showing sub-floor trivia", () => {
+  const vm = composeSurveyResults({ core: projection([
+    finding({ id: "gov", tier: "key", basis: "governed", statistic: "71%", title: "71% selected the top of the scale", question: "Q1" }),
+    finding({ id: "min1", tier: "context", basis: "observed", title: "A notable 18% chose Other", usefulness: NOTE_MIN - 8 }),
+    finding({ id: "min2", tier: "context", basis: "observed", title: "A notable 15% chose None", usefulness: NOTE_MIN - 12 }),
+  ]), analysis: null });
+  if (vm.mode !== "intelligence") throw new Error("intelligence");
+  assert.equal(vm.keyFindings.length, 1, "the one worthwhile finding leads");
+  assert.equal(vm.worthNoting.length, 0, "trivia below the floor is not padded in");
+});
+
+test("a genuinely useful secondary note (above the floor) DOES surface, capped at 2", () => {
+  const vm = composeSurveyResults({ core: projection([
+    finding({ id: "seg", tier: "supporting", basis: "observed", title: "Germany stands out", usefulness: 80 }),
+    finding({ id: "lead1", tier: "supporting", basis: "observed", statistic: "34%", title: "Rewards most-selected", usefulness: NOTE_MIN + 8 }),
+    finding({ id: "lead2", tier: "supporting", basis: "observed", statistic: "31%", title: "Access most-selected", usefulness: NOTE_MIN + 6 }),
+    finding({ id: "lead3", tier: "supporting", basis: "observed", statistic: "30%", title: "Other most-selected", usefulness: NOTE_MIN + 4 }),
+  ]), analysis: null });
+  if (vm.mode !== "intelligence") throw new Error("intelligence");
+  assert.ok(vm.keyFindings.some((f) => f.id === "seg"), "the material segment leads");
+  assert.equal(vm.worthNoting.length, 2, "the two strongest above-floor notes surface, the third is dropped");
+  assert.deepEqual(vm.worthNoting.map((f) => f.id), ["lead1", "lead2"]);
+});
+
+test("takeaway/evidence: a finding's short takeaway threads through to the view-model", () => {
+  const vm = composeSurveyResults({ core: projection([
+    finding({ id: "seg", tier: "supporting", basis: "observed", takeaway: "UK respondents stand out on “Connecting”", title: "“Connecting” chosen by 41.9% of UK vs 25.1% overall", usefulness: 80 }),
+  ]), analysis: null });
+  if (vm.mode !== "intelligence") throw new Error("intelligence");
+  assert.equal(vm.keyFindings[0].takeaway, "UK respondents stand out on “Connecting”");
+  assert.equal(vm.keyFindings[0].title, "“Connecting” chosen by 41.9% of UK vs 25.1% overall", "evidence preserved beneath the takeaway");
+});
+
+test("narrative remains a subordinate interpretation, never promoted to a finding", () => {
+  const vm = composeSurveyResults({ core: projection([
+    finding({ id: "seg", tier: "supporting", basis: "observed", title: "Germany stands out", usefulness: 80 }),
+  ]), analysis: narrative("A short interpretation of the findings.") });
+  if (vm.mode !== "intelligence") throw new Error("intelligence");
+  assert.equal(vm.interpretation, "A short interpretation of the findings.");
+  assert.ok(![...vm.keyFindings, ...vm.worthNoting].some((f) => f.title.includes("interpretation")), "the narrative is never a finding card");
 });
 
 test("§M no engine jargon leaks through composition", () => {

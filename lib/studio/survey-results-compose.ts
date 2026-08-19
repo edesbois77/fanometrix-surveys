@@ -19,11 +19,16 @@ import { effectiveUsefulness, HEADLINE_MIN } from "@/lib/studio/usefulness";
 
 /** How many findings lead / sit under "also worth noting" — selectivity over volume. */
 export const KEY_CAP = 3;   // fewer, better: at most ~3 things a user should remember
-export const NOTE_CAP = 4;  // supporting observations, capped aggressively
+export const NOTE_CAP = 2;  // a couple of genuinely useful secondary notes — and zero is fine
+/** Worth-noting FLOOR: a secondary note must still be worth a reader's attention. Below
+ *  this we show nothing rather than pad the page with routine trivia (bare minorities,
+ *  near-even splits). Topline leaders (≈30–40) and real segment facts clear it. */
+export const NOTE_MIN = 30;
 
 export type ResultsFinding = {
   id: string;
-  title: string;
+  title: string;                  // the precise measured statement (the evidence line)
+  takeaway?: string;              // optional short human headline; when set the card leads with it
   statistic?: string;
   basis: CoreFindingBasis;        // governed | observed | exploratory (never hidden, never headline-equal)
   question?: string;
@@ -51,7 +56,7 @@ const parseStat = (s?: string): number => { const n = s ? parseFloat(s) : NaN; r
 
 function toFinding(f: CoreFinding): ResultsFinding {
   return {
-    id: f.id, title: f.title, statistic: f.statistic, basis: f.basis, question: f.question,
+    id: f.id, title: f.title, takeaway: f.takeaway, statistic: f.statistic, basis: f.basis, question: f.question,
     evidence: f.evidence, caveat: f.caveats[0],
   };
 }
@@ -103,10 +108,13 @@ export function composeSurveyResults(input: {
   const key = scored.filter((x) => x.u >= HEADLINE_MIN).slice(0, KEY_CAP).map((x) => toFinding(x.f));
   const keyIds = new Set(key.map((k) => k.id));
 
-  // Worth noting: the rest (incl. useful-but-not-headline topline leaders + any
-  // exploratory reading), most-useful first, capped aggressively.
+  // Worth noting: the useful-but-not-headline facts (topline leaders, secondary or
+  // technical-dimension segments) that still clear the NOTE_MIN floor — most-useful
+  // first — so a boring survey shows nothing here rather than padding with routine
+  // trivia. Any clearly-labelled "worth exploring" model reading trails after, still
+  // within the hard cap (squeezed out on a rich survey). Capped hard; zero is valid.
   const worthNoting = [
-    ...scored.filter((x) => !keyIds.has(x.f.id)),
+    ...scored.filter((x) => !keyIds.has(x.f.id) && x.u >= NOTE_MIN),
     ...findings.filter((f) => f.basis === "exploratory").map((f) => ({ f, u: 0 })),
   ].slice(0, NOTE_CAP).map((x) => toFinding(x.f));
 

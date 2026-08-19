@@ -28,7 +28,14 @@ export type CoreFinding = {
   id: string;                      // opaque, stable per candidate (not shown)
   tier: CoreFindingTier;
   basis: CoreFindingBasis;
-  title: string;                   // the finding in product language
+  title: string;                   // the finding in product language (the precise EVIDENCE statement)
+  /** Optional short plain-English TAKEAWAY — the human headline a research director would
+   *  lead with, with `title` demoted to the supporting evidence line beneath it. A
+   *  PRESENTATION hint only: it is a weaker-or-equal generalisation of `title`, derived
+   *  deterministically from the same structured facts, and MUST NOT assert anything the
+   *  evidence does not (no magnitude/interpretation the title lacks). Undefined → the
+   *  card uses `title` as the headline (unchanged). See lib/studio/snapshot-facts.ts. */
+  takeaway?: string;
   statistic?: string;              // e.g. "65%" — the headline figure, when there is one
   question?: string;               // the survey question it concerns
   caveats: string[];

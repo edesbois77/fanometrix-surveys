@@ -47,6 +47,39 @@ test("§B segment facts surface as OBSERVED, most-USEFUL first (pointed beats wi
   assert.equal(segs.find((f) => f.id === "s:germany")!.tier, "context", "range/spread is contextual");
 });
 
+test("segment findings carry a SHORT neutral takeaway, with the governed label as the evidence line", () => {
+  const snap = {
+    evidence: [],
+    derived: [],
+    segmentDerived: [
+      { ref: "s:conc", kind: "seg_concentration", canonicalQuestionKey: "q3", question: "How could FedEx help fans?", dimension: "market", label: "\"Connecting football fans\" is chosen by 41.9% of United Kingdom respondents, compared with 25.1% overall", value: 16.8, unit: "pp", inputRefs: [], detail: { option: "Connecting football fans", group: "United Kingdom", groupPct: 41.9, overallPct: 25.1 } },
+      { ref: "s:rev", kind: "seg_reversal", canonicalQuestionKey: "q1", question: "FedEx as a sponsor?", dimension: "market", label: "The most-selected answer differs by market: \"Strong natural fit\" leads among France respondents, but \"Never noticed them\" among Germany respondents", value: 3, unit: "bool", inputRefs: [], detail: { dominantOption: "Strong natural fit", groups: [] } },
+    ],
+  };
+  const segs = projectSnapshotFacts(snap as never).findings.filter((f) => f.id.startsWith("s:"));
+  const conc = segs.find((f) => f.id === "s:conc")!;
+  const rev = segs.find((f) => f.id === "s:rev")!;
+  assert.equal(conc.takeaway, "United Kingdom respondents stand out on “Connecting football fans”");
+  assert.equal(rev.takeaway, "“Strong natural fit” leads overall, but not among every market");
+  // The precise measured statement is preserved verbatim as the evidence (title).
+  assert.match(conc.title, /41\.9% of United Kingdom respondents, compared with 25\.1% overall/);
+  // A takeaway must NEVER be stronger than its evidence: no interpretation, no numbers
+  // the evidence introduced, no magnitude claim.
+  for (const t of [conc.takeaway!, rev.takeaway!]) {
+    assert.doesNotMatch(t, /concern|problem|opportunity|success|failure|significant|majority|because|drives?|causes?/i, "no interpretation");
+    assert.doesNotMatch(t, /\d/, "takeaway asserts no numeric magnitude of its own");
+  }
+});
+
+test("§7 a device (technical) segment is de-prioritised below an equal-magnitude market (research) segment", () => {
+  const mk = (dim: string) => ({ ref: `s:${dim}`, kind: "seg_reversal", canonicalQuestionKey: "q1", question: "Q?", dimension: dim, label: `differs by ${dim}`, value: 3, unit: "bool", inputRefs: [], detail: {} });
+  const snap = { evidence: [], derived: [], segmentDerived: [mk("device"), mk("market")] };
+  const segs = projectSnapshotFacts(snap as never).findings.filter((f) => f.id.startsWith("s:"));
+  const market = segs.find((f) => f.id === "s:market")!;
+  const device = segs.find((f) => f.id === "s:device")!;
+  assert.ok((market.usefulness ?? 0) > (device.usefulness ?? 0), "market outranks device for the same finding");
+});
+
 test("§9b redundant segment facts on the SAME (question,dimension) collapse to the most useful", () => {
   const snap = {
     ...SNAP,
