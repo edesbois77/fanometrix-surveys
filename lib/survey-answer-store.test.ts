@@ -131,13 +131,86 @@ test("real traffic is not marked as test data", async () => {
 
 // ── Campaign Group readiness (nullable; nothing reads it yet) ───────────────
 
-test("a Campaign Group id is recorded when one exists, and is null otherwise", async () => {
+test("a Campaign Group id is recorded when one exists, and omitted otherwise", async () => {
+  // Omitted, not null: sending null would blank a group id an earlier write stored.
   await persistAnswers([answer(0, "1")], CTX, {});
-  assert.equal(upserts[0].rows[0].group_id, null);
+  assert.ok(!("group_id" in upserts[0].rows[0]));
 
   upserts.length = 0;
   await persistAnswers([answer(0, "1")], { ...CTX, groupId: "wwc_2027_group" }, {});
   assert.equal(upserts[0].rows[0].group_id, "wwc_2027_group");
+});
+
+// ── Metadata preservation: a sparser write must never blank a richer one ────
+// The completion backfill runs from /api/submit, whose payload differs from the
+// per-selection one. Because an upsert writes every column it is GIVEN, a field the
+// completion happens not to carry would otherwise overwrite the stored value with
+// null. It cost us the `renderer` of every completed journey. Optional metadata is
+// now OMITTED when absent, so ON CONFLICT DO UPDATE leaves it untouched.
+
+const OPTIONAL = [
+  "question_id", "canonical_question_key", "group_id", "publisher",
+  "placement", "placement_id", "creative_id", "renderer",
+  "survey_language", "country_code",
+];
+
+test("a write that lacks a field OMITS the column, so the stored value survives", async () => {
+  // Completion-style context: no renderer, no placement ids, no creative.
+  await persistAnswers([answer(0, "1")], { ...CTX, groupId: null }, { country: "United Kingdom" });
+  const row = upserts[0].rows[0];
+  for (const col of ["renderer", "placement", "placement_id", "creative_id", "group_id"]) {
+    assert.ok(!(col in row), `${col} must be omitted, not sent as null (sending null would blank it)`);
+  }
+  // What IS known is still written.
+  assert.equal(row.survey_id, CTX.surveyId);
+  assert.equal(row.country_code, "GB");
+});
+
+test("every optional metadata column is written when known", async () => {
+  await persistAnswers([answer(1, "2")], { ...CTX, groupId: "wwc_group" }, {
+    placement: "homepage-mpu", placementId: "p1", creativeId: "studio-classic",
+    renderer: "studio-classic", country: "United Kingdom",
+  });
+  const row = upserts[0].rows[0];
+  const expected: Record<string, string> = {
+    question_id: "q1001", canonical_question_key: "ck1", group_id: "wwc_group",
+    publisher: "LiveScore", placement: "homepage-mpu", placement_id: "p1",
+    creative_id: "studio-classic", renderer: "studio-classic",
+    survey_language: "en", country_code: "GB",
+  };
+  for (const col of OPTIONAL) {
+    assert.equal(row[col], expected[col], `${col} written`);
+  }
+});
+
+test("an empty string counts as absent — it must not blank a stored value either", async () => {
+  await persistAnswers([answer(0, "1")], CTX, { renderer: "", placement: "" });
+  const row = upserts[0].rows[0];
+  assert.ok(!("renderer" in row));
+  assert.ok(!("placement" in row));
+});
+
+test("question identity is omitted rather than nulled when a caller cannot supply it", async () => {
+  await persistAnswers(
+    [{ sessionId: SESSION, questionIndex: 0, answerValue: "1", questionId: null, canonicalQuestionKey: null }],
+    CTX, { renderer: "themed" },
+  );
+  const row = upserts[0].rows[0];
+  assert.ok(!("question_id" in row), "identity absent, so an earlier identity survives");
+  assert.ok(!("canonical_question_key" in row));
+  assert.equal(row.renderer, "themed", "what IS known is still written");
+});
+
+test("bulk rows carry a uniform key set, as PostgREST requires", async () => {
+  await persistAnswers(
+    [answer(0, "1"), { sessionId: SESSION, questionIndex: 1, answerValue: "2", questionId: "q1001b", canonicalQuestionKey: null }],
+    CTX, { renderer: "stack" },
+  );
+  const [r0, r1] = upserts[0].rows;
+  assert.deepEqual(Object.keys(r0).sort(), Object.keys(r1).sort(), "same keys on every row of the batch");
+  // canonical key present on one row only -> unioned in, null on the row without it.
+  assert.equal(r0.canonical_question_key, "ck0");
+  assert.equal(r1.canonical_question_key, null);
 });
 
 // ── Migration tolerance ─────────────────────────────────────────────────────
