@@ -126,6 +126,35 @@ test("non-defensible executive story ⇒ displayable=false (product falls back t
   assert.equal(p.story, null);
 });
 
+// ── whyItMatters authority boundary (bounded to Interpretation; never a recommendation) ──
+test("whyItMatters: a clean interpretive rationale is preserved verbatim on a measured/synthesis card", () => {
+  const { pkg, ctxInput: ci } = ctxInput();
+  const { product: p } = shapeIntelligence(baseOut({ insights: [
+    { id: "s", title: "Split perception", type: "synthesis", statement: "Strong fit 31.6% vs Never noticed 27%.",
+      whyItMatters: "This points to a recognition gap worth understanding.", evidenceRefs: ["e1", "e2"], counterEvidenceRefs: [], confidence: "high", caveat: "" },
+  ] }), pkg, ci);
+  assert.equal(p.keyInsights.length, 1, "the clean synthesis insight stays a key insight");
+  assert.equal(p.keyInsights[0].whyItMatters, "This points to a recognition gap worth understanding.", "clean interpretation is kept verbatim");
+});
+
+test("whyItMatters: a prescription in the rationale is WITHHELD — a recommendation never masquerades as a research finding", () => {
+  const { pkg, ctxInput: ci } = ctxInput();
+  const { product: p, dropped } = shapeIntelligence(baseOut({ insights: [
+    // Core claim is a clean measured synthesis; the ONLY overreach lives in whyItMatters.
+    { id: "s", title: "Split perception", type: "synthesis", statement: "Strong fit 31.6% vs Never noticed 27%.",
+      whyItMatters: "The client should prioritise a rewards launch.", evidenceRefs: ["e1", "e2"], counterEvidenceRefs: [], confidence: "high", caveat: "" },
+  ] }), pkg, ci);
+  // It never appears as a measured/synthesis finding; it is a LABELLED hypothesis AND the
+  // recommendation text itself is withheld (belt and braces) — the two ways the contract
+  // permits prescriptive language to be handled, together.
+  assert.equal(p.keyInsights.length, 0, "not shown as a measured/synthesis finding");
+  assert.equal(p.toConsider.length, 1, "surfaced only as a labelled hypothesis");
+  assert.equal(p.toConsider[0].authority, "hypothesis");
+  assert.equal(p.toConsider[0].whyItMatters, "", "the recommendation text is withheld, not shipped");
+  assert.ok(dropped.some((d) => d.where === "insight:s:whyItMatters"), "the withholding is recorded in the audit");
+  assert.ok(!JSON.stringify(p).includes("should prioritise"), "recommendation language never reaches the product");
+});
+
 test("cannotConclude/openQuestions (boundary) are preserved verbatim", () => {
   const { pkg, ctxInput: ci } = ctxInput();
   const { product: p } = shapeIntelligence(baseOut({ cannotConclude: ["Whether fit causes loyalty."], openQuestions: ["What drives Germany?"] }), pkg, ci);

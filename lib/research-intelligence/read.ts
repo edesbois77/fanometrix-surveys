@@ -5,8 +5,11 @@
 // (any problem → null → product falls back). It performs NO model call and NO generation
 // — opening Findings only ever READS an existing row, so it can never trigger o3.
 import { supabaseAdmin } from "@/lib/supabase-admin";
-import { REASONER_PROMPT_VERSION, REASONER_SCHEMA_VERSION } from "@/lib/studio/reasoning/model";
-import type { ProductIntelligence } from "@/lib/studio/reasoning/product";
+import type { ProductIntelligence } from "@/lib/research-intelligence/product";
+import { surveyResearchSource, type ResearchSource } from "@/lib/research-intelligence/source";
+import {
+  RESEARCH_INTELLIGENCE_TABLE, currentMethodologyIdentity,
+} from "@/lib/research-intelligence/persistence";
 
 /** Research Reasoning is OFF unless RESEARCH_REASONER_ENABLED is "true"/"1". This is a
  *  DISTINCT gate from the Core read/shadow flags — a different capability, cost and risk
@@ -44,37 +47,49 @@ export function researchReasonerVisibleFor(
   return researchReasonerPreviewEmails(env).has(email);
 }
 
-/** The verified, displayable research intelligence for a survey's CURRENT analysis, or
- *  null. `enabled` is the caller's exposure decision (researchReasonerVisibleFor). Reads
- *  ONLY the row tied to the latest completed analysis run, so intelligence generated from
- *  an older evidence snapshot is never shown; a version bump also invalidates (fallback
- *  until regenerated). Never throws. */
-export async function getSurveyResearchIntelligence(
-  surveyId: string,
+/** The verified, displayable research intelligence for a research source's CURRENT
+ *  authoritative evidence, or null. `enabled` is the caller's exposure decision
+ *  (researchReasonerVisibleFor). Keyed on the EVIDENCE FINGERPRINT, not the run id:
+ *  it reads the artefact for whatever fingerprint the current analysis carries, so
+ *  re-running analysis over unchanged evidence (new run id, same fingerprint) keeps
+ *  showing the existing intelligence with NO fallback flicker; genuinely changed evidence
+ *  (new fingerprint) or a methodology version/model bump falls outside the identity and
+ *  reads null (fallback until regenerated). Never throws. */
+export async function getResearchIntelligence(
+  source: ResearchSource,
   enabled: boolean,
 ): Promise<ProductIntelligence | null> {
   if (!enabled) return null;
   try {
-    // The current authoritative analysis = the latest completed survey run.
-    const { data: run } = await supabaseAdmin
-      .from("survey_analysis_runs")
-      .select("id")
-      .eq("survey_id", surveyId).eq("status", "completed")
-      .order("created_at", { ascending: false }).limit(1).maybeSingle();
-    const analysisRunId = (run as { id?: string } | null)?.id;
-    if (!analysisRunId) return null;
+    const current = await source.resolveCurrent();
+    if (!current) return null; // no completed analysis / no fingerprint yet
+    const identity = currentMethodologyIdentity(source.kind, source.sourceId, current.evidenceFingerprint);
 
+    // Read the artefact for THIS evidence fingerprint under the CURRENT methodology. The
+    // version/model columns are part of the identity, so a stale-contract artefact simply
+    // is not matched (fallback) rather than being shown.
     const { data: row } = await supabaseAdmin
-      .from("research_reasoner_runs")
-      .select("product, displayable, status, versions")
-      .eq("analysis_run_id", analysisRunId).maybeSingle();
-    const r = row as { product?: ProductIntelligence | null; displayable?: boolean; status?: string; versions?: { prompt?: string; schema?: string } } | null;
+      .from(RESEARCH_INTELLIGENCE_TABLE)
+      .select("product, displayable, status")
+      .eq("source_kind", identity.source_kind)
+      .eq("source_id", identity.source_id)
+      .eq("evidence_fingerprint", identity.evidence_fingerprint)
+      .eq("prompt_version", identity.prompt_version)
+      .eq("schema_version", identity.schema_version)
+      .eq("model", identity.model)
+      .maybeSingle();
+    const r = row as { product?: ProductIntelligence | null; displayable?: boolean; status?: string } | null;
     if (!r || r.status !== "completed" || r.displayable !== true || !r.product) return null;
-    // Version guard: a prompt/schema bump makes a stored artefact stale → fall back until
-    // it is regenerated, rather than showing intelligence from a superseded contract.
-    if (r.versions?.prompt !== REASONER_PROMPT_VERSION || r.versions?.schema !== REASONER_SCHEMA_VERSION) return null;
     return r.product;
   } catch {
     return null; // failure-isolated — product keeps its deterministic Findings
   }
+}
+
+/** Survey convenience wrapper — unchanged call-site contract for the Findings read. */
+export function getSurveyResearchIntelligence(
+  surveyId: string,
+  enabled: boolean,
+): Promise<ProductIntelligence | null> {
+  return getResearchIntelligence(surveyResearchSource(surveyId), enabled);
 }

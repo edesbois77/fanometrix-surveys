@@ -111,17 +111,30 @@ export function shapeIntelligence(out: ReasonerOutput, pkg: ReasonerPackage, ctx
   const keyInsights: ProductInsight[] = [];
   const toConsider: ProductInsight[] = [];
   for (const i of out.insights ?? []) {
+    const refs = [...(i.evidenceRefs ?? []), ...(i.counterEvidenceRefs ?? [])];
     const text = `${i.title}. ${i.statement} ${i.whyItMatters} ${i.caveat}`;
-    const v = verifyClaimText(ctx, text, [...(i.evidenceRefs ?? []), ...(i.counterEvidenceRefs ?? [])], { requireRefs: true, type: i.type });
+    const v = verifyClaimText(ctx, text, refs, { requireRefs: true, type: i.type });
     let type = i.type;
     if (v.verdict === "REJECT") { dropped.push({ where: `insight:${i.id}`, reasons: v.reasons }); continue; }
     if (v.verdict === "SOFTEN") {
       if (prescriptionOnly(v.reasons) && i.type !== "implication") type = "implication"; // re-tier, don't launder
       else { dropped.push({ where: `insight:${i.id}`, reasons: v.reasons }); continue; }
     }
+    // whyItMatters authority boundary: it is a subordinate RATIONALE, bounded to
+    // INTERPRETATION — never a recommendation and never an unsupported causal/behavioural
+    // outcome dressed as a finding. Re-check it ALONE through the SAME firewall (no new
+    // detector): if it trips prescription / overreach / a fabricated number, WITHHOLD just
+    // the rationale (the clean insight stays at its proper tier) rather than let a
+    // recommendation ride along as if it were measured. A whyItMatters the firewall already
+    // accepts (as today's live output does) is kept verbatim, so this cannot regress it.
+    let whyItMatters = i.whyItMatters ?? "";
+    if (whyItMatters.trim()) {
+      const wv = verifyClaimText(ctx, whyItMatters, refs, { requireRefs: false, type: i.type });
+      if (wv.verdict !== "PASS") { dropped.push({ where: `insight:${i.id}:whyItMatters`, reasons: wv.reasons }); whyItMatters = ""; }
+    }
     const pi: ProductInsight = {
       id: i.id, authority: AUTH_OF[type], takeaway: i.title, explanation: i.statement,
-      whyItMatters: i.whyItMatters, confidence: i.confidence, caveat: i.caveat,
+      whyItMatters, confidence: i.confidence, caveat: i.caveat,
       evidence: resolveLines(i.evidenceRefs ?? [], disp), counterEvidence: resolveLines(i.counterEvidenceRefs ?? [], disp),
     };
     (type === "implication" ? toConsider : keyInsights).push(pi);

@@ -10,7 +10,7 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 import { canManageSurvey } from "@/lib/studio/collection-health";
 import { analyseSurvey, getSurveyAnalysisMeta, resolveSurveyAnalysisEligibility } from "@/lib/studio/survey-analysis-service";
 import { enqueueCoreShadow } from "@/lib/studio/analytical-core-shadow";
-import { enqueueResearchReasoner } from "@/lib/studio/research-reasoner";
+import { enqueueResearchReasoner } from "@/lib/research-intelligence/enqueue";
 
 async function authoriseManage(req: NextRequest, id: string): Promise<{ session: AuthedUser } | { error: NextResponse }> {
   let session: AuthedUser;

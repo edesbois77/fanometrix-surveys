@@ -17,7 +17,7 @@ import type { SurveyFinding, SurveyFindingType, SurveyFindingsContext } from "@/
 import type { SurveyAnalysisView, AnalysisFinding } from "@/lib/studio/survey-analysis-service";
 import type { CoreFindingsProjection, CoreFindingBasis } from "@/lib/core/studio/projection";
 import { composeSurveyResults, type ResultsFinding } from "@/lib/studio/survey-results-compose";
-import type { ProductIntelligence } from "@/lib/studio/reasoning/product";
+import type { ProductIntelligence } from "@/lib/research-intelligence/product";
 import { ResearchIntelligenceView } from "@/app/components/studio/discover/ResearchIntelligenceView";
 
 const nf = (n: number) => n.toLocaleString();

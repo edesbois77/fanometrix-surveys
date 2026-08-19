@@ -12,7 +12,7 @@
 import { useState } from "react";
 import { Card, StatusBadge, type Tone } from "@/app/components/workspace-ui";
 import { StudioIcon } from "@/app/components/studio/studio-icons";
-import type { ProductIntelligence, ProductInsight, EvidenceLine, AuthorityTier } from "@/lib/studio/reasoning/product";
+import type { ProductIntelligence, ProductInsight, EvidenceLine, AuthorityTier } from "@/lib/research-intelligence/product";
 import type { SurveyFindingsContext } from "@/lib/studio/survey-findings-engine";
 
 const nf = (n: number) => n.toLocaleString();
