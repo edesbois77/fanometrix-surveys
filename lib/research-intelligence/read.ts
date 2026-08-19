@@ -11,12 +11,28 @@ import {
   RESEARCH_INTELLIGENCE_TABLE, currentMethodologyIdentity,
 } from "@/lib/research-intelligence/persistence";
 
-/** Research Reasoning is OFF unless RESEARCH_REASONER_ENABLED is "true"/"1". This is a
+/** DISPLAY gate. Research Intelligence is SHOWN to non-admins only when
+ *  RESEARCH_REASONER_ENABLED is "true"/"1". This is EXPOSURE, not generation, and is a
  *  DISTINCT gate from the Core read/shadow flags — a different capability, cost and risk
- *  surface — so it is never silently equated with them. */
+ *  surface — so it is never silently equated with them. See
+ *  `researchIntelligenceGenerationEnabled` for the SEPARATE generation concern. */
 export function researchReasonerEnabled(env: Record<string, string | undefined> = process.env): boolean {
   const v = env.RESEARCH_REASONER_ENABLED;
   return v === "true" || v === "1";
+}
+
+/** GENERATION gate — deliberately SEPARATE from display. Research Intelligence is GENERATED
+ *  automatically for every eligible completed authoritative analysis, independent of whether
+ *  anyone can currently SEE it: we must never fail to GENERATE intelligence merely because a
+ *  user (or the global display flag) cannot currently expose it. Generation is therefore ON
+ *  by DEFAULT, so fresh research follows the standard lifecycle with no manual step. It can
+ *  be switched OFF as a pure COST kill-switch via RESEARCH_INTELLIGENCE_GENERATION_ENABLED
+ *  = "false"/"0". It does NOT read RESEARCH_REASONER_ENABLED or per-user visibility. (Cost is
+ *  bounded: the fingerprint identity means one genuinely-new evidence state is reasoned at
+ *  most once; a re-run over unchanged evidence never re-calls the model.) */
+export function researchIntelligenceGenerationEnabled(env: Record<string, string | undefined> = process.env): boolean {
+  const v = env.RESEARCH_INTELLIGENCE_GENERATION_ENABLED;
+  return v !== "false" && v !== "0"; // default ON; explicit off = kill-switch
 }
 
 /** The server-only preview allow-list: a comma-separated set of authenticated work
