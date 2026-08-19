@@ -15,10 +15,11 @@
 // so Stage 7 is additive behind the same flag and rolls back cleanly.
 import type { CoreFindingsProjection, CoreFinding, CoreFindingBasis, CoreEvidenceRef } from "@/lib/core/studio/projection";
 import type { SurveyAnalysisView } from "@/lib/studio/survey-analysis-service";
+import { effectiveUsefulness, HEADLINE_MIN } from "@/lib/studio/usefulness";
 
 /** How many findings lead / sit under "also worth noting" — selectivity over volume. */
-export const KEY_CAP = 4;
-export const NOTE_CAP = 5;
+export const KEY_CAP = 3;   // fewer, better: at most ~3 things a user should remember
+export const NOTE_CAP = 4;  // supporting observations, capped aggressively
 
 export type ResultsFinding = {
   id: string;
@@ -43,7 +44,6 @@ export type SurveyResultsViewModel =
     };
 
 const BASIS_RANK: Record<CoreFindingBasis, number> = { governed: 0, observed: 1, exploratory: 2 };
-const TIER_RANK: Record<CoreFinding["tier"], number> = { key: 0, supporting: 1, context: 2 };
 
 /** Numeric value of a "65%" style statistic, for choosing the stronger side of a
  *  complementary governed pair. Missing/unparseable → -1 (never wins). */
@@ -90,30 +90,29 @@ export function composeSurveyResults(input: {
 
   // Key findings: Core "key" tier, governed leads, capped for selectivity. An
   // EXPLORATORY reading can never be a key finding (the projection already re-tiers it).
-  // What stands out: governed KEY findings lead. If there are none, the strongest
-  // OBSERVED supporting findings (leader ranks + notable segment observations) lead
-  // instead — so the page surfaces real facts rather than only "nothing dominates".
-  // A governed key finding always outranks an observed one; exploratory never leads.
-  const hasKey = findings.some((f) => f.tier === "key" && f.basis !== "exploratory");
-  const standTier: CoreFinding["tier"] | null = hasKey ? "key"
-    : findings.some((f) => f.tier === "supporting") ? "supporting" : null;
-  const key = standTier
-    ? findings.filter((f) => f.tier === standTier && f.basis !== "exploratory")
-        .sort((a, b) => BASIS_RANK[a.basis] - BASIS_RANK[b.basis])
-        .slice(0, KEY_CAP)
-        .map(toFinding)
-    : [];
+  // Rank every permitted finding by product USEFULNESS (not just tier): a governed
+  // conclusion leads everything, then a material segment difference the topline hides,
+  // then — only if genuinely large — a topline leader. Ties break by basis.
+  const scored = findings
+    .filter((f) => f.basis !== "exploratory") // model-origin never headlines
+    .map((f) => ({ f, u: effectiveUsefulness(f) }))
+    .sort((a, b) => b.u - a.u || BASIS_RANK[a.f.basis] - BASIS_RANK[b.f.basis]);
 
-  // Worth noting: everything not led with, subordinate, capped — highest tier first,
-  // then governed before observed before exploratory.
+  // "What stands out": only findings that clear the headline bar (governed + material
+  // segments do; a bare topline winner does not), hard-capped for selectivity.
+  const key = scored.filter((x) => x.u >= HEADLINE_MIN).slice(0, KEY_CAP).map((x) => toFinding(x.f));
   const keyIds = new Set(key.map((k) => k.id));
-  const worthNoting = findings
-    .filter((f) => !keyIds.has(f.id))
-    .sort((a, b) => TIER_RANK[a.tier] - TIER_RANK[b.tier] || BASIS_RANK[a.basis] - BASIS_RANK[b.basis])
-    .slice(0, NOTE_CAP)
-    .map(toFinding);
+
+  // Worth noting: the rest (incl. useful-but-not-headline topline leaders + any
+  // exploratory reading), most-useful first, capped aggressively.
+  const worthNoting = [
+    ...scored.filter((x) => !keyIds.has(x.f.id)),
+    ...findings.filter((f) => f.basis === "exploratory").map((f) => ({ f, u: 0 })),
+  ].slice(0, NOTE_CAP).map((x) => toFinding(x.f));
 
   const interpretation = input.analysis?.narrative?.summary?.trim() || null;
+  // Honest empty state ONLY when nothing clears the headline bar (a genuinely flat
+  // survey stays restrained — the observations still appear under "worth noting").
   const emptyMessage = key.length === 0
     ? "No single result dominates this survey — here's what the data shows."
     : null;

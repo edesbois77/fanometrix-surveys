@@ -36,14 +36,28 @@ test("§9 grouped_share (top-two combined) is NOT surfaced (held — implies ung
   assert.ok(!findings.some((f) => f.id === "d:grouped:q2"), "top-two grouping stays held");
 });
 
-test("§B segment facts surface as OBSERVED, most-material first, capped", () => {
+test("§B segment facts surface as OBSERVED, most-USEFUL first (pointed beats wide-range), capped", () => {
   const { findings } = projectSnapshotFacts(SNAP);
   const segs = findings.filter((f) => f.id.startsWith("s:"));
   assert.ok(segs.length <= SEGMENT_CAP);
-  // highest |value| (spread 22.3) leads the concentration (16.8)
-  assert.equal(segs[0].id, "s:germany");
+  // A pointed concentration ("41.9% of UK") is more worth pointing out than a wide
+  // range/spread even at slightly lower magnitude — so s:uk leads s:germany.
+  assert.equal(segs[0].id, "s:uk");
   assert.equal(segs.find((f) => f.id === "s:uk")!.tier, "supporting", "concentration is prominent");
   assert.equal(segs.find((f) => f.id === "s:germany")!.tier, "context", "range/spread is contextual");
+});
+
+test("§9b redundant segment facts on the SAME (question,dimension) collapse to the most useful", () => {
+  const snap = {
+    ...SNAP,
+    segmentDerived: [
+      { ref: "s:uk-range", kind: "seg_spread", canonicalQuestionKey: "q3", question: "How could FedEx help fans?", dimension: "market", label: "Connecting football fans ranges 13.7%–41.9% across markets", value: 28.2, unit: "pp", inputRefs: [], detail: {} },
+      { ref: "s:uk-conc", kind: "seg_concentration", canonicalQuestionKey: "q3", question: "How could FedEx help fans?", dimension: "market", label: "Connecting football fans is chosen by 41.9% of UK respondents, compared with 25.1% overall", value: 16.8, unit: "pp", inputRefs: [], detail: {} },
+    ],
+  };
+  const segs = projectSnapshotFacts(snap).findings.filter((f) => f.id.startsWith("s:"));
+  assert.equal(segs.length, 1, "one fact per (question, dimension)");
+  assert.equal(segs[0].id, "s:uk-conc", "the pointed concentration wins over the wide range");
 });
 
 test("§E/§F/§G surfaced facts never claim significance/causality/majority", () => {
