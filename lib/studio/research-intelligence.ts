@@ -16,11 +16,32 @@ export function researchReasonerEnabled(env: Record<string, string | undefined> 
   return v === "true" || v === "1";
 }
 
-/** WHO may see research intelligence: internal admins always (to validate the real
- *  experience), everyone else only when the global flag is on. Exposure control only —
- *  never authority. Initial exposure is admin-only until the flag is deliberately set. */
-export function researchReasonerVisibleFor(session: { role: string }, env: Record<string, string | undefined> = process.env): boolean {
-  return session.role === "admin" || researchReasonerEnabled(env);
+/** The server-only preview allow-list: a comma-separated set of authenticated work
+ *  emails permitted to see the reasoner WHILE the global flag stays OFF (a narrow,
+ *  named internal preview — not a role and not a general rollout). Parsed defensively:
+ *  each entry is trimmed and lower-cased; blanks are dropped; unset/empty → an EMPTY set
+ *  (fail closed). Server-side only — the raw value is never returned to any client. */
+export function researchReasonerPreviewEmails(env: Record<string, string | undefined> = process.env): Set<string> {
+  return new Set((env.RESEARCH_REASONER_PREVIEW_EMAILS ?? "")
+    .split(",").map((e) => e.trim().toLowerCase()).filter(Boolean));
+}
+
+/** WHO may see research intelligence, in priority order: (1) an organisation-context
+ *  admin (always); (2) everyone, only when the global RESEARCH_REASONER_ENABLED flag is
+ *  on; (3) a named preview user whose AUTHENTICATED work email is in the allow-list, even
+ *  with the flag OFF. Exposure control only — never authority. The email compared is the
+ *  server-side authenticated `session.workEmail` (from requireUser), never a client-
+ *  supplied value; matching is trimmed + case-insensitive and FAILS CLOSED (no email, or
+ *  no/empty allow-list ⇒ no preview access). */
+export function researchReasonerVisibleFor(
+  session: { role: string; workEmail?: string | null },
+  env: Record<string, string | undefined> = process.env,
+): boolean {
+  if (session.role === "admin") return true;
+  if (researchReasonerEnabled(env)) return true;
+  const email = (session.workEmail ?? "").trim().toLowerCase();
+  if (!email) return false; // fail closed: no authenticated email → no preview
+  return researchReasonerPreviewEmails(env).has(email);
 }
 
 /** The verified, displayable research intelligence for a survey's CURRENT analysis, or
