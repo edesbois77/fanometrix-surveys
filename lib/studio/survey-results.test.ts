@@ -23,14 +23,18 @@ const YESNO = (id: string): LocalisedQuestion => q(id, { en: "Do you attend?", d
 
 // ── Question-shown mapping (canonical events; tests 8, 21) ────────────────────
 
-test("8 & 21. shown maps canonical events (SURVEY_START = Q1; QUESTION_k_REACHED) — no q1/q2/q3", () => {
-  assert.equal(shownEventFor(0), "SURVEY_START");
+test("8 & 21. shown maps canonical events (QUESTION_1_SHOWN = Q1; QUESTION_k_REACHED) — no q1/q2/q3", () => {
+  // Q1 "shown" is QUESTION_1_SHOWN, NOT SURVEY_START. SURVEY_START has always meant
+  // "the first answer was selected" (see lib/survey-events.ts); using it as the shown
+  // base counted answerers as viewers and made every completion rate wrong.
+  assert.equal(shownEventFor(0), "QUESTION_1_SHOWN");
   assert.equal(shownEventFor(1), "QUESTION_2_REACHED");
   assert.equal(shownEventFor(4), "QUESTION_5_REACHED");
   const shown = mapShownCounts([
-    { event_type: "SURVEY_START", event_count: 100 },
+    { event_type: "QUESTION_1_SHOWN", event_count: 100 },
     { event_type: "QUESTION_2_REACHED", event_count: 70 },
     { event_type: "QUESTION_3_REACHED", event_count: 55 },
+    { event_type: "SURVEY_START", event_count: 80 },  // answered Q1 — NOT "shown"
     { event_type: "SURVEY_RENDER", event_count: 999 }, // ignored
   ], 3);
   assert.deepEqual(shown, [100, 70, 55]);
@@ -39,7 +43,7 @@ test("8 & 21. shown maps canonical events (SURVEY_START = Q1; QUESTION_k_REACHED
 // ── 1-question and 5-question surveys (tests 1, 2) ────────────────────────────
 
 test("1. a 1-question survey produces exactly one result", () => {
-  const res = buildQuestionResults([YESNO("q1")], mapShownCounts([{ event_type: "SURVEY_START", event_count: 10 }], 1),
+  const res = buildQuestionResults([YESNO("q1")], mapShownCounts([{ event_type: "QUESTION_1_SHOWN", event_count: 10 }], 1),
     aggregateAnswers([{ question_index: 0, answer_value: "0" }, { question_index: 0, answer_value: "1" }]), "en");
   assert.equal(res.length, 1);
   assert.equal(res[0].answered, 2);

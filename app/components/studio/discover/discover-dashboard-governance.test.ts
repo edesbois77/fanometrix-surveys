@@ -79,38 +79,42 @@ test("The Discover-level landing H1 is 'Overview' (object-level pages keep 'Dash
   assert.ok(!/title="Dashboard"/.test(view), "the landing H1 is not 'Dashboard'");
 });
 
-test("'Total answers' uses the product's AUTHORITATIVE per-mode semantics, batched (no N+1)", () => {
+test("'Total answers' counts STORED ANSWER RECORDS, per-mode and batched (no N+1)", () => {
   // Studio-native = a scoped response_answers count (real only).
   assert.match(route, /from\("response_answers"\)\.select\("id", \{ count: "exact", head: true \}\)\.in\("campaign_id", slugs\)\.eq\("is_demo", false\)/);
-  // Historical = the progression-event union (answeredFromProgression) via the shared
-  // primitive — NOT reinvented for Discover.
-  assert.match(route, /from "@\/lib\/studio\/dashboard-metrics"/);
-  assert.match(route, /HISTORICAL_ANSWER_EVENTS\.reduce\(/);
+  // Historical = the REAL recorded values in the legacy positional columns. It is NOT
+  // the progression-event union: those events are a lossy inference from delivery
+  // telemetry with no answer value behind them, so reporting them as "answers"
+  // substitutes telemetry for evidence.
+  assert.match(route, /\["q1", "q2", "q3"\]\.map/);
+  assert.match(route, /\.not\(col, "is", null\)/);
+  assert.ok(!route.includes("HISTORICAL_ANSWER_EVENTS"), "no progression union in the answer total");
+  assert.ok(!route.includes("eventCountsFor("), "progression counts are diagnostics, not answers");
   // The two modes are partitioned (a survey is wholly one mode) — never mixed.
   assert.match(route, /partitionAnswerModes\(slugs, studioNativeSlugs\)/);
   assert.match(route, /answersTotal = studioAnswers \+ historicalAnswers/);
-  // Historical progression is ONE scoped RPC over the historical slugs only — the
-  // per-survey N+1 primitive (perQuestionAnswerCounts) is NOT used on the homepage.
+  // Still no per-survey resolution on the homepage.
   assert.ok(!route.includes("perQuestionAnswerCounts"), "no per-survey answer resolution");
-  assert.match(route, /eventCountsFor\(historicalSlugs\)/);
 });
 
-test("Historical waves are never silently zero — historical slugs get progression-counted", () => {
+test("Historical waves are never silently zero — historical slugs are counted from their real answers", () => {
   // The partition sends response_answers-absent slugs to the historical branch, and
-  // that branch counts them (progression). Behaviour proven in the pure lib test.
-  assert.match(route, /historicalSlugs\.length\)?\s*\{[\s\S]*?eventCountsFor\(historicalSlugs\)/);
+  // that branch counts their legacy positional answers. Q4/Q5 are never invented,
+  // because a historical survey had nowhere to store them.
+  assert.match(route, /historicalSlugs\.length[\s\S]*?in\("campaign_id", historicalSlugs\)/);
 });
 
 test("Research Activity is governed, scope-batched, and reconciles with the metric (same per-mode split)", () => {
   // Studio-native answers-per-day via the APPLIED dashboard_answer_series (real
-  // created_at, is_demo enforced in-RPC), historical via the progression-event series
-  // — the SAME studio/historical partition as Total Answers, so the chart reconciles.
-  assert.match(route, /import \{ eventCountsFor, HISTORICAL_ANSWER_EVENTS, historicalAnswersHourly, foldHourToDay, mergeCountMaps \} from "@\/lib\/studio\/dashboard-metrics"/);
+  // created_at, is_demo enforced in-RPC), historical from the real recorded answers on
+  // `responses` — the SAME per-mode split and the SAME definition as Total Answers, so
+  // the chart and the metric reconcile instead of one counting telemetry.
+  assert.match(route, /import \{ historicalAnswersDaily, foldHourToDay, mergeCountMaps \} from "@\/lib\/studio\/dashboard-metrics"/);
   assert.match(route, /\.rpc\("dashboard_answer_series", \{ p_campaign_ids: studioSlugs/);
-  assert.match(route, /historicalAnswersHourly\(historicalSlugs\)/);
+  assert.match(route, /historicalAnswersDaily\(historicalSlugs, windowFromIso\)/);
   // Each mode's RPCs fire ONLY when that mode has slugs — never per-survey.
   assert.match(route, /studioSlugs\.length[\s\S]*?dashboard_answer_series/);
-  assert.match(route, /historicalSlugs\.length \? historicalAnswersHourly/);
+  assert.match(route, /historicalSlugs\.length \? historicalAnswersDaily/);
   // Bounded to the last ACTIVITY_WINDOW_DAYS via p_from; real UTC-day axis.
   assert.match(route, /p_from: windowFromIso/);
   assert.match(route, /buildDailyActivity\(answerDay, nowMs\)/);

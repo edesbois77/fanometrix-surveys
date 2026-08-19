@@ -6,8 +6,13 @@
 //   • ANSWER DISTRIBUTIONS + ANSWERED ← response_answers (answer_value = the
 //     canonical option id as a string; partials included; real-only). Aggregated
 //     by (question_index, option id) so a translated label never fragments a count.
-//   • QUESTION SHOWN ← survey events: SURVEY_START = Q1 shown; QUESTION_k_REACHED
+//   • QUESTION SHOWN ← survey events: QUESTION_1_SHOWN = Q1 shown; QUESTION_k_REACHED
 //     = Qk shown (k = 2..5). One dashboard_event_counts call supplies all.
+//     NOT SURVEY_START — that means "the first answer was SELECTED" and always has
+//     (see lib/survey-events.ts). Using it as "Q1 shown" understated the shown base
+//     and made every per-question completion rate wrong. QUESTION_1_SHOWN is absent
+//     from all pre-2026-08 history, so `shown` correctly reads UNAVAILABLE (null)
+//     for historical surveys rather than a fabricated number.
 //   • FULL SURVEY COMPLETION is a SEPARATE metric (vw_campaign_stats) — NEVER
 //     summed with response_answers.
 //
@@ -15,13 +20,13 @@
 // answered, shown and question-completion. No DB, no q-position assumptions.
 
 import type { LocalisedQuestion, LocalisedText, LangCode } from "@/lib/survey-locale";
+import { questionShownEvent } from "@/lib/survey-events";
 
 // ── Question shown (canonical events only) ───────────────────────────────────
-/** The canonical "shown" event for a 0-indexed question: Q1 = SURVEY_START,
- *  Qk = QUESTION_k_REACHED (k = qi+1, for qi ≥ 1). */
-export function shownEventFor(questionIndex: number): string {
-  return questionIndex === 0 ? "SURVEY_START" : `QUESTION_${questionIndex + 1}_REACHED`;
-}
+/** The canonical "shown" event for a 0-indexed question: Q1 = QUESTION_1_SHOWN,
+ *  Qk = QUESTION_k_REACHED (k = qi+1, for qi ≥ 1). Delegates to the one event
+ *  vocabulary so a renderer and a reader can never disagree. */
+export const shownEventFor = questionShownEvent;
 
 const nonNeg = (n: unknown) => (typeof n === "number" && Number.isFinite(n) && n > 0 ? Math.floor(n) : 0);
 

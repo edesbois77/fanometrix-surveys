@@ -53,21 +53,58 @@ export function mergeCountMaps(...maps: Record<string, number>[]): Record<string
   return o;
 }
 
-/** The progression events whose union IS the per-answer yield for a historical
- *  survey: QUESTION_(k+1)_REACHED counts answers to Qk (k=1…N-1), SURVEY_COMPLETED
- *  counts answers to the final question. Surveys shorter than 5 questions simply
- *  emit zero of the higher QUESTION_*_REACHED events, so this union is question-
- *  count-agnostic and conserves the known per-survey totals (verified: FedEx v1=992,
- *  v2=250). This is a COUNT/yield only — never an answer VALUE. */
+/** DIAGNOSTIC ONLY — an ESTIMATED progression yield, never answer evidence.
+ *
+ *  These events approximate a historical survey's per-answer yield: QUESTION_(k+1)_
+ *  REACHED implies an answer to Qk, SURVEY_COMPLETED implies an answer to the final
+ *  question. It is an INFERENCE from delivery telemetry, it carries no answer VALUE,
+ *  and events are lossy (production shows ~9% fewer SURVEY_COMPLETED than real
+ *  response rows). "Total answers" must therefore NEVER be computed from it — an
+ *  answer is a stored answer record. Retained for funnel diagnostics only. */
 export const HISTORICAL_ANSWER_EVENTS = ["QUESTION_2_REACHED", "QUESTION_3_REACHED", "QUESTION_4_REACHED", "QUESTION_5_REACHED", "SURVEY_COMPLETED"] as const;
 
-/** Historical Answers-over-time (per ISO-hour) reconstructed from progression
- *  events — the time-distributed form of answeredFromProgression. Total is
- *  conserved because it is exactly the same events, merely time-bucketed. */
+/** DIAGNOSTIC ONLY — the time-distributed form of answeredFromProgression. Same
+ *  caveats: an inference from delivery telemetry, never answer evidence. */
 export async function historicalAnswersHourly(slugs: string[]): Promise<Record<string, number>> {
   if (!slugs.length) return {};
   const parts = await Promise.all(HISTORICAL_ANSWER_EVENTS.map((t) => seriesHourly(t, slugs)));
   return mergeCountMaps(...parts);
+}
+
+/**
+ * Historical Answers-over-time from the REAL recorded answers: each completed
+ * response contributes one answer per non-null legacy positional column, on the UTC
+ * day it was submitted. Conserves the same total as the historical branch of
+ * perQuestionAnswerCounts, so the chart and the metric agree.
+ *
+ * Bounded by `fromIso` (the chart window). Q4/Q5 are never invented — a historical
+ * survey had nowhere to store them.
+ */
+export async function historicalAnswersDaily(slugs: string[], fromIso: string): Promise<Record<string, number>> {
+  if (!slugs.length) return {};
+  const day: Record<string, number> = {};
+  const PAGE = 1000;
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await supabaseAdmin
+      .from("responses")
+      .select("created_at, q1, q2, q3")
+      .in("campaign_id", slugs)
+      .eq("is_demo", false)
+      .gte("created_at", fromIso)
+      .order("created_at")
+      .range(from, from + PAGE - 1);
+    if (error) return day;
+    const rows = (data ?? []) as { created_at: string | null; q1: unknown; q2: unknown; q3: unknown }[];
+    for (const r of rows) {
+      if (!r.created_at) continue;             // never fabricate a date
+      const n = [r.q1, r.q2, r.q3].filter((v) => v != null && v !== "").length;
+      if (n === 0) continue;
+      const key = new Date(r.created_at).toISOString().slice(0, 10);
+      day[key] = (day[key] ?? 0) + n;
+    }
+    if (rows.length < PAGE) break;
+  }
+  return day;
 }
 
 const int = (n: unknown) => (typeof n === "number" && Number.isFinite(n) && n > 0 ? Math.floor(n) : 0);
@@ -85,12 +122,20 @@ export function answeredFromProgression(eventCounts: Map<string, number>, questi
 }
 
 /**
- * Per-question ANSWERED counts. Studio-native = response_answers by question_index
- * (partial-aware, has values). Historical = PROGRESSION EVENTS when available
- * (partial-aware counts via answeredFromProgression) — falling back to legacy
- * completed non-null responses.q1/q2/q3 only when no event counts are supplied.
+ * Per-question ANSWERED counts — the number of STORED ANSWER RECORDS per question.
+ *
+ * PRECEDENCE (never summed, never inferred):
+ *   1. `response_answers` by question_index — authoritative, partial-aware, has values.
+ *   2. legacy completed `responses.q1/q2/q3` — real recorded answers, completers only.
+ *   3. nothing.
+ *
+ * It no longer falls back to progression events. Those are an INFERENCE from delivery
+ * telemetry with no answer value behind them, and reporting them as "answers" is
+ * exactly the substitution this repair removes. `eventCounts` is still accepted so
+ * callers need not change, but is used only to report the diagnostic estimate
+ * alongside the real count — never in place of it.
  */
-export async function perQuestionAnswerCounts(slugs: string[], questionCount: number, eventCounts?: Map<string, number>): Promise<{ counts: number[]; mode: "studio_native" | "historical" }> {
+export async function perQuestionAnswerCounts(slugs: string[], questionCount: number, eventCounts?: Map<string, number>): Promise<{ counts: number[]; mode: "studio_native" | "historical"; progressionEstimate?: number[] }> {
   const n = Math.max(0, Math.min(5, questionCount));
   if (!slugs.length) return { counts: Array.from({ length: n }, () => 0), mode: "studio_native" };
   const { count: raCount } = await supabaseAdmin.from("response_answers").select("id", { count: "exact", head: true }).in("campaign_id", slugs).eq("is_demo", false);
@@ -99,14 +144,18 @@ export async function perQuestionAnswerCounts(slugs: string[], questionCount: nu
       supabaseAdmin.from("response_answers").select("id", { count: "exact", head: true }).in("campaign_id", slugs).eq("question_index", qi).eq("is_demo", false).then((r) => r.count ?? 0)));
     return { counts, mode: "studio_native" };
   }
-  // Historical: prefer partial-aware progression events when the caller has them.
-  if (eventCounts) return { counts: answeredFromProgression(eventCounts, n), mode: "historical" };
+  // Historical: the real recorded answers are the legacy positional columns. Q4/Q5
+  // are never invented — a historical survey could not store them anywhere.
   const legacyCols = ["q1", "q2", "q3"].slice(0, Math.min(3, n));
   const counts = await Promise.all([
     ...legacyCols.map((col) => supabaseAdmin.from("responses").select("id", { count: "exact", head: true }).in("campaign_id", slugs).eq("is_demo", false).not(col, "is", null).then((r) => r.count ?? 0)),
     ...Array.from({ length: Math.max(0, n - 3) }, () => Promise.resolve(0)),
   ]);
-  return { counts, mode: "historical" };
+  return {
+    counts,
+    mode: "historical",
+    ...(eventCounts ? { progressionEstimate: answeredFromProgression(eventCounts, n) } : {}),
+  };
 }
 
 export function groupBy<T>(rows: T[], key: (r: T) => string | null): Map<string, T[]> {

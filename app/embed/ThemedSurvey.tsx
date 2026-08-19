@@ -7,6 +7,11 @@
 import { useState, useRef, useEffect, useLayoutEffect } from "react";
 import { Space_Grotesk, Inter } from "next/font/google";
 import { resolveSystemPrivacy, privacyPolicyHref } from "@/lib/system-privacy";
+import { questionShownEvent } from "@/lib/survey-events";
+import {
+  sendEvent as beacon, recordAnswer, submitResponse,
+  type EmbedAnswer, type EmbedEvidenceContext,
+} from "./evidence";
 
 // Self-hosted via next/font (built at compile time, served from this origin,
 // size-matched fallback) — not a runtime Google Fonts @import. That approach
@@ -99,7 +104,9 @@ const FONT_A = inter.style.fontFamily;
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 type EmbedOption  = { id: number; text: string };
-type EmbedQuestion = { id: string; text: string; options: EmbedOption[] };
+// Identity (`id`, and `canonical_question_key` where the survey carries one) travels
+// with every question so each recorded answer names the question it belongs to.
+type EmbedQuestion = { id: string; text: string; options: EmbedOption[]; canonical_question_key?: string };
 
 export interface ThemedSurveyProps {
   // Kept for React `key` uniqueness at call sites — no longer used for a
@@ -722,14 +729,16 @@ export function ThemedSurvey(props: ThemedSurveyProps) {
     setIntroDismissed(true);   // ungate the countdown — the survey comes to life
     setIntroLeaving(true);     // ...while the invitation dissolves upward
     setTimeout(() => setIntroLeaving(false), 360);
-    // Continuing from the intro IS the journey entry: INTRO_CONTINUED + SURVEY_START.
+    // Continuing from the intro DISPLAYS Q1: INTRO_CONTINUED + QUESTION_1_SHOWN.
+    // SURVEY_START is NOT fired here — it keeps its historical "first answer
+    // selected" meaning (see lib/survey-events.ts).
     if (!hasContinued.current) { hasContinued.current = true; sendEvent("INTRO_CONTINUED"); }
-    if (!hasStarted.current) {
-      hasStarted.current = true;
+    if (!hasShownQ1.current) {
+      hasShownQ1.current = true;
       // Journey-entry = the completion-timer origin. In a click handler, not render.
       // eslint-disable-next-line react-hooks/purity
       startRef.current = Date.now();
-      sendEvent("SURVEY_START");
+      sendEvent(questionShownEvent(0));
     }
   }
 
@@ -744,55 +753,50 @@ export function ThemedSurvey(props: ThemedSurveyProps) {
   const startRef        = useRef(Date.now());
   const hasRendered     = useRef(false);
   const hasVisible      = useRef(false); // SURVEY_VISIBLE = genuine viewport entry
-  const hasStarted      = useRef(false); // SURVEY_START = journey entry (fired once)
+  const hasShownQ1      = useRef(false); // QUESTION_1_SHOWN = Q1 displayed (once)
+  const hasStarted      = useRef(false); // SURVEY_START = first answer selected (once)
   const hasIntroViewed  = useRef(false); // INTRO_VIEWED  = intro frame shown (once)
   const hasContinued    = useRef(false); // INTRO_CONTINUED = continued into Q1 (once)
   const hasCompleted    = useRef(false);
 
   const q = props.questions[step];
 
-  function sendEvent(eventType: string) {
-    if (props.isPreview) return;
-    fetch("/api/events", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      keepalive: true,
-      body: JSON.stringify({
-        session_id:   props.sessionId,
-        event_type:   eventType,
-        campaign_id:  props.campaignId  || null,
-        publisher:    props.publisher   || null,
-        placement:    props.placement   || null,
-        placement_id: props.placementId || null,
-        creative_id:  props.creativeId  || null,
-        country:      props.country     || null,
-        device:       props.device      || null,
-        browser:      props.browser     || null,
-      }),
-    }).catch(() => {/* non-fatal */});
+  // ── The shared evidence contract (app/embed/evidence.ts) ──────────────────
+  // Every production renderer records through the same functions.
+  function evidenceCtx(): EmbedEvidenceContext {
+    return {
+      isPreview: props.isPreview,
+      sessionId: props.sessionId,
+      campaignId: props.campaignId,
+      surveyId: props.surveyId,
+      publisher: props.publisher,
+      placement: props.placement,
+      placementId: props.placementId,
+      creativeId: props.creativeId,
+      country: props.country,
+      segment: props.segment,
+      market: props.market,
+      device: props.device,
+      browser: props.browser,
+      renderer: "themed",
+    };
   }
 
-  // Persist each answer the moment it is chosen — the Fanometrix evidence
-  // principle: an answer given is a valid data point, kept even if the respondent
-  // abandons before completing. Runs alongside /api/submit (which still writes the
-  // completed response); non-fatal and skipped in preview.
-  function sendAnswer(questionIndex: number, answerValue: string) {
-    if (props.isPreview) return;
-    fetch("/api/answer", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      keepalive: true,
-      body: JSON.stringify({
-        session_id:     props.sessionId,
-        campaign_id:    props.campaignId || null,
-        survey_id:      props.surveyId   || null,
-        question_index: questionIndex,
-        answer_value:   answerValue,
-        country:        props.country    || null,
-        fan_segment:    props.segment    || null,
-        market:         props.market     || null,
-      }),
-    }).catch(() => {/* non-fatal */});
+  function sendEvent(eventType: string) {
+    beacon(evidenceCtx(), eventType);
+  }
+
+  /** The full ordered answer set, for the completion backfill. */
+  function answerSet(given: Record<string, number>): EmbedAnswer[] {
+    return props.questions
+      .map((q, qi) => ({ q, qi }))
+      .filter(({ q }) => given[q.id] != null)
+      .map(({ q, qi }) => ({
+        questionIndex: qi,
+        answerValue: String(given[q.id]),
+        questionId: q.id,
+        canonicalQuestionKey: q.canonical_question_key ?? null,
+      }));
   }
 
   // SURVEY_RENDER = a load / impression. Fires once on mount (this component only
@@ -808,16 +812,15 @@ export function ThemedSurvey(props: ThemedSurveyProps) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Phase 3 journey milestones at entry. When an intro frame is shown, it is
-  // INTRO_VIEWED here and SURVEY_START waits for the continue press. With no intro,
-  // Q1 is active immediately, so SURVEY_START fires now (its new "journey entry"
-  // definition — no longer "first answer selected").
+  // Journey milestones at entry. When an intro frame is shown it is INTRO_VIEWED
+  // here and Q1 is not yet on screen; with no intro, Q1 is displayed immediately.
+  // This emits QUESTION_1_SHOWN — SURVEY_START is reserved for the first ANSWER.
   useEffect(() => {
     if (showIntro) {
       if (!hasIntroViewed.current) { hasIntroViewed.current = true; sendEvent("INTRO_VIEWED"); }
-    } else if (!hasStarted.current) {
-      hasStarted.current = true;
-      sendEvent("SURVEY_START");
+    } else if (!hasShownQ1.current) {
+      hasShownQ1.current = true;
+      sendEvent(questionShownEvent(0));
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -903,10 +906,16 @@ export function ThemedSurvey(props: ThemedSurveyProps) {
     setAnswers(newAnswers);
 
     // Persist this answer immediately (before advancing), so a later abandonment
-    // never discards it. step = the question index (0–4; /api/answer accepts 0–4).
-    // SURVEY_START is NO LONGER fired here — it now marks journey entry (intro
-    // continue, or Q1 becoming active), handled above.
-    sendAnswer(step, String(option.id));
+    // never discards it. step = the 0-based research-question index (0-4).
+    // SURVEY_START fires on the FIRST answer — its original, unchanged meaning.
+    const isFirstAnswer = !hasStarted.current;
+    if (isFirstAnswer) hasStarted.current = true;
+    void recordAnswer(evidenceCtx(), {
+      questionIndex: step,
+      answerValue: String(option.id),
+      questionId: q.id,
+      canonicalQuestionKey: q.canonical_question_key ?? null,
+    }, isFirstAnswer);
 
     setSelectedIdx(ans);
     setPhase("selecting");
@@ -916,48 +925,44 @@ export function ThemedSurvey(props: ThemedSurveyProps) {
 
     setTimeout(async () => {
       if (step + 1 >= total) {
-        // Submit
-        if (!props.isPreview) {
-          const duration = Math.round((Date.now() - startRef.current) / 1000);
-          const allQ     = props.questions;
-          await fetch("/api/submit", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              campaign_id:               props.campaignId,
-              survey_id:                 props.surveyId,
-              session_id:                props.sessionId,
-              publisher:                 props.publisher,
-              placement:                 props.placement,
-              placement_id:              props.placementId,
-              creative_id:               props.creativeId,
-              club:                      props.club,
-              competition:               props.competition,
-              q1:                        newAnswers[allQ[0]?.id] ?? null,
-              q2:                        newAnswers[allQ[1]?.id] ?? null,
-              q3:                        newAnswers[allQ[2]?.id] ?? null,
-              country:                   props.country,
-              fan_segment:               props.segment,
-              device:                    props.device,
-              browser:                   props.browser,
-              response_duration_seconds: duration,
-              group_id:                  props.groupId,
-              country_code:              props.countryCode,
-              market:                    props.market,
-              survey_language:           props.surveyLanguage,
-            }),
-          }).catch(() => {/* non-fatal */});
-          hasCompleted.current = true;
-          sendEvent("SURVEY_COMPLETED");
-        }
+        // Submit. SURVEY_COMPLETED is emitted by submitResponse() and ONLY once the
+        // server has confirmed the response was written — this renderer previously
+        // fired it unconditionally, so a failed submit still produced a "completion".
+        const duration = Math.round((Date.now() - startRef.current) / 1000);
+        const allQ     = props.questions;
+        const outcome  = await submitResponse(evidenceCtx(), {
+          campaign_id:               props.campaignId,
+          survey_id:                 props.surveyId,
+          publisher:                 props.publisher,
+          placement:                 props.placement,
+          placement_id:              props.placementId,
+          creative_id:               props.creativeId,
+          club:                      props.club,
+          competition:               props.competition,
+          // Legacy positional projection only; `answers` below is authoritative and
+          // is the only representation that can carry Q4/Q5.
+          q1:                        newAnswers[allQ[0]?.id] ?? null,
+          q2:                        newAnswers[allQ[1]?.id] ?? null,
+          q3:                        newAnswers[allQ[2]?.id] ?? null,
+          country:                   props.country,
+          fan_segment:               props.segment,
+          device:                    props.device,
+          browser:                   props.browser,
+          response_duration_seconds: duration,
+          group_id:                  props.groupId,
+          country_code:              props.countryCode,
+          market:                    props.market,
+          survey_language:           props.surveyLanguage,
+        }, answerSet(newAnswers));
+        hasCompleted.current = outcome.recorded;
+        // This creative has no error surface (no tap-to-retry affordance), so the
+        // fan always reaches the Thank You. The failure is recorded as SUBMIT_FAILED
+        // rather than being silently dressed up as a completion.
         setPhase("thankyou");
       } else {
         const next = step + 1;
-        // Reaching the 2nd–5th question (surveys now run 1–5 questions).
-        if (next === 1) sendEvent("QUESTION_2_REACHED");
-        if (next === 2) sendEvent("QUESTION_3_REACHED");
-        if (next === 3) sendEvent("QUESTION_4_REACHED");
-        if (next === 4) sendEvent("QUESTION_5_REACHED");
+        // The next question is now DISPLAYED (generic over 1-5 questions).
+        sendEvent(questionShownEvent(next));
         setDone(d => d + 1);
         setStep(next);
         setSelectedIdx(null);

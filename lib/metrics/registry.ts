@@ -21,6 +21,10 @@ import type { MetricDefinition } from "./types";
 
 // Current review stamp for the survey / Collection Health metrics.
 const VERIFIED = "2026-07-22";
+// Re-verified during the P0 answer-capture repair: event semantics frozen, the
+// authoritative completed-survey source named, and "Total answers" defined as stored
+// answer records rather than an event-derived estimate.
+const REVIEWED = "2026-08-19";
 
 const DEFINITIONS: MetricDefinition[] = [
   // ── Exposure ────────────────────────────────────────────────────────────
@@ -102,13 +106,13 @@ const DEFINITIONS: MetricDefinition[] = [
   {
     id: "q1_answered",
     name: "Q1 Answered",
-    definition: "The number of respondents who selected an answer to the first question.",
-    formula: "Count of SURVEY_START events",
-    whyItMatters: "Measures how many people actively started the survey.",
+    definition: "The number of survey attempts in which an answer was selected for the first question. An attempt is one iframe mount, NOT a unique person.",
+    formula: "Count of SURVEY_START events (identical to QUESTION_1_ANSWERED)",
+    whyItMatters: "Measures how many impressions converted into an actual first answer.",
     format: "integer",
     domain: "surveys",
-    dataSource: "survey_events (SURVEY_START)",
-    lastVerified: VERIFIED,
+    dataSource: "survey_events (SURVEY_START). SURVEY_START has meant 'the first answer was selected' since June 2026 and keeps that meaning — 'Q1 was displayed' is the separate QUESTION_1_SHOWN event.",
+    lastVerified: REVIEWED,
   },
   {
     id: "q1_answer_rate",
@@ -137,18 +141,18 @@ const DEFINITIONS: MetricDefinition[] = [
   {
     id: "completed_responses",
     name: "Completed Responses",
-    definition: "The number of respondents who successfully answered every survey question.",
-    formula: "Count of SURVEY_COMPLETED events",
+    definition: "The number of survey attempts that answered every question and had their submission SAVED by the server. An attempt is one iframe mount, NOT a unique person.",
+    formula: "Count of rows in `responses` (real only, is_demo = false)",
     whyItMatters: "Represents the total usable sample for research and analysis.",
     format: "integer",
     domain: "surveys",
-    dataSource: "responses / survey_events (SURVEY_COMPLETED)",
-    lastVerified: VERIFIED,
+    dataSource: "responses — the SINGLE authoritative source. The SURVEY_COMPLETED event is a delivery diagnostic only: it is fire-and-forget and lossy (production showed 294 events against 323 saved responses), and it is now emitted only after the server confirms the save.",
+    lastVerified: REVIEWED,
   },
   {
     id: "completion_rate",
     name: "Completion Rate",
-    definition: "The share of respondents who, having answered Q1, went on to complete every question.",
+    definition: "The share of survey attempts that, having answered Q1, went on to complete every question.",
     formula: "Completed Responses ÷ Q1 Answered",
     whyItMatters: "Measures how effectively respondents progress through the survey after they have started.",
     format: "percent",
@@ -188,6 +192,29 @@ const DEFINITIONS: MetricDefinition[] = [
     domain: "surveys",
     dataSource: "survey_events (SURVEY_START → SURVEY_COMPLETED)",
     lastVerified: VERIFIED,
+  },
+
+  {
+    id: "questions_shown",
+    name: "Question Shown",
+    definition: "The number of survey attempts in which a given question was DISPLAYED — the honest denominator for that question's answer rate.",
+    formula: "Q1: count of QUESTION_1_SHOWN. Q2-Q5: count of QUESTION_k_REACHED.",
+    whyItMatters: "Separates 'saw the question' from 'answered the question', so per-question drop-off is real rather than inferred.",
+    format: "integer",
+    domain: "surveys",
+    dataSource: "survey_events. QUESTION_1_SHOWN did not exist before August 2026, so for historical surveys this reads UNAVAILABLE — never a fabricated zero.",
+    lastVerified: REVIEWED,
+  },
+  {
+    id: "total_answers",
+    name: "Total Answers",
+    definition: "The number of individual question-answer records stored — every answer given, by everyone who gave one, including those who never completed the survey.",
+    formula: "Count of rows in `response_answers` (real only). For surveys collected before that store existed, the count of non-null legacy `responses.q1/q2/q3` values.",
+    whyItMatters: "The true research yield. A respondent who answered two of five questions contributes two answers, not zero.",
+    format: "integer",
+    domain: "surveys",
+    dataSource: "response_answers (authoritative), else legacy responses.q1/q2/q3. NEVER derived from progression events — those are a lossy inference from delivery telemetry and carry no answer value.",
+    lastVerified: REVIEWED,
   },
 
   // ── Research Confidence ─────────────────────────────────────────────────

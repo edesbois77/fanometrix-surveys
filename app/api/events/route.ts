@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { allowSessionEvent } from "@/lib/embed-throttle";
+import { isSurveyEventType } from "@/lib/survey-events";
 
 // Bounds for malformed-payload rejection. Legitimate values are tiny (a session
 // UUID is 36 chars; campaign slugs / publisher names are short), so these caps
@@ -15,35 +16,10 @@ function malformedOptional(v: unknown): boolean {
   return v != null && (typeof v !== "string" || v.length > MAX_FIELD_LEN);
 }
 
-const VALID_TYPES = new Set([
-  "SURVEY_RENDER",
-  "SURVEY_VISIBLE", // genuine viewport entry; start of Avg Time to First Interaction
-  // Survey-level Intro (Phase 3). Additive; only the new Survey Studio journey
-  // emits these. INTRO_VIEWED = the intro frame was shown; INTRO_CONTINUED = the
-  // fan continued from the intro into Q1.
-  "INTRO_VIEWED",
-  "INTRO_CONTINUED",
-  // SURVEY_START (Phase 3 semantics): the fan ENTERS the question journey — on
-  // continue-from-intro when an intro is shown, else when Q1 becomes active. The
-  // event name is unchanged so historical rows/queries stay valid; only its
-  // emission point moved (it is no longer "first answer selected").
-  "SURVEY_START",
-  "QUESTION_2_REACHED",
-  "QUESTION_3_REACHED",
-  // Phase 3: surveys now run 1–5 questions. Additive milestone events for the 4th
-  // and 5th questions; QUESTION_2/3_REACHED behaviour is unchanged and the generic
-  // report engine (/^QUESTION_(\d+)_REACHED$/) picks these up with no report change.
-  "QUESTION_4_REACHED",
-  "QUESTION_5_REACHED",
-  "SURVEY_COMPLETED",
-  // SURVEY_EXIT is DEPRECATED: no longer emitted by the embed (no dashboard,
-  // series or report ever consumed it). Still accepted here so embed bundles
-  // cached on partner ad servers before this release don't start 400ing —
-  // rejecting them would not save any request and only adds error noise.
-  // Rows land in survey_events but are read by nothing; prune from this set in
-  // a later cleanup once caches have rolled over.
-  "SURVEY_EXIT",
-]);
+// The event vocabulary lives in lib/survey-events.ts so renderers and readers can
+// never drift apart. It is additive: QUESTION_1_SHOWN, QUESTION_k_ANSWERED,
+// ANSWER_SAVE_FAILED and SUBMIT_FAILED join the historical set, and SURVEY_START
+// keeps its original "first answer selected" meaning.
 
 export async function POST(req: NextRequest) {
   // Cheap size guard before parsing — a legitimate event body is a few hundred
@@ -69,7 +45,7 @@ export async function POST(req: NextRequest) {
   if (!session_id || typeof session_id !== "string" || session_id.length > MAX_SESSION_LEN) {
     return NextResponse.json({ error: "session_id is required" }, { status: 400 });
   }
-  if (!event_type || typeof event_type !== "string" || !VALID_TYPES.has(event_type)) {
+  if (!isSurveyEventType(event_type)) {
     return NextResponse.json({ error: "Invalid event_type" }, { status: 400 });
   }
   // Reject malformed optional fields rather than persisting junk into the
