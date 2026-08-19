@@ -50,6 +50,16 @@ test("researchReasonerEnabled: OFF by default; only 'true'/'1' enable it", () =>
   assert.equal(mod.researchReasonerEnabled({ RESEARCH_REASONER_ENABLED: "true" }), true);
   assert.equal(mod.researchReasonerEnabled({ RESEARCH_REASONER_ENABLED: "1" }), true);
 });
+test("GENERATION gate is SEPARATE from display: ON by default, kill-switch only, ignores the display flag", () => {
+  // Default ON — fresh research generates automatically with no flag set.
+  assert.equal(mod.researchIntelligenceGenerationEnabled({}), true);
+  // Explicit kill-switch is the ONLY way off.
+  assert.equal(mod.researchIntelligenceGenerationEnabled({ RESEARCH_INTELLIGENCE_GENERATION_ENABLED: "false" }), false);
+  assert.equal(mod.researchIntelligenceGenerationEnabled({ RESEARCH_INTELLIGENCE_GENERATION_ENABLED: "0" }), false);
+  // Decoupled from display: turning the display flag off does NOT stop generation.
+  assert.equal(mod.researchIntelligenceGenerationEnabled({ RESEARCH_REASONER_ENABLED: "false" }), true);
+});
+
 test("visibility: admins always; everyone else only when the flag is on", () => {
   assert.equal(mod.researchReasonerVisibleFor({ role: "admin" }, {}), true);
   assert.equal(mod.researchReasonerVisibleFor({ role: "brand" }, {}), false);
