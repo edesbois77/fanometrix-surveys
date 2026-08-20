@@ -35,6 +35,7 @@ import { evaluateMembers, type RoutingContext } from "@/lib/campaign-groups/elig
 import { selectMember } from "@/lib/campaign-groups/selection";
 import { resolveAttribution, routingClaims, attributionMismatches } from "@/lib/campaign-groups/attribution";
 import { activeMembers } from "@/lib/campaign-groups/model";
+import { campaignGroupsStudioEnabled, DISABLED_RESPONSE } from "@/lib/campaign-groups/flag";
 
 const NO_CACHE = {
   "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
@@ -70,6 +71,14 @@ export async function GET(req: NextRequest) {
 }
 
 async function serve(req: NextRequest) {
+  // Rollout gate. A 404 rather than a fail_mode refusal: when the capability is
+  // off it does not exist, so a publisher's tag behaves exactly as it would
+  // against a slug that was never created, and their own fallback fills the
+  // slot. Checked FIRST, before any database work.
+  if (!campaignGroupsStudioEnabled()) {
+    return NextResponse.json(DISABLED_RESPONSE, { status: 404, headers: NO_CACHE });
+  }
+
   const p = req.nextUrl.searchParams;
   const slug = p.get("slug");
   if (!slug) return NextResponse.json({ error: "slug is required" }, { status: 400 });

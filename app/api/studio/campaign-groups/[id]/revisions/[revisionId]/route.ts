@@ -6,6 +6,7 @@
 // language and never assumes the check succeeded.
 
 import { NextRequest, NextResponse } from "next/server";
+import { campaignGroupsStudioEnabled, DISABLED_RESPONSE } from "@/lib/campaign-groups/flag";
 import { requireUser } from "@/lib/auth-server";
 import { loadStudioGroupById, loadRevisions, cancelRevision } from "@/lib/campaign-groups/store";
 
@@ -13,6 +14,12 @@ export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ id: string; revisionId: string }> },
 ) {
+  // Rollout gate — before auth, so a disabled route is indistinguishable from
+  // one that does not exist rather than revealing itself through a 401/403.
+  if (!campaignGroupsStudioEnabled()) {
+    return NextResponse.json(DISABLED_RESPONSE, { status: 404 });
+  }
+
   let session;
   try { session = await requireUser(req); } catch (err) { return err as Response; }
   const { id, revisionId } = await params;

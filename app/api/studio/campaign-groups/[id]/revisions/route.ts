@@ -12,6 +12,7 @@
 // effect it is frozen by trigger (migration 211) and can only be superseded.
 
 import { NextRequest, NextResponse } from "next/server";
+import { campaignGroupsStudioEnabled, DISABLED_RESPONSE } from "@/lib/campaign-groups/flag";
 import { requireUser, type AuthedUser } from "@/lib/auth-server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { CAMPAIGN_ORIGIN, type StudioGroup } from "@/lib/campaign-groups/model";
@@ -36,6 +37,12 @@ async function loadAuthorised(session: AuthedUser, id: string): Promise<StudioGr
 }
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  // Rollout gate — before auth, so a disabled route is indistinguishable from
+  // one that does not exist rather than revealing itself through a 401/403.
+  if (!campaignGroupsStudioEnabled()) {
+    return NextResponse.json(DISABLED_RESPONSE, { status: 404 });
+  }
+
   let session;
   try { session = await requireUser(req); } catch (err) { return err as Response; }
   const { id } = await params;

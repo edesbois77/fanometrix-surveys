@@ -17,7 +17,12 @@ import { ManageCampaignGroupDetail } from "./ManageCampaignGroupDetail";
 
 type Tab = "studies" | "surveys" | "requests" | "campaigns";
 
-export function ManageWorkspace({ initialView }: { initialView?: string }) {
+export function ManageWorkspace({
+  initialView,
+  // Server-resolved. Defaults to false so a caller that forgets to pass it
+  // hides the tab rather than exposing it — the gate fails shut in the UI too.
+  campaignGroupsEnabled = false,
+}: { initialView?: string; campaignGroupsEnabled?: boolean }) {
   const { user } = useSession();
   const isAdmin = user?.role === "admin"; // Studies curation is Fanometrix-only
   // Studies (admin), Surveys, Requests and Campaigns are live; Reports previews the IA.
@@ -25,10 +30,15 @@ export function ManageWorkspace({ initialView }: { initialView?: string }) {
     ...(isAdmin ? [{ key: "studies" as const, label: "Studies", live: true }] : []),
     { key: "surveys", label: "Surveys", live: true },
     { key: "requests", label: "Requests", live: true },
-    { key: "campaigns", label: "Campaigns", live: true },
+    // Hidden entirely when the capability is off — not shown as "soon", which
+    // would advertise an unreleased feature to every Studio user.
+    ...(campaignGroupsEnabled ? [{ key: "campaigns" as const, label: "Campaigns", live: true }] : []),
     { key: "reports", label: "Reports", live: false },
   ];
-  const initial: Tab = (initialView === "requests" || initialView === "surveys" || initialView === "campaigns" || (initialView === "studies" && isAdmin)) ? (initialView as Tab) : "surveys";
+  const initial: Tab = (initialView === "requests" || initialView === "surveys"
+    // ?view=campaigns must not open a hidden tab.
+    || (initialView === "campaigns" && campaignGroupsEnabled)
+    || (initialView === "studies" && isAdmin)) ? (initialView as Tab) : "surveys";
   const [tab, setTab] = useState<Tab>(initial);
   // Which Campaign Group is open, if any. Held here rather than in the URL so
   // switching tabs and coming back does not strand the operator inside a group.
@@ -67,7 +77,7 @@ export function ManageWorkspace({ initialView }: { initialView?: string }) {
       <div className="mt-6">
         {tab === "studies" ? <ManageStudiesList />
          : tab === "surveys" ? <ManageSurveysList />
-         : tab === "campaigns"
+         : tab === "campaigns" && campaignGroupsEnabled
            ? (openGroupId
                ? <ManageCampaignGroupDetail groupId={openGroupId} onBack={() => setOpenGroupId(null)} />
                : <ManageCampaignGroups onOpen={setOpenGroupId} />)

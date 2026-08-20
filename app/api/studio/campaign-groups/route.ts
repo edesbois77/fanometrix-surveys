@@ -8,6 +8,7 @@
 // be scheduled, cancelled and superseded without touching the group itself.
 
 import { NextRequest, NextResponse } from "next/server";
+import { campaignGroupsStudioEnabled, DISABLED_RESPONSE } from "@/lib/campaign-groups/flag";
 import { requireUser } from "@/lib/auth-server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { OWNER_MODEL, FAIL_MODE } from "@/lib/campaign-groups/model";
@@ -17,6 +18,12 @@ import { effectiveRevision, nextPendingRevision } from "@/lib/campaign-groups/re
 const SLUG_RE = /^[a-z0-9][a-z0-9_-]{2,63}$/;
 
 export async function GET(req: NextRequest) {
+  // Rollout gate — before auth, so a disabled route is indistinguishable from
+  // one that does not exist rather than revealing itself through a 401/403.
+  if (!campaignGroupsStudioEnabled()) {
+    return NextResponse.json(DISABLED_RESPONSE, { status: 404 });
+  }
+
   let session;
   try { session = await requireUser(req); } catch (err) { return err as Response; }
 
@@ -62,6 +69,12 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  // Rollout gate — before auth, so a disabled route is indistinguishable from
+  // one that does not exist rather than revealing itself through a 401/403.
+  if (!campaignGroupsStudioEnabled()) {
+    return NextResponse.json(DISABLED_RESPONSE, { status: 404 });
+  }
+
   let session;
   try { session = await requireUser(req); } catch (err) { return err as Response; }
 
