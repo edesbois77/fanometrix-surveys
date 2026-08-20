@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { supabaseAdmin } from "@/lib/supabase-admin";
 import { isReportingAuthorized } from "@/lib/reporting-auth";
 
 const API_KEY = process.env.REPORTING_API_KEY;
@@ -36,7 +36,7 @@ export async function GET(req: NextRequest) {
   const dateFrom   = p.get("date_from");
   const dateTo     = p.get("date_to");
 
-  let query = supabase
+  let query = supabaseAdmin
     .from("vw_campaign_responses")
     .select("*", { count: "exact" })
     .order("submitted_at", { ascending: false })

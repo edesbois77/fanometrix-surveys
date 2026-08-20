@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { requireUser } from "@/lib/auth-server";
 import { visibleResourceIds } from "@/lib/access";
@@ -59,7 +58,7 @@ export async function GET(req: NextRequest) {
   // ── Normal view — exclude soft-deleted, enforce role-based access ───────────
   // Note: deleted_at filter is applied in JS below so this route works even
   // before migration 015 is run (the column may not exist yet in the DB).
-  let query = supabase
+  let query = supabaseAdmin
     .from("campaigns")
     .select("*, surveys(name)")
     .order("created_at", { ascending: false });
@@ -87,7 +86,7 @@ export async function GET(req: NextRequest) {
 
   const [{ data: campaigns, error }, { data: statsData }] = await Promise.all([
     query,
-    supabase.from("vw_campaign_stats").select("campaign_id, response_count"),
+    supabaseAdmin.from("vw_campaign_stats").select("campaign_id, response_count"),
   ]);
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -204,7 +203,7 @@ export async function GET(req: NextRequest) {
         c.status !== "archived" &&
         c.manual_status_override !== "paused"
       ) {
-        await supabase
+        await supabaseAdmin
           .from("campaigns")
           .update({ status: effective, status_updated_at: now.toISOString() })
           .eq("id", c.id);

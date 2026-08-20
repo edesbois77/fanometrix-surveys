@@ -1,9 +1,22 @@
-// Public endpoint — no auth required.
+// Public endpoint for LIVE content; authenticated for draft preview.
 // Returns resolved question content for a survey UUID so the embed iframe
 // can render questions in the requested language without exposing raw
 // localisation data or response data.
+//
+// P0 exposure remediation. This route used to return the full question and
+// option text of ANY survey to ANY caller holding a UUID — and `?preview=1`
+// additionally served drafts and surveys that fail validation. Survey UUIDs are
+// not secrets. Two gates now stand in front of the read:
+//   • live path    → the survey must be bound to a deployed campaign
+//                    (isSurveyPubliclyServeable)
+//   • preview path → the caller must hold a session for the owning
+//                    organisation (canPreviewSurvey)
+// Both fail closed, and both return 404 rather than 403 so an unauthorised
+// caller cannot use the status code to confirm that a survey UUID exists.
 import { NextRequest, NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { supabaseAdmin } from "@/lib/supabase-admin";
+import { isSurveyPubliclyServeable } from "@/lib/embed-survey-access";
+import { canPreviewSurvey } from "@/lib/embed-preview-auth";
 import { validateSurvey } from "@/lib/survey-validation";
 import { resolveQuestion, resolveText, type LangCode, type LocalisedQuestion, type LocalisedText } from "@/lib/survey-locale";
 import { resolveSystemThankYou, isSystemThankYouSurvey } from "@/lib/system-thankyou";
@@ -26,14 +39,26 @@ const LIVE_CACHE = {
 export async function GET(req: NextRequest) {
   const id      = req.nextUrl.searchParams.get("id");
   const lang    = (req.nextUrl.searchParams.get("lang") ?? "en") as LangCode;
-  // preview=1 bypasses validation so admin deployment previews show draft/invalid surveys
+  // preview=1 bypasses validation so authors see draft/invalid surveys. Gated
+  // below on a session for the owning organisation — never anonymous.
   const preview = req.nextUrl.searchParams.get("preview") === "1";
 
   if (!id) {
     return NextResponse.json({ error: "id is required" }, { status: 400, headers: NO_CACHE });
   }
 
-  const { data, error } = await supabase
+  // ── Access gate ────────────────────────────────────────────────────────────
+  // Runs BEFORE the survey is read, so an unauthorised caller never reaches the
+  // content. Indistinguishable 404s: "not authorised" and "no such survey" look
+  // identical from outside.
+  const allowed = preview
+    ? await canPreviewSurvey(req, id)
+    : await isSurveyPubliclyServeable(id);
+  if (!allowed) {
+    return NextResponse.json({ error: "Survey not found" }, { status: 404, headers: NO_CACHE });
+  }
+
+  const { data, error } = await supabaseAdmin
     .from("surveys")
     // intro_* / thank_you_enabled are the Phase 3 Survey-journey columns (migration
     // 182). The clients are untyped, so these resolve to `any` here even before the

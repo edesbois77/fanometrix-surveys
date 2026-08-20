@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { supabaseAdmin } from "@/lib/supabase-admin";
 import { requireUser } from "@/lib/auth-server";
 
 export async function DELETE(req: NextRequest) {
@@ -25,7 +25,7 @@ export async function DELETE(req: NextRequest) {
   // saying "ready" — a real incident this exact exclusion is fixing.
 
   // Step 1: count demo rows before delete
-  let countQuery = supabase
+  let countQuery = supabaseAdmin
     .from("responses")
     .select("*", { count: "exact", head: true })
     .eq("is_demo", true)
@@ -42,7 +42,7 @@ export async function DELETE(req: NextRequest) {
   console.log(`Demo delete – rows before delete: ${beforeCount}`);
 
   // Step 2: execute delete (RLS policy "Anyone can delete demo rows" permits this)
-  let deleteQuery = supabase
+  let deleteQuery = supabaseAdmin
     .from("responses")
     .delete({ count: "exact" })
     .eq("is_demo", true)
@@ -58,7 +58,7 @@ export async function DELETE(req: NextRequest) {
   }
 
   // Step 3: recount to verify
-  let afterQuery = supabase
+  let afterQuery = supabaseAdmin
     .from("responses")
     .select("*", { count: "exact", head: true })
     .eq("is_demo", true)
