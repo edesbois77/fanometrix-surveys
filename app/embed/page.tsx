@@ -294,6 +294,18 @@ function EmbedSurvey() {
           setThankYouTitle(data.thank_you_title);
           setThankYouBody(data.thank_you_body);
           setResolvedSurveyLang(urlLang ?? "en");
+          // Creative selected on the Studio Creative stage. Before this, the
+          // survey-only branch applied none of these, so a draft Preview always
+          // rendered the DEFAULT creative rather than the author's choice — it
+          // could not show what a partner would actually receive. Same seven
+          // fields, same order, as the campaign branch above.
+          setCreativeDesign(data.creative_design ?? null);
+          setCustomTheme(data.custom_theme ?? null);
+          setResolvedLayout(data.layout ?? null);
+          setResolvedRenderer(data.renderer ?? null);
+          setStackConfig(coerceStackConfig(data.config));
+          setCampaignTopic(data.topic ?? null);
+          setBranding(data.branding ?? []);
           setSurveyIntroEnabled(data.intro_enabled ?? undefined);
           setIntroTitle(data.intro_title ?? undefined);
           setIntroBody(data.intro_body ?? undefined);

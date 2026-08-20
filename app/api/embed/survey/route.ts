@@ -17,6 +17,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { isSurveyPubliclyServeable } from "@/lib/embed-survey-access";
 import { canPreviewSurvey } from "@/lib/embed-preview-auth";
+import { resolveCreativeForEmbed } from "@/lib/embed-creative";
 import { validateSurvey } from "@/lib/survey-validation";
 import { resolveQuestion, resolveText, type LangCode, type LocalisedQuestion, type LocalisedText } from "@/lib/survey-locale";
 import { resolveSystemThankYou, isSystemThankYouSurvey } from "@/lib/system-thankyou";
@@ -63,7 +64,7 @@ export async function GET(req: NextRequest) {
     // intro_* / thank_you_enabled are the Phase 3 Survey-journey columns (migration
     // 182). The clients are untyped, so these resolve to `any` here even before the
     // migration is applied; a not-yet-migrated column simply comes back undefined.
-    .select("id, questions, thank_you_title, thank_you_body, intro_enabled, intro_title, intro_body, thank_you_enabled")
+    .select("id, questions, creative_design, thank_you_title, thank_you_body, intro_enabled, intro_title, intro_body, thank_you_enabled")
     .eq("id", id)
     .neq("status", "deleted")
     .single();
@@ -98,7 +99,15 @@ export async function GET(req: NextRequest) {
   // Historical surveys (intro_enabled NULL) keep their own authored thank-you.
   const systemTy = isSystemThankYouSurvey(data.intro_enabled as boolean | null) ? resolveSystemThankYou(lang) : null;
 
+  // Resolve the SAME seven creative fields /api/embed/campaign returns, from the
+  // SAME resolver. Before this, the survey payload carried none of them, so the
+  // client fell back to its default renderer and Preview showed a creative the
+  // author had not chosen. A survey has no campaign, so there is no Topic
+  // override — null means "use the design default".
+  const creative = await resolveCreativeForEmbed(data.creative_design as string | null, null);
+
   return NextResponse.json({
+    ...creative,
     questions,
     thank_you_title: systemTy ? systemTy.title : (resolveText((data.thank_you_title as LocalisedText | null) ?? {}, lang) || "Thank you!"),
     thank_you_body:  systemTy ? systemTy.body  : (resolveText((data.thank_you_body as LocalisedText | null) ?? {}, lang) || "Your anonymous feedback helps improve the football experience for fans everywhere."),
