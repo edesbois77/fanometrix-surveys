@@ -20,6 +20,47 @@
 BEGIN;
 
 -- ─────────────────────────────────────────────────────────────────────────────
+-- PRE-FLIGHT ASSERTION
+--
+-- Every object this migration locks down must exist. If one is missing, FAIL
+-- LOUDLY and name it, rather than skipping it.
+--
+-- The tempting alternative — "revoke only what exists" — is wrong for a security
+-- migration: it would report success while leaving a table wide open, and you
+-- would believe you had locked down something you had not. A dry run against a
+-- database missing `responses` and four of the five views is what surfaced this;
+-- the whole point is that such a database must NOT quietly get a partial
+-- lockdown.
+--
+-- Everything below runs in ONE transaction, so a failure here leaves the
+-- database exactly as it was.
+-- ─────────────────────────────────────────────────────────────────────────────
+DO $preflight$
+DECLARE
+  missing text := '';
+  o text;
+BEGIN
+  FOREACH o IN ARRAY ARRAY[
+    'responses', 'surveys', 'campaigns', 'campaign_groups',
+    'campaign_group_members', 'survey_events',
+    'vw_campaign_responses', 'vw_campaign_stats', 'vw_survey_stats',
+    'vw_research_project_stats', 'vw_conversation_search_stats'
+  ] LOOP
+    IF to_regclass('public.' || o) IS NULL THEN
+      missing := missing || E'\n  - ' || o;
+    END IF;
+  END LOOP;
+
+  IF missing <> '' THEN
+    RAISE EXCEPTION
+      E'M205 PRE-FLIGHT FAILED — these objects do not exist, so the lockdown would be INCOMPLETE:%\n\nNothing has been changed. Resolve the drift, then re-run.', missing;
+  END IF;
+
+  RAISE NOTICE 'M205 pre-flight OK: all 6 tables and all 5 views present.';
+END
+$preflight$;
+
+-- ─────────────────────────────────────────────────────────────────────────────
 -- 1. Retire the untyped completion RPC
 --
 -- The old signature inserted with:
@@ -90,11 +131,11 @@ ALTER FUNCTION public.enforce_campaign_project_provenance() SET search_path = pg
 --
 -- Every consumer is now a service-role read, which is unaffected by these
 -- revokes (service_role holds its own grant).
-REVOKE SELECT ON public.vw_campaign_responses        FROM anon, authenticated;
-REVOKE SELECT ON public.vw_campaign_stats            FROM anon, authenticated;
-REVOKE SELECT ON public.vw_survey_stats              FROM anon, authenticated;
-REVOKE SELECT ON public.vw_research_project_stats    FROM anon, authenticated;
-REVOKE SELECT ON public.vw_conversation_search_stats FROM anon, authenticated;
+REVOKE ALL ON public.vw_campaign_responses        FROM anon, authenticated;
+REVOKE ALL ON public.vw_campaign_stats            FROM anon, authenticated;
+REVOKE ALL ON public.vw_survey_stats              FROM anon, authenticated;
+REVOKE ALL ON public.vw_research_project_stats    FROM anon, authenticated;
+REVOKE ALL ON public.vw_conversation_search_stats FROM anon, authenticated;
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- 4. Table policies

@@ -96,9 +96,28 @@ test("migration 205 revokes anon SELECT on all five RLS-bypassing views", () => 
     "vw_campaign_responses", "vw_campaign_stats", "vw_survey_stats",
     "vw_research_project_stats", "vw_conversation_search_stats",
   ]) {
-    assert.match(sql, new RegExp(`REVOKE SELECT ON public\\.${view}\\s+FROM anon, authenticated`),
-      `${view} still grants anon SELECT — a view is NOT protected by the RLS of its sources`);
+    assert.match(sql, new RegExp(`REVOKE ALL ON public\\.${view}\\s+FROM anon, authenticated`),
+      `${view} still grants anon access — a view is NOT protected by the RLS of its sources`);
   }
+});
+
+test("migration 205 asserts every locked-down object exists, and fails loudly", () => {
+  // "Revoke only what exists" would report success while leaving a table wide
+  // open. For a security lockdown the migration must refuse to run at all.
+  const sql = readFileSync(join(ROOT, "supabase-migration-205.sql"), "utf8");
+  const guard = sql.slice(sql.indexOf("$preflight$"), sql.lastIndexOf("$preflight$"));
+  for (const o of [
+    "responses", "surveys", "campaigns", "campaign_groups", "campaign_group_members", "survey_events",
+    "vw_campaign_responses", "vw_campaign_stats", "vw_survey_stats",
+    "vw_research_project_stats", "vw_conversation_search_stats",
+  ]) {
+    assert.ok(guard.includes(`'${o}'`), `${o} must be pre-flight checked`);
+  }
+  assert.match(guard, /RAISE EXCEPTION/, "must abort, not skip");
+  assert.match(guard, /Nothing has been changed/, "must say so plainly");
+  // The whole migration is one transaction, so a failed assertion changes nothing.
+  assert.ok(sql.indexOf("BEGIN;") < sql.indexOf("$preflight$"), "guard runs inside the transaction");
+  assert.ok(sql.trimEnd().endsWith("COMMIT;"), "transaction is terminated");
 });
 
 test("the completion RPC takes typed parameters, never arbitrary jsonb", () => {
