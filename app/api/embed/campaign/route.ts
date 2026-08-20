@@ -6,9 +6,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { canPreviewCampaign } from "@/lib/embed-preview-auth";
+import { resolveSurveyJourney, SURVEY_JOURNEY_COLUMNS } from "@/lib/embed-journey";
+import { resolvePreviewGrant, markGrantUsed } from "@/lib/preview-grant";
+import { mintPreviewSession, verifyPreviewSession, previewSessionCookie,
+         clearedPreviewSessionCookie, PREVIEW_SESSION_COOKIE,
+         previewContextCookie } from "@/lib/preview-session";
 import { computeEffectiveStatus, type CampaignForStatus } from "@/lib/campaign-status";
-import { resolveQuestion, resolveText, type LangCode, type LocalisedQuestion, type LocalisedText } from "@/lib/survey-locale";
-import { resolveSystemThankYou, isSystemThankYouSurvey } from "@/lib/system-thankyou";
+import { type LangCode } from "@/lib/survey-locale";
 import { buildEmbedThemeFromState, resolveBrandingLogos, type BuilderState, type BrandingConfig } from "@/lib/creative-theme-builder";
 import { coerceStackConfig, resolveEffectiveTopic } from "@/lib/stack-config";
 import type { EmbedTheme } from "@/app/embed/ThemedSurvey";
@@ -33,22 +37,124 @@ const LIVE_CACHE = {
   "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300",
 } as const;
 
+/**
+ * POST — the review-token EXCHANGE.
+ *
+ * A review token must never travel in a URL. A query string is written verbatim
+ * into Vercel access logs, into the browser's history and address bar, and into
+ * the Referer header of anything the page loads. So the shareable link carries
+ * the token in the URL FRAGMENT (`#pt=…`), which browsers never transmit in any
+ * request, and the embed page exchanges it here — in a POST body, which appears
+ * in no access log.
+ *
+ * The query-parameter form is deliberately NOT accepted. Leaving it in place
+ * would mean a logging-exposed link could still be constructed by hand.
+ */
+export async function POST(req: NextRequest) {
+  const body = await req.json().catch(() => ({}));
+  return resolveCampaignEmbed(req, {
+    campaignId:  typeof body?.campaign_id === "string" ? body.campaign_id : null,
+    lang:        typeof body?.lang === "string" ? body.lang : null,
+    previewFlag: false,
+    grantToken:  typeof body?.preview_token === "string" ? body.preview_token : null,
+  });
+}
+
 export async function GET(req: NextRequest) {
-  const campaignId = req.nextUrl.searchParams.get("campaign_id");
-  const urlLang    = req.nextUrl.searchParams.get("lang");
-  const preview    = req.nextUrl.searchParams.get("preview") === "1";
+  return resolveCampaignEmbed(req, {
+    campaignId:  req.nextUrl.searchParams.get("campaign_id"),
+    lang:        req.nextUrl.searchParams.get("lang"),
+    previewFlag: req.nextUrl.searchParams.get("preview") === "1",
+    // Header only — never a query parameter. Server-to-server integrations can
+    // still present a token without it ever reaching a URL.
+    grantToken:  req.headers.get("x-fx-preview-token"),
+  });
+}
+
+type EmbedRequest = {
+  campaignId: string | null;
+  lang: string | null;
+  previewFlag: boolean;
+  grantToken: string | null;
+};
+
+async function resolveCampaignEmbed(req: NextRequest, input: EmbedRequest) {
+  let campaignId   = input.campaignId;
+  const urlLang    = input.lang;
+  const previewFlag = input.previewFlag;
+  const grantToken = input.grantToken;
+
+  // ── Access context ─────────────────────────────────────────────────────────
+  // Three distinct ways to reach this route, resolved in order:
+  //   1. GRANT      — anonymous ad-ops review through a campaign-scoped token.
+  //   2. SESSION    — authenticated author, Deploy inline preview / Studio.
+  //   3. PRODUCTION — no preview at all; normal live delivery.
+  // A grant NEVER takes campaign identity from the request: the campaign is
+  // re-resolved from the grant, and a slug supplied beside it is only checked
+  // for consistency.
+  let grantId: string | null = null;
+  let preview = false;
+  // Set when a fresh exchange should mint a session. The clearing case is
+  // handled inline in the refresh branch, which returns early.
+  let mintSession: { value: string; maxAgeSeconds: number } | null = null;
+
+  if (grantToken) {
+    const resolved = await resolvePreviewGrant(grantToken, campaignId);
+    if (!resolved.ok) {
+      // Missing, expired, revoked, malformed and mismatched all look identical
+      // from outside, so a probe cannot learn which it was.
+      return NextResponse.json({ error: "Campaign not found" }, { status: 404, headers: NO_CACHE });
+    }
+    campaignId = resolved.campaignSlug;   // authority is the grant, not the URL
+    grantId = resolved.grant.id;
+    preview = true;                        // review may see a non-live campaign
+    // Mint a session so a REFRESH survives. Never longer than the grant itself.
+    mintSession = mintPreviewSession(resolved.grant.id, resolved.campaignSlug, resolved.grant.expiresAt);
+  } else if (campaignId && req.cookies.get(PREVIEW_SESSION_COOKIE)?.value) {
+    // REFRESH path. The fragment was stripped on first load, so there is no
+    // token to present; the HttpOnly session stands in for it.
+    //
+    // The session alone is never sufficient: its grant is RE-RESOLVED here, so
+    // revocation takes effect on the very next request rather than whenever the
+    // session happens to lapse.
+    const claim = verifyPreviewSession(req.cookies.get(PREVIEW_SESSION_COOKIE)!.value, campaignId);
+    let ok = false;
+    if (claim) {
+      const { data: g } = await supabaseAdmin
+        .from("campaign_preview_grants")
+        .select("id, campaign_id, expires_at, revoked_at")
+        .eq("id", claim.grantId)
+        .maybeSingle();
+      if (g && !g.revoked_at && new Date(g.expires_at as string).getTime() > Date.now()) {
+        const { data: c } = await supabaseAdmin
+          .from("campaigns").select("campaign_id, deleted_at").eq("id", g.campaign_id as string).maybeSingle();
+        if (c && !c.deleted_at && c.campaign_id === campaignId) { ok = true; grantId = g.id as string; preview = true; }
+      }
+    }
+    if (!ok) {
+      // Revoked, expired, deleted, or scoped to another campaign. Drop the
+      // cookie so the tab stops re-presenting a dead credential.
+      const res = NextResponse.json({ error: "Campaign not found" }, { status: 404, headers: NO_CACHE });
+      // The SESSION is cleared immediately — it is the credential.
+      res.cookies.set(clearedPreviewSessionCookie());
+      // The MARKER is deliberately left to lapse on its own. Clearing it in the
+      // same response removes it before the client re-renders, so the tab loses
+      // the one signal that tells it to show "Preview unavailable" rather than a
+      // silent blank frame. It carries no credential, so letting it expire
+      // naturally costs nothing.
+      return res;
+    }
+  } else if (previewFlag) {
+    // A campaign slug is not a secret, so ?preview=1 alone is never enough.
+    // A 404 (not 403) keeps "denied" and "no such campaign" indistinguishable.
+    if (!campaignId || !(await canPreviewCampaign(req, campaignId))) {
+      return NextResponse.json({ error: "Campaign not found" }, { status: 404, headers: NO_CACHE });
+    }
+    preview = true;
+  }
 
   if (!campaignId) {
     return NextResponse.json({ error: "campaign_id is required" }, { status: 400, headers: NO_CACHE });
-  }
-
-  // P0 exposure remediation. `?preview=1` bypasses the effective-status gate
-  // below and serves DRAFT surveys, so it must not be reachable anonymously —
-  // a campaign slug is not a secret. Authors keep working exactly as before:
-  // the Studio preview iframe is same-origin, so its session cookie is sent.
-  // A 404 (not 403) keeps "denied" and "no such campaign" indistinguishable.
-  if (preview && !(await canPreviewCampaign(req, campaignId))) {
-    return NextResponse.json({ error: "Campaign not found" }, { status: 404, headers: NO_CACHE });
   }
 
   const { data: campaign, error } = await supabaseAdmin
@@ -129,7 +235,7 @@ export async function GET(req: NextRequest) {
     .from("surveys")
     // intro_* / thank_you_enabled = Phase 3 Survey-journey columns (migration 182);
     // untyped client → `any`, degrade to undefined if not yet migrated.
-    .select("id, status, questions, thank_you_title, thank_you_body, intro_enabled, intro_title, intro_body, thank_you_enabled")
+    .select(`id, status, ${SURVEY_JOURNEY_COLUMNS}`)
     .eq("id", effectiveSurveyId)
     .single();
 
@@ -145,7 +251,6 @@ export async function GET(req: NextRequest) {
 
   // Language priority: explicit URL param > campaign survey_language > en
   const lang = ((urlLang ?? campaign.survey_language ?? "en") as LangCode);
-  const questions = ((survey.questions ?? []) as LocalisedQuestion[]).map(q => resolveQuestion(q, lang));
 
   // Every creative_design slug — built-in or custom — is now a row in
   // creative_designs; resolve its layout + render palette from there.
@@ -187,7 +292,7 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  return NextResponse.json({
+  const payload = {
     campaign_id:     campaign.campaign_id,
     survey_language: lang,
     creative_design:  effectiveCreativeDesign,
@@ -198,15 +303,28 @@ export async function GET(req: NextRequest) {
     // Effective Stack Topic: design default, unless the campaign overrode or cleared it.
     topic:           effectiveTopic,
     branding,
-    questions,
-    thank_you_title: isSystemThankYouSurvey(survey.intro_enabled as boolean | null) ? resolveSystemThankYou(lang).title : (resolveText((survey.thank_you_title as LocalisedText | null) ?? {}, lang) || "Thank you!"),
-    thank_you_body:  isSystemThankYouSurvey(survey.intro_enabled as boolean | null) ? resolveSystemThankYou(lang).body  : (resolveText((survey.thank_you_body as LocalisedText | null) ?? {}, lang) || "Your anonymous feedback helps improve the football experience for fans everywhere."),
-    thank_you_system: isSystemThankYouSurvey(survey.intro_enabled as boolean | null),
-    // Phase 3 Survey-journey fields, resolved to `lang` like the Thank-You copy.
-    // Raw tri-state (null for legacy). NULL→false would drop Stack's always-on intro.
-    intro_enabled:     (survey.intro_enabled as boolean | null) ?? null,
-    intro_title:       resolveText((survey.intro_title as LocalisedText | null) ?? {}, lang) || null,
-    intro_body:        resolveText((survey.intro_body  as LocalisedText | null) ?? {}, lang) || null,
-    thank_you_enabled: (survey.thank_you_enabled as boolean | null) ?? null,
-  }, { headers: preview ? NO_CACHE : LIVE_CACHE });
+    // Journey fields come from the SHARED resolver, so this surface cannot drift
+    // from /api/embed/survey. It also carries intro_topic, which no embed surface
+    // previously supplied — only the Studio builder preview showed the Topic,
+    // because it passes it straight from local state.
+    ...resolveSurveyJourney(survey, lang),
+  };
+  if (grantId) await markGrantUsed(grantId);
+
+  const res = NextResponse.json(
+    // `preview` tells the CLIENT it is in a review context even on a refresh,
+    // where it has no token and no readable cookie to infer that from. It drives
+    // evidence suppression, so a reviewer's refresh records nothing.
+    { ...payload, preview },
+    {
+      // no-referrer so a review link cannot leak its token to any third party
+      // the preview page happens to reference.
+      headers: preview ? { ...NO_CACHE, "Referrer-Policy": "no-referrer" } : LIVE_CACHE,
+    },
+  );
+  if (mintSession) {
+    res.cookies.set(previewSessionCookie(mintSession.value, mintSession.maxAgeSeconds));
+    res.cookies.set(previewContextCookie(mintSession.maxAgeSeconds));
+  }
+  return res;
 }

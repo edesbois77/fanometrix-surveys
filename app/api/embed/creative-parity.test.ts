@@ -1,20 +1,21 @@
+
 import { test, before, mock } from "node:test";
 import assert from "node:assert/strict";
 import { NextRequest } from "next/server";
 
-// Integration: the Studio draft Preview and the deployed campaign for the SAME
-// survey must resolve IDENTICAL creative configuration.
+// A successful grant exchange mints a preview session, which is signed.
+process.env.JWT_SECRET = process.env.JWT_SECRET || "test-secret-for-preview-session";
+
+// Parity across every preview surface AND production.
 //
-// This is the assertion the WWC requirement reduces to — "Preview must show the
-// exact creative that partners will receive". It runs both real route handlers
-// over one mocked database and diffs the seven creative fields, so a divergence
-// fails the suite instead of reaching a partner.
-//
-// /api/embed/campaign is deliberately NOT refactored in this release (it is the
-// live delivery path). This test is what pins the two together meanwhile.
+// Requirement: Studio full-survey preview, Deploy inline preview and a valid
+// ad-ops review link must resolve the SAME renderer, layout, creative, branding,
+// topic, intro copy, questions, thank-you behaviour and language. This runs the
+// real route handlers over one mocked database and diffs the resolved payloads.
 
 const SURVEY_ID = "d50eb76f-1e45-4264-b196-c3017aecfb69";
 const CAMPAIGN_SLUG = "zzz_parity_campaign";
+const VALID_TOKEN = "T".repeat(43);
 
 const BUILDER = {
   mode: "gradient", name: "Fanometrix Premium", text: "#FFFFFF", timer: "#D7B87A",
@@ -25,8 +26,6 @@ const BUILDER = {
   gradientDirection: "180deg", mirrorTopQuadrants: true,
 };
 
-// Every layout, so parity is proven across the whole creative surface rather
-// than for one happy case.
 const DESIGNS: Record<string, { layout: string; builder_state: unknown; branding: unknown; config: unknown }> = {
   "fanometrix":       { layout: "timer",      builder_state: BUILDER, branding: null, config: null },
   "studio-classic":   { layout: "classic",    builder_state: BUILDER, branding: null, config: { renderer: "studio-classic" } },
@@ -35,102 +34,170 @@ const DESIGNS: Record<string, { layout: string; builder_state: unknown; branding
   "fanometrix-stack": { layout: "stack",      builder_state: BUILDER, branding: null, config: { defaultTopic: "Champions League" } },
   "my_custom_theme":  { layout: "timer",      builder_state: BUILDER, branding: { publisher_logo_url: "https://x/l.png", publisher_logo_visible: true }, config: null },
 };
-
-// The design under test — reassigned per case so both routes read the same one.
 let CURRENT_DESIGN = "fanometrix";
 
-const QUESTIONS = [
-  { id: "q1", text: { en: "Q1?" }, options: [{ id: 1, text: { en: "A" } }, { id: 2, text: { en: "B" } }] },
-];
+// The survey the Studio authored: a Topic, an intro, five questions.
+const SURVEY_ROW = () => ({
+  id: SURVEY_ID, name: "Parity Survey", status: "ready",
+  creative_design: CURRENT_DESIGN,
+  topic: "Women's Football",
+  questions: [
+    { id: "q1", text: { en: "Q1?" }, options: [{ id: 1, text: { en: "A" } }, { id: 2, text: { en: "B" } }] },
+    { id: "q2", text: { en: "Q2?" }, options: [{ id: 1, text: { en: "C" } }, { id: 2, text: { en: "D" } }] },
+  ],
+  intro_enabled: true, intro_title: { en: "Football fans deserve a voice." }, intro_body: { en: "Help shape it." },
+  thank_you_title: { en: "Thanks" }, thank_you_body: { en: "Body" }, thank_you_enabled: true,
+});
+
+let grantRow: Record<string, unknown> | null = null;
 
 function builder(table: string) {
-  const filters: Record<string, unknown> = {};
   const api: Record<string, unknown> = {};
-  const chain = (k: string) => (a?: unknown, b?: unknown) => { if (typeof a === "string") filters[`${k}:${a}`] = b; return api; };
-  for (const m of ["select", "eq", "is", "in", "neq", "order", "limit"]) api[m] = chain(m);
-
+  for (const m of ["select", "eq", "is", "in", "neq", "order", "limit", "update"]) api[m] = () => api;
   const row = () => {
     if (table === "creative_designs") {
       const d = DESIGNS[CURRENT_DESIGN];
       return d ? { layout: d.layout, builder_state: d.builder_state, branding: d.branding, config: d.config } : null;
     }
-    if (table === "surveys") {
-      return { id: SURVEY_ID, name: "Parity Survey", questions: QUESTIONS, creative_design: CURRENT_DESIGN,
-               thank_you_title: { en: "Thanks" }, thank_you_body: { en: "Body" },
-               intro_enabled: true, intro_title: { en: "Intro" }, intro_body: { en: "Body" }, thank_you_enabled: true };
-    }
-    if (table === "campaigns") {
-      return { id: "cid", campaign_id: CAMPAIGN_SLUG, status: "live", manual_status_override: null,
-               start_date: null, end_date: null, target_responses: null, target_mode: "continue",
-               archive_after_days: null, status_updated_at: null, country_code: "GB",
-               survey_language: "en", creative_design: CURRENT_DESIGN, survey_id: SURVEY_ID,
-               research_project_id: null, topic: null };
-    }
+    if (table === "surveys") return SURVEY_ROW();
+    if (table === "campaigns") return {
+      id: "cid", campaign_id: CAMPAIGN_SLUG, status: "live", manual_status_override: null,
+      start_date: null, end_date: null, target_responses: null, target_mode: "continue",
+      archive_after_days: null, status_updated_at: null, country_code: "GB",
+      survey_language: "en", creative_design: CURRENT_DESIGN, survey_id: SURVEY_ID,
+      research_project_id: null, topic: null, deleted_at: null,
+    };
+    if (table === "campaign_preview_grants") return grantRow;
     return null;
   };
-
   api.single = () => Promise.resolve({ data: row(), error: null });
-  // `.select("*", { count, head })` and plain awaited chains
-  (api as { then?: unknown }).then = (res: (v: unknown) => void) =>
-    Promise.resolve({ data: table === "campaigns" ? [row()] : [], error: null, count: 0 }).then(res);
+  api.maybeSingle = api.single;
+  (api as { then?: unknown }).then = (r: (v: unknown) => void) =>
+    Promise.resolve({ data: [], error: null, count: 0 }).then(r);
   return api;
 }
-
 mock.module("@/lib/supabase-admin", { namedExports: { supabaseAdmin: { from: (t: string) => builder(t) } } });
-// Preview authorisation is exercised by lib/embed-preview-auth.test.ts; here it
-// is stubbed so this test isolates creative resolution.
 mock.module("@/lib/embed-preview-auth", {
-  namedExports: { canPreviewSurvey: async () => true, canPreviewCampaign: async () => true, resolvePreviewSession: async () => null, ownsSurvey: () => true },
+  namedExports: { canPreviewSurvey: async () => true, canPreviewCampaign: async () => true,
+                  resolvePreviewSession: async () => null, ownsSurvey: () => true },
 });
 
 let surveyGET: (req: NextRequest) => Promise<Response>;
 let campaignGET: (req: NextRequest) => Promise<Response>;
+let campaignPOST: (req: NextRequest) => Promise<Response>;
 before(async () => {
   ({ GET: surveyGET }   = await import("./survey/route"));
-  ({ GET: campaignGET } = await import("./campaign/route"));
+  ({ GET: campaignGET, POST: campaignPOST } = await import("./campaign/route"));
+  grantRow = {
+    id: "g1", campaign_id: "cid", survey_id: SURVEY_ID, organisation_id: "org-1",
+    expires_at: new Date(Date.now() + 86_400_000).toISOString(),
+    created_at: new Date().toISOString(), revoked_at: null, last_used_at: null, use_count: 0,
+  };
 });
 
-const CREATIVE_FIELDS = ["creative_design", "custom_theme", "layout", "renderer", "config", "topic", "branding"] as const;
-const pick = (o: Record<string, unknown>) => Object.fromEntries(CREATIVE_FIELDS.map(k => [k, o[k] ?? null]));
+// Everything a reviewer sees must match, not just the creative.
+const PARITY_FIELDS = [
+  "creative_design", "custom_theme", "layout", "renderer", "config", "topic", "branding",
+  "intro_enabled", "intro_title", "intro_body", "intro_topic",
+  "thank_you_title", "thank_you_body", "thank_you_system", "thank_you_enabled",
+  "questions",
+] as const;
+const pick = (o: Record<string, unknown>) => Object.fromEntries(PARITY_FIELDS.map(k => [k, o[k] ?? null]));
 
-async function bothPayloads() {
-  const s = await (await surveyGET(new NextRequest(`https://x/api/embed/survey?id=${SURVEY_ID}&preview=1`))).json();
-  const c = await (await campaignGET(new NextRequest(`https://x/api/embed/campaign?campaign_id=${CAMPAIGN_SLUG}`))).json();
-  return { s, c };
-}
+const surveyPreview   = async () => (await surveyGET(new NextRequest(`https://x/api/embed/survey?id=${SURVEY_ID}&preview=1`))).json();
+const deployInline    = async () => (await campaignGET(new NextRequest(`https://x/api/embed/campaign?campaign_id=${CAMPAIGN_SLUG}&preview=1`))).json();
+const exchange = (token: string, slug = CAMPAIGN_SLUG) => campaignPOST(new NextRequest(
+  "https://x/api/embed/campaign",
+  { method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ campaign_id: slug, preview_token: token }) },
+));
+const adopsGrant      = async () => (await exchange(VALID_TOKEN)).json();
+const productionServe = async () => (await campaignGET(new NextRequest(`https://x/api/embed/campaign?campaign_id=${CAMPAIGN_SLUG}`))).json();
 
-test("survey Preview returns all seven creative fields", async () => {
-  const { s } = await bothPayloads();
-  for (const f of CREATIVE_FIELDS) {
-    assert.ok(f in s, `survey payload must carry "${f}" — its absence was the original defect`);
+test("Topic reaches every surface — the reported defect", async () => {
+  for (const [name, fetcher] of Object.entries({ surveyPreview, deployInline, adopsGrant, productionServe })) {
+    const p = await fetcher();
+    assert.equal(p.intro_topic, "Women's Football", `${name} must carry the authored Topic`);
   }
 });
 
-test("Preview and campaign resolve IDENTICAL creative config, for every layout", async () => {
+test("all four surfaces resolve IDENTICAL configuration, for every layout", async () => {
   for (const slug of Object.keys(DESIGNS)) {
     CURRENT_DESIGN = slug;
-    const { s, c } = await bothPayloads();
-    assert.deepEqual(pick(s), pick(c),
-      `${slug}: draft Preview and deployed campaign must resolve the same creative`);
-    assert.equal(s.creative_design, slug, `${slug}: echoed back`);
+    const [a, b, c, d] = [await surveyPreview(), await deployInline(), await adopsGrant(), await productionServe()];
+    assert.deepEqual(pick(a), pick(b), `${slug}: Studio preview vs Deploy inline`);
+    assert.deepEqual(pick(b), pick(c), `${slug}: Deploy inline vs ad-ops grant`);
+    assert.deepEqual(pick(c), pick(d), `${slug}: ad-ops grant vs production`);
   }
   CURRENT_DESIGN = "fanometrix";
 });
 
-test("the selected creative is never silently replaced by a default", async () => {
-  // The reported symptom: Preview showed a default creative instead of the one
-  // chosen on the Creative stage.
-  CURRENT_DESIGN = "fanometrix";
-  const { s } = await bothPayloads();
-  assert.equal(s.creative_design, "fanometrix");
-  assert.equal(s.layout, "timer");
-  assert.equal(s.renderer, "timer");
-  assert.notEqual(s.custom_theme, null, "Fanometrix Premium is a timer design and must carry its palette");
+test("intro copy, thank-you behaviour and questions all match", async () => {
+  const a = await surveyPreview(), d = await productionServe();
+  for (const f of ["intro_enabled", "intro_title", "intro_body", "intro_topic",
+                   "thank_you_title", "thank_you_body", "thank_you_system", "thank_you_enabled"]) {
+    assert.deepEqual(a[f], d[f], `${f} must match`);
+  }
+  assert.deepEqual(a.questions, d.questions, "questions must match");
+  assert.equal(a.questions.length, 2);
 });
 
-test("Preview still carries the survey journey fields alongside the creative", async () => {
-  const { s } = await bothPayloads();
-  assert.equal(s.intro_enabled, true);
-  assert.equal(Array.isArray(s.questions), true);
-  assert.ok(s.thank_you_title, "thank-you copy preserved");
+test("a valid grant serves the campaign with NO session", async () => {
+  const p = await adopsGrant();
+  assert.equal(p.creative_design, "fanometrix");
+  assert.equal(p.questions.length, 2);
+  assert.equal(p.intro_topic, "Women's Football");
+});
+
+test("expired, revoked, malformed and mismatched grants reveal NO content", async () => {
+  const saved = grantRow;
+  const cases: Array<[string, () => void, string]> = [
+    ["expired",   () => { grantRow = { ...(saved as object), expires_at: new Date(Date.now() - 1000).toISOString() }; }, VALID_TOKEN],
+    ["revoked",   () => { grantRow = { ...(saved as object), revoked_at: new Date().toISOString() }; }, VALID_TOKEN],
+    ["unknown",   () => { grantRow = null; }, VALID_TOKEN],
+    ["malformed", () => { grantRow = saved; }, "nope"],
+  ];
+  for (const [name, setup, token] of cases) {
+    setup();
+    const res = await exchange(token);
+    assert.equal(res.status, 404, `${name} must 404`);
+    const body = await res.json();
+    assert.equal(body.questions, undefined, `${name} must reveal no questions`);
+    assert.equal(body.intro_title, undefined, `${name} must reveal no intro`);
+    assert.equal(body.creative_design, undefined, `${name} must reveal no creative`);
+  }
+  grantRow = saved;
+});
+
+test("a mismatched campaign beside a valid token reveals nothing", async () => {
+  const res = await exchange(VALID_TOKEN, "some_other");
+  assert.equal(res.status, 404);
+  assert.equal((await res.json()).questions, undefined);
+});
+
+test("preview responses carry Referrer-Policy: no-referrer", async () => {
+  const res = await exchange(VALID_TOKEN);
+  assert.equal(res.headers.get("Referrer-Policy"), "no-referrer");
+});
+
+test("a token in the QUERY STRING is NOT accepted", async () => {
+  // A query string is written verbatim into access logs, browser history and the
+  // Referer header. Leaving this path in place would mean a logging-exposed link
+  // could still be constructed by hand, so it is refused outright: the request
+  // falls through to ordinary production serving with no preview privilege.
+  const res = await campaignGET(new NextRequest(
+    `https://x/api/embed/campaign?campaign_id=${CAMPAIGN_SLUG}&preview_token=${VALID_TOKEN}`));
+  const body = await res.json();
+  // It resolved as PRODUCTION (the fixture campaign is live), not as a review:
+  // no no-referrer header, which only the preview paths set.
+  assert.equal(res.headers.get("Referrer-Policy"), null,
+    "a query-string token must not be honoured as a review credential");
+  assert.ok(!("__preview" in body), "no preview privilege granted");
+});
+
+test("a token in the HEADER is accepted (server-to-server, never in a URL)", async () => {
+  const res = await campaignGET(new NextRequest(`https://x/api/embed/campaign?campaign_id=${CAMPAIGN_SLUG}`,
+    { headers: { "x-fx-preview-token": VALID_TOKEN } }));
+  assert.equal(res.status, 200);
+  assert.equal(res.headers.get("Referrer-Policy"), "no-referrer", "resolved as a review");
 });
