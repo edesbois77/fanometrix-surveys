@@ -7,6 +7,7 @@ BEGIN
   END IF;
 END
 $guard$;
+ALTER TABLE public.campaign_groups DROP CONSTRAINT IF EXISTS campaign_groups_organisation_id_fkey;
 ALTER TABLE public.campaign_groups DROP CONSTRAINT IF EXISTS campaign_groups_studio_requires_org;
 ALTER TABLE public.campaign_groups DROP CONSTRAINT IF EXISTS campaign_groups_fail_mode_check;
 ALTER TABLE public.campaign_groups DROP CONSTRAINT IF EXISTS campaign_groups_owner_model_check;
