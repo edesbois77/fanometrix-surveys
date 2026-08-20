@@ -1,60 +1,40 @@
--- Migration 204: P0 Supabase exposure remediation
+-- Migration 204: P0 Supabase exposure remediation — typed completion RPC
 --
--- Status: HAND-APPLY. Do NOT auto-apply. ADDITIVE and BACKWARD-COMPATIBLE —
---         apply this BEFORE the code deploy.
+-- Status: HAND-APPLY. ADDITIVE and BACKWARD-COMPATIBLE. Apply BEFORE the code
+--         deploy. Safe to re-run (see "Idempotency" below).
 --
---         This migration only ADDS the typed completion RPC. The old
---         (text, integer, jsonb) signature is left in place, so both exist
---         together and the currently-deployed code keeps working unchanged.
---         PostgREST resolves the overload by argument NAMES, and the two
---         signatures share none beyond p_campaign_id/p_target, so there is no
---         ambiguity.
+-- Adds a TYPED completion RPC beside the existing one. The legacy
+-- (text, integer, jsonb) signature is deliberately left in place, so both exist
+-- together and currently-deployed code keeps working unchanged. PostgREST
+-- resolves the overload by argument NAMES, and the two share none beyond
+-- p_campaign_id/p_target, so there is no ambiguity. Migration 205 retires the
+-- legacy signature, after the code deploy.
 --
---         Splitting it this way removes a coupling that would otherwise exist:
---         if the drop and the create landed together, the application commit
---         calling the new signature could not be reverted on its own. With this
---         split, migration 204 is safe to apply on its own and safe to leave in
---         place, and the code deploy has no database prerequisite beyond it.
+-- Why the typed replacement: the legacy function inserts with
+--     INSERT INTO responses SELECT * FROM jsonb_populate_record(NULL::responses, p_payload)
+-- which hands the caller control of EVERY column on `responses`, including
+-- is_demo and evidence_simulation_id (the simulation-provenance link). It is
+-- SECURITY INVOKER with no search_path and EXECUTE granted to anon, so an
+-- anonymous caller can write arbitrary response rows, bypassing the
+-- campaign-live, not-simulated and validation checks in /api/submit entirely.
 --
--- Context: an anonymous read-only probe with the public anon key confirmed that
--- `responses`, `surveys`, `campaigns`, `campaign_groups`, `campaign_group_members`,
--- `vw_campaign_responses` and `vw_survey_stats` all returned rows. Mutation
--- exposure on `surveys` and `campaigns` was inferred from grants and policies and
--- deliberately NOT tested against production.
+-- SECURITY INVOKER here is deliberate. The only caller is /api/submit holding
+-- the service role, which bypasses RLS anyway, so DEFINER would add no
+-- capability — while INVOKER keeps RLS as an independent second gate if EXECUTE
+-- is ever widened by accident. search_path is pinned, and every object
+-- reference in the body is schema-qualified, so name resolution cannot be
+-- redirected.
 --
--- Remediation is split across two migrations:
---   204 (this file) — ADD the typed, service-role-only completion RPC. Additive.
---   205             — the lockdown: drop the old jsonb RPC, revoke anonymous
---                     EXECUTE and view SELECT, and replace every permissive
---                     "Anyone can ..." policy with deny_all_anon. Apply ONLY
---                     after the code deploy.
---
--- Reversal: supabase-migration-204-rollback.sql (drops the added function).
+-- ─────────────────────────────────────────────────────────────────────────────
+-- FIXES THE 2026-08-20 NO-OP. The previous revision of this file opened BEGIN;
+-- and never issued COMMIT;. Every statement succeeded, so the SQL editor
+-- reported Success, but the transaction was still open when the session ended
+-- and was discarded — leaving no function behind. This revision terminates the
+-- transaction, and asserts its own outcome before committing.
+-- ─────────────────────────────────────────────────────────────────────────────
 
 BEGIN;
 
--- ─────────────────────────────────────────────────────────────────────────────
--- Typed completion RPC (additive — the jsonb signature is dropped in 205)
---
--- The previous signature was (text, integer, jsonb) and inserted with:
---     INSERT INTO responses SELECT * FROM jsonb_populate_record(NULL::responses, p_payload)
--- which handed the caller control of EVERY column on `responses`, including
--- `is_demo` and `evidence_simulation_id` — the simulation-provenance link. It was
--- SECURITY INVOKER with no search_path and EXECUTE granted to anon, so an
--- anonymous caller could write arbitrary response rows, bypassing the
--- campaign-live, not-simulated and validation checks in /api/submit entirely.
---
--- The replacement takes explicit typed parameters, so a caller can set only the
--- columns the submission path is entitled to set. Everything else keeps its
--- column default: `id` and `created_at` default server-side (the jsonb version
--- had to be passed them to stop jsonb_populate_record nulling them), and
--- `evidence_simulation_id` is now unreachable from this path.
---
--- SECURITY INVOKER is deliberate, not an oversight. The only caller is
--- /api/submit holding the service role, which bypasses RLS anyway, so DEFINER
--- would add no capability — while INVOKER keeps RLS as an independent second
--- gate if EXECUTE is ever widened by accident. search_path is pinned so an
--- unqualified name can never resolve into an attacker-controlled schema.
 CREATE OR REPLACE FUNCTION public.fx_submit_response_if_under_ceiling(
   p_campaign_id               text,
   p_target                    integer,
@@ -86,14 +66,14 @@ CREATE OR REPLACE FUNCTION public.fx_submit_response_if_under_ceiling(
 LANGUAGE plpgsql
 SECURITY INVOKER
 SET search_path = pg_catalog, public
-AS $$
+AS $fx$
 DECLARE
   v_count integer;
 BEGIN
   -- Serialise concurrent submissions for THIS campaign only. Unchanged from 187.
-  PERFORM pg_advisory_xact_lock(hashtext(p_campaign_id));
+  PERFORM pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtext(p_campaign_id));
 
-  SELECT count(*) INTO v_count
+  SELECT pg_catalog.count(*) INTO v_count
     FROM public.responses
    WHERE campaign_id = p_campaign_id
      AND is_demo = false;
@@ -102,6 +82,9 @@ BEGIN
     RETURN 'ceiling_reached';
   END IF;
 
+  -- id and created_at are omitted so they take their column defaults. The jsonb
+  -- form could not do that: jsonb_populate_record nulls any column absent from
+  -- the payload, so the caller had to supply them.
   INSERT INTO public.responses (
     campaign_id, session_id, survey_id, question_set_id,
     q1, q2, q3, country, fan_segment, gender, age_band,
@@ -113,13 +96,16 @@ BEGIN
     p_q1, p_q2, p_q3, p_country, p_fan_segment, p_gender, p_age_band,
     p_publisher, p_placement, p_placement_id, p_creative_id,
     p_club, p_competition, p_device, p_browser, p_response_duration_seconds,
-    coalesce(p_is_demo, false), p_group_id, p_country_code, p_market, p_survey_language
+    pg_catalog.coalesce(p_is_demo, false), p_group_id, p_country_code, p_market, p_survey_language
   );
 
   RETURN 'inserted';
 END;
-$$;
+$fx$;
 
+-- A newly created function is EXECUTE-able by PUBLIC by default, so the REVOKE
+-- is load-bearing, not cosmetic. It runs inside this transaction: if it fails,
+-- the function is not committed either.
 REVOKE ALL ON FUNCTION public.fx_submit_response_if_under_ceiling(
   text, integer, uuid, text, text, text, text, text, text, text, text, text,
   text, text, text, text, text, text, text, text, integer, boolean, text, text,
@@ -132,3 +118,64 @@ GRANT EXECUTE ON FUNCTION public.fx_submit_response_if_under_ceiling(
   text, text
 ) TO service_role;
 
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Self-assertion, INSIDE the transaction.
+--
+-- The whole point of this revision: a silent no-op must be impossible. If any
+-- condition below fails, the RAISE aborts and the transaction rolls back, so
+-- the migration reports an ERROR rather than Success-with-nothing-created.
+-- ─────────────────────────────────────────────────────────────────────────────
+DO $assert$
+DECLARE
+  v_typed  oid;
+  v_legacy oid;
+  v_config text;
+BEGIN
+  SELECT p.oid INTO v_typed
+    FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+   WHERE n.nspname = 'public'
+     AND p.proname = 'fx_submit_response_if_under_ceiling'
+     AND p.pronargs = 26;
+  IF v_typed IS NULL THEN
+    RAISE EXCEPTION 'M204 FAILED: the typed 26-argument overload was not created';
+  END IF;
+
+  SELECT p.oid INTO v_legacy
+    FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+   WHERE n.nspname = 'public'
+     AND p.proname = 'fx_submit_response_if_under_ceiling'
+     AND p.pronargs = 3;
+  IF v_legacy IS NULL THEN
+    RAISE EXCEPTION 'M204 FAILED: the legacy 3-argument overload is gone — 204 must be ADDITIVE. Retiring it is migration 205, after the code deploy.';
+  END IF;
+
+  IF pg_catalog.has_function_privilege('anon', v_typed, 'EXECUTE') THEN
+    RAISE EXCEPTION 'M204 FAILED: anon holds EXECUTE on the typed overload';
+  END IF;
+  IF pg_catalog.has_function_privilege('authenticated', v_typed, 'EXECUTE') THEN
+    RAISE EXCEPTION 'M204 FAILED: authenticated holds EXECUTE on the typed overload';
+  END IF;
+  IF NOT pg_catalog.has_function_privilege('service_role', v_typed, 'EXECUTE') THEN
+    RAISE EXCEPTION 'M204 FAILED: service_role lacks EXECUTE on the typed overload';
+  END IF;
+
+  -- Asserts that search_path is PINNED, not that it holds a particular string.
+  -- Postgres stores proconfig as the raw SET value, and no function in this
+  -- database currently has a multi-element search_path to confirm the exact
+  -- stored form against. A pattern matched too tightly would abort a correct
+  -- migration, so this checks the property that matters and prints the actual
+  -- value for inspection. Safety does not rest on the value alone: every object
+  -- reference in the body above is schema-qualified, so resolution cannot be
+  -- redirected regardless of what search_path contains.
+  SELECT pg_catalog.array_to_string(p.proconfig, ', ') INTO v_config
+    FROM pg_proc p WHERE p.oid = v_typed;
+  IF v_config IS NULL OR v_config NOT LIKE 'search_path=%' THEN
+    RAISE EXCEPTION 'M204 FAILED: search_path is not pinned on the typed overload (proconfig = %)',
+      pg_catalog.coalesce(v_config, '<null>');
+  END IF;
+
+  RAISE NOTICE 'M204 OK: typed overload created (26 args), legacy overload intact (3 args), EXECUTE is service_role only, % .', v_config;
+END
+$assert$;
+
+COMMIT;
