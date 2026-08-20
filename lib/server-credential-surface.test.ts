@@ -138,3 +138,35 @@ test("both migrations have a rollback, and 204's is decoupled from the code", ()
   assert.match(rb205, /jsonb_populate_record/, "the rollback must restore the prior function verbatim");
   assert.match(rb205, /CREATE POLICY events_insert_anon/);
 });
+
+test("no migration schema-qualifies a SQL construct", () => {
+  // COALESCE, NULLIF, GREATEST, LEAST and CASE are SQL constructs, not catalog
+  // functions, so `pg_catalog.coalesce(...)` raises 42883. plpgsql resolves
+  // function names only when a statement EXECUTES, never at CREATE time — so a
+  // migration containing one commits cleanly, passes its own existence checks,
+  // and fails later at runtime on whichever branch happens to touch it.
+  //
+  // Migration 204 shipped exactly this: `pg_catalog.coalesce(p_is_demo, false)`
+  // sat in the INSERT branch, which the ceiling-reached path returns before
+  // reaching. Every completion on a stop-mode campaign 500'd. Repaired by 206.
+  const CONSTRUCTS = ["coalesce", "nullif", "greatest", "least", "case"];
+  const offenders: string[] = [];
+  for (const f of readdirSync(ROOT).filter(n => /^supabase-migration-.*\.sql$/.test(n))) {
+    const sql = readFileSync(join(ROOT, f), "utf8")
+      .split("\n").filter(l => !l.trimStart().startsWith("--")).join("\n");
+    for (const c of CONSTRUCTS) {
+      if (new RegExp(`pg_catalog\\.${c}\\s*\\(`, "i").test(sql)) offenders.push(`${f}: pg_catalog.${c}(`);
+    }
+  }
+  assert.deepEqual(offenders, []);
+});
+
+test("migration 206 proves the INSERT path, not just that the function exists", () => {
+  const sql = readFileSync(join(ROOT, "supabase-migration-206.sql"), "utf8");
+  // 204's assertion only checked existence and grants, which is why the broken
+  // body got through. 206 must actually execute the insert branch.
+  assert.match(sql, /IS DISTINCT FROM 'inserted'/);
+  assert.match(sql, /IS DISTINCT FROM 'ceiling_reached'/);
+  assert.match(sql, /DELETE FROM public\.responses WHERE campaign_id = v_probe/);
+  assert.ok(!/pg_catalog\.coalesce/.test(sql.split("\n").filter(l => !l.trimStart().startsWith("--")).join("\n")));
+});

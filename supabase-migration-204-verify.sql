@@ -29,7 +29,7 @@ BEGIN
 
     SELECT pg_catalog.array_to_string(p.proconfig, ', ') INTO v_config FROM pg_proc p WHERE p.oid=v_typed;
     IF v_config IS NULL OR v_config NOT LIKE 'search_path=%' THEN
-      v_fail := v_fail || E'\n  - search_path NOT pinned (proconfig = ' || pg_catalog.coalesce(v_config,'<null>') || ')'; END IF;
+      v_fail := v_fail || E'\n  - search_path NOT pinned (proconfig = ' || coalesce(v_config,'<null>') || ')'; END IF;
   END IF;
 
   -- The legacy overload SHOULD still be anon-executable at this point. That is

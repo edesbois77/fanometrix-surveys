@@ -33,6 +33,21 @@
 -- transaction, and asserts its own outcome before committing.
 -- ─────────────────────────────────────────────────────────────────────────────
 
+-- ─────────────────────────────────────────────────────────────────────────────
+-- 2026-08-20, AFTER THIS FILE WAS APPLIED TO PRODUCTION: the body below used
+-- `pg_catalog.coalesce(p_is_demo, false)`. COALESCE is a SQL construct, NOT a
+-- catalog function, so it cannot be schema-qualified — the qualified form raises
+-- 42883 at RUNTIME. plpgsql does not resolve function names at CREATE time, so
+-- the migration and its own assertion both passed while the INSERT path was
+-- broken. The ceiling-reached branch returns before the INSERT, which is why it
+-- looked healthy until a submission actually had to insert.
+--
+-- This file is now CORRECTED, so a fresh environment gets a working function.
+-- Production already ran the broken version: apply MIGRATION 206, which replaces
+-- the body in place. Bare COALESCE needs no qualification — it is not a name
+-- lookup, so search_path cannot redirect it.
+-- ─────────────────────────────────────────────────────────────────────────────
+
 BEGIN;
 
 CREATE OR REPLACE FUNCTION public.fx_submit_response_if_under_ceiling(
@@ -96,7 +111,7 @@ BEGIN
     p_q1, p_q2, p_q3, p_country, p_fan_segment, p_gender, p_age_band,
     p_publisher, p_placement, p_placement_id, p_creative_id,
     p_club, p_competition, p_device, p_browser, p_response_duration_seconds,
-    pg_catalog.coalesce(p_is_demo, false), p_group_id, p_country_code, p_market, p_survey_language
+    coalesce(p_is_demo, false), p_group_id, p_country_code, p_market, p_survey_language
   );
 
   RETURN 'inserted';
@@ -171,7 +186,7 @@ BEGIN
     FROM pg_proc p WHERE p.oid = v_typed;
   IF v_config IS NULL OR v_config NOT LIKE 'search_path=%' THEN
     RAISE EXCEPTION 'M204 FAILED: search_path is not pinned on the typed overload (proconfig = %)',
-      pg_catalog.coalesce(v_config, '<null>');
+      coalesce(v_config, '<null>');
   END IF;
 
   RAISE NOTICE 'M204 OK: typed overload created (26 args), legacy overload intact (3 args), EXECUTE is service_role only, % .', v_config;
