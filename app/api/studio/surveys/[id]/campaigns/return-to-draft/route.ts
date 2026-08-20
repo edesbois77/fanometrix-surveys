@@ -19,11 +19,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireUser, type AuthedUser } from "@/lib/auth-server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { marketLocalDate } from "@/lib/campaign-time";
+import { CAMPAIGN_ORIGIN } from "@/lib/campaign-groups/model";
 import { STUDIO_SLUG_PREFIX } from "@/lib/studio/campaign-generation";
 import { listStudioCampaigns } from "@/lib/studio/campaign-list";
 import { goLiveUndoCutoffISO } from "@/lib/studio/campaign-lifecycle";
 
-const PREFIX = `${STUDIO_SLUG_PREFIX}%`;
 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
@@ -45,7 +45,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   const { data: targets } = await supabaseAdmin
     .from("campaigns")
     .select("id, status, start_date, country_code")
-    .in("id", ids).eq("survey_id", id).like("campaign_id", PREFIX).in("status", ["scheduled", "live"]).is("deleted_at", null);
+    .in("id", ids).eq("survey_id", id).eq("origin", CAMPAIGN_ORIGIN.studio).in("status", ["scheduled", "live"]).is("deleted_at", null);
 
   const now = new Date();
   const nowISO = now.toISOString();

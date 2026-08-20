@@ -89,9 +89,19 @@ export function buildSlug(surveyId: string, publisherOrgId: string, countryCode:
   return `studio_${hex8(surveyId)}_${hex8(publisherOrgId)}_${countryCode.toLowerCase()}_${l}`;
 }
 
-/** Studio-generated slugs share this prefix so reconciliation only ever touches
- *  campaigns this stage owns, never a legacy/live campaign that points at the same
- *  survey. */
+/** Studio-generated slugs share this prefix. Retained because it is how a slug is
+ *  BUILT (see buildCampaignSlug above) and how historical slugs read.
+ *
+ *  It is no longer how a Studio campaign is IDENTIFIED — use `campaigns.origin`
+ *  and the helper below. Two reasons the prefix was the wrong test:
+ *
+ *   • In SQL LIKE, `_` is a single-character wildcard, so the pattern
+ *     'studio_%' also matches 'studioX...'. Every call site had to remember to
+ *     escape it, and none of them did. Provenance now lives in a column with a
+ *     CHECK constraint instead of in a string convention.
+ *   • A slug is user-visible and a campaign's origin is not something a rename
+ *     should be able to change. Migration 208 makes origin immutable in practice
+ *     by pinning it at creation and guarding campaign identity with a trigger. */
 export const STUDIO_SLUG_PREFIX = "studio_";
 
 /** Generated, cosmetic Campaign name in the settled format:

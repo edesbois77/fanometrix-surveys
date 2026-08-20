@@ -11,10 +11,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser, type AuthedUser } from "@/lib/auth-server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { CAMPAIGN_ORIGIN } from "@/lib/campaign-groups/model";
 import { STUDIO_SLUG_PREFIX } from "@/lib/studio/campaign-generation";
 import { listStudioCampaigns } from "@/lib/studio/campaign-list";
 
-const PREFIX = `${STUDIO_SLUG_PREFIX}%`;
 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
@@ -37,7 +37,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   const { data: targets } = await supabaseAdmin
     .from("campaigns")
     .select("id, status")
-    .in("id", ids).eq("survey_id", id).like("campaign_id", PREFIX).in("status", ["live", "scheduled"]).is("deleted_at", null);
+    .in("id", ids).eq("survey_id", id).eq("origin", CAMPAIGN_ORIGIN.studio).in("status", ["live", "scheduled"]).is("deleted_at", null);
 
   const nowISO = new Date().toISOString();
   const stopped: string[] = [];

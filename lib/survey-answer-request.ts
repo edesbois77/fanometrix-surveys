@@ -76,6 +76,14 @@ export type ParsedAnswerRequest = {
   sessionId: string;
   campaignId: string;
   answer: ParsedAnswer;
+  /**
+   * WP1. The Studio group configuration the client says it was served under.
+   * Carried through verbatim and UNVALIDATED — this parser only checks shape.
+   * The route resolves it against the database before anything is persisted
+   * (lib/campaign-groups/claim.ts); a claim that fails resolution becomes null
+   * and the answer is still stored.
+   */
+  configurationRevisionId: string | null;
   client: {
     country: string | null;
     fanSegment: string | null;
@@ -105,7 +113,7 @@ export function parseAnswerRequest(body: unknown): ParseResult<ParsedAnswerReque
   const answer = parseAnswer(o);
   if (!answer.ok) return answer;
 
-  const contextFields = [o.survey_id, o.country, o.fan_segment, o.market, o.placement, o.placement_id, o.creative_id, o.renderer];
+  const contextFields = [o.survey_id, o.country, o.fan_segment, o.market, o.placement, o.placement_id, o.creative_id, o.renderer, o.configuration_revision_id];
   if (contextFields.some(badOptionalString)) {
     return { ok: false, status: 400, error: "Invalid payload" };
   }
@@ -116,6 +124,8 @@ export function parseAnswerRequest(body: unknown): ParseResult<ParsedAnswerReque
       sessionId: o.session_id,
       campaignId: o.campaign_id,
       answer: answer.value,
+      // Shape-checked only; a non-UUID resolves to null at the route.
+      configurationRevisionId: isUuid(o.configuration_revision_id) ? o.configuration_revision_id : null,
       client: {
         country: optionalString(o.country),
         fanSegment: optionalString(o.fan_segment),

@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { allowSessionEvent } from "@/lib/embed-throttle";
 import { MAX_BODY_BYTES, parseAnswerRequest } from "@/lib/survey-answer-request";
-import { resolveCampaignEvidenceContext } from "@/lib/survey-evidence-context";
+import { resolveCampaignEvidenceContext, withConfigurationRevision } from "@/lib/survey-evidence-context";
+import { resolveRevisionClaim } from "@/lib/campaign-groups/claim";
 import { persistAnswers } from "@/lib/survey-answer-store";
 
 // Persist a single survey answer the moment it is selected — the Fanometrix evidence
@@ -48,13 +49,22 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
   }
 
+  // WP1: which Studio group configuration was serving when this answer was
+  // given. Only Studio-group embeds send it, so every other journey does exactly
+  // the work it did before. The claim is validated server-side and an invalid
+  // one resolves to null — an answer is never discarded over its provenance.
+  const answerCtx = withConfigurationRevision(
+    ctx,
+    await resolveRevisionClaim(parsed.value.configurationRevisionId),
+  );
+
   const result = await persistAnswers([{
     sessionId,
     questionIndex: answer.questionIndex,
     answerValue: answer.answerValue,
     questionId: answer.questionId,
     canonicalQuestionKey: answer.canonicalQuestionKey,
-  }], ctx, client);
+  }], answerCtx, client);
 
   if (result.error) {
     // Logged with the identifying context so a recurrence is diagnosable from the

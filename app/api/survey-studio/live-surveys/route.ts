@@ -8,6 +8,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth-server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { CAMPAIGN_ORIGIN } from "@/lib/campaign-groups/model";
 import { STUDIO_SLUG_PREFIX } from "@/lib/studio/campaign-generation";
 import { plannedProgress, isRealSurvey } from "@/lib/studio/collection-health";
 
@@ -43,7 +44,7 @@ export async function GET(req: NextRequest) {
     .from("campaigns")
     .select("survey_id, campaign_id, target_responses")
     .in("survey_id", liveSurveyIds)
-    .like("campaign_id", `${STUDIO_SLUG_PREFIX}%`)
+    .eq("origin", CAMPAIGN_ORIGIN.studio)
     .is("deleted_at", null);
   const campaigns = campaignRows ?? [];
   const slugs = campaigns.map((c) => c.campaign_id as string);

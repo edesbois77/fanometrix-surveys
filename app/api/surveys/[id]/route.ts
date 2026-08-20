@@ -291,8 +291,41 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
       );
     }
 
+    // campaigns.survey_id is ON DELETE RESTRICT (migration 208): a campaign may
+    // never be silently severed from the survey it collected evidence against,
+    // because a campaign pointing at nothing cannot be attributed to any
+    // research. The database would refuse this delete anyway; checking first
+    // lets us name the campaigns that are blocking it instead of surfacing a raw
+    // foreign-key violation the operator cannot act on.
+    const { data: blocking } = await supabaseAdmin
+      .from("campaigns")
+      .select("campaign_id, campaign_name")
+      .eq("survey_id", id);
+
+    if (blocking?.length) {
+      const names = blocking.slice(0, 5).map(c => `"${c.campaign_name}" (${c.campaign_id})`).join(", ");
+      const more = blocking.length > 5 ? `, and ${blocking.length - 5} more` : "";
+      return NextResponse.json(
+        {
+          error:
+            `This survey cannot be permanently removed while ${blocking.length} campaign(s) still reference it: ` +
+            `${names}${more}. Permanently remove those campaigns first.`,
+        },
+        { status: 409 },
+      );
+    }
+
     const { error } = await supabaseAdmin.from("surveys").delete().eq("id", id);
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (error) {
+      // A campaign created between the check above and this statement.
+      if (error.code === "23503") {
+        return NextResponse.json(
+          { error: "This survey's campaigns changed while deleting. Please try again." },
+          { status: 409 },
+        );
+      }
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
     return NextResponse.json({ success: true });
   }
 

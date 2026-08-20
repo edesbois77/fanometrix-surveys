@@ -10,7 +10,8 @@ import {
 } from "@/lib/campaign-status";
 import { checkResearchTargetReached } from "@/lib/research-project-target-check";
 import { parseSubmitAnswers } from "@/lib/survey-answer-request";
-import { resolveCampaignEvidenceContext } from "@/lib/survey-evidence-context";
+import { resolveCampaignEvidenceContext, withConfigurationRevision } from "@/lib/survey-evidence-context";
+import { resolveRevisionClaim } from "@/lib/campaign-groups/claim";
 import { persistAnswers } from "@/lib/survey-answer-store";
 
 export async function POST(req: NextRequest) {
@@ -133,9 +134,17 @@ export async function POST(req: NextRequest) {
   // completion itself is refused (closed campaign, target ceiling reached).
   // Idempotent — upsert on (session_id, question_index) — so re-asserting answers
   // already written by /api/answer can never inflate an answer count.
+  // WP1: validate the configuration claim ONCE for this submission. Only Studio
+  // group embeds send it, so every other completion does exactly the work it did
+  // before — no extra query, no added latency on the hottest path in the product.
+  const revisionId = await resolveRevisionClaim(
+    (body as Record<string, unknown>).configuration_revision_id,
+  );
+
   const parsedAnswers = parseSubmitAnswers(answers);
   if (parsedAnswers.length > 0 && typeof session_id === "string" && session_id) {
-    const ctx = await resolveCampaignEvidenceContext(campaign_id as string);
+    const baseCtx = await resolveCampaignEvidenceContext(campaign_id as string);
+    const ctx = baseCtx ? withConfigurationRevision(baseCtx, revisionId) : null;
     if (ctx) {
       const backfill = await persistAnswers(
         parsedAnswers.map((a) => ({
@@ -346,6 +355,33 @@ export async function POST(req: NextRequest) {
       });
       return NextResponse.json({ error: "Failed to save response. Please try again." }, { status: 500 });
     }
+  }
+
+  // ── Configuration provenance on the completion row (WP1) ───────────────────
+  // Written as a follow-up UPDATE rather than as part of the INSERT because the
+  // completion takes two different paths: a capped campaign goes through the
+  // atomic ceiling RPC, whose signature is fixed by migration 206 and cannot
+  // gain a parameter without a further migration; an uncapped one goes through
+  // a plain insert. Setting it here covers BOTH identically, so a capped
+  // campaign is not silently the only one missing its provenance.
+  //
+  // Best-effort by design: the completion is already recorded and must never be
+  // failed or delayed over provenance. If this UPDATE is lost, the same fact is
+  // still carried by every response_answers row for the session, which is the
+  // authoritative per-answer evidence store.
+  //
+  // It keys on responses.session_id, which only began to be populated with the
+  // P0 answer-capture repair (main@e47ac50) — 5,323 of the 5,330 rows that
+  // predate it carry NULL. That is not a limitation here, because a Studio group
+  // cannot have served anything before WP1 ships, but any later attempt to
+  // backfill provenance onto historical completions has no key to join on.
+  if (revisionId && typeof session_id === "string" && session_id) {
+    const { error: provErr } = await supabaseAdmin
+      .from("responses")
+      .update({ configuration_revision_id: revisionId })
+      .eq("session_id", session_id)
+      .is("configuration_revision_id", null);
+    if (provErr) console.error("[submit] configuration provenance not recorded:", provErr);
   }
 
   // Research Target check — best-effort, never fails the submission itself.

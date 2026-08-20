@@ -15,12 +15,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser, type AuthedUser } from "@/lib/auth-server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { CAMPAIGN_ORIGIN } from "@/lib/campaign-groups/model";
 import { computeLocalisationStatus } from "@/lib/survey-localisation";
 import { resolveDeployTargetStatus } from "@/lib/campaign-time";
 import { validateCampaignConfig, STUDIO_SLUG_PREFIX } from "@/lib/studio/campaign-generation";
 import { listStudioCampaigns } from "@/lib/studio/campaign-list";
 
-const PREFIX = `${STUDIO_SLUG_PREFIX}%`;
 
 type SurveyRow = {
   id: string; name: string; organisation_id: string | null; creative_design: string | null;
@@ -65,7 +65,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   const { data: targets } = await supabaseAdmin
     .from("campaigns")
     .select("id, campaign_id, status, start_date, end_date, target_responses, target_mode, country_code, survey_language")
-    .in("id", ids).eq("survey_id", surveyRow.id).like("campaign_id", PREFIX).eq("status", "draft").is("deleted_at", null);
+    .in("id", ids).eq("survey_id", surveyRow.id).eq("origin", CAMPAIGN_ORIGIN.studio).eq("status", "draft").is("deleted_at", null);
 
   const now = new Date();
   const nowISO = now.toISOString();

@@ -6,6 +6,7 @@
 // into user_access_grants on save.
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { OWNER_MODEL } from "@/lib/campaign-groups/model";
 import { requireUser } from "@/lib/auth-server";
 import type { MultiSelectOption } from "@/app/components/MultiSelect";
 
@@ -24,7 +25,8 @@ export async function GET(req: NextRequest) {
       .is("deleted_at", null),
     supabaseAdmin
       .from("campaign_groups")
-      .select("id, name, publisher_org_id, brand_org_id, agency_org_id"),
+      .select("id, name, publisher_org_id, brand_org_id, agency_org_id")
+      .eq("owner_model", OWNER_MODEL.legacy),
     supabaseAdmin
       .from("campaigns")
       .select("id, campaign_name, market, country_code, publisher_org_id, brand_org_id, agency_org_id")

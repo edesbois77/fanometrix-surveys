@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { OWNER_MODEL } from "@/lib/campaign-groups/model";
 import { requireUser } from "@/lib/auth-server";
 import { canAccess } from "@/lib/access";
 import { validateMembersBelongToProject } from "@/lib/campaign-group-membership";
@@ -15,7 +16,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const { id } = await params;
 
   const [{ data: group, error }, { data: members }] = await Promise.all([
-    supabaseAdmin.from("campaign_groups").select("*").eq("id", id).single(),
+    // WP1: legacy API, legacy groups only. A Studio group's membership lives
+    // in a configuration revision, so this route could neither render nor
+    // safely mutate one — it 404s instead of showing a group with no members.
+    supabaseAdmin.from("campaign_groups").select("*").eq("id", id).eq("owner_model", OWNER_MODEL.legacy).single(),
     supabaseAdmin.from("campaign_group_members").select("campaign_id, weight, priority").eq("group_id", id).order("priority"),
   ]);
 
@@ -51,6 +55,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     .from("campaign_groups")
     .select("research_project_id")
     .eq("id", id)
+    .eq("owner_model", OWNER_MODEL.legacy)
     .single();
   if (existingErr || !existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
@@ -108,6 +113,10 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     .from("campaign_groups")
     .update({ ...groupFields, updated_at: new Date().toISOString() })
     .eq("id", id)
+    // Defence in depth: the SELECT above already refused a Studio group, but
+    // the UPDATE carries the same predicate so this statement cannot rewrite
+    // one even if the guard above is later refactored away.
+    .eq("owner_model", OWNER_MODEL.legacy)
     .select()
     .single();
 
@@ -138,8 +147,19 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   }
 
   const { id } = await params;
-  // Members cascade-delete via FK
-  const { error } = await supabaseAdmin.from("campaign_groups").delete().eq("id", id);
+  // Members cascade-delete via FK.
+  // owner_model is pinned so the legacy delete cannot remove a Studio group —
+  // that would cascade away its entire configuration history, including
+  // revisions that governed real serves. Studio deletion has its own route.
+  const { data: deleted, error } = await supabaseAdmin
+    .from("campaign_groups")
+    .delete()
+    .eq("id", id)
+    .eq("owner_model", OWNER_MODEL.legacy)
+    .select("id");
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  // A delete that matched nothing is a 404, not a success — under RLS/filters a
+  // no-match delete returns 204 with zero rows, which must not read as "done".
+  if (!deleted?.length) return NextResponse.json({ error: "Not found" }, { status: 404 });
   return NextResponse.json({ success: true });
 }
