@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { requireUser } from "@/lib/auth-server";
+import { resolveDemoFlag } from "@/lib/demo-flag";
 import { normalisePayload } from "@/lib/normalise";
 import {
   computeStatusWithReason,
@@ -52,8 +53,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "At least one survey answer (q1) is required." }, { status: 400 });
   }
 
+  // P0 exposure remediation. `is_demo` is NOT taken from the request body. A
+  // public submission is always real; only an authenticated admin (the internal
+  // /embed-test harness) may assert the flag. requireUser throws for every
+  // failure mode, and all of them mean the same thing here: not an admin.
+  let submitter = null;
+  try { submitter = await requireUser(req); } catch { submitter = null; }
+  const isDemo = resolveDemoFlag(is_demo, submitter);
+
   // ── Look up campaign ────────────────────────────────────────────────────────
-  const { data: campaign, error: campaignError } = await supabase
+  const { data: campaign, error: campaignError } = await supabaseAdmin
     .from("campaigns")
     .select("id, research_project_id, survey_id, brand_org_id, campaign_name, status, manual_status_override, start_date, end_date, target_responses, target_mode, archive_after_days, country_code, is_simulated")
     .eq("campaign_id", campaign_id as string)
@@ -81,7 +90,7 @@ export async function POST(req: NextRequest) {
       publisher: publisher as string | null, manual_status: null,
       effective_status: "unknown", http_code: 500,
       result: "failed", reason: "Database error looking up campaign",
-      is_test: !!is_demo,
+      is_test: isDemo,
     });
     return NextResponse.json({ error: "Campaign not found." }, { status: 404 });
   }
@@ -98,7 +107,7 @@ export async function POST(req: NextRequest) {
       campaign_id: campaign_id as string, campaign_name: campaignName,
       publisher: publisher as string | null, manual_status: null,
       effective_status: "unknown", http_code: 404,
-      result: "failed", reason: "Campaign not found", is_test: !!is_demo,
+      result: "failed", reason: "Campaign not found", is_test: isDemo,
     });
     return NextResponse.json({ error: "Campaign not found." }, { status: 404 });
   }
@@ -113,7 +122,7 @@ export async function POST(req: NextRequest) {
       campaign_id: campaign_id as string, campaign_name: campaignName,
       publisher: publisher as string | null, manual_status: manualStatus,
       effective_status: "unknown", http_code: 403,
-      result: "failed", reason: "Campaign is simulated", is_test: !!is_demo,
+      result: "failed", reason: "Campaign is simulated", is_test: isDemo,
     });
     return NextResponse.json({ error: "This campaign belongs to a simulated research project and cannot accept real submissions." }, { status: 403 });
   }
@@ -145,7 +154,7 @@ export async function POST(req: NextRequest) {
           placementId: (placement_id as string | null) ?? null,
           creativeId: (creative_id as string | null) ?? null,
           renderer: (renderer as string | null) ?? null,
-          isDemo: !!is_demo,
+          isDemo,
         },
       );
       // Never fails the submission — a completion is the most valuable event in the
@@ -162,7 +171,7 @@ export async function POST(req: NextRequest) {
   let effectiveStatus = "unknown";
 
   if (campaign) {
-    const { count } = await supabase
+    const { count } = await supabaseAdmin
       .from("responses")
       .select("*", { count: "exact", head: true })
       .eq("campaign_id", campaign_id as string)
@@ -189,7 +198,7 @@ export async function POST(req: NextRequest) {
           campaign_id: campaign_id as string, campaign_name: campaignName,
           publisher: publisher as string | null, manual_status: manualStatus,
           effective_status: detail.effective, http_code: 200,
-          result: "failed", reason: "Target ceiling reached (graceful close)", is_test: !!is_demo,
+          result: "failed", reason: "Target ceiling reached (graceful close)", is_test: isDemo,
         });
         return NextResponse.json({ recorded: false, collection_closed: true }, { status: 200 });
       }
@@ -209,7 +218,7 @@ export async function POST(req: NextRequest) {
         campaign_id: campaign_id as string, campaign_name: campaignName,
         publisher: publisher as string | null, manual_status: manualStatus,
         effective_status: detail.effective, http_code: 403,
-        result: "failed", reason, is_test: !!is_demo,
+        result: "failed", reason, is_test: isDemo,
       });
       return NextResponse.json({ error: msg }, { status: 403 });
     }
@@ -249,7 +258,7 @@ export async function POST(req: NextRequest) {
     creative_id:     creative_id     ?? null,
     club, competition,
     device, browser, response_duration_seconds,
-    is_demo: !!is_demo,
+    is_demo: isDemo,
     // Group + market context (null for single-campaign embeds)
     group_id:        group_id        ?? null,
     country_code:    country_code    ?? null,
@@ -263,14 +272,44 @@ export async function POST(req: NextRequest) {
   // ALL historical / fan-invitation traffic — keeps the plain insert, byte-for-byte
   // unchanged, so this cannot alter their behaviour.
   const enforceCeiling =
-    campaign.target_mode !== "continue" && campaign.target_responses != null && !is_demo;
+    campaign.target_mode !== "continue" && campaign.target_responses != null && !isDemo;
 
   if (enforceCeiling) {
-    // jsonb_populate_record would NULL the defaulted id/created_at, so supply them.
-    const payload = { ...row, id: crypto.randomUUID(), created_at: new Date().toISOString() };
-    const { data: outcome, error: rpcError } = await supabase.rpc(
+    // Migration 204: typed parameters, one per column the submission path is
+    // entitled to set. The previous signature took the whole row as jsonb and
+    // fed it to jsonb_populate_record, which let a caller write ANY column —
+    // including evidence_simulation_id. id/created_at are no longer passed:
+    // they take their column defaults, which the jsonb form could not do.
+    const { data: outcome, error: rpcError } = await supabaseAdmin.rpc(
       "fx_submit_response_if_under_ceiling",
-      { p_campaign_id: campaign_id as string, p_target: campaign.target_responses as number, p_payload: payload }
+      {
+        p_campaign_id:               campaign_id as string,
+        p_target:                    campaign.target_responses as number,
+        p_session_id:                row.session_id      ?? null,
+        p_survey_id:                 row.survey_id       ?? null,
+        p_question_set_id:           row.question_set_id ?? null,
+        p_q1:                        row.q1              ?? null,
+        p_q2:                        row.q2              ?? null,
+        p_q3:                        row.q3              ?? null,
+        p_country:                   row.country         ?? null,
+        p_fan_segment:               row.fan_segment     ?? null,
+        p_gender:                    row.gender          ?? null,
+        p_age_band:                  row.age_band        ?? null,
+        p_publisher:                 row.publisher       ?? null,
+        p_placement:                 row.placement       ?? null,
+        p_placement_id:              row.placement_id    ?? null,
+        p_creative_id:               row.creative_id     ?? null,
+        p_club:                      row.club            ?? null,
+        p_competition:               row.competition     ?? null,
+        p_device:                    row.device          ?? null,
+        p_browser:                   row.browser         ?? null,
+        p_response_duration_seconds: row.response_duration_seconds ?? null,
+        p_is_demo:                   isDemo,
+        p_group_id:                  row.group_id        ?? null,
+        p_country_code:              row.country_code    ?? null,
+        p_market:                    row.market          ?? null,
+        p_survey_language:           row.survey_language ?? null,
+      }
     );
     if (rpcError) {
       console.error("[submit] Atomic ceiling RPC error:", rpcError);
@@ -278,7 +317,7 @@ export async function POST(req: NextRequest) {
         campaign_id: campaign_id as string, campaign_name: campaignName,
         publisher: publisher as string | null, manual_status: manualStatus,
         effective_status: effectiveStatus, http_code: 500,
-        result: "failed", reason: "Database insert failed", is_test: !!is_demo,
+        result: "failed", reason: "Database insert failed", is_test: isDemo,
       });
       return NextResponse.json({ error: "Failed to save response. Please try again." }, { status: 500 });
     }
@@ -290,20 +329,20 @@ export async function POST(req: NextRequest) {
         campaign_id: campaign_id as string, campaign_name: campaignName,
         publisher: publisher as string | null, manual_status: manualStatus,
         effective_status: effectiveStatus, http_code: 200,
-        result: "failed", reason: "Target ceiling reached (graceful close)", is_test: !!is_demo,
+        result: "failed", reason: "Target ceiling reached (graceful close)", is_test: isDemo,
       });
       return NextResponse.json({ recorded: false, collection_closed: true }, { status: 200 });
     }
     // outcome === "inserted" → fall through to the success path.
   } else {
-    const { error } = await supabase.from("responses").insert([row]);
+    const { error } = await supabaseAdmin.from("responses").insert([row]);
     if (error) {
       console.error("[submit] Supabase insert error:", error);
       await logAttempt({
         campaign_id: campaign_id as string, campaign_name: campaignName,
         publisher: publisher as string | null, manual_status: manualStatus,
         effective_status: effectiveStatus, http_code: 500,
-        result: "failed", reason: "Database insert failed", is_test: !!is_demo,
+        result: "failed", reason: "Database insert failed", is_test: isDemo,
       });
       return NextResponse.json({ error: "Failed to save response. Please try again." }, { status: 500 });
     }
@@ -313,7 +352,7 @@ export async function POST(req: NextRequest) {
   // See lib/research-project-target-check.ts: reading data must never
   // mutate it, so this runs from the write path (a response landing),
   // not from any GET route.
-  if (campaign?.research_project_id && !is_demo) {
+  if (campaign?.research_project_id && !isDemo) {
     try {
       await checkResearchTargetReached(campaign.id);
     } catch (err) {
@@ -325,7 +364,7 @@ export async function POST(req: NextRequest) {
     campaign_id: campaign_id as string, campaign_name: campaignName,
     publisher: publisher as string | null, manual_status: manualStatus,
     effective_status: effectiveStatus, http_code: 200,
-    result: "success", reason: "Saved", is_test: !!is_demo,
+    result: "success", reason: "Saved", is_test: isDemo,
   });
 
   return NextResponse.json({ success: true });

@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { requireUser } from "@/lib/auth-server";
 import { canAccess } from "@/lib/access";
@@ -43,7 +42,7 @@ export async function POST(
     return NextResponse.json({ error: `Unknown action: ${action}` }, { status: 400 });
   }
 
-  const { data: campaign, error: fetchError } = await supabase
+  const { data: campaign, error: fetchError } = await supabaseAdmin
     .from("campaigns")
     .select("id, brand_org_id, campaign_name, status, created_by_admin")
     .eq("id", id)
@@ -65,7 +64,7 @@ export async function POST(
 
   const now = new Date().toISOString();
 
-  const { data, error } = await supabase
+  const { data, error } = await supabaseAdmin
     .from("campaigns")
     .update({
       status:                 transition.status,

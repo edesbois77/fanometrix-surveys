@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { requireUser } from "@/lib/auth-server";
 import { dataVisibleCampaignIds } from "@/lib/access";
@@ -15,7 +14,7 @@ export async function GET(req: NextRequest) {
   const campaignId = req.nextUrl.searchParams.get("campaign_id");
   const researchProjectId = req.nextUrl.searchParams.get("research_project_id");
 
-  let query = supabase
+  let query = supabaseAdmin
     .from("responses")
     .select("*")
     .order("created_at", { ascending: false });

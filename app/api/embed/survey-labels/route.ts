@@ -1,7 +1,13 @@
 // Public endpoint — returns question text and option ID→label maps for a campaign.
 // Used by the dashboard to display real question text and resolve stored option IDs.
+//
+// P0 exposure remediation. The `?survey_id=` branch used to return any survey's
+// questions and options to any caller. It now requires the same deployed-campaign
+// binding as /api/embed/survey; the `?campaign_id=` branch was already bound to a
+// non-deleted campaign and is unchanged. Unauthorised reads return the existing
+// empty-questions shape, so no caller can distinguish "denied" from "no labels".
 import { NextRequest, NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { isSurveyPubliclyServeable } from "@/lib/embed-survey-access";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { resolveText, type LangCode, type LocalisedQuestion } from "@/lib/survey-locale";
 
@@ -25,7 +31,11 @@ export async function GET(req: NextRequest) {
 
   // When survey_id is provided directly, fetch survey only (no language override)
   if (surveyId && !campaignId) {
-    const { data: survey, error } = await supabase
+    // Gate: a directly-addressed survey must be bound to a deployed campaign.
+    if (!(await isSurveyPubliclyServeable(surveyId))) {
+      return NextResponse.json({ questions: [] });
+    }
+    const { data: survey, error } = await supabaseAdmin
       .from("surveys")
       .select("questions")
       .eq("id", surveyId)
@@ -44,7 +54,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ questions: labels });
   }
 
-  const { data: campaign, error } = await supabase
+  const { data: campaign, error } = await supabaseAdmin
     .from("campaigns")
     .select("survey_language, survey_id, research_project_id")
     .eq("campaign_id", campaignId!)

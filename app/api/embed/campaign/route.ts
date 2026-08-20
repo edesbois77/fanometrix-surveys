@@ -4,8 +4,8 @@
 // Does NOT run MPU char-count validation (that's an admin authoring concern, not a live-serve concern).
 // DOES enforce: campaign must be live, survey must be status=ready (not deleted/archived/draft).
 import { NextRequest, NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { canPreviewCampaign } from "@/lib/embed-preview-auth";
 import { computeEffectiveStatus, type CampaignForStatus } from "@/lib/campaign-status";
 import { resolveQuestion, resolveText, type LangCode, type LocalisedQuestion, type LocalisedText } from "@/lib/survey-locale";
 import { resolveSystemThankYou, isSystemThankYouSurvey } from "@/lib/system-thankyou";
@@ -42,7 +42,16 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "campaign_id is required" }, { status: 400, headers: NO_CACHE });
   }
 
-  const { data: campaign, error } = await supabase
+  // P0 exposure remediation. `?preview=1` bypasses the effective-status gate
+  // below and serves DRAFT surveys, so it must not be reachable anonymously —
+  // a campaign slug is not a secret. Authors keep working exactly as before:
+  // the Studio preview iframe is same-origin, so its session cookie is sent.
+  // A 404 (not 403) keeps "denied" and "no such campaign" indistinguishable.
+  if (preview && !(await canPreviewCampaign(req, campaignId))) {
+    return NextResponse.json({ error: "Campaign not found" }, { status: 404, headers: NO_CACHE });
+  }
+
+  const { data: campaign, error } = await supabaseAdmin
     .from("campaigns")
     // Lifecycle fields (start/end/target/target_mode/override) added so serve-time
     // gating matches the trusted effective-status engine, not just stored status —
@@ -68,7 +77,7 @@ export async function GET(req: NextRequest) {
     if (campaign.status !== "live" && campaign.status !== "scheduled") {
       return NextResponse.json({ error: "Campaign is not live" }, { status: 404, headers: NO_CACHE });
     }
-    const { count } = await supabase
+    const { count } = await supabaseAdmin
       .from("responses")
       .select("*", { count: "exact", head: true })
       .eq("campaign_id", campaignId)
@@ -116,7 +125,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "No survey attached to this campaign" }, { status: 404, headers: NO_CACHE });
   }
 
-  const { data: survey } = await supabase
+  const { data: survey } = await supabaseAdmin
     .from("surveys")
     // intro_* / thank_you_enabled = Phase 3 Survey-journey columns (migration 182);
     // untyped client → `any`, degrade to undefined if not yet migrated.

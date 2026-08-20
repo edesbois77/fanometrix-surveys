@@ -17,7 +17,6 @@
 //   3. English fallback
 
 import { NextRequest, NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { validateSurvey } from "@/lib/survey-validation";
 import { resolveQuestion, resolveText, type LangCode, type LocalisedQuestion, type LocalisedText } from "@/lib/survey-locale";
@@ -39,7 +38,7 @@ export async function GET(req: NextRequest) {
   const now = new Date();
 
   // 1. Find group
-  const { data: group, error: groupErr } = await supabase
+  const { data: group, error: groupErr } = await supabaseAdmin
     .from("campaign_groups")
     .select("id, status, rotation, start_date, end_date")
     .eq("group_id", slug)
@@ -62,11 +61,11 @@ export async function GET(req: NextRequest) {
 
   // 3. Fetch members + campaigns + stats in parallel
   const [{ data: members }, { data: statsData }] = await Promise.all([
-    supabase
+    supabaseAdmin
       .from("campaign_group_members")
       .select("campaign_id, weight, priority")
       .eq("group_id", group.id),
-    supabase.from("vw_campaign_stats").select("campaign_id, response_count"),
+    supabaseAdmin.from("vw_campaign_stats").select("campaign_id, response_count"),
   ]);
 
   if (!members?.length) {
@@ -93,7 +92,7 @@ export async function GET(req: NextRequest) {
     topic: string | null;
   };
 
-  const { data: campaigns } = await supabase
+  const { data: campaigns } = await supabaseAdmin
     .from("campaigns")
     .select("id, campaign_id, status, start_date, end_date, target_responses, deleted_at, publisher_org_id, country_code, market, survey_language, creative_design, survey_id, research_project_id, topic")
     .in("id", campaignUuids) as { data: CampaignRow[] | null };
@@ -181,7 +180,7 @@ export async function GET(req: NextRequest) {
   };
   const surveysById: Record<string, SurveyRow> = {};
   if (surveyIdsNeeded.length > 0) {
-    const { data: surveys } = await supabase
+    const { data: surveys } = await supabaseAdmin
       .from("surveys")
       .select("id, name, questions, thank_you_title, thank_you_body, intro_enabled, intro_title, intro_body, thank_you_enabled")
       .in("id", surveyIdsNeeded);

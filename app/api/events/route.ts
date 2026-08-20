@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { supabaseAdmin } from "@/lib/supabase-admin";
 import { allowSessionEvent } from "@/lib/embed-throttle";
 import { isSurveyEventType } from "@/lib/survey-events";
 
@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Too many events for this session" }, { status: 429 });
   }
 
-  const { error } = await supabase.from("survey_events").insert({
+  const { error } = await supabaseAdmin.from("survey_events").insert({
     session_id,
     event_type,
     campaign_id:  campaign_id  ?? null,

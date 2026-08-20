@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { supabaseAdmin } from "@/lib/supabase-admin";
 import { requireUser } from "@/lib/auth-server";
 
 // ─── Weighted random helper ───────────────────────────────────────────────────
@@ -115,7 +115,7 @@ export async function POST(req: NextRequest) {
   const safeCount = Math.min(Math.max(1, count), 500); // max 500 per call
 
   // Use existing campaign slugs if available, else fall back to demo defaults
-  const { data: campaigns } = await supabase
+  const { data: campaigns } = await supabaseAdmin
     .from("campaigns")
     .select("campaign_id")
     .eq("status", "live")
@@ -129,7 +129,7 @@ export async function POST(req: NextRequest) {
     buildResponse(slugs[Math.floor(Math.random() * slugs.length)])
   );
 
-  const { error } = await supabase.from("responses").insert(rows);
+  const { error } = await supabaseAdmin.from("responses").insert(rows);
 
   if (error) {
     console.error("Demo generate error:", error);

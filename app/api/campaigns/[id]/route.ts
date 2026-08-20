@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { requireUser } from "@/lib/auth-server";
 import { canAccess } from "@/lib/access";
@@ -16,8 +15,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   const { id } = await params;
   const [{ data, error }, { data: statsData }] = await Promise.all([
-    supabase.from("campaigns").select("*, surveys(name)").eq("id", id).single(),
-    supabase.from("vw_campaign_stats").select("response_count").eq("campaign_db_id", id).single(),
+    supabaseAdmin.from("campaigns").select("*, surveys(name)").eq("id", id).single(),
+    supabaseAdmin.from("vw_campaign_stats").select("response_count").eq("campaign_db_id", id).single(),
   ]);
 
   if (error || !data) return NextResponse.json({ error: error?.message ?? "Not found" }, { status: 404 });
