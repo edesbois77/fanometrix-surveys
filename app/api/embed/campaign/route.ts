@@ -8,6 +8,9 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 import { canPreviewCampaign } from "@/lib/embed-preview-auth";
 import { resolveSurveyJourney, SURVEY_JOURNEY_COLUMNS } from "@/lib/embed-journey";
 import { resolvePreviewGrant, markGrantUsed } from "@/lib/preview-grant";
+import { mintPreviewSession, verifyPreviewSession, previewSessionCookie,
+         clearedPreviewSessionCookie, PREVIEW_SESSION_COOKIE,
+         previewContextCookie } from "@/lib/preview-session";
 import { computeEffectiveStatus, type CampaignForStatus } from "@/lib/campaign-status";
 import { type LangCode } from "@/lib/survey-locale";
 import { buildEmbedThemeFromState, resolveBrandingLogos, type BuilderState, type BrandingConfig } from "@/lib/creative-theme-builder";
@@ -91,6 +94,9 @@ async function resolveCampaignEmbed(req: NextRequest, input: EmbedRequest) {
   // for consistency.
   let grantId: string | null = null;
   let preview = false;
+  // Set when a fresh exchange should mint a session. The clearing case is
+  // handled inline in the refresh branch, which returns early.
+  let mintSession: { value: string; maxAgeSeconds: number } | null = null;
 
   if (grantToken) {
     const resolved = await resolvePreviewGrant(grantToken, campaignId);
@@ -102,6 +108,42 @@ async function resolveCampaignEmbed(req: NextRequest, input: EmbedRequest) {
     campaignId = resolved.campaignSlug;   // authority is the grant, not the URL
     grantId = resolved.grant.id;
     preview = true;                        // review may see a non-live campaign
+    // Mint a session so a REFRESH survives. Never longer than the grant itself.
+    mintSession = mintPreviewSession(resolved.grant.id, resolved.campaignSlug, resolved.grant.expiresAt);
+  } else if (campaignId && req.cookies.get(PREVIEW_SESSION_COOKIE)?.value) {
+    // REFRESH path. The fragment was stripped on first load, so there is no
+    // token to present; the HttpOnly session stands in for it.
+    //
+    // The session alone is never sufficient: its grant is RE-RESOLVED here, so
+    // revocation takes effect on the very next request rather than whenever the
+    // session happens to lapse.
+    const claim = verifyPreviewSession(req.cookies.get(PREVIEW_SESSION_COOKIE)!.value, campaignId);
+    let ok = false;
+    if (claim) {
+      const { data: g } = await supabaseAdmin
+        .from("campaign_preview_grants")
+        .select("id, campaign_id, expires_at, revoked_at")
+        .eq("id", claim.grantId)
+        .maybeSingle();
+      if (g && !g.revoked_at && new Date(g.expires_at as string).getTime() > Date.now()) {
+        const { data: c } = await supabaseAdmin
+          .from("campaigns").select("campaign_id, deleted_at").eq("id", g.campaign_id as string).maybeSingle();
+        if (c && !c.deleted_at && c.campaign_id === campaignId) { ok = true; grantId = g.id as string; preview = true; }
+      }
+    }
+    if (!ok) {
+      // Revoked, expired, deleted, or scoped to another campaign. Drop the
+      // cookie so the tab stops re-presenting a dead credential.
+      const res = NextResponse.json({ error: "Campaign not found" }, { status: 404, headers: NO_CACHE });
+      // The SESSION is cleared immediately — it is the credential.
+      res.cookies.set(clearedPreviewSessionCookie());
+      // The MARKER is deliberately left to lapse on its own. Clearing it in the
+      // same response removes it before the client re-renders, so the tab loses
+      // the one signal that tells it to show "Preview unavailable" rather than a
+      // silent blank frame. It carries no credential, so letting it expire
+      // naturally costs nothing.
+      return res;
+    }
   } else if (previewFlag) {
     // A campaign slug is not a secret, so ?preview=1 alone is never enough.
     // A 404 (not 403) keeps "denied" and "no such campaign" indistinguishable.
@@ -269,9 +311,20 @@ async function resolveCampaignEmbed(req: NextRequest, input: EmbedRequest) {
   };
   if (grantId) await markGrantUsed(grantId);
 
-  return NextResponse.json(payload, {
-    // no-referrer so a review link cannot leak its token to any third party the
-    // preview page happens to reference.
-    headers: preview ? { ...NO_CACHE, "Referrer-Policy": "no-referrer" } : LIVE_CACHE,
-  });
+  const res = NextResponse.json(
+    // `preview` tells the CLIENT it is in a review context even on a refresh,
+    // where it has no token and no readable cookie to infer that from. It drives
+    // evidence suppression, so a reviewer's refresh records nothing.
+    { ...payload, preview },
+    {
+      // no-referrer so a review link cannot leak its token to any third party
+      // the preview page happens to reference.
+      headers: preview ? { ...NO_CACHE, "Referrer-Policy": "no-referrer" } : LIVE_CACHE,
+    },
+  );
+  if (mintSession) {
+    res.cookies.set(previewSessionCookie(mintSession.value, mintSession.maxAgeSeconds));
+    res.cookies.set(previewContextCookie(mintSession.maxAgeSeconds));
+  }
+  return res;
 }

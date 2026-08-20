@@ -203,8 +203,13 @@ function EmbedSurvey() {
     previewFlag: isPreview,
     hasPreviewToken: !!previewToken,
   };
+  // Readable marker (no credential) left by a previous exchange, so a refreshed
+  // tab knows it is a review even when its HttpOnly session has just been
+  // revoked — and shows "Preview unavailable" rather than a silent blank frame.
+  const hadPreviewSession = typeof document !== "undefined"
+    && /(?:^|;\s*)fx_preview_ctx=1(?:;|$)/.test(document.cookie);
   const isDesignSample   = ctxIsDesignSample(embedCtx);
-  const isPreviewContext = ctxIsPreview(embedCtx);
+  const isPreviewContext = ctxIsPreview(embedCtx) || hadPreviewSession;
   const [phase, setPhase] = useState<PreviewPhase>(() => initialPhase(embedCtx));
 
   const [questions,      setQuestions]      = useState<Question[]>(
@@ -245,6 +250,10 @@ function EmbedSurvey() {
   // design property — the same Stack design carries a different topic per campaign.
   const [campaignTopic,      setCampaignTopic]      = useState<string | null>(null);
   const [introTopic,         setIntroTopic]         = useState<string | undefined>(undefined);
+  // Set from the SERVER's `preview` flag. On a refresh the tab has no token and
+  // cannot read the HttpOnly session, so it cannot infer a review context by
+  // itself — the server tells it, and evidence stays suppressed.
+  const [serverPreview,      setServerPreview]      = useState(false);
   const [branding,           setBranding]           = useState<string[]>([]);
   const [resolvedGroupId,      setResolvedGroupId]      = useState<string | null>(null);
   const [resolvedSurveyLang,   setResolvedSurveyLang]   = useState<string>(urlLang ?? "en");
@@ -282,6 +291,7 @@ function EmbedSurvey() {
     // because it passes its own local state straight to the renderer.
     setIntroTopic((data.intro_topic as string) ?? undefined);
     setThankYouEnabled((data.thank_you_enabled as boolean) ?? undefined);
+    setServerPreview(data.preview === true);
     setPhase("resolved");
   }, []);
 
@@ -439,7 +449,9 @@ function EmbedSurvey() {
   // preview=1, so it would otherwise have written real evidence against a real
   // campaign. The design-sample context has no campaign at all and must equally
   // never post.
-  const suppressEvidence = ctxSuppressEvidence(embedCtx);
+  // OR-ed with the server's verdict: a refresh authorised by a preview session
+  // looks like production delivery from the URL alone, and must still be silent.
+  const suppressEvidence = ctxSuppressEvidence(embedCtx) || serverPreview;
 
   // Stack creative — an independent, self-contained design. Rendered only when
   // the resolved design layout is explicitly "stack" (server-side, via

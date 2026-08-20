@@ -37,20 +37,26 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   let a; try { a = await authorise(req, id); } catch (err) { return err as Response; }
   if (a.error) return a.error;
 
+  // Latest grant regardless of state, so the UI can tell "never created" from
+  // "revoked" and from "expired" — three situations that need different words.
   const { data } = await supabaseAdmin
     .from("campaign_preview_grants")
     .select("id, expires_at, created_at, revoked_at, last_used_at, use_count")
     .eq("campaign_id", id)
-    .is("revoked_at", null)
     .order("created_at", { ascending: false })
     .limit(1);
 
   const g = (data ?? [])[0];
-  const active = g && new Date(g.expires_at as string).getTime() > Date.now();
+  const status = !g ? "none"
+    : g.revoked_at ? "revoked"
+    : new Date(g.expires_at as string).getTime() <= Date.now() ? "expired"
+    : "active";
+
   return NextResponse.json({
-    grant: active ? {
+    status,
+    grant: g ? {
       id: g.id, created_at: g.created_at, expires_at: g.expires_at,
-      last_used_at: g.last_used_at, use_count: g.use_count,
+      revoked_at: g.revoked_at, last_used_at: g.last_used_at, use_count: g.use_count,
     } : null,
     // The token is never retrievable. Regenerating is the only way to obtain one.
     token: null,

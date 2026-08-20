@@ -78,7 +78,8 @@ export function DeploymentBuilder({ campaignId, returnTo, embedded = false, hide
   // a derived value below. Resetting two separate pieces of state when the
   // selection changes would mean setState in an effect body — a cascading-render
   // hazard, and one this file should not add more of.
-  const [grant, setGrant] = useState<{ campaignId: string; url: string | null; expiry: string | null } | null>(null);
+  const [grant, setGrant] = useState<{ campaignId: string; url: string | null; expiry: string | null;
+                                       status: "none" | "active" | "revoked" | "expired" } | null>(null);
   const [grantBusy, setGrantBusy] = useState(false);
 
   const fmtExpiry = (iso: string) =>
@@ -143,6 +144,16 @@ export function DeploymentBuilder({ campaignId, returnTo, embedded = false, hide
   const activeGrant  = grant && grant.campaignId === campaignDbId ? grant : null;
   const grantUrl     = activeGrant?.url ?? null;
   const grantExpiry  = activeGrant?.expiry ?? null;
+  // FOUR distinct states, because they need different words:
+  //   none    — never created
+  //   fresh   — just generated; the raw link is on screen ONCE
+  //   active  — a link exists but its token is unrecoverable (hash-only storage)
+  //   dead    — revoked or expired
+  const grantState: "none" | "fresh" | "active" | "dead" =
+    grantUrl ? "fresh"
+    : activeGrant?.status === "active" ? "active"
+    : activeGrant?.status === "revoked" || activeGrant?.status === "expired" ? "dead"
+    : "none";
 
   // Describe the active grant whenever the selected campaign changes. The token
   // is deliberately NOT returned here — only its expiry and usage — so a page
@@ -155,7 +166,9 @@ export function DeploymentBuilder({ campaignId, returnTo, embedded = false, hide
       .then(j => {
         if (cancelled) return;
         // url stays null: the token is never retrievable after creation.
-        setGrant(j?.grant ? { campaignId: campaignDbId, url: null, expiry: fmtExpiry(j.grant.expires_at) } : null);
+        setGrant(j?.grant
+          ? { campaignId: campaignDbId, url: null, expiry: fmtExpiry(j.grant.expires_at), status: j.status }
+          : { campaignId: campaignDbId, url: null, expiry: null, status: "none" });
       })
       .catch(() => { /* absent grant is a normal state, not an error */ });
     return () => { cancelled = true; };
@@ -179,6 +192,7 @@ export function DeploymentBuilder({ campaignId, returnTo, embedded = false, hide
           // in any HTTP request, so it cannot reach an access log or a Referer.
           url: `${BASE}/embed?campaign=${encodeURIComponent(campaignIdValue)}#pt=${j.token}`,
           expiry: fmtExpiry(j.grant.expires_at),
+          status: "active",
         });
       }
     } finally { setGrantBusy(false); }
@@ -189,7 +203,7 @@ export function DeploymentBuilder({ campaignId, returnTo, embedded = false, hide
     setGrantBusy(true);
     try {
       await fetch(`/api/studio/campaigns/${campaignDbId}/preview-grant`, { method: "DELETE" });
-      setGrant(null);
+      setGrant({ campaignId: campaignDbId, url: null, expiry: null, status: "revoked" });
     } finally { setGrantBusy(false); }
   };
   const surveyName      = campaign?.surveys?.name ?? null;
@@ -507,43 +521,51 @@ export function DeploymentBuilder({ campaignId, returnTo, embedded = false, hide
 
                   {grantBusy ? (
                     <p className="text-xs text-gray-400 py-2">Working…</p>
-                  ) : grantUrl ? (
+                  ) : grantState === "fresh" ? (
                     <>
                       <div className="flex gap-2 items-center">
                         <code className="flex-1 text-xs bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-gray-600 truncate">
                           {grantUrl}
                         </code>
                         <button
-                          onClick={() => { navigator.clipboard.writeText(grantUrl); setCopied("iframe"); setTimeout(() => setCopied(null), 2000); }}
+                          onClick={() => { navigator.clipboard.writeText(grantUrl!); setCopied("iframe"); setTimeout(() => setCopied(null), 2000); }}
                           className="text-xs border border-gray-200 px-3 py-2 rounded-lg hover:bg-gray-50 transition-colors flex-shrink-0"
                         >
                           {copied === "iframe" ? "✓ Copied" : "Copy"}
                         </button>
                       </div>
                       <p className="text-xs text-gray-500 mt-1.5">
-                        Shown once — copy it now. Expires {grantExpiry ?? "—"}. The token sits after the # so it is never sent to a server log.
+                        Copy it now — this is the only time it can be shown. Expires {grantExpiry}.
+                        The token sits after the <code>#</code>, so it is never sent to a server log.
                       </p>
                     </>
-                  ) : (
+                  ) : grantState === "active" ? (
                     <p className="text-xs text-gray-500 py-2">
-                      {grantExpiry
-                        ? <>A review link is active and expires {grantExpiry}. Only its hash is stored, so it cannot be shown again — regenerate for a new one.</>
-                        : <>No review link yet.</>}
+                      A review link is <strong>active</strong> and expires {grantExpiry}. Only its hash is
+                      stored, so the link itself cannot be shown again — <strong>Regenerate</strong> to get a
+                      new one, which immediately invalidates the old.
                     </p>
+                  ) : grantState === "dead" ? (
+                    <p className="text-xs py-2" style={{ color: "#B4694C" }}>
+                      The review link has been {activeGrant?.status === "revoked" ? "revoked" : "has expired"} and
+                      no longer works. Generate a new one if a reviewer still needs access.
+                    </p>
+                  ) : (
+                    <p className="text-xs text-gray-500 py-2">No review link created yet.</p>
                   )}
 
                   <div className="flex gap-2 mt-2">
                     <button onClick={createGrant} disabled={grantBusy}
                       className="text-xs border border-gray-200 px-3 py-1.5 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50">
-                      {grantExpiry ? "Regenerate" : "Create review link"}
+                      {grantState === "none" ? "Create review link" : "Regenerate"}
                     </button>
-                    {grantExpiry && (
+                    {grantState === "active" || grantState === "fresh" ? (
                       <button onClick={revokeGrant} disabled={grantBusy}
                         className="text-xs border border-gray-200 px-3 py-1.5 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
                         style={{ color: "#B4694C" }}>
                         Revoke
                       </button>
-                    )}
+                    ) : null}
                   </div>
 
                   <p className="text-xs text-amber-600 mt-2">

@@ -3,6 +3,9 @@ import { test, before, mock } from "node:test";
 import assert from "node:assert/strict";
 import { NextRequest } from "next/server";
 
+// A successful grant exchange mints a preview session, which is signed.
+process.env.JWT_SECRET = process.env.JWT_SECRET || "test-secret-for-preview-session";
+
 // Parity across every preview surface AND production.
 //
 // Requirement: Studio full-survey preview, Deploy inline preview and a valid

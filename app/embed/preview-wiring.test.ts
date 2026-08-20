@@ -128,3 +128,38 @@ test("the embed reads the token from the fragment and strips it immediately", ()
   assert.match(code, /preview_token: previewToken/);
   assert.ok(!/p\.set\("preview_token"/.test(code), "never appended to a query string");
 });
+
+test("the Deploy UI distinguishes all FOUR grant states", () => {
+  const dep = readFileSync(join(ROOT, "app", "campaign-deployment", "page.tsx"), "utf8");
+  assert.match(dep, /grantState: "none" \| "fresh" \| "active" \| "dead"/);
+  assert.match(dep, /No review link created yet/,            "state: none");
+  assert.match(dep, /only time it can be shown/,             "state: fresh — copy once");
+  assert.match(dep, /cannot be shown again/,                 "state: active — token unrecoverable");
+  assert.match(dep, /no longer works/,                       "state: dead — revoked or expired");
+  // Copy is offered ONLY when a raw link exists.
+  const copyAt = dep.indexOf("navigator.clipboard.writeText(grantUrl");
+  const freshAt = dep.indexOf('grantState === "fresh"');
+  assert.ok(freshAt > 0 && copyAt > freshAt, "Copy sits inside the fresh branch");
+});
+
+test("the raw grant token is never persisted client-side", () => {
+  for (const f of ["app/campaign-deployment/page.tsx", "app/embed/page.tsx"]) {
+    const src = readFileSync(join(ROOT, f), "utf8");
+    assert.ok(!/localStorage/.test(src), `${f}: no localStorage`);
+    assert.ok(!/sessionStorage/.test(src), `${f}: no sessionStorage`);
+    assert.ok(!/document\.cookie\s*=/.test(src), `${f}: never writes a readable cookie`);
+  }
+});
+
+test("a refresh is authorised by an HttpOnly session, not by anything readable", () => {
+  const route = readFileSync(join(ROOT, "app", "api", "embed", "campaign", "route.ts"), "utf8");
+  // The refresh branch must RE-RESOLVE the grant, so revocation bites immediately
+  // rather than whenever the session happens to lapse.
+  const branch = route.slice(route.indexOf("REFRESH path"), route.indexOf("} else if (previewFlag)"));
+  assert.match(branch, /verifyPreviewSession/);
+  assert.match(branch, /from\("campaign_preview_grants"\)/, "grant re-read on every refresh");
+  assert.match(branch, /revoked_at/,  "revocation checked");
+  assert.match(branch, /expires_at/,  "grant expiry checked");
+  assert.match(branch, /deleted_at/,  "campaign deletion checked");
+  assert.match(branch, /clearedPreviewSessionCookie/, "a dead session is dropped");
+});
