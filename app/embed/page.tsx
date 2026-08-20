@@ -8,6 +8,9 @@ import { StudioClassicSurvey } from "./StudioClassicSurvey";
 import { StackSurvey } from "./StackSurvey";
 import { parseStackPreviewFrame, resolveStackPreviewStep } from "./stack-frames";
 import { coerceStackConfig, DEFAULT_STACK_CONFIG, type StackConfig } from "@/lib/stack-config";
+import { initialPhase, phaseForFailure, mayMountSurvey, isPreviewContext as ctxIsPreview,
+         suppressEvidence as ctxSuppressEvidence, isDesignSample as ctxIsDesignSample,
+         type PreviewPhase } from "@/lib/embed-preview-phase";
 
 const NAVY = "#071B2F";
 
@@ -129,6 +132,11 @@ export type Question = {
   canonical_question_key?: string;
 };
 
+// Neutral preview chrome. Deliberately not any creative's palette: a loading or
+// unavailable state must never look like a rendered design.
+const PREVIEW_NEUTRAL_BG = "#12161C";
+const PREVIEW_NEUTRAL_FG = "#C9D1D9";
+
 function EmbedSurvey() {
   const params = useSearchParams();
 
@@ -158,8 +166,31 @@ function EmbedSurvey() {
   const [device,  setDevice]  = useState<string | null>(null);
   const [browser, setBrowser] = useState<string | null>(null);
 
+  // Ad-ops review token. Present ⇒ this is an anonymous, campaign-scoped review,
+  // resolved entirely server-side from the grant.
+  const previewToken = params.get("preview_token");
+
+  // The DESIGN SAMPLE context: Creative Lab / design-card preview, with no
+  // campaign, group or survey. It legitimately renders sample questions, and is
+  // the ONLY context allowed to show QUESTIONS. Everything else must resolve
+  // real content first.
+  // ── Preview state machine ──────────────────────────────────────────────────
+  // The decisions live in lib/embed-preview-phase.ts as pure functions, so the
+  // rules that matter are testable without a DOM. No survey component may mount
+  // before the authorised payload AND its creative are fully resolved.
+  const embedCtx = {
+    hasCampaignSlug: !groupSlug && !!campaign && campaign !== "default",
+    hasGroupSlug: !!groupSlug,
+    hasSurveyId: !!surveyId,
+    previewFlag: isPreview,
+    hasPreviewToken: !!previewToken,
+  };
+  const isDesignSample   = ctxIsDesignSample(embedCtx);
+  const isPreviewContext = ctxIsPreview(embedCtx);
+  const [phase, setPhase] = useState<PreviewPhase>(() => initialPhase(embedCtx));
+
   const [questions,      setQuestions]      = useState<Question[]>(
-    (!groupSlug && (!campaign || campaign === "default")) ? QUESTIONS : []
+    isDesignSample ? QUESTIONS : []
   );
   const [thankYouTitle,  setThankYouTitle]  = useState("Thank you!");
   const [thankYouBody,   setThankYouBody]   = useState("Your anonymous feedback helps improve the football experience for fans everywhere.");
@@ -195,6 +226,7 @@ function EmbedSurvey() {
   // Survey/campaign-level Topic (campaigns.topic), shown on the Stack intro. Not a
   // design property — the same Stack design carries a different topic per campaign.
   const [campaignTopic,      setCampaignTopic]      = useState<string | null>(null);
+  const [introTopic,         setIntroTopic]         = useState<string | undefined>(undefined);
   const [branding,           setBranding]           = useState<string[]>([]);
   const [resolvedGroupId,      setResolvedGroupId]      = useState<string | null>(null);
   const [resolvedSurveyLang,   setResolvedSurveyLang]   = useState<string>(urlLang ?? "en");
@@ -206,11 +238,45 @@ function EmbedSurvey() {
   // ref-in-render lint, with identical set-once semantics.
   const [sessionId] = useState<string>(() => (typeof crypto !== "undefined" ? crypto.randomUUID() : ""));
 
+  // ── The single client application path ────────────────────────────────────
+  // Every context — group, campaign, survey-based preview and ad-ops review —
+  // applies its resolved payload through THIS function. Parity is a property of
+  // there being one path, not of three setter blocks agreeing. Adding a field
+  // here reaches every surface at once.
+  const applyPayload = useCallback((data: Record<string, unknown>) => {
+    setQuestions(data.questions as Question[]);
+    setThankYouTitle((data.thank_you_title as string) ?? "Thank you!");
+    setThankYouBody((data.thank_you_body as string) ?? "");
+    // Creative
+    setCreativeDesign((data.creative_design as string) ?? null);
+    setCustomTheme((data.custom_theme as EmbedTheme) ?? null);
+    setResolvedLayout((data.layout as string) ?? null);
+    setResolvedRenderer((data.renderer as string) ?? null);
+    setStackConfig(coerceStackConfig(data.config));
+    setCampaignTopic((data.topic as string) ?? null);
+    setBranding((data.branding as string[]) ?? []);
+    // Survey journey
+    setSurveyIntroEnabled((data.intro_enabled as boolean) ?? undefined);
+    setIntroTitle((data.intro_title as string) ?? undefined);
+    setIntroBody((data.intro_body as string) ?? undefined);
+    // Short survey subject shown as "Topic: …" on the intro frame. Supplied by
+    // no embed surface before this — only the Studio builder preview showed it,
+    // because it passes its own local state straight to the renderer.
+    setIntroTopic((data.intro_topic as string) ?? undefined);
+    setThankYouEnabled((data.thank_you_enabled as boolean) ?? undefined);
+    setPhase("resolved");
+  }, []);
+
+  /** Classify a failed resolution. 401/403/404 and an invalid grant are
+   *  "unavailable"; anything else is "error". Neither renders survey content. */
+  const failResolution = useCallback((status: number | null) => {
+    setPhase(phaseForFailure(status));
+  }, []);
+
   useEffect(() => {
     setDevice(detectDevice());
     setBrowser(detectBrowser());
   }, []);
-
   // Group mode: resolve which campaign to serve and fetch its questions
   useEffect(() => {
     if (!groupSlug) return;
@@ -221,104 +287,130 @@ function EmbedSurvey() {
     if (urlLang)       gParams.set("lang",       urlLang);
 
     fetch(`/api/embed/group?${gParams.toString()}`)
-      .then(r => r.ok ? r.json() : null)
-      .then(data => {
+      .then(async r => (r.ok ? { data: await r.json(), status: r.status } : { data: null, status: r.status }))
+      .then(({ data, status }) => {
         if (data?.campaign_id && data?.questions?.length) {
           setResolvedCampaignId(data.campaign_id);
-          setQuestions(data.questions);
-          setThankYouTitle(data.thank_you_title ?? thankYouTitle);
-          setThankYouBody(data.thank_you_body   ?? thankYouBody);
           setResolvedGroupId(data.group_id ?? groupSlug);
           setResolvedSurveyLang(urlLang ?? data.survey_language ?? "en");
           setResolvedCountryCode(data.country_code ?? (countryParam || null));
           setResolvedMarket(data.market ?? marketParam);
-          setCreativeDesign(data.creative_design ?? null);
-          setCustomTheme(data.custom_theme ?? null);
-          setResolvedLayout(data.layout ?? null);
-          setResolvedRenderer(data.renderer ?? null);
-          setStackConfig(coerceStackConfig(data.config));
-          setCampaignTopic(data.topic ?? null);
-          setBranding(data.branding ?? []);
-          setSurveyIntroEnabled(data.intro_enabled ?? undefined);
-          setIntroTitle(data.intro_title ?? undefined);
-          setIntroBody(data.intro_body ?? undefined);
-          setThankYouEnabled(data.thank_you_enabled ?? undefined);
+          applyPayload(data);            // single shared path
+          setGroupReady(true);
+        } else {
+          failResolution(status);
+          setGroupReady(false);
         }
-        setGroupReady(!!data?.campaign_id);
       })
-      .catch(() => setGroupReady(false));
+      .catch(() => { failResolution(null); setGroupReady(false); });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [groupSlug]);
-
-  // Campaign mode
+  // Campaign mode — production delivery, Deploy inline preview, and anonymous
+  // ad-ops review (which carries preview_token instead of a session).
   const hasCampaignSlug = !groupSlug && !!campaign && campaign !== "default";
   useEffect(() => {
     if (!hasCampaignSlug) return;
     const p = new URLSearchParams({ campaign_id: campaign });
     if (urlLang) p.set("lang", urlLang);
     if (isPreview) p.set("preview", "1");
-    fetch(`/api/embed/campaign?${p.toString()}`)
-      .then(r => r.ok ? r.json() : null)
-      .then(data => {
-        if (data?.questions?.length) {
-          setQuestions(data.questions);
-          setThankYouTitle(data.thank_you_title ?? thankYouTitle);
-          setThankYouBody(data.thank_you_body   ?? thankYouBody);
-          setResolvedSurveyLang(data.survey_language ?? urlLang ?? "en");
-          setCreativeDesign(data.creative_design ?? null);
-          setCustomTheme(data.custom_theme ?? null);
-          setResolvedLayout(data.layout ?? null);
-          setResolvedRenderer(data.renderer ?? null);
-          setStackConfig(coerceStackConfig(data.config));
-          setCampaignTopic(data.topic ?? null);
-          setBranding(data.branding ?? []);
-          setSurveyIntroEnabled(data.intro_enabled ?? undefined);
-          setIntroTitle(data.intro_title ?? undefined);
-          setIntroBody(data.intro_body ?? undefined);
-          setThankYouEnabled(data.thank_you_enabled ?? undefined);
-        }
+    if (previewToken) p.set("preview_token", previewToken);
+    fetch(`/api/embed/campaign?${p.toString()}`, { referrerPolicy: "no-referrer" })
+      .then(async r => (r.ok ? { data: await r.json(), status: r.status } : { data: null, status: r.status }))
+      .then(({ data, status }) => {
+        if (data?.questions?.length) applyPayload(data);   // single shared path
+        else failResolution(status);
       })
-      .catch(() => {/* keep fallback questions */});
+      .catch(() => failResolution(null));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [campaign, hasCampaignSlug]);
-
-  // Survey-only mode
+  }, [campaign, hasCampaignSlug, previewToken]);
+  // Survey-only mode — the Studio builder's "Preview full survey". Always
+  // authenticated (the API requires a session for the owning organisation);
+  // a survey UUID is never a public key to draft content.
   useEffect(() => {
     if (groupSlug || hasCampaignSlug || !surveyId) return;
     const surveyApiUrl = `/api/embed/survey?id=${surveyId}&lang=${encodeURIComponent(urlLang ?? "en")}${isPreview ? "&preview=1" : ""}`;
-    fetch(surveyApiUrl)
-      .then(r => r.ok ? r.json() : null)
-      .then(data => {
+    fetch(surveyApiUrl, { referrerPolicy: "no-referrer" })
+      .then(async r => (r.ok ? { data: await r.json(), status: r.status } : { data: null, status: r.status }))
+      .then(({ data, status }) => {
         if (data?.questions?.length) {
-          setQuestions(data.questions);
-          setThankYouTitle(data.thank_you_title);
-          setThankYouBody(data.thank_you_body);
           setResolvedSurveyLang(urlLang ?? "en");
-          // Creative selected on the Studio Creative stage. Before this, the
-          // survey-only branch applied none of these, so a draft Preview always
-          // rendered the DEFAULT creative rather than the author's choice — it
-          // could not show what a partner would actually receive. Same seven
-          // fields, same order, as the campaign branch above.
-          setCreativeDesign(data.creative_design ?? null);
-          setCustomTheme(data.custom_theme ?? null);
-          setResolvedLayout(data.layout ?? null);
-          setResolvedRenderer(data.renderer ?? null);
-          setStackConfig(coerceStackConfig(data.config));
-          setCampaignTopic(data.topic ?? null);
-          setBranding(data.branding ?? []);
-          setSurveyIntroEnabled(data.intro_enabled ?? undefined);
-          setIntroTitle(data.intro_title ?? undefined);
-          setIntroBody(data.intro_body ?? undefined);
-          setThankYouEnabled(data.thank_you_enabled ?? undefined);
+          applyPayload(data);            // single shared path
+        } else {
+          failResolution(status);
         }
       })
-      .catch(() => {/* keep fallback questions */});
+      .catch(() => failResolution(null));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [surveyId, groupSlug, hasCampaignSlug]);
 
-  if ((groupSlug && !groupReady) || questions.length === 0) {
+  // ── Render gate ────────────────────────────────────────────────────────────
+  // NOTHING that renders survey content may mount before `phase === "resolved"`.
+  // The renderer is chosen from resolvedRenderer/resolvedLayout below, which are
+  // only ever set by applyPayload, so the selected creative mounts ONCE. There is
+  // no intermediate mount to replace, which is what produced the ClassicSurvey
+  // flash on every refresh.
+  if (!mayMountSurvey(phase) && phase === "loading") {
+    return (
+      <div
+        role="status"
+        aria-live="polite"
+        aria-label="Loading preview"
+        style={{
+          width: 300, height: 250, display: "flex", alignItems: "center", justifyContent: "center",
+          background: PREVIEW_NEUTRAL_BG, color: PREVIEW_NEUTRAL_FG,
+          font: "500 12px/1.4 system-ui, -apple-system, sans-serif", letterSpacing: "0.01em",
+          borderRadius: 8,
+        }}
+      >
+        {isPreviewContext ? "Loading preview…" : ""}
+      </div>
+    );
+  }
+
+  if (phase === "unavailable" || phase === "error") {
+    // Production delivery keeps its historical silent-transparent behaviour, so
+    // a failed live impression looks exactly as it always has. Preview contexts
+    // get an explicit neutral state — and in NEITHER case is any question,
+    // intro, branding or sample content rendered.
+    if (!isPreviewContext) {
+      return <div style={{ width: 300, height: 250, background: "transparent" }} />;
+    }
+    return (
+      <div
+        role="status"
+        aria-live="polite"
+        style={{
+          width: 300, height: 250, display: "flex", flexDirection: "column",
+          alignItems: "center", justifyContent: "center", gap: 6, padding: 20, textAlign: "center",
+          background: PREVIEW_NEUTRAL_BG, color: PREVIEW_NEUTRAL_FG,
+          font: "500 12px/1.5 system-ui, -apple-system, sans-serif", borderRadius: 8,
+        }}
+      >
+        <span style={{ fontWeight: 700 }}>Preview unavailable</span>
+        <span style={{ opacity: 0.75, fontSize: 11 }}>
+          {phase === "unavailable"
+            ? "This review link is not valid, has expired, or you do not have access."
+            : "The preview could not be loaded. Check your connection and try again."}
+        </span>
+      </div>
+    );
+  }
+
+  if (groupSlug && !groupReady) {
     return <div style={{ width: 300, height: 250, background: "transparent" }} />;
   }
+
+  // ── Evidence isolation ─────────────────────────────────────────────────────
+  // ONLY genuine production delivery records anything. Every preview context is
+  // silent: no impressions, no survey events, no partial answers, no completed
+  // responses, no submission logs.
+  //
+  // Derived from what this embed IS, not from a single flag. `?preview=1` alone
+  // was not enough: an ad-ops review link carries preview_token WITHOUT
+  // preview=1, so it would otherwise have written real evidence against a real
+  // campaign. The design-sample context has no campaign at all and must equally
+  // never post.
+  const suppressEvidence = ctxSuppressEvidence(embedCtx);
 
   // Stack creative — an independent, self-contained design. Rendered only when
   // the resolved design layout is explicitly "stack" (server-side, via
@@ -370,7 +462,7 @@ function EmbedSurvey() {
         demographics={pvLong ? STACK_PREVIEW_LONG_DEMO : undefined}
         thankYouTitle={thankYouTitle}
         thankYouBody={thankYouBody}
-        isPreview={isPreview}
+        isPreview={suppressEvidence}
         surveyIntroEnabled={stackUsesRealSurvey ? surveyIntroEnabled : undefined}
         introTitle={stackUsesRealSurvey ? introTitle : undefined}
         introBody={stackUsesRealSurvey ? introBody : undefined}
@@ -424,11 +516,12 @@ function EmbedSurvey() {
         questions={questions}
         thankYouTitle={thankYouTitle}
         thankYouBody={thankYouBody}
-        isPreview={isPreview}
+        isPreview={suppressEvidence}
         intro={resolvedLayout === "invitation"}
         surveyIntroEnabled={surveyIntroEnabled}
         introTitle={introTitle}
         introBody={introBody}
+        introTopic={introTopic}
         thankYouEnabled={thankYouEnabled}
         campaignId={resolvedCampaignId}
         surveyId={surveyId}
@@ -464,10 +557,11 @@ function EmbedSurvey() {
         questions={questions}
         thankYouTitle={thankYouTitle}
         thankYouBody={thankYouBody}
-        isPreview={isPreview}
+        isPreview={suppressEvidence}
         surveyIntroEnabled={surveyIntroEnabled}
         introTitle={introTitle}
         introBody={introBody}
+        introTopic={introTopic}
         thankYouEnabled={thankYouEnabled}
         campaignId={resolvedCampaignId}
         surveyId={surveyId}
@@ -498,7 +592,7 @@ function EmbedSurvey() {
       questions={questions}
       thankYouTitle={thankYouTitle}
       thankYouBody={thankYouBody}
-      isPreview={isPreview}
+      isPreview={suppressEvidence}
       campaignId={resolvedCampaignId}
       surveyId={surveyId}
       questionSetId={questionSetId}

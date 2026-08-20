@@ -19,9 +19,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { validateSurvey } from "@/lib/survey-validation";
-import { resolveQuestion, resolveText, type LangCode, type LocalisedQuestion, type LocalisedText } from "@/lib/survey-locale";
-import { resolveSystemThankYou, isSystemThankYouSurvey } from "@/lib/system-thankyou";
+import { type LangCode, type LocalisedQuestion, type LocalisedText } from "@/lib/survey-locale";
 import { buildEmbedThemeFromState, resolveBrandingLogos, type BuilderState, type BrandingConfig } from "@/lib/creative-theme-builder";
+import { resolveSurveyJourney, SURVEY_JOURNEY_COLUMNS } from "@/lib/embed-journey";
 import { coerceStackConfig, resolveEffectiveTopic } from "@/lib/stack-config";
 import { campaignStartInstant, campaignEndInstant } from "@/lib/campaign-time";
 import type { EmbedTheme } from "@/app/embed/ThemedSurvey";
@@ -182,7 +182,7 @@ export async function GET(req: NextRequest) {
   if (surveyIdsNeeded.length > 0) {
     const { data: surveys } = await supabaseAdmin
       .from("surveys")
-      .select("id, name, questions, thank_you_title, thank_you_body, intro_enabled, intro_title, intro_body, thank_you_enabled")
+      .select(`id, name, ${SURVEY_JOURNEY_COLUMNS}`)
       .in("id", surveyIdsNeeded);
     for (const s of (surveys ?? []) as SurveyRow[]) surveysById[s.id] = s;
   }
@@ -269,7 +269,6 @@ export async function GET(req: NextRequest) {
   // Language priority: explicit URL param > campaign survey_language > en
   const lang = (urlLang ?? campaign.survey_language ?? "en") as LangCode;
 
-  const questions = (survey?.questions ?? []).map(q => resolveQuestion(q, lang));
 
   const resolvedDesign = effectiveCreativeDesign(campaign);
   let customTheme: EmbedTheme | null = null;
@@ -319,14 +318,9 @@ export async function GET(req: NextRequest) {
     // Effective Stack Topic: design default, unless the campaign overrode or cleared it.
     topic:           effectiveTopic,
     branding,
-    questions,
-    thank_you_title: isSystemThankYouSurvey(survey?.intro_enabled) ? resolveSystemThankYou(lang).title : (resolveText(survey?.thank_you_title ?? {}, lang) || "Thank you!"),
-    thank_you_body:  isSystemThankYouSurvey(survey?.intro_enabled) ? resolveSystemThankYou(lang).body  : (resolveText(survey?.thank_you_body ?? {}, lang) || "Your anonymous feedback helps improve the football experience for fans everywhere."),
-    thank_you_system: isSystemThankYouSurvey(survey?.intro_enabled),
-    // Phase 3 Survey-journey fields, resolved to `lang` like the Thank-You copy.
-    intro_enabled:     survey?.intro_enabled ?? null, // raw tri-state; NULL→false would drop Stack's always-on intro
-    intro_title:       resolveText(survey?.intro_title ?? {}, lang) || null,
-    intro_body:        resolveText(survey?.intro_body  ?? {}, lang) || null,
-    thank_you_enabled: survey?.thank_you_enabled ?? null,
+    // SHARED journey resolver — same source as /api/embed/survey and
+    // /api/embed/campaign, so no surface can drift. Carries intro_topic, which
+    // no embed surface previously supplied.
+    ...resolveSurveyJourney(survey ?? {}, lang),
   });
 }

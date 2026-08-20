@@ -66,6 +66,24 @@ export function DeploymentBuilder({ campaignId, returnTo, embedded = false, hide
   const [segment,         setSegment]         = useState("");
   const [adServer,        setAdServer]        = useState("Google Ad Manager / DV360");
   const [copied,          setCopied]          = useState<"iframe" | "script" | "instructions" | null>(null);
+
+  // ── Secure review link (campaign-scoped preview grant) ──────────────────────
+  // The Deploy page deliberately offers a link shareable with ad-ops, so it
+  // cannot rely on the recipient holding a Fanometrix session. It equally must
+  // not re-open draft research instruments to anyone holding a campaign slug.
+  // A grant is an opaque token bound to ONE campaign, with an explicit expiry,
+  // revocable and regenerable. Only its hash is stored, so the URL below exists
+  // exactly once — after a reload we can describe the grant but never reshow it.
+  // Held as ONE record tagged with the campaign it belongs to, and read through
+  // a derived value below. Resetting two separate pieces of state when the
+  // selection changes would mean setState in an effect body — a cascading-render
+  // hazard, and one this file should not add more of.
+  const [grant, setGrant] = useState<{ campaignId: string; url: string | null; expiry: string | null } | null>(null);
+  const [grantBusy, setGrantBusy] = useState(false);
+
+  const fmtExpiry = (iso: string) =>
+    new Date(iso).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+
   // A returnTo carried on the URL (global host) — the embedded host passes it as
   // a prop instead; `backHref` below prefers the prop.
   const [urlReturnTo,     setUrlReturnTo]     = useState<string | null>(null);
@@ -110,6 +128,7 @@ export function DeploymentBuilder({ campaignId, returnTo, embedded = false, hide
 
   const campaign = campaigns.find(c => c.id === selectedId) ?? null;
 
+
   // When campaign changes, auto-fill publisher from the campaign record
   useEffect(() => {
     setPublisher(orgName(campaigns.find(c => c.id === selectedId)?.publisher_org_id ?? null));
@@ -119,6 +138,58 @@ export function DeploymentBuilder({ campaignId, returnTo, embedded = false, hide
   const countryMacro = GEO_MACROS[adServer] ?? "%%COUNTRY%%";
 
   const campaignIdValue = campaign?.campaign_id ?? "";
+
+  const campaignDbId = campaign?.id ?? null;
+  const activeGrant  = grant && grant.campaignId === campaignDbId ? grant : null;
+  const grantUrl     = activeGrant?.url ?? null;
+  const grantExpiry  = activeGrant?.expiry ?? null;
+
+  // Describe the active grant whenever the selected campaign changes. The token
+  // is deliberately NOT returned here — only its expiry and usage — so a page
+  // reload cannot resurface a shareable URL.
+  useEffect(() => {
+    if (!campaignDbId) return;
+    let cancelled = false;
+    fetch(`/api/studio/campaigns/${campaignDbId}/preview-grant`)
+      .then(r => (r.ok ? r.json() : null))
+      .then(j => {
+        if (cancelled) return;
+        // url stays null: the token is never retrievable after creation.
+        setGrant(j?.grant ? { campaignId: campaignDbId, url: null, expiry: fmtExpiry(j.grant.expires_at) } : null);
+      })
+      .catch(() => { /* absent grant is a normal state, not an error */ });
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [campaignDbId]);
+
+  /** Create or regenerate. Any previous link is revoked server-side, so
+   *  regenerating immediately invalidates whatever was shared before. */
+  const createGrant = async () => {
+    if (!campaignDbId) return;
+    setGrantBusy(true);
+    try {
+      const r = await fetch(`/api/studio/campaigns/${campaignDbId}/preview-grant`, { method: "POST" });
+      if (!r.ok) return;
+      const j = await r.json();
+      if (j?.token) {
+        // The one moment the token exists outside the recipient's clipboard.
+        setGrant({
+          campaignId: campaignDbId,
+          url: `${BASE}/embed?campaign=${encodeURIComponent(campaignIdValue)}&preview_token=${j.token}`,
+          expiry: fmtExpiry(j.grant.expires_at),
+        });
+      }
+    } finally { setGrantBusy(false); }
+  };
+
+  const revokeGrant = async () => {
+    if (!campaignDbId) return;
+    setGrantBusy(true);
+    try {
+      await fetch(`/api/studio/campaigns/${campaignDbId}/preview-grant`, { method: "DELETE" });
+      setGrant(null);
+    } finally { setGrantBusy(false); }
+  };
   const surveyName      = campaign?.surveys?.name ?? null;
 
   // Human-facing campaign identity for the card (the long campaign_id slug stays
@@ -402,7 +473,12 @@ export function DeploymentBuilder({ campaignId, returnTo, embedded = false, hide
                   {campaignIdValue ? (
                     <iframe
                       key={previewParams}
-                      src={`${BASE}/embed?${previewParams}`}
+                      /* SAME-ORIGIN. The embed host is a different origin from the
+                         app, so a cross-origin iframe never receives the SameSite=Lax
+                         session cookie — which is why this preview went blank once
+                         ?preview=1 required a session. Served from THIS origin, the
+                         author’s session applies and no third party needs the cookie. */
+                      src={`/embed?${previewParams}`}
                       width={300}
                       height={250}
                       className="rounded overflow-hidden shadow flex-shrink-0"
@@ -417,30 +493,60 @@ export function DeploymentBuilder({ campaignId, returnTo, embedded = false, hide
                 </div>
               </div>
 
-              {/* Shareable preview URL for adops */}
+              {/* Secure review link — campaign-scoped preview grant */}
               {campaignIdValue && (
                 <div className="mt-3 pt-3 border-t border-gray-100">
                   <p className="text-xs text-gray-500 mb-1.5">
-                    <span className="font-semibold">Preview URL,</span>
-                    <span className="text-gray-400 ml-1">share with adops to review the creative before going live</span>
+                    <span className="font-semibold">Secure review link</span>
+                    <span className="text-gray-400 ml-1">
+                      share with ad-ops to review this creative without a Fanometrix account
+                    </span>
                   </p>
-                  <div className="flex gap-2 items-center">
-                    <code className="flex-1 text-xs bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-gray-600 truncate">
-                      {`${BASE}/embed?${previewParams}`}
-                    </code>
-                    <button
-                      onClick={() => {
-                        navigator.clipboard.writeText(`${BASE}/embed?${previewParams}`);
-                        setCopied("iframe");
-                        setTimeout(() => setCopied(null), 2000);
-                      }}
-                      className="text-xs border border-gray-200 px-3 py-2 rounded-lg hover:bg-gray-50 transition-colors flex-shrink-0"
-                    >
-                      {copied === "iframe" ? "✓ Copied" : "Copy"}
+
+                  {grantBusy ? (
+                    <p className="text-xs text-gray-400 py-2">Working…</p>
+                  ) : grantUrl ? (
+                    <>
+                      <div className="flex gap-2 items-center">
+                        <code className="flex-1 text-xs bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-gray-600 truncate">
+                          {grantUrl}
+                        </code>
+                        <button
+                          onClick={() => { navigator.clipboard.writeText(grantUrl); setCopied("iframe"); setTimeout(() => setCopied(null), 2000); }}
+                          className="text-xs border border-gray-200 px-3 py-2 rounded-lg hover:bg-gray-50 transition-colors flex-shrink-0"
+                        >
+                          {copied === "iframe" ? "✓ Copied" : "Copy"}
+                        </button>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1.5">
+                        Shown once — copy it now. Expires {grantExpiry ?? "—"}.
+                      </p>
+                    </>
+                  ) : (
+                    <p className="text-xs text-gray-500 py-2">
+                      {grantExpiry
+                        ? <>A review link is active and expires {grantExpiry}. Only its hash is stored, so it cannot be shown again — regenerate for a new one.</>
+                        : <>No review link yet.</>}
+                    </p>
+                  )}
+
+                  <div className="flex gap-2 mt-2">
+                    <button onClick={createGrant} disabled={grantBusy}
+                      className="text-xs border border-gray-200 px-3 py-1.5 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50">
+                      {grantExpiry ? "Regenerate" : "Create review link"}
                     </button>
+                    {grantExpiry && (
+                      <button onClick={revokeGrant} disabled={grantBusy}
+                        className="text-xs border border-gray-200 px-3 py-1.5 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+                        style={{ color: "#B4694C" }}>
+                        Revoke
+                      </button>
+                    )}
                   </div>
-                  <p className="text-xs text-amber-600 mt-1.5">
-                    ⚠ Preview URLs bypass validation, for review only, not for production use.
+
+                  <p className="text-xs text-amber-600 mt-2">
+                    ⚠ For review only. This is <strong>not</strong> the production tag — use the iframe or
+                    script tag below to go live. Regenerating or revoking stops the shared link immediately.
                   </p>
                 </div>
               )}

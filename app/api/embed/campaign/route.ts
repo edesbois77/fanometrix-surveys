@@ -6,9 +6,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { canPreviewCampaign } from "@/lib/embed-preview-auth";
+import { resolveSurveyJourney, SURVEY_JOURNEY_COLUMNS } from "@/lib/embed-journey";
+import { resolvePreviewGrant, markGrantUsed } from "@/lib/preview-grant";
 import { computeEffectiveStatus, type CampaignForStatus } from "@/lib/campaign-status";
-import { resolveQuestion, resolveText, type LangCode, type LocalisedQuestion, type LocalisedText } from "@/lib/survey-locale";
-import { resolveSystemThankYou, isSystemThankYouSurvey } from "@/lib/system-thankyou";
+import { type LangCode } from "@/lib/survey-locale";
 import { buildEmbedThemeFromState, resolveBrandingLogos, type BuilderState, type BrandingConfig } from "@/lib/creative-theme-builder";
 import { coerceStackConfig, resolveEffectiveTopic } from "@/lib/stack-config";
 import type { EmbedTheme } from "@/app/embed/ThemedSurvey";
@@ -34,21 +35,46 @@ const LIVE_CACHE = {
 } as const;
 
 export async function GET(req: NextRequest) {
-  const campaignId = req.nextUrl.searchParams.get("campaign_id");
+  let campaignId   = req.nextUrl.searchParams.get("campaign_id");
   const urlLang    = req.nextUrl.searchParams.get("lang");
-  const preview    = req.nextUrl.searchParams.get("preview") === "1";
+  const previewFlag = req.nextUrl.searchParams.get("preview") === "1";
+  // Accepted as a header as well as a query param so an integrator can keep the
+  // token out of URLs, which is where secrets end up in platform access logs.
+  const grantToken = req.headers.get("x-fx-preview-token")
+    ?? req.nextUrl.searchParams.get("preview_token");
+
+  // ── Access context ─────────────────────────────────────────────────────────
+  // Three distinct ways to reach this route, resolved in order:
+  //   1. GRANT      — anonymous ad-ops review through a campaign-scoped token.
+  //   2. SESSION    — authenticated author, Deploy inline preview / Studio.
+  //   3. PRODUCTION — no preview at all; normal live delivery.
+  // A grant NEVER takes campaign identity from the request: the campaign is
+  // re-resolved from the grant, and a slug supplied beside it is only checked
+  // for consistency.
+  let grantId: string | null = null;
+  let preview = false;
+
+  if (grantToken) {
+    const resolved = await resolvePreviewGrant(grantToken, campaignId);
+    if (!resolved.ok) {
+      // Missing, expired, revoked, malformed and mismatched all look identical
+      // from outside, so a probe cannot learn which it was.
+      return NextResponse.json({ error: "Campaign not found" }, { status: 404, headers: NO_CACHE });
+    }
+    campaignId = resolved.campaignSlug;   // authority is the grant, not the URL
+    grantId = resolved.grant.id;
+    preview = true;                        // review may see a non-live campaign
+  } else if (previewFlag) {
+    // A campaign slug is not a secret, so ?preview=1 alone is never enough.
+    // A 404 (not 403) keeps "denied" and "no such campaign" indistinguishable.
+    if (!campaignId || !(await canPreviewCampaign(req, campaignId))) {
+      return NextResponse.json({ error: "Campaign not found" }, { status: 404, headers: NO_CACHE });
+    }
+    preview = true;
+  }
 
   if (!campaignId) {
     return NextResponse.json({ error: "campaign_id is required" }, { status: 400, headers: NO_CACHE });
-  }
-
-  // P0 exposure remediation. `?preview=1` bypasses the effective-status gate
-  // below and serves DRAFT surveys, so it must not be reachable anonymously —
-  // a campaign slug is not a secret. Authors keep working exactly as before:
-  // the Studio preview iframe is same-origin, so its session cookie is sent.
-  // A 404 (not 403) keeps "denied" and "no such campaign" indistinguishable.
-  if (preview && !(await canPreviewCampaign(req, campaignId))) {
-    return NextResponse.json({ error: "Campaign not found" }, { status: 404, headers: NO_CACHE });
   }
 
   const { data: campaign, error } = await supabaseAdmin
@@ -129,7 +155,7 @@ export async function GET(req: NextRequest) {
     .from("surveys")
     // intro_* / thank_you_enabled = Phase 3 Survey-journey columns (migration 182);
     // untyped client → `any`, degrade to undefined if not yet migrated.
-    .select("id, status, questions, thank_you_title, thank_you_body, intro_enabled, intro_title, intro_body, thank_you_enabled")
+    .select(`id, status, ${SURVEY_JOURNEY_COLUMNS}`)
     .eq("id", effectiveSurveyId)
     .single();
 
@@ -145,7 +171,6 @@ export async function GET(req: NextRequest) {
 
   // Language priority: explicit URL param > campaign survey_language > en
   const lang = ((urlLang ?? campaign.survey_language ?? "en") as LangCode);
-  const questions = ((survey.questions ?? []) as LocalisedQuestion[]).map(q => resolveQuestion(q, lang));
 
   // Every creative_design slug — built-in or custom — is now a row in
   // creative_designs; resolve its layout + render palette from there.
@@ -187,7 +212,7 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  return NextResponse.json({
+  const payload = {
     campaign_id:     campaign.campaign_id,
     survey_language: lang,
     creative_design:  effectiveCreativeDesign,
@@ -198,15 +223,17 @@ export async function GET(req: NextRequest) {
     // Effective Stack Topic: design default, unless the campaign overrode or cleared it.
     topic:           effectiveTopic,
     branding,
-    questions,
-    thank_you_title: isSystemThankYouSurvey(survey.intro_enabled as boolean | null) ? resolveSystemThankYou(lang).title : (resolveText((survey.thank_you_title as LocalisedText | null) ?? {}, lang) || "Thank you!"),
-    thank_you_body:  isSystemThankYouSurvey(survey.intro_enabled as boolean | null) ? resolveSystemThankYou(lang).body  : (resolveText((survey.thank_you_body as LocalisedText | null) ?? {}, lang) || "Your anonymous feedback helps improve the football experience for fans everywhere."),
-    thank_you_system: isSystemThankYouSurvey(survey.intro_enabled as boolean | null),
-    // Phase 3 Survey-journey fields, resolved to `lang` like the Thank-You copy.
-    // Raw tri-state (null for legacy). NULL→false would drop Stack's always-on intro.
-    intro_enabled:     (survey.intro_enabled as boolean | null) ?? null,
-    intro_title:       resolveText((survey.intro_title as LocalisedText | null) ?? {}, lang) || null,
-    intro_body:        resolveText((survey.intro_body  as LocalisedText | null) ?? {}, lang) || null,
-    thank_you_enabled: (survey.thank_you_enabled as boolean | null) ?? null,
-  }, { headers: preview ? NO_CACHE : LIVE_CACHE });
+    // Journey fields come from the SHARED resolver, so this surface cannot drift
+    // from /api/embed/survey. It also carries intro_topic, which no embed surface
+    // previously supplied — only the Studio builder preview showed the Topic,
+    // because it passes it straight from local state.
+    ...resolveSurveyJourney(survey, lang),
+  };
+  if (grantId) await markGrantUsed(grantId);
+
+  return NextResponse.json(payload, {
+    // no-referrer so a review link cannot leak its token to any third party the
+    // preview page happens to reference.
+    headers: preview ? { ...NO_CACHE, "Referrer-Policy": "no-referrer" } : LIVE_CACHE,
+  });
 }
