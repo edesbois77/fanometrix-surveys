@@ -166,9 +166,27 @@ function EmbedSurvey() {
   const [device,  setDevice]  = useState<string | null>(null);
   const [browser, setBrowser] = useState<string | null>(null);
 
-  // Ad-ops review token. Present ⇒ this is an anonymous, campaign-scoped review,
-  // resolved entirely server-side from the grant.
-  const previewToken = params.get("preview_token");
+  // Ad-ops review token, read from the URL FRAGMENT — never a query parameter.
+  //
+  // A fragment is not transmitted in any HTTP request, so the token never enters
+  // Vercel access logs, never appears in a Referer header, and is not written to
+  // the server side of anything. It is read once, stripped from the address bar
+  // and history immediately, and exchanged for the payload over POST.
+  // Read at FIRST render, not in an effect: the token is known before anything
+  // fetches, so a review link never briefly requests without it, and there is no
+  // setState-in-effect cascade.
+  const [previewToken] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null;
+    const m = /(?:^#|&)pt=([A-Za-z0-9_-]{43})(?:&|$)/.exec(window.location.hash);
+    return m ? m[1] : null;
+  });
+  // Strip it from the address bar and history immediately, so a screenshot, a
+  // shoulder-surfer or a later "copy URL" cannot leak a working link.
+  useEffect(() => {
+    if (previewToken && typeof window !== "undefined" && window.location.hash) {
+      window.history.replaceState(null, "", window.location.pathname + window.location.search);
+    }
+  }, [previewToken]);
 
   // The DESIGN SAMPLE context: Creative Lab / design-card preview, with no
   // campaign, group or survey. It legitimately renders sample questions, and is
@@ -310,11 +328,22 @@ function EmbedSurvey() {
   const hasCampaignSlug = !groupSlug && !!campaign && campaign !== "default";
   useEffect(() => {
     if (!hasCampaignSlug) return;
-    const p = new URLSearchParams({ campaign_id: campaign });
-    if (urlLang) p.set("lang", urlLang);
-    if (isPreview) p.set("preview", "1");
-    if (previewToken) p.set("preview_token", previewToken);
-    fetch(`/api/embed/campaign?${p.toString()}`, { referrerPolicy: "no-referrer" })
+    const run = previewToken
+      // EXCHANGE: the token travels in a POST body, which no access log records.
+      ? fetch(`/api/embed/campaign`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          referrerPolicy: "no-referrer",
+          body: JSON.stringify({ campaign_id: campaign, lang: urlLang, preview_token: previewToken }),
+        })
+      : (() => {
+          const p = new URLSearchParams({ campaign_id: campaign });
+          if (urlLang) p.set("lang", urlLang);
+          if (isPreview) p.set("preview", "1");
+          return fetch(`/api/embed/campaign?${p.toString()}`, { referrerPolicy: "no-referrer" });
+        })();
+
+    run
       .then(async r => (r.ok ? { data: await r.json(), status: r.status } : { data: null, status: r.status }))
       .then(({ data, status }) => {
         if (data?.questions?.length) applyPayload(data);   // single shared path

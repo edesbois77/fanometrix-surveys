@@ -34,14 +34,52 @@ const LIVE_CACHE = {
   "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300",
 } as const;
 
+/**
+ * POST — the review-token EXCHANGE.
+ *
+ * A review token must never travel in a URL. A query string is written verbatim
+ * into Vercel access logs, into the browser's history and address bar, and into
+ * the Referer header of anything the page loads. So the shareable link carries
+ * the token in the URL FRAGMENT (`#pt=…`), which browsers never transmit in any
+ * request, and the embed page exchanges it here — in a POST body, which appears
+ * in no access log.
+ *
+ * The query-parameter form is deliberately NOT accepted. Leaving it in place
+ * would mean a logging-exposed link could still be constructed by hand.
+ */
+export async function POST(req: NextRequest) {
+  const body = await req.json().catch(() => ({}));
+  return resolveCampaignEmbed(req, {
+    campaignId:  typeof body?.campaign_id === "string" ? body.campaign_id : null,
+    lang:        typeof body?.lang === "string" ? body.lang : null,
+    previewFlag: false,
+    grantToken:  typeof body?.preview_token === "string" ? body.preview_token : null,
+  });
+}
+
 export async function GET(req: NextRequest) {
-  let campaignId   = req.nextUrl.searchParams.get("campaign_id");
-  const urlLang    = req.nextUrl.searchParams.get("lang");
-  const previewFlag = req.nextUrl.searchParams.get("preview") === "1";
-  // Accepted as a header as well as a query param so an integrator can keep the
-  // token out of URLs, which is where secrets end up in platform access logs.
-  const grantToken = req.headers.get("x-fx-preview-token")
-    ?? req.nextUrl.searchParams.get("preview_token");
+  return resolveCampaignEmbed(req, {
+    campaignId:  req.nextUrl.searchParams.get("campaign_id"),
+    lang:        req.nextUrl.searchParams.get("lang"),
+    previewFlag: req.nextUrl.searchParams.get("preview") === "1",
+    // Header only — never a query parameter. Server-to-server integrations can
+    // still present a token without it ever reaching a URL.
+    grantToken:  req.headers.get("x-fx-preview-token"),
+  });
+}
+
+type EmbedRequest = {
+  campaignId: string | null;
+  lang: string | null;
+  previewFlag: boolean;
+  grantToken: string | null;
+};
+
+async function resolveCampaignEmbed(req: NextRequest, input: EmbedRequest) {
+  let campaignId   = input.campaignId;
+  const urlLang    = input.lang;
+  const previewFlag = input.previewFlag;
+  const grantToken = input.grantToken;
 
   // ── Access context ─────────────────────────────────────────────────────────
   // Three distinct ways to reach this route, resolved in order:

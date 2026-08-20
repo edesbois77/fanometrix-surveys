@@ -175,7 +175,9 @@ export function DeploymentBuilder({ campaignId, returnTo, embedded = false, hide
         // The one moment the token exists outside the recipient's clipboard.
         setGrant({
           campaignId: campaignDbId,
-          url: `${BASE}/embed?campaign=${encodeURIComponent(campaignIdValue)}&preview_token=${j.token}`,
+          // Token in the FRAGMENT, never the query string: a fragment is not sent
+          // in any HTTP request, so it cannot reach an access log or a Referer.
+          url: `${BASE}/embed?campaign=${encodeURIComponent(campaignIdValue)}#pt=${j.token}`,
           expiry: fmtExpiry(j.grant.expires_at),
         });
       }
@@ -519,7 +521,7 @@ export function DeploymentBuilder({ campaignId, returnTo, embedded = false, hide
                         </button>
                       </div>
                       <p className="text-xs text-gray-500 mt-1.5">
-                        Shown once — copy it now. Expires {grantExpiry ?? "—"}.
+                        Shown once — copy it now. Expires {grantExpiry ?? "—"}. The token sits after the # so it is never sent to a server log.
                       </p>
                     </>
                   ) : (

@@ -81,9 +81,10 @@ mock.module("@/lib/embed-preview-auth", {
 
 let surveyGET: (req: NextRequest) => Promise<Response>;
 let campaignGET: (req: NextRequest) => Promise<Response>;
+let campaignPOST: (req: NextRequest) => Promise<Response>;
 before(async () => {
   ({ GET: surveyGET }   = await import("./survey/route"));
-  ({ GET: campaignGET } = await import("./campaign/route"));
+  ({ GET: campaignGET, POST: campaignPOST } = await import("./campaign/route"));
   grantRow = {
     id: "g1", campaign_id: "cid", survey_id: SURVEY_ID, organisation_id: "org-1",
     expires_at: new Date(Date.now() + 86_400_000).toISOString(),
@@ -102,7 +103,12 @@ const pick = (o: Record<string, unknown>) => Object.fromEntries(PARITY_FIELDS.ma
 
 const surveyPreview   = async () => (await surveyGET(new NextRequest(`https://x/api/embed/survey?id=${SURVEY_ID}&preview=1`))).json();
 const deployInline    = async () => (await campaignGET(new NextRequest(`https://x/api/embed/campaign?campaign_id=${CAMPAIGN_SLUG}&preview=1`))).json();
-const adopsGrant      = async () => (await campaignGET(new NextRequest(`https://x/api/embed/campaign?campaign_id=${CAMPAIGN_SLUG}&preview_token=${VALID_TOKEN}`))).json();
+const exchange = (token: string, slug = CAMPAIGN_SLUG) => campaignPOST(new NextRequest(
+  "https://x/api/embed/campaign",
+  { method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ campaign_id: slug, preview_token: token }) },
+));
+const adopsGrant      = async () => (await exchange(VALID_TOKEN)).json();
 const productionServe = async () => (await campaignGET(new NextRequest(`https://x/api/embed/campaign?campaign_id=${CAMPAIGN_SLUG}`))).json();
 
 test("Topic reaches every surface — the reported defect", async () => {
@@ -150,7 +156,7 @@ test("expired, revoked, malformed and mismatched grants reveal NO content", asyn
   ];
   for (const [name, setup, token] of cases) {
     setup();
-    const res = await campaignGET(new NextRequest(`https://x/api/embed/campaign?campaign_id=${CAMPAIGN_SLUG}&preview_token=${token}`));
+    const res = await exchange(token);
     assert.equal(res.status, 404, `${name} must 404`);
     const body = await res.json();
     assert.equal(body.questions, undefined, `${name} must reveal no questions`);
@@ -161,12 +167,34 @@ test("expired, revoked, malformed and mismatched grants reveal NO content", asyn
 });
 
 test("a mismatched campaign beside a valid token reveals nothing", async () => {
-  const res = await campaignGET(new NextRequest(`https://x/api/embed/campaign?campaign_id=some_other&preview_token=${VALID_TOKEN}`));
+  const res = await exchange(VALID_TOKEN, "some_other");
   assert.equal(res.status, 404);
   assert.equal((await res.json()).questions, undefined);
 });
 
 test("preview responses carry Referrer-Policy: no-referrer", async () => {
-  const res = await campaignGET(new NextRequest(`https://x/api/embed/campaign?campaign_id=${CAMPAIGN_SLUG}&preview_token=${VALID_TOKEN}`));
+  const res = await exchange(VALID_TOKEN);
   assert.equal(res.headers.get("Referrer-Policy"), "no-referrer");
+});
+
+test("a token in the QUERY STRING is NOT accepted", async () => {
+  // A query string is written verbatim into access logs, browser history and the
+  // Referer header. Leaving this path in place would mean a logging-exposed link
+  // could still be constructed by hand, so it is refused outright: the request
+  // falls through to ordinary production serving with no preview privilege.
+  const res = await campaignGET(new NextRequest(
+    `https://x/api/embed/campaign?campaign_id=${CAMPAIGN_SLUG}&preview_token=${VALID_TOKEN}`));
+  const body = await res.json();
+  // It resolved as PRODUCTION (the fixture campaign is live), not as a review:
+  // no no-referrer header, which only the preview paths set.
+  assert.equal(res.headers.get("Referrer-Policy"), null,
+    "a query-string token must not be honoured as a review credential");
+  assert.ok(!("__preview" in body), "no preview privilege granted");
+});
+
+test("a token in the HEADER is accepted (server-to-server, never in a URL)", async () => {
+  const res = await campaignGET(new NextRequest(`https://x/api/embed/campaign?campaign_id=${CAMPAIGN_SLUG}`,
+    { headers: { "x-fx-preview-token": VALID_TOKEN } }));
+  assert.equal(res.status, 200);
+  assert.equal(res.headers.get("Referrer-Policy"), "no-referrer", "resolved as a review");
 });

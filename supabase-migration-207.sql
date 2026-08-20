@@ -56,6 +56,10 @@ CREATE INDEX IF NOT EXISTS idx_campaign_preview_grants_token_hash
 -- "Show me the current grant for this campaign" on the Deploy page.
 CREATE INDEX IF NOT EXISTS idx_campaign_preview_grants_campaign
   ON public.campaign_preview_grants (campaign_id, created_at DESC);
+-- Expiry sweep. Without this a periodic cleanup seq-scans the whole table —
+-- confirmed by EXPLAIN before this index was added.
+CREATE INDEX IF NOT EXISTS idx_campaign_preview_grants_expires_at
+  ON public.campaign_preview_grants (expires_at);
 
 ALTER TABLE public.campaign_preview_grants ENABLE ROW LEVEL SECURITY;
 

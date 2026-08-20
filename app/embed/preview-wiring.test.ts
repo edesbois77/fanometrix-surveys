@@ -110,3 +110,21 @@ test("the Deploy page describes a secure review link, not a validation bypass", 
     "the old wording described it as a bypass");
   assert.match(dep, /not<\/strong> the production tag/);
 });
+
+test("the review token travels in the FRAGMENT, never a query string", () => {
+  const dep = readFileSync(join(ROOT, "app", "campaign-deployment", "page.tsx"), "utf8");
+  // A fragment is never transmitted in an HTTP request, so it cannot reach a
+  // Vercel access log, a Referer header, or a server-side log of any kind.
+  assert.match(dep, /#pt=\$\{j\.token\}/, "shareable link puts the token after #");
+  assert.ok(!dep.includes("preview_token="), "no query-string token anywhere in the Deploy UI");
+});
+
+test("the embed reads the token from the fragment and strips it immediately", () => {
+  assert.match(code, /window\.location\.hash/, "read from the fragment");
+  assert.match(code, /pt=\(\[A-Za-z0-9_-\]\{43\}\)/, "validated shape before use");
+  assert.match(code, /history\.replaceState/, "removed from the address bar and history");
+  // And exchanged over POST, whose body no access log records.
+  assert.match(code, /method: "POST"/);
+  assert.match(code, /preview_token: previewToken/);
+  assert.ok(!/p\.set\("preview_token"/.test(code), "never appended to a query string");
+});
