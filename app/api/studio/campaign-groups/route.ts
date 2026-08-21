@@ -9,6 +9,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { campaignGroupsStudioEnabled, DISABLED_RESPONSE } from "@/lib/campaign-groups/flag";
+import { OPERATE_CAMPAIGNS } from "@/lib/campaign-groups/authorisation";
 import { requireUser } from "@/lib/auth-server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { OWNER_MODEL, FAIL_MODE } from "@/lib/campaign-groups/model";
@@ -25,7 +26,7 @@ export async function GET(req: NextRequest) {
   }
 
   let session;
-  try { session = await requireUser(req); } catch (err) { return err as Response; }
+  try { session = await requireUser(req, OPERATE_CAMPAIGNS); } catch (err) { return err as Response; }
 
   if (!session.organisationId) {
     return NextResponse.json({ error: "No Active Organisation" }, { status: 403 });
@@ -96,7 +97,7 @@ export async function POST(req: NextRequest) {
   }
 
   let session;
-  try { session = await requireUser(req); } catch (err) { return err as Response; }
+  try { session = await requireUser(req, OPERATE_CAMPAIGNS); } catch (err) { return err as Response; }
 
   if (!session.organisationId) {
     return NextResponse.json({ error: "No Active Organisation" }, { status: 403 });

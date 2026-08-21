@@ -2,6 +2,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { campaignGroupsStudioEnabled, DISABLED_RESPONSE } from "@/lib/campaign-groups/flag";
+import { OPERATE_CAMPAIGNS } from "@/lib/campaign-groups/authorisation";
 import { requireUser, type AuthedUser } from "@/lib/auth-server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { OWNER_MODEL, FAIL_MODE, type StudioGroup } from "@/lib/campaign-groups/model";
@@ -34,7 +35,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   }
 
   let session;
-  try { session = await requireUser(req); } catch (err) { return err as Response; }
+  try { session = await requireUser(req, OPERATE_CAMPAIGNS); } catch (err) { return err as Response; }
   const { id } = await params;
 
   const group = await loadAuthorised(session, id);
@@ -163,7 +164,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   }
 
   let session;
-  try { session = await requireUser(req); } catch (err) { return err as Response; }
+  try { session = await requireUser(req, OPERATE_CAMPAIGNS); } catch (err) { return err as Response; }
   const { id } = await params;
 
   const group = await loadAuthorised(session, id);
@@ -254,7 +255,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   }
 
   let session;
-  try { session = await requireUser(req); } catch (err) { return err as Response; }
+  try { session = await requireUser(req, OPERATE_CAMPAIGNS); } catch (err) { return err as Response; }
   const { id } = await params;
 
   const group = await loadAuthorised(session, id);

@@ -7,6 +7,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { campaignGroupsStudioEnabled, DISABLED_RESPONSE } from "@/lib/campaign-groups/flag";
+import { OPERATE_CAMPAIGNS } from "@/lib/campaign-groups/authorisation";
 import { requireUser } from "@/lib/auth-server";
 import { loadStudioGroupById, loadRevisions, cancelRevision } from "@/lib/campaign-groups/store";
 
@@ -21,7 +22,7 @@ export async function DELETE(
   }
 
   let session;
-  try { session = await requireUser(req); } catch (err) { return err as Response; }
+  try { session = await requireUser(req, OPERATE_CAMPAIGNS); } catch (err) { return err as Response; }
   const { id, revisionId } = await params;
 
   const group = await loadStudioGroupById(id);

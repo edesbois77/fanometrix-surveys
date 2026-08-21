@@ -22,6 +22,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { campaignGroupsStudioEnabled, DISABLED_RESPONSE } from "@/lib/campaign-groups/flag";
+import { OPERATE_CAMPAIGNS } from "@/lib/campaign-groups/authorisation";
 import { requireUser } from "@/lib/auth-server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { CAMPAIGN_ORIGIN } from "@/lib/campaign-groups/model";
@@ -35,7 +36,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   }
 
   let session;
-  try { session = await requireUser(req); } catch (err) { return err as Response; }
+  try { session = await requireUser(req, OPERATE_CAMPAIGNS); } catch (err) { return err as Response; }
   const { id: surveyId } = await params;
 
   // Authority to group follows authority to OPERATE this survey's campaigns —
