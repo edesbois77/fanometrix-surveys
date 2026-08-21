@@ -8,6 +8,7 @@ import { StudioClassicSurvey } from "./StudioClassicSurvey";
 import { StackSurvey } from "./StackSurvey";
 import { parseStackPreviewFrame, resolveStackPreviewStep } from "./stack-frames";
 import { coerceStackConfig, DEFAULT_STACK_CONFIG, type StackConfig } from "@/lib/stack-config";
+import { resolveGroupRouting, groupEndpoint, namesAGroup, CONFLICTING_GROUP_PARAMETERS } from "@/lib/embed-group-routing";
 import { initialPhase, phaseForFailure, mayMountSurvey, isPreviewContext as ctxIsPreview,
          suppressEvidence as ctxSuppressEvidence, isDesignSample as ctxIsDesignSample,
          type PreviewPhase } from "@/lib/embed-preview-phase";
@@ -141,7 +142,14 @@ function EmbedSurvey() {
   const params = useSearchParams();
 
   const campaign      = params.get("campaign")     ?? "default";
-  const groupSlug     = params.get("group")        ?? null;
+  // Two parameters can name a group; a URL carrying BOTH is malformed. The rule
+  // is pure and lives in lib/embed-group-routing.ts so it is testable without a
+  // DOM. `groupSlug` below keeps its exact previous meaning for the LEGACY path,
+  // so that path is unchanged.
+  const groupRouting  = resolveGroupRouting(params.get("group"), params.get("campaign_group"));
+  const groupSlug     = groupRouting.kind === "legacy" || groupRouting.kind === "studio"
+                          ? groupRouting.slug : null;
+  const groupConflict = groupRouting.kind === "conflict";
   const urlLang       = params.get("lang");
   const surveyId      = params.get("survey")       ?? null;
   const isPreview     = params.get("preview")      === "1";
@@ -198,7 +206,7 @@ function EmbedSurvey() {
   // before the authorised payload AND its creative are fully resolved.
   const embedCtx = {
     hasCampaignSlug: !groupSlug && !!campaign && campaign !== "default",
-    hasGroupSlug: !!groupSlug,
+    hasGroupSlug: namesAGroup(groupRouting),
     hasSurveyId: !!surveyId,
     previewFlag: isPreview,
     hasPreviewToken: !!previewToken,
@@ -231,7 +239,7 @@ function EmbedSurvey() {
   const [thankYouEnabled,    setThankYouEnabled]    = useState<boolean | undefined>(undefined);
 
   const [resolvedCampaignId, setResolvedCampaignId] = useState<string>(campaign);
-  const [groupReady,         setGroupReady]         = useState(!groupSlug);
+  const [groupReady,         setGroupReady]         = useState(!namesAGroup(groupRouting));
   const [creativeDesign,     setCreativeDesign]     = useState<string | null>(null);
   const [customTheme,        setCustomTheme]        = useState<EmbedTheme | null>(null);
   // The design's creative layout ("timer" | "classic" | "invitation"), resolved
@@ -306,15 +314,26 @@ function EmbedSurvey() {
     setBrowser(detectBrowser());
   }, []);
   // Group mode: resolve which campaign to serve and fetch its questions
+  // A malformed tag naming two different groups. No endpoint is called, nothing
+  // mounts, and so no evidence path can execute. One structured diagnostic.
   useEffect(() => {
-    if (!groupSlug) return;
+    if (!groupConflict) return;
+    console.warn(CONFLICTING_GROUP_PARAMETERS, {
+      reason: "both ?group= and ?campaign_group= were supplied",
+    });
+    setPhase("unavailable");
+    setGroupReady(false);
+  }, [groupConflict]);
+
+  useEffect(() => {
+    if (!groupSlug || groupConflict) return;
     const gParams = new URLSearchParams({ slug: groupSlug });
     if (countryParam)  gParams.set("country",   countryParam);
     if (marketParam)   gParams.set("market",     marketParam);
     if (publisher)     gParams.set("publisher",  publisher);
     if (urlLang)       gParams.set("lang",       urlLang);
 
-    fetch(`/api/embed/group?${gParams.toString()}`)
+    fetch(`${groupEndpoint(groupRouting)}?${gParams.toString()}`)
       .then(async r => (r.ok ? { data: await r.json(), status: r.status } : { data: null, status: r.status }))
       .then(({ data, status }) => {
         if (data?.campaign_id && data?.questions?.length) {
@@ -435,7 +454,7 @@ function EmbedSurvey() {
     );
   }
 
-  if (groupSlug && !groupReady) {
+  if (namesAGroup(groupRouting) && !groupReady) {
     return <div style={{ width: 300, height: 250, background: "transparent" }} />;
   }
 
