@@ -26,8 +26,16 @@
 --    have refused the UPDATE — verified — but a guard should not rely on another
 --    migration's backstop to reach the right answer.
 --
--- Both are fixed by taking the lock first and re-reading under it, which is what
--- fx_campaign_group_edit already does.
+-- 3. A SECOND CANCELLATION SILENTLY OVERWROTE THE FIRST. Cancelling an
+--    already-cancelled revision succeeded and rewrote cancelled_at/cancelled_by,
+--    destroying the record of who actually withdrew the change and when. The API
+--    route happened to catch it first, so it was unreachable through the product
+--    — but the function was the wrong place to be relying on that. It now raises,
+--    and alters nothing.
+--
+-- All three are fixed by taking the lock first and re-reading, under the lock,
+-- every value the function decides on — which is what fx_campaign_group_edit
+-- already does.
 
 BEGIN;
 
@@ -53,6 +61,8 @@ DECLARE
   v_group uuid;
   v_owner_model text;
   v_effective timestamptz;
+  v_cancelled_at timestamptz;
+  v_cancelled_by text;
 BEGIN
   -- Resolve the owning group. Nothing read here is used for a DECISION; it only
   -- identifies which row to lock.
@@ -72,9 +82,28 @@ BEGIN
       v_group, v_owner_model;
   END IF;
 
-  -- Gap 2: re-read effective_at UNDER the lock, and decide on that value.
-  SELECT r.effective_at INTO v_effective
+  -- Gaps 2 and 3: re-read UNDER the lock every value this function decides on.
+  SELECT r.effective_at, r.cancelled_at, r.cancelled_by
+    INTO v_effective, v_cancelled_at, v_cancelled_by
     FROM public.campaign_group_revisions r WHERE r.id = p_revision_id;
+
+  -- Gap 3. Checked BEFORE the effective_at test, because "already cancelled" is
+  -- the more precise answer: a cancelled revision never took effect, so reporting
+  -- it as "already effective" would be wrong as well as unhelpful.
+  --
+  -- This is also what makes concurrent cancellation safe. Two callers serialise
+  -- on the group lock above; the second one re-reads here, sees the first one's
+  -- cancelled_at, and raises. Without the re-read it would still hold the stale
+  -- pre-lock NULL and would overwrite the first caller's record.
+  --
+  -- SQLSTATE 23505 (unique_violation) is raised deliberately so the API route can
+  -- map this to HTTP 409 Conflict on the error code rather than by matching the
+  -- message text, which would break the moment the wording changed.
+  IF v_cancelled_at IS NOT NULL THEN
+    RAISE EXCEPTION
+      'Revision % was already cancelled at % by %.', p_revision_id, v_cancelled_at, v_cancelled_by
+      USING ERRCODE = '23505';
+  END IF;
 
   IF v_effective <= now() THEN
     RAISE EXCEPTION 'Revision % is already effective and cannot be cancelled. Create a new revision instead.', p_revision_id;
@@ -84,7 +113,10 @@ BEGIN
   -- planned and withdrawn (criterion 56b).
   UPDATE public.campaign_group_revisions
      SET cancelled_at = now(), cancelled_by = p_cancelled_by
-   WHERE id = p_revision_id;
+   WHERE id = p_revision_id
+     -- Defence in depth: even if the guard above were removed, this predicate
+     -- means the statement can never rewrite an existing cancellation.
+     AND cancelled_at IS NULL;
 
   RETURN true;
 END
@@ -112,6 +144,18 @@ BEGIN
   IF position('FOR UPDATE' in v_src) > position('INTO v_effective' in v_src) THEN
     RAISE EXCEPTION 'M212a FAILED: effective_at is still read before the group lock';
   END IF;
+  IF v_src NOT LIKE '%v_cancelled_at IS NOT NULL%' THEN
+    RAISE EXCEPTION 'M212a FAILED: no already-cancelled guard';
+  END IF;
+  IF position('FOR UPDATE' in v_src) > position('INTO v_effective, v_cancelled_at' in v_src) THEN
+    RAISE EXCEPTION 'M212a FAILED: cancelled_at is read before the group lock';
+  END IF;
+  IF v_src NOT LIKE '%AND cancelled_at IS NULL%' THEN
+    RAISE EXCEPTION 'M212a FAILED: the UPDATE can still overwrite an existing cancellation';
+  END IF;
+  IF v_src NOT LIKE '%ERRCODE = ''23505''%' THEN
+    RAISE EXCEPTION 'M212a FAILED: already-cancelled does not raise a mappable SQLSTATE';
+  END IF;
   IF (SELECT prosecdef FROM pg_proc WHERE oid = v_oid) THEN
     RAISE EXCEPTION 'M212a FAILED: the cancel function is SECURITY DEFINER; INVOKER is required';
   END IF;
@@ -122,7 +166,7 @@ BEGIN
   IF NOT has_function_privilege('service_role', v_oid, 'EXECUTE') THEN
     RAISE EXCEPTION 'M212a FAILED: service_role cannot EXECUTE the cancel function';
   END IF;
-  RAISE NOTICE 'M212a OK: cancel refuses legacy groups and decides on a post-lock read.';
+  RAISE NOTICE 'M212a OK: cancel refuses legacy groups, refuses double-cancellation (23505), and decides only on post-lock reads.';
 END
 $assert$;
 

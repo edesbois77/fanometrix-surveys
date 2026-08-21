@@ -227,6 +227,10 @@ export interface EditMemberInput {
 export interface EditResult {
   ok: boolean;
   revisionId?: string;
+  /** The database SQLSTATE, when the call failed. Routes map on this rather than
+   *  on message text, which would break the moment the wording changed.
+   *  '23505' = the revision was already cancelled (migration 212a). */
+  code?: string;
   /** The database's own message. It is written for an operator, so it is safe
    *  and useful to surface verbatim rather than replacing it with a generic
    *  failure the operator cannot act on. */
@@ -244,26 +248,30 @@ export async function editGroup(input: {
   activeCampaignLimit?: number;
   comparabilityAcknowledged?: boolean;
 }): Promise<EditResult> {
+  // Argument names MUST match the function's parameter names exactly. PostgREST
+  // resolves an RPC by its named-argument set, so a single wrong name resolves to
+  // no function at all and fails at runtime with "Could not find the function" —
+  // which no amount of unit testing against mocks will catch.
   const { data, error } = await supabaseAdmin.rpc("fx_campaign_group_edit", {
     p_group_id: input.groupId,
     p_effective_at: input.effectiveAt.toISOString(),
     p_rotation: input.rotation,
     p_members: input.members,
     p_change_kind: input.changeKind,
-    p_reason: input.reason,
-    p_actor: input.actor,
+    p_change_reason: input.reason,
+    p_created_by: input.actor,
     ...(input.activeCampaignLimit !== undefined ? { p_active_limit: input.activeCampaignLimit } : {}),
     ...(input.comparabilityAcknowledged !== undefined ? { p_comparability_ack: input.comparabilityAcknowledged } : {}),
   });
-  if (error) return { ok: false, error: error.message };
+  if (error) return { ok: false, error: error.message, code: error.code };
   return { ok: true, revisionId: data as string };
 }
 
 export async function cancelRevision(revisionId: string, actor: string): Promise<EditResult> {
   const { error } = await supabaseAdmin.rpc("fx_campaign_group_cancel_revision", {
     p_revision_id: revisionId,
-    p_actor: actor,
+    p_cancelled_by: actor,
   });
-  if (error) return { ok: false, error: error.message };
+  if (error) return { ok: false, error: error.message, code: error.code };
   return { ok: true };
 }

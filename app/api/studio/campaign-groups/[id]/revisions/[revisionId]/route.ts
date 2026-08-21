@@ -49,6 +49,16 @@ export async function DELETE(
 
   const result = await cancelRevision(revisionId, session.workEmail ?? session.id);
   if (!result.ok) {
+    // 23505 is raised deliberately by fx_campaign_group_cancel_revision when the
+    // revision was already cancelled — a race this route's own pre-check cannot
+    // close, because another operator can cancel between that read and this call.
+    // Mapped on the SQLSTATE, never on message text.
+    if (result.code === "23505") {
+      return NextResponse.json(
+        { error: "That configuration was already cancelled by someone else." },
+        { status: 409 },
+      );
+    }
     return NextResponse.json({ error: result.error ?? "Could not cancel the configuration." }, { status: 409 });
   }
   return NextResponse.json({ cancelled: true });
