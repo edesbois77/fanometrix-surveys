@@ -13,6 +13,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { campaignGroupsStudioEnabled, DISABLED_RESPONSE } from "@/lib/campaign-groups/flag";
+import { OPERATE_CAMPAIGNS } from "@/lib/campaign-groups/authorisation";
 import { requireUser, type AuthedUser } from "@/lib/auth-server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { type StudioGroup } from "@/lib/campaign-groups/model";
@@ -40,7 +41,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   }
 
   let session;
-  try { session = await requireUser(req); } catch (err) { return err as Response; }
+  try { session = await requireUser(req, OPERATE_CAMPAIGNS); } catch (err) { return err as Response; }
   const { id } = await params;
 
   const group = await loadAuthorised(session, id);
@@ -174,9 +175,50 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     nextRotation: rotation,
   });
 
+  // Does this change require a comparability acknowledgement? The rule is the
+  // RPC's (migration 212): a membership change on a group that ALREADY HAS an
+  // effective revision. Derived here from the same server-side diff so the UI is
+  // told rather than left to guess — and re-derived on the real publish below,
+  // because the group can change while a form sits open.
+  const hasHistory = existing.some(r => r.cancelledAt === null && r.effectiveAt <= nowForDiff);
+  const comparabilityRequired = diff.membershipChanged && hasHistory;
+
+  // PREVIEW — answer what would happen, write nothing. This is what makes the
+  // server authoritative about whether the acknowledgement is needed, instead of
+  // the client deriving its own opinion and the two drifting.
+  if (body.preview === true) {
+    return NextResponse.json({
+      preview: true,
+      change_kind: diff.kind,
+      reason_required: diff.reasonRequired,
+      comparability_required: comparabilityRequired,
+      diff: {
+        added: diff.added, removed: diff.removed, paused: diff.paused,
+        resumed: diff.resumed, reweighted: diff.reweighted,
+        rotation_changed: diff.rotationChanged,
+        membership_changed: diff.membershipChanged,
+      },
+    });
+  }
+
   if (diff.reasonRequired && !reason) {
     return NextResponse.json(
       { error: "A reason is required when campaigns are admitted or removed." },
+      { status: 400 },
+    );
+  }
+
+  // The acknowledgement must be an EXPLICIT act. A caller that omits it, or sends
+  // anything other than boolean true, is refused — never defaulted. The RPC
+  // enforces this again; refusing here lets us say WHY in the operator's words.
+  const acknowledged = body.comparability_acknowledged === true;
+  if (comparabilityRequired && !acknowledged) {
+    return NextResponse.json(
+      {
+        error: "This change alters which campaigns are collecting, so it needs the comparability acknowledgement before it can be published.",
+        comparability_required: true,
+        change_kind: diff.kind,
+      },
       { status: 400 },
     );
   }
@@ -190,7 +232,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     reason,
     actor: session.workEmail ?? session.id,
     ...(typeof body.active_campaign_limit === "number" ? { activeCampaignLimit: body.active_campaign_limit } : {}),
-    ...(body.comparability_acknowledged === true ? { comparabilityAcknowledged: true } : {}),
+    // Only ever the value the operator actually gave. Sending true unconditionally
+    // would make the RPC's guard unreachable and the acknowledgement meaningless.
+    comparabilityAcknowledged: acknowledged,
   });
 
   if (!result.ok) {

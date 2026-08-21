@@ -242,6 +242,13 @@ function ConfigureFlow({
   const [reason, setReason] = useState("");
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  // The SERVER decides whether an acknowledgement is required; this holds its
+  // answer for the proposed change. Never derived here — a client opinion about
+  // governance would eventually drift from the rule that actually enforces it.
+  const [preview, setPreview] = useState<{
+    change_kind: string; reason_required: boolean; comparability_required: boolean;
+  } | null>(null);
+  const [acknowledged, setAcknowledged] = useState(false);
 
   const groupable = candidates.filter(c => c.can_add_to_group);
   const selected = groupable.filter(c => picked.has(c.campaign_id));
@@ -271,6 +278,50 @@ function ConfigureFlow({
   });
 
   const effectiveAtIso = immediate ? new Date().toISOString() : new Date(when).toISOString();
+
+  // On reaching the review pane, ask the server what this change IS and what it
+  // requires. Re-asked whenever the proposed membership or rotation changes, so
+  // the checkbox cannot linger from an earlier shape of the edit.
+  const membersKey = selected.map(c =>
+    `${c.campaign_id}:${picked.get(c.campaign_id)!.weight}:${picked.get(c.campaign_id)!.paused}`
+  ).sort().join("|") + `#${rotation}`;
+
+  useEffect(() => {
+    if (pane !== 3 || !existing?.id) {
+      // A NEW group has no history, so nothing can be incomparable with it. The
+      // server says the same; asking would need a group that does not exist yet.
+      setPreview({ change_kind: "created", reason_required: false, comparability_required: false });
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const r = await fetch(`/api/studio/campaign-groups/${existing.id}/revisions`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          preview: true,
+          effective_at: effectiveAtIso,
+          rotation,
+          members: selected.map(c => ({
+            campaign_id: c.campaign_id,
+            weight: rotation === "weighted" ? picked.get(c.campaign_id)!.weight : 1,
+            membership_state: picked.get(c.campaign_id)!.paused ? "paused" : "active",
+          })),
+        }),
+      });
+      if (cancelled) return;
+      if (!r.ok) { setPreview(null); return; }
+      const j = await r.json();
+      setPreview({
+        change_kind: j.change_kind,
+        reason_required: !!j.reason_required,
+        comparability_required: !!j.comparability_required,
+      });
+      // A change of shape invalidates a tick made against the previous shape.
+      setAcknowledged(false);
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pane, existing?.id, membersKey]);
 
   const submit = async () => {
     setSaving(true); setErr(null);
@@ -303,7 +354,10 @@ function ConfigureFlow({
           rotation,
           members,
           reason: reason.trim() || null,
-          comparability_acknowledged: true,
+          // EXACTLY what the operator ticked. Never a default, never coerced —
+          // if the server requires it and this is false, the publish is refused,
+          // which is the correct outcome.
+          comparability_acknowledged: acknowledged,
         }),
       });
       const rj = await rr.json();
@@ -346,7 +400,8 @@ function ConfigureFlow({
           <PaneReview
             selected={selected} picked={picked} rotation={rotation} totalWeight={totalWeight}
             immediate={immediate} setImmediate={setImmediate} when={when} setWhen={setWhen}
-            reason={reason} setReason={setReason} reasonRequired={reasonRequired}
+            reason={reason} setReason={setReason} reasonRequired={!!preview?.reason_required}
+            preview={preview} acknowledged={acknowledged} setAcknowledged={setAcknowledged}
             added={addedNow.map(c => c.slug)} removed={removedNow.map(m => m.campaign_slug)}
             editing={editing}
           />
@@ -371,7 +426,11 @@ function ConfigureFlow({
             </Button>
           ) : (
             <Button variant="primary" size="sm" onClick={submit}
-                    disabled={saving || selected.length === 0 || (reasonRequired && !reason.trim())}>
+                    disabled={
+                      saving || selected.length === 0
+                      || (!!preview?.reason_required && !reason.trim())
+                      || (!!preview?.comparability_required && !acknowledged)
+                    }>
               {saving ? "Publishing…" : "Publish configuration"}
             </Button>
           )}
@@ -514,7 +573,8 @@ function PaneCampaigns({ candidates, picked, rotation, setRotation, toggle, setW
 
 function PaneReview({
   selected, picked, rotation, totalWeight, immediate, setImmediate, when, setWhen,
-  reason, setReason, reasonRequired, added, removed, editing,
+  reason, setReason, reasonRequired, preview, acknowledged, setAcknowledged,
+  added, removed, editing,
 }: {
   selected: Candidate[];
   picked: Map<string, { weight: number; paused: boolean }>;
@@ -523,6 +583,8 @@ function PaneReview({
   when: string; setWhen: (v: string) => void;
   reason: string; setReason: (v: string) => void;
   reasonRequired: boolean;
+  preview: { change_kind: string; reason_required: boolean; comparability_required: boolean } | null;
+  acknowledged: boolean; setAcknowledged: (v: boolean) => void;
   added: string[]; removed: string[]; editing: boolean;
 }) {
   const utc = immediate ? null : new Date(when).toISOString();
@@ -580,6 +642,21 @@ function PaneReview({
           ? <>This configuration takes effect <strong>immediately</strong> and becomes part of the group&rsquo;s permanent history. <strong>The group cannot be deleted afterwards</strong>, even if it is paused and never serves.</>
           : <>Scheduled configurations can be cancelled until they take effect, and the group remains deletable until then. <strong>Once it takes effect the group can never be deleted.</strong></>}
       </div>
+
+      {/* Shown ONLY when the server says this change requires it. A weight-only
+          change does not, and must not be made to look as though it does. */}
+      {preview?.comparability_required && (
+        <label className="flex items-start gap-2 mb-3 cursor-pointer rounded-md px-3 py-2"
+               style={{ background: "rgba(138,75,47,0.08)" }}>
+          <input type="checkbox" checked={acknowledged} className="mt-0.5"
+                 onChange={e => setAcknowledged(e.target.checked)} />
+          <span className="text-[11px]" style={{ color: "#8A4B2F" }}>
+            I understand that changing the campaigns in this group may change the audience
+            being exposed. Results before and after this configuration should be treated as
+            separate delivery periods.
+          </span>
+        </label>
+      )}
 
       <label className="block text-xs font-medium" style={{ color: "var(--text-secondary)" }}>
         Reason {reasonRequired && <span style={{ color: "#B3261E" }}>— required when campaigns are added or removed</span>}
@@ -743,9 +820,16 @@ function GroupDetailPanel({ groupId, surveyId, onBack }: { groupId: string; surv
                 {d.next_revision.reason && (
                   <p className="text-xs mt-1" style={{ color: "var(--text-secondary)" }}>{d.next_revision.reason}</p>
                 )}
+                {/* Deletability is a FACT the server already decided (can_delete).
+                    Driving this sentence from it means the copy can never promise a
+                    Delete the page is not offering: once the group holds effective
+                    history it is undeletable whatever happens to this revision. */}
                 <p className="text-[11px] mt-1.5" style={{ color: "#8A4B2F" }}>
-                  This can be cancelled until then, and the group can be deleted until then.
-                  Once it takes effect the group has published configuration history and can never be deleted.
+                  {d.can_delete
+                    ? <>This can be cancelled until then, and the group can be deleted until then.
+                        Once it takes effect the group has published configuration history and can never be deleted.</>
+                    : <>This can be cancelled until then. The group already has published configuration
+                        history, so it cannot be deleted either way.</>}
                 </p>
               </div>
               <Button variant="secondary" size="sm" disabled={busy}
