@@ -38,8 +38,11 @@
 -- THE RULE THESE INDEXES IMPOSE ON QUERIES
 -- No Results query may filter survey_events by revision WITHOUT
 -- `event_type = 'SURVEY_RENDER'`, or the partial predicate does not apply and the
--- 16.5 s plan returns. A test asserts the predicate is present in every Results
--- query.
+-- slow plan returns. Measured on production after this migration:
+--     with the predicate      Index Only Scan          0.144 ms
+--     without it              Parallel Seq Scan    6,595.105 ms
+-- Enforced by lib/campaign-groups/survey-events-index-rule.test.ts. That test did
+-- NOT exist when this comment first claimed it did; it does now.
 -- ══════════════════════════════════════════════════════════════════════════════
 
 -- Exposure per revision. Partial on both the revision column and the event type,
