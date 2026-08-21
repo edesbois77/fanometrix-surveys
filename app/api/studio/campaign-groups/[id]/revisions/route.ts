@@ -15,7 +15,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { campaignGroupsStudioEnabled, DISABLED_RESPONSE } from "@/lib/campaign-groups/flag";
 import { requireUser, type AuthedUser } from "@/lib/auth-server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
-import { CAMPAIGN_ORIGIN, type StudioGroup } from "@/lib/campaign-groups/model";
+import { type StudioGroup } from "@/lib/campaign-groups/model";
+import { assessGroupable, groupableRefusalSummary } from "@/lib/campaign-groups/groupable";
 import { loadStudioGroupById, loadRevisions, editGroup, type EditMemberInput } from "@/lib/campaign-groups/store";
 import { effectiveRevision } from "@/lib/campaign-groups/revision";
 
@@ -140,26 +141,26 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const rows = (campaigns ?? []) as unknown as Row[];
     const byId = new Map(rows.map(r => [r.id, r]));
 
-    const problems: string[] = [];
+    // ONE definition of groupable, shared with the candidate endpoint. Copying
+    // this rule instead would let the picker offer a campaign this call then
+    // refuses — the drift that is hardest to notice, because both sides look
+    // individually correct. See lib/campaign-groups/groupable.ts.
+    const problems: Array<{ slug: string; reason: string }> = [];
     for (const m of members) {
       const r = byId.get(m.campaign_id);
-      if (!r || r.deleted_at) { problems.push(`${m.campaign_id} (not found)`); continue; }
-      if (r.origin !== CAMPAIGN_ORIGIN.studio) {
-        problems.push(`${r.campaign_id} (not a Survey Studio campaign)`);
-        continue;
-      }
-      const owner = Array.isArray(r.surveys) ? r.surveys[0] : r.surveys;
-      if (session.role !== "admin" && owner?.organisation_id !== session.organisationId) {
-        // Same wording as not-found: a caller must not learn that a campaign
-        // exists in another organisation by probing ids.
-        problems.push(`${m.campaign_id} (not found)`);
+      const owner = r ? (Array.isArray(r.surveys) ? r.surveys[0] : r.surveys) : null;
+      const decision = assessGroupable(
+        r ? { id: r.id, slug: r.campaign_id, origin: r.origin, deletedAt: r.deleted_at,
+              surveyOrganisationId: owner?.organisation_id ?? null }
+          : undefined,
+        { role: session.role, organisationId: session.organisationId },
+      );
+      if (!decision.canAdd) {
+        problems.push({ slug: r?.campaign_id ?? m.campaign_id, reason: decision.reason! });
       }
     }
     if (problems.length) {
-      return NextResponse.json(
-        { error: `These campaigns cannot be added: ${problems.join(", ")}.` },
-        { status: 400 },
-      );
+      return NextResponse.json({ error: groupableRefusalSummary(problems) }, { status: 400 });
     }
   }
 

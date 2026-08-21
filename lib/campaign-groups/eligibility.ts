@@ -12,19 +12,10 @@
 
 import type { RevisionMember } from "./model";
 
-export type ExclusionReason =
-  | "paused"
-  | "campaign_missing"
-  | "campaign_deleted"
-  | "campaign_not_live"
-  | "not_started"
-  | "ended"
-  | "country_mismatch"
-  | "market_mismatch"
-  | "publisher_mismatch"
-  | "target_reached"
-  | "survey_missing"
-  | "survey_invalid";
+// The reason vocabulary and the rules themselves live in ONE place. This module
+// keeps its exports so every existing caller and test is unaffected.
+import { PREDICATES, EXCLUSION_COPY as PREDICATE_COPY, type ExclusionReason } from "./predicates";
+export type { ExclusionReason };
 
 /** Server-resolved facts about a candidate campaign. */
 export interface CampaignFacts {
@@ -73,32 +64,46 @@ export function evaluateMember(
   ctx: RoutingContext,
   now: Date,
 ): MemberDecision {
-  const no = (reason: ExclusionReason): MemberDecision => ({ member, eligible: false, reason });
-
-  if (member.membershipState === "paused") return no("paused");
-  if (!facts) return no("campaign_missing");
-  if (facts.deletedAt) return no("campaign_deleted");
-  if (facts.status !== "live") return no("campaign_not_live");
-  if (facts.startsAt && facts.startsAt.getTime() > now.getTime()) return no("not_started");
-  if (facts.endsAt && facts.endsAt.getTime() < now.getTime()) return no("ended");
-
-  if (ctx.country && facts.countryCode && facts.countryCode.toUpperCase() !== ctx.country) {
-    return no("country_mismatch");
+  // SHORT-CIRCUIT, preserved exactly. This runs on every impression: it walks
+  // PREDICATES in order and returns the FIRST blocker, doing no work beyond it.
+  // The order of that list IS this function's historical evaluation order, and
+  // its 29 original tests pass unmodified against it.
+  const input = { member, facts, ctx, now };
+  for (const p of PREDICATES) {
+    if (p.blocks(input)) return { member, eligible: false, reason: p.reason };
   }
-  if (ctx.market && facts.market && facts.market.trim().toLowerCase() !== ctx.market.trim().toLowerCase()) {
-    return no("market_mismatch");
-  }
-  if (ctx.publisher && facts.publisherName && facts.publisherName.toLowerCase() !== ctx.publisher.toLowerCase()) {
-    return no("publisher_mismatch");
-  }
-
-  if (facts.targetResponses !== null && facts.responseCount >= facts.targetResponses) {
-    return no("target_reached");
-  }
-  if (!facts.surveyId) return no("survey_missing");
-  if (!facts.surveyValid) return no("survey_invalid");
-
   return { member, eligible: true, reason: null };
+}
+
+/**
+ * EVERY applicable reason, for the product UI only.
+ *
+ * Never call this from the serve path. It deliberately does the work
+ * evaluateMember avoids — an operator asking "why will this not serve?" needs
+ * the whole answer, while a serve decision needs only the first blocker.
+ *
+ * Collection stops at a TERMINAL predicate: once a campaign is missing or
+ * deleted, reporting "no survey attached" about it as well would be noise
+ * dressed as detail.
+ */
+export function assessServeReadiness(
+  member: RevisionMember,
+  facts: CampaignFacts | undefined,
+  ctx: RoutingContext,
+  now: Date,
+): { canServeNow: boolean; reasons: ExclusionReason[]; copy: string[] } {
+  const input = { member, facts, ctx, now };
+  const reasons: ExclusionReason[] = [];
+  for (const p of PREDICATES) {
+    if (!p.blocks(input)) continue;
+    reasons.push(p.reason);
+    if (p.terminal) break;
+  }
+  return {
+    canServeNow: reasons.length === 0,
+    reasons,
+    copy: reasons.map(r => PREDICATE_COPY[r]),
+  };
 }
 
 export function evaluateMembers(
@@ -110,18 +115,6 @@ export function evaluateMembers(
   return members.map(m => evaluateMember(m, factsById.get(m.campaignId), ctx, now));
 }
 
-/** Human-readable diagnosis for Manage. Never shown to a survey respondent. */
-export const EXCLUSION_COPY: Record<ExclusionReason, string> = {
-  paused:              "Paused in this configuration",
-  campaign_missing:    "Campaign no longer exists",
-  campaign_deleted:    "Campaign deleted",
-  campaign_not_live:   "Campaign is not live",
-  not_started:         "Campaign has not started",
-  ended:               "Campaign has ended",
-  country_mismatch:    "Configured for a different country",
-  market_mismatch:     "Configured for a different market",
-  publisher_mismatch:  "Configured for a different publisher",
-  target_reached:      "Response target reached",
-  survey_missing:      "No survey attached",
-  survey_invalid:      "Survey does not pass validation",
-};
+/** Operator-facing copy. Never shown to a survey respondent. Re-exported from
+ *  the predicate list so a reason and its wording cannot drift apart. */
+export const EXCLUSION_COPY = PREDICATE_COPY;
