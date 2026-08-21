@@ -23,7 +23,7 @@ const state: {
 function chain() {
   const ctx: { op: string | null } = { op: null };
   const c: Record<string, unknown> = {
-    select() { return c }, ilike() { return c }, eq() { return c },
+    select() { return c }, ilike() { return c }, eq() { return c }, neq() { return c },
     update() { ctx.op = "update"; return c },
     single() { return Promise.resolve({ data: state.user, error: state.user ? null : { message: "not found" } }); },
     then(res: (x: { data: null; error: null }) => unknown) { return Promise.resolve({ data: null, error: null }).then(res); },

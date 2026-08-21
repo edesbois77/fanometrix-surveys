@@ -25,11 +25,19 @@ export async function POST(req: NextRequest) {
   }
 
   // Case-insensitive exact match, mirroring the old username lookup.
+  //
+  // Admission is by EXCLUSION of `disabled`, not by requiring `active`. An
+  // invited user is created as `pending_invitation` (see app/api/users), and
+  // their first successful login is what promotes them to `active` (below).
+  // Requiring `active` here made that promotion unreachable, so every invited
+  // account was rejected with "Invalid email or password" despite holding the
+  // correct temporary password. `disabled` remains excluded, and requireUser
+  // re-checks the live status on every subsequent request regardless.
   const { data: user, error } = await supabaseAdmin
     .from("users")
     .select("*")
     .ilike("work_email", email.trim())
-    .eq("status", "active")
+    .neq("status", "disabled")
     .single();
 
   // Constant-time comparison even on not-found, to avoid timing attacks
