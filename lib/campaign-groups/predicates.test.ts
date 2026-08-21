@@ -48,7 +48,12 @@ describe("predicates — one definition", () => {
       assert.ok(p.copy && p.copy.length > 3, `${p.reason} has no usable copy`);
       assert.equal(EXCLUSION_COPY[p.reason], p.copy, `${p.reason} copy drifted`);
     }
-    assert.equal(Object.keys(EXCLUSION_COPY).length, PREDICATES.length);
+    // Reasons are DISTINCT; predicates are not. Two predicates legitimately share
+    // campaign_not_live: the granular "not deployed" check and the authoritative
+    // effective-status gate.
+    const distinct = new Set(PREDICATES.map(p => p.reason));
+    assert.equal(Object.keys(EXCLUSION_COPY).length, distinct.size);
+    assert.ok(PREDICATES.length >= distinct.size);
   });
 
   test("evaluateMember returns the FIRST blocker; assessServeReadiness returns ALL", () => {
@@ -61,6 +66,13 @@ describe("predicates — one definition", () => {
     assert.equal(all.canServeNow, false);
     assert.deepEqual(all.reasons, ["campaign_not_live", "ended", "target_reached"]);
     assert.equal(all.copy.length, 3);
+  });
+
+  test("a reason shared by two predicates is reported once, not twice", () => {
+    // A draft is blocked by BOTH the "not deployed" check and the authoritative
+    // effective-status gate. The operator should be told once.
+    const all = assessServeReadiness(member(), facts({ status: "draft" }), NO_CTX, NOW);
+    assert.deepEqual(all.reasons.filter(r => r === "campaign_not_live"), ["campaign_not_live"]);
   });
 
   test("readiness collection stops at a TERMINAL predicate", () => {

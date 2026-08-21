@@ -56,10 +56,22 @@ export function deterministicServeAt(
   now: Date,
 ): Date | null {
   if (!facts) return null;
-  if (facts.status !== "live") return null;              // a draft schedules nothing
-  if (!facts.startsAt) return null;                      // live with no start = serves now, not later
+
+  // DEPLOYED means past the Deploy gate: stored "live" OR "scheduled". Deploy
+  // stores "scheduled" for any campaign with a future start date, so requiring
+  // "live" here made this whole branch unreachable in practice.
+  //
+  // A DRAFT never qualifies however its dates are set: a configured date does not
+  // deploy a campaign, and nothing will change its status on its own.
+  if (facts.status !== "live" && facts.status !== "scheduled") return null;
+
+  if (!facts.startsAt) return null;                      // deployed, no start = serves now, not later
   if (facts.startsAt.getTime() <= now.getTime()) return null;
-  // Would it actually be eligible when it arrives?
+
+  // Would it actually be eligible when it arrives? evaluateMember consumes the
+  // same authoritative effective-status resolver, so the instant promised here
+  // is exactly the instant the serve path starts accepting the member. That
+  // equivalence is asserted by test.
   const atStart = evaluateMember(member, facts, NO_ROUTING, facts.startsAt);
   return atStart.eligible ? facts.startsAt : null;
 }

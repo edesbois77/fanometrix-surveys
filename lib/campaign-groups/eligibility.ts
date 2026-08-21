@@ -35,6 +35,19 @@ export interface CampaignFacts {
   responseCount: number;
   surveyId: string | null;
   surveyValid: boolean;
+  /**
+   * The fields the AUTHORITATIVE lifecycle resolver needs (lib/campaign-status.ts).
+   * Eligibility defers to computeEffectiveStatus rather than reinterpreting the
+   * lifecycle — see the campaign_effective_status predicate.
+   */
+  manualStatusOverride?: string | null;
+  archiveAfterDays?: number | null;
+  targetMode?: string | null;
+  /** Raw calendar dates, which the resolver converts to market-local instants
+   *  itself. startsAt/endsAt above are the already-converted instants used by the
+   *  granular predicates. */
+  startDate?: string | null;
+  endDate?: string | null;
 }
 
 /** Unverified claims from the embed URL. Used for routing only. */
@@ -96,7 +109,12 @@ export function assessServeReadiness(
   const reasons: ExclusionReason[] = [];
   for (const p of PREDICATES) {
     if (!p.blocks(input)) continue;
-    reasons.push(p.reason);
+    // A BACKSTOP only narrates when nothing more specific did. The authoritative
+    // effective-status gate refuses a deployed campaign awaiting its start, but
+    // "has not started" is the reason an operator needs — "is not live" beside it
+    // is redundant, and misleading about a campaign that IS deployed.
+    if (p.backstop && reasons.length > 0) continue;
+    if (!reasons.includes(p.reason)) reasons.push(p.reason);
     if (p.terminal) break;
   }
   return {
