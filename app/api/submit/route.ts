@@ -11,7 +11,7 @@ import {
 import { checkResearchTargetReached } from "@/lib/research-project-target-check";
 import { parseSubmitAnswers } from "@/lib/survey-answer-request";
 import { resolveCampaignEvidenceContext, withConfigurationRevision } from "@/lib/survey-evidence-context";
-import { resolveRevisionClaim } from "@/lib/campaign-groups/claim";
+import { resolveClaimForWrite } from "@/lib/campaign-groups/claim";
 import { persistAnswers } from "@/lib/survey-answer-store";
 
 export async function POST(req: NextRequest) {
@@ -137,8 +137,14 @@ export async function POST(req: NextRequest) {
   // WP1: validate the configuration claim ONCE for this submission. Only Studio
   // group embeds send it, so every other completion does exactly the work it did
   // before — no extra query, no added latency on the hottest path in the product.
-  const revisionId = await resolveRevisionClaim(
+  const revisionId = await resolveClaimForWrite(
     (body as Record<string, unknown>).configuration_revision_id,
+    {
+      campaignSlug: campaign_id,
+      groupSlug: (body as Record<string, unknown>).group_id,
+      sessionId: session_id,
+      endpoint: "submit",
+    },
   );
 
   const parsedAnswers = parseSubmitAnswers(answers);

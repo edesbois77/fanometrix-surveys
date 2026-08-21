@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { allowSessionEvent } from "@/lib/embed-throttle";
 import { MAX_BODY_BYTES, parseAnswerRequest } from "@/lib/survey-answer-request";
 import { resolveCampaignEvidenceContext, withConfigurationRevision } from "@/lib/survey-evidence-context";
-import { resolveRevisionClaim } from "@/lib/campaign-groups/claim";
+import { resolveClaimForWrite } from "@/lib/campaign-groups/claim";
 import { persistAnswers } from "@/lib/survey-answer-store";
 
 // Persist a single survey answer the moment it is selected — the Fanometrix evidence
@@ -55,7 +55,12 @@ export async function POST(req: NextRequest) {
   // one resolves to null — an answer is never discarded over its provenance.
   const answerCtx = withConfigurationRevision(
     ctx,
-    await resolveRevisionClaim(parsed.value.configurationRevisionId),
+    await resolveClaimForWrite(parsed.value.configurationRevisionId, {
+      campaignSlug: campaignId,
+      groupSlug: parsed.value.groupSlug,
+      sessionId,
+      endpoint: "answer",
+    }),
   );
 
   const result = await persistAnswers([{

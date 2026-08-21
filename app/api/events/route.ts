@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { allowSessionEvent } from "@/lib/embed-throttle";
 import { isSurveyEventType } from "@/lib/survey-events";
-import { resolveRevisionClaim, resolveSurveyIdForCampaign, looksLikeRevisionId } from "@/lib/campaign-groups/claim";
+import { resolveClaimForWrite, resolveSurveyIdForCampaign, claimSupplied } from "@/lib/campaign-groups/claim";
 
 // Bounds for malformed-payload rejection. Legitimate values are tiny (a session
 // UUID is 36 chars; campaign slugs / publisher names are short), so these caps
@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
   }
 
   const {
-    session_id, event_type, campaign_id,
+    session_id, event_type, campaign_id, group_id,
     publisher, placement, placement_id, creative_id,
     country, device, browser,
     configuration_revision_id,
@@ -70,8 +70,20 @@ export async function POST(req: NextRequest) {
   // punish a bad id would let anyone suppress evidence by sending junk.
   let revisionId: string | null = null;
   let surveyId: string | null = null;
-  if (looksLikeRevisionId(configuration_revision_id)) {
-    revisionId = await resolveRevisionClaim(configuration_revision_id);
+  // Presence, not well-formedness, decides whether a claim was MADE. Gating on
+  // looksLikeRevisionId here would file a malformed claim as ordinary
+  // no-claim traffic and lose the integrity signal — which the other two
+  // endpoints would still report, leaving the three inconsistent. The resolver
+  // short-circuits a malformed id without a query, so this costs nothing.
+  if (claimSupplied(configuration_revision_id)) {
+    // Validated as a TUPLE — the revision must name THIS campaign (and this
+    // group, when the session claims one). A bare id proves nothing.
+    revisionId = await resolveClaimForWrite(configuration_revision_id, {
+      campaignSlug: campaign_id,
+      groupSlug: group_id,
+      sessionId: session_id,
+      endpoint: "events",
+    });
     // survey_id is resolved from the campaign SERVER-SIDE, never read from the
     // body: a client able to name the survey could attribute its events to
     // someone else's research.

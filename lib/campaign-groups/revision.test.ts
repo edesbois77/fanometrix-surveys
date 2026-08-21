@@ -2,6 +2,7 @@ import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import {
   effectiveRevision, nextPendingRevision, cacheTtlMs, validateInFlightRevision,
+  type InFlightClaim,
   DEFAULT_CACHE_TTL_MS,
 } from "./revision";
 import { revisionState, activeMembers } from "./model";
@@ -115,54 +116,138 @@ describe("cacheTtlMs", () => {
 });
 
 describe("validateInFlightRevision", () => {
-  const groupId = "group-1";
+  const GROUP = "alpha";
+  const CAMPAIGN = "wwc_fotmob_gb";
 
-  test("an effective, uncancelled revision of this group passes", () => {
-    const r = rev({ effectiveAt: at(-5 * MIN) });
-    const v = validateInFlightRevision(r.id, groupId, [r], T0);
+  /** A revision whose frozen membership includes CAMPAIGN by default. */
+  const memberRev = (o: Partial<Revision> & { effectiveAt: Date }) =>
+    rev({ ...o, members: o.members ?? [
+      { campaignId: "uuid-a", campaignSlug: CAMPAIGN, weight: 1, membershipState: "active" },
+    ] });
+
+  /** A well-formed claim for that revision, before any single field is spoiled. */
+  const claimFor = (r: Revision, over: Partial<InFlightClaim> = {}): InFlightClaim => ({
+    revisionId: r.id,
+    campaignSlug: CAMPAIGN,
+    groupSlug: GROUP,
+    ownerModel: "survey_studio",
+    actualGroupSlug: GROUP,
+    ...over,
+  });
+
+  test("an effective, uncancelled Studio revision naming this campaign passes", () => {
+    const r = memberRev({ effectiveAt: at(-5 * MIN) });
+    const v = validateInFlightRevision(claimFor(r), [r], T0);
     assert.equal(v.ok, true);
-    assert.equal(v.code, "ok");
+    assert.equal(v.code, "valid");
   });
 
   test("the pass message claims ELIGIBILITY, never delivery", () => {
-    const r = rev({ effectiveAt: at(-5 * MIN) });
-    const v = validateInFlightRevision(r.id, groupId, [r], T0);
+    const r = memberRev({ effectiveAt: at(-5 * MIN) });
+    const v = validateInFlightRevision(claimFor(r), [r], T0);
     // WP1 has no assignment ledger: nothing proves this session received this
     // revision. The wording must not overstate what the data supports.
-    assert.match(v.message, /eligible to govern a serve/i);
+    assert.match(v.message, /eligible to govern/i);
     assert.doesNotMatch(v.message, /genuinely governed|did govern|was served/i);
   });
 
   test("a CANCELLED revision never validates, even though its effective_at passed", () => {
-    const r = rev({ effectiveAt: at(-5 * MIN), cancelledAt: at(-4 * MIN) });
-    const v = validateInFlightRevision(r.id, groupId, [r], T0);
+    const r = memberRev({ effectiveAt: at(-5 * MIN), cancelledAt: at(-4 * MIN) });
+    const v = validateInFlightRevision(claimFor(r), [r], T0);
     assert.equal(v.ok, false);
-    assert.equal(v.code, "cancelled");
+    assert.equal(v.code, "cancelled_revision");
   });
 
   test("a revision cancelled BEFORE it was due never validates", () => {
-    const r = rev({ effectiveAt: at(-MIN), cancelledAt: at(-10 * MIN) });
-    assert.equal(validateInFlightRevision(r.id, groupId, [r], T0).ok, false);
+    const r = memberRev({ effectiveAt: at(-MIN), cancelledAt: at(-10 * MIN) });
+    assert.equal(validateInFlightRevision(claimFor(r), [r], T0).ok, false);
   });
 
   test("a still-pending revision is rejected", () => {
-    const r = rev({ effectiveAt: at(5 * MIN) });
-    const v = validateInFlightRevision(r.id, groupId, [r], T0);
+    const r = memberRev({ effectiveAt: at(5 * MIN) });
+    const v = validateInFlightRevision(claimFor(r), [r], T0);
     assert.equal(v.ok, false);
-    assert.equal(v.code, "not_yet_effective");
+    assert.equal(v.code, "future_revision");
   });
 
   test("a revision belonging to a DIFFERENT group is rejected", () => {
-    const r = rev({ effectiveAt: at(-5 * MIN), groupId: "group-2" });
-    const v = validateInFlightRevision(r.id, groupId, [r], T0);
+    const r = memberRev({ effectiveAt: at(-5 * MIN) });
+    const v = validateInFlightRevision(claimFor(r, { actualGroupSlug: "beta" }), [r], T0);
     assert.equal(v.ok, false);
-    assert.equal(v.code, "not_in_group");
+    assert.equal(v.code, "wrong_group");
   });
 
   test("an unknown revision id is rejected rather than assumed", () => {
-    const v = validateInFlightRevision("00000000-0000-0000-0000-000000000000", groupId, [], T0);
+    const r = memberRev({ effectiveAt: at(-5 * MIN) });
+    const v = validateInFlightRevision(
+      claimFor(r, { revisionId: "00000000-0000-0000-0000-000000000000" }), [], T0);
     assert.equal(v.ok, false);
     assert.equal(v.code, "unknown_revision");
+  });
+
+  // ── The tuple checks. These are what the request path was missing. ─────────
+
+  test("a campaign that is NOT a frozen member of the revision is rejected", () => {
+    // The exact production exposure: another campaign's traffic replaying a
+    // revision that exists, is effective, and belongs to the claimed group.
+    const r = memberRev({ effectiveAt: at(-5 * MIN) });
+    const v = validateInFlightRevision(claimFor(r, { campaignSlug: "some_other_campaign" }), [r], T0);
+    assert.equal(v.ok, false);
+    assert.equal(v.code, "campaign_not_in_revision");
+  });
+
+  test("membership is read from the REVISION's frozen list, not the group's current one", () => {
+    // A campaign removed by a LATER revision must still validate against the
+    // revision that was serving when the respondent answered.
+    const serving = memberRev({ effectiveAt: at(-30 * MIN) });
+    const later = rev({ effectiveAt: at(-5 * MIN), members: [] });   // campaign since removed
+    const v = validateInFlightRevision(claimFor(serving), [serving, later], T0);
+    assert.equal(v.ok, true, "the superseded revision still governs the evidence it produced");
+  });
+
+  test("a legacy research-project revision is rejected on owner model", () => {
+    const r = memberRev({ effectiveAt: at(-5 * MIN) });
+    const v = validateInFlightRevision(claimFor(r, { ownerModel: "research_project" }), [r], T0);
+    assert.equal(v.ok, false);
+    assert.equal(v.code, "invalid_owner_model");
+  });
+
+  test("an ABSENT group claim cannot widen what is accepted", () => {
+    // Omitting the group skips the group comparison, so the campaign-membership
+    // check is the only thing standing between a replayed revision and storage.
+    // It must still refuse.
+    const r = memberRev({ effectiveAt: at(-5 * MIN) });
+    const ok = validateInFlightRevision(claimFor(r, { groupSlug: null }), [r], T0);
+    assert.equal(ok.code, "valid", "a genuine claim without a group still passes");
+
+    const forged = validateInFlightRevision(
+      claimFor(r, { groupSlug: null, campaignSlug: "some_other_campaign" }), [r], T0);
+    assert.equal(forged.ok, false);
+    assert.equal(forged.code, "campaign_not_in_revision");
+  });
+
+  test("a campaign in TWO groups validates only against its own group's revision", () => {
+    // A campaign may legitimately appear in several groups. Sharing a campaign
+    // must not make one group's revision valid for the other's traffic.
+    const alphaRev = rev({ id: "rev-alpha", groupId: "g-alpha", effectiveAt: at(-5 * MIN),
+      members: [{ campaignId: "uuid-a", campaignSlug: CAMPAIGN, weight: 1, membershipState: "active" }] });
+    const betaRev  = rev({ id: "rev-beta",  groupId: "g-beta",  effectiveAt: at(-5 * MIN),
+      members: [{ campaignId: "uuid-a", campaignSlug: CAMPAIGN, weight: 1, membershipState: "active" }] });
+
+    const own = validateInFlightRevision({
+      revisionId: alphaRev.id, campaignSlug: CAMPAIGN, groupSlug: "alpha",
+      ownerModel: "survey_studio", actualGroupSlug: "alpha",
+    }, [alphaRev, betaRev], T0);
+    assert.equal(own.code, "valid");
+
+    // Same campaign, same membership, but the session claims group alpha while
+    // the revision it named belongs to beta.
+    const crossed = validateInFlightRevision({
+      revisionId: betaRev.id, campaignSlug: CAMPAIGN, groupSlug: "alpha",
+      ownerModel: "survey_studio", actualGroupSlug: "beta",
+    }, [alphaRev, betaRev], T0);
+    assert.equal(crossed.ok, false);
+    assert.equal(crossed.code, "wrong_group");
   });
 });
 
