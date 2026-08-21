@@ -13,19 +13,16 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { campaignGroupsStudioEnabled, DISABLED_RESPONSE } from "@/lib/campaign-groups/flag";
+import { OPERATE_CAMPAIGNS } from "@/lib/campaign-groups/authorisation";
 import { requireUser, type AuthedUser } from "@/lib/auth-server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
-import { CAMPAIGN_ORIGIN, type StudioGroup } from "@/lib/campaign-groups/model";
+import { type StudioGroup } from "@/lib/campaign-groups/model";
+import { assessGroupable, groupableRefusalSummary } from "@/lib/campaign-groups/groupable";
 import { loadStudioGroupById, loadRevisions, editGroup, type EditMemberInput } from "@/lib/campaign-groups/store";
 import { effectiveRevision } from "@/lib/campaign-groups/revision";
+import { deriveChange } from "@/lib/campaign-groups/change-kind";
 
 const ROTATIONS = new Set(["equal", "weighted", "priority"]);
-const CHANGE_KINDS = new Set([
-  "created", "members_added", "members_removed", "member_paused",
-  "member_resumed", "weights_changed", "rotation_changed",
-]);
-/** Reasons are required for changes that alter which campaigns can collect. */
-const REASON_REQUIRED = new Set(["members_added", "members_removed", "member_paused", "member_resumed"]);
 
 async function loadAuthorised(session: AuthedUser, id: string): Promise<StudioGroup | NextResponse> {
   const group = await loadStudioGroupById(id);
@@ -44,7 +41,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   }
 
   let session;
-  try { session = await requireUser(req); } catch (err) { return err as Response; }
+  try { session = await requireUser(req, OPERATE_CAMPAIGNS); } catch (err) { return err as Response; }
   const { id } = await params;
 
   const group = await loadAuthorised(session, id);
@@ -80,17 +77,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     : null;
   if (!rotation) return NextResponse.json({ error: "rotation must be equal, weighted or priority." }, { status: 400 });
 
-  const changeKind = typeof body.change_kind === "string" && CHANGE_KINDS.has(body.change_kind)
-    ? body.change_kind : null;
-  if (!changeKind) return NextResponse.json({ error: "change_kind is not recognised." }, { status: 400 });
-
   const reason = typeof body.reason === "string" && body.reason.trim() ? body.reason.trim() : null;
-  if (REASON_REQUIRED.has(changeKind) && !reason) {
-    return NextResponse.json(
-      { error: "A reason is required when campaigns are admitted, removed, paused or resumed." },
-      { status: 400 },
-    );
-  }
+  // change_kind is DERIVED below, once the member set is parsed. It is not taken
+  // from the request: the kind decides which governance rules fire, so a client
+  // that chose its own kind would be choosing its own rules — sending
+  // "weights_changed" while removing a campaign makes both the mandatory reason
+  // and the comparability acknowledgement quietly disappear.
+  //
+  // A client may still SEND change_kind; it is ignored. Rejecting it would break
+  // nothing but would give the impression it mattered.
 
   // ── members ────────────────────────────────────────────────────────────────
   const rawMembers = Array.isArray(body.members) ? body.members : null;
@@ -140,27 +135,92 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const rows = (campaigns ?? []) as unknown as Row[];
     const byId = new Map(rows.map(r => [r.id, r]));
 
-    const problems: string[] = [];
+    // ONE definition of groupable, shared with the candidate endpoint. Copying
+    // this rule instead would let the picker offer a campaign this call then
+    // refuses — the drift that is hardest to notice, because both sides look
+    // individually correct. See lib/campaign-groups/groupable.ts.
+    const problems: Array<{ slug: string; reason: string }> = [];
     for (const m of members) {
       const r = byId.get(m.campaign_id);
-      if (!r || r.deleted_at) { problems.push(`${m.campaign_id} (not found)`); continue; }
-      if (r.origin !== CAMPAIGN_ORIGIN.studio) {
-        problems.push(`${r.campaign_id} (not a Survey Studio campaign)`);
-        continue;
-      }
-      const owner = Array.isArray(r.surveys) ? r.surveys[0] : r.surveys;
-      if (session.role !== "admin" && owner?.organisation_id !== session.organisationId) {
-        // Same wording as not-found: a caller must not learn that a campaign
-        // exists in another organisation by probing ids.
-        problems.push(`${m.campaign_id} (not found)`);
+      const owner = r ? (Array.isArray(r.surveys) ? r.surveys[0] : r.surveys) : null;
+      const decision = assessGroupable(
+        r ? { id: r.id, slug: r.campaign_id, origin: r.origin, deletedAt: r.deleted_at,
+              surveyOrganisationId: owner?.organisation_id ?? null }
+          : undefined,
+        { role: session.role, organisationId: session.organisationId },
+      );
+      if (!decision.canAdd) {
+        problems.push({ slug: r?.campaign_id ?? m.campaign_id, reason: decision.reason! });
       }
     }
     if (problems.length) {
-      return NextResponse.json(
-        { error: `These campaigns cannot be added: ${problems.join(", ")}.` },
-        { status: 400 },
-      );
+      return NextResponse.json({ error: groupableRefusalSummary(problems) }, { status: 400 });
     }
+  }
+
+  // Derive the kind from the actual diff against the configuration in force.
+  const nowForDiff = new Date();
+  const existing = await loadRevisions(group.id);
+  const inForce = effectiveRevision(existing, nowForDiff);
+  const diff = deriveChange({
+    previous: inForce
+      ? inForce.members.map(m => ({
+          campaign_id: m.campaignId, weight: m.weight, membership_state: m.membershipState,
+        }))
+      : null,
+    next: members.map(m => ({
+      campaign_id: m.campaign_id, weight: m.weight, membership_state: m.membership_state,
+    })),
+    previousRotation: inForce?.rotation ?? null,
+    nextRotation: rotation,
+  });
+
+  // Does this change require a comparability acknowledgement? The rule is the
+  // RPC's (migration 212): a membership change on a group that ALREADY HAS an
+  // effective revision. Derived here from the same server-side diff so the UI is
+  // told rather than left to guess — and re-derived on the real publish below,
+  // because the group can change while a form sits open.
+  const hasHistory = existing.some(r => r.cancelledAt === null && r.effectiveAt <= nowForDiff);
+  const comparabilityRequired = diff.membershipChanged && hasHistory;
+
+  // PREVIEW — answer what would happen, write nothing. This is what makes the
+  // server authoritative about whether the acknowledgement is needed, instead of
+  // the client deriving its own opinion and the two drifting.
+  if (body.preview === true) {
+    return NextResponse.json({
+      preview: true,
+      change_kind: diff.kind,
+      reason_required: diff.reasonRequired,
+      comparability_required: comparabilityRequired,
+      diff: {
+        added: diff.added, removed: diff.removed, paused: diff.paused,
+        resumed: diff.resumed, reweighted: diff.reweighted,
+        rotation_changed: diff.rotationChanged,
+        membership_changed: diff.membershipChanged,
+      },
+    });
+  }
+
+  if (diff.reasonRequired && !reason) {
+    return NextResponse.json(
+      { error: "A reason is required when campaigns are admitted or removed." },
+      { status: 400 },
+    );
+  }
+
+  // The acknowledgement must be an EXPLICIT act. A caller that omits it, or sends
+  // anything other than boolean true, is refused — never defaulted. The RPC
+  // enforces this again; refusing here lets us say WHY in the operator's words.
+  const acknowledged = body.comparability_acknowledged === true;
+  if (comparabilityRequired && !acknowledged) {
+    return NextResponse.json(
+      {
+        error: "This change alters which campaigns are collecting, so it needs the comparability acknowledgement before it can be published.",
+        comparability_required: true,
+        change_kind: diff.kind,
+      },
+      { status: 400 },
+    );
   }
 
   const result = await editGroup({
@@ -168,11 +228,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     effectiveAt,
     rotation,
     members,
-    changeKind,
+    changeKind: diff.kind,
     reason,
     actor: session.workEmail ?? session.id,
     ...(typeof body.active_campaign_limit === "number" ? { activeCampaignLimit: body.active_campaign_limit } : {}),
-    ...(body.comparability_acknowledged === true ? { comparabilityAcknowledged: true } : {}),
+    // Only ever the value the operator actually gave. Sending true unconditionally
+    // would make the RPC's guard unreachable and the acknowledgement meaningless.
+    comparabilityAcknowledged: acknowledged,
   });
 
   if (!result.ok) {
@@ -193,6 +255,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       change_kind: created.changeKind,
       reason: created.reason,
       member_count: created.members.length,
+      // What the server decided changed — the UI renders this rather than
+      // computing its own diff.
+      diff: {
+        added: diff.added, removed: diff.removed, paused: diff.paused,
+        resumed: diff.resumed, reweighted: diff.reweighted,
+        rotation_changed: diff.rotationChanged,
+        membership_changed: diff.membershipChanged,
+      },
       // Whether this revision is serving NOW, or is queued for later. The
       // client should not infer this from effective_at and its own clock.
       state: created.effectiveAt > new Date() ? "pending"

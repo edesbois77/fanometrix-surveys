@@ -122,6 +122,9 @@ export interface StackSurveyProps {
   device:         string | null;
   browser:        string | null;
   groupId:        string | null;
+  /** WP1: the configuration revision the SERVER selected for this serve.
+   *  Echoed on every write, never recomputed, fixed for this iframe's life. */
+  configurationRevisionId: string | null;
   countryCode:    string | null;
   market:         string | null;
   surveyLanguage: string;
@@ -267,7 +270,7 @@ export function StackSurvey(props: StackSurveyProps) {
     surveyIntroEnabled, introTitle, introBody, thankYouEnabled,
     campaignId, surveyId, publisher, placement, placementId, creativeId,
     club, competition, country, segment, device, browser,
-    groupId, countryCode, market, surveyLanguage, sessionId,
+    groupId, configurationRevisionId, countryCode, market, surveyLanguage, sessionId,
   } = props;
 
   const demo = { ...DEFAULT_DEMOGRAPHICS, ...(demographics ?? {}) };
@@ -316,6 +319,8 @@ export function StackSurvey(props: StackSurveyProps) {
     country, segment, market,
     device, browser,
     renderer: "stack",
+    groupId: groupId,
+    configurationRevisionId: configurationRevisionId,
   }), [isPreview, sessionId, campaignId, surveyId, publisher, placement, placementId, creativeId, country, segment, market, device, browser]);
 
   const sendEvent = useCallback((eventType: string) => {

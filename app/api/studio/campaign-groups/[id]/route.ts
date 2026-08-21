@@ -2,12 +2,14 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { campaignGroupsStudioEnabled, DISABLED_RESPONSE } from "@/lib/campaign-groups/flag";
+import { OPERATE_CAMPAIGNS } from "@/lib/campaign-groups/authorisation";
 import { requireUser, type AuthedUser } from "@/lib/auth-server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { OWNER_MODEL, FAIL_MODE, type StudioGroup } from "@/lib/campaign-groups/model";
 import { loadStudioGroupById, loadRevisions, loadCampaignFacts } from "@/lib/campaign-groups/store";
 import { effectiveRevision, nextPendingRevision } from "@/lib/campaign-groups/revision";
-import { evaluateMembers, EXCLUSION_COPY } from "@/lib/campaign-groups/eligibility";
+import { evaluateMembers, assessServeReadiness, EXCLUSION_COPY } from "@/lib/campaign-groups/eligibility";
+import { assessGoLive, nextStateChangeAt } from "@/lib/campaign-groups/go-live";
 
 /**
  * Load a Studio group and authorise the caller against it.
@@ -33,7 +35,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   }
 
   let session;
-  try { session = await requireUser(req); } catch (err) { return err as Response; }
+  try { session = await requireUser(req, OPERATE_CAMPAIGNS); } catch (err) { return err as Response; }
   const { id } = await params;
 
   const group = await loadAuthorised(session, id);
@@ -72,9 +74,31 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         // The operator-facing reason, not the enum, so the UI never has to own
         // this vocabulary and the two cannot drift.
         reason: d.reason ? EXCLUSION_COPY[d.reason] : null,
+        // EVERY applicable reason, for the UI. The single `reason` above stays
+        // for the serve-shaped view; this is the diagnosis.
+        readiness_reasons: assessServeReadiness(
+          d.member, f, { country: null, market: null, publisher: null }, now,
+        ).copy,
       };
     });
   }
+
+  // C2: whether the group may be set live is decided HERE, never inferred by
+  // the client from campaign statuses. A valid effective revision alone is not
+  // sufficient — a group of undeployed drafts would go live and return empty
+  // inventory indefinitely.
+  const factsForVerdict = current
+    ? await loadCampaignFacts(current.members.map(m => m.campaignId))
+    : new Map();
+  const goLive = assessGoLive(current, factsForVerdict, now);
+
+  // N3: when this verdict stops being true. The client is not permitted to
+  // reason about eligibility, which necessarily includes reasoning about when
+  // eligibility lapses — so it is told when to ask again.
+  const nextChange = nextStateChangeAt(revisions, current, factsForVerdict, now);
+
+  // Deletability is a server fact and must never be inferred from a countdown.
+  const canDelete = revisions.every(r => r.cancelledAt !== null || r.effectiveAt > now);
 
   return NextResponse.json({
     group: {
@@ -82,6 +106,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       status: group.status, fail_mode: group.failMode,
       start_date: group.startDate, end_date: group.endDate,
     },
+    go_live: goLive,
+    can_delete: canDelete,
+    pending_count: revisions.filter(r => r.cancelledAt === null && r.effectiveAt > now).length,
+    next_state_change_at: nextChange,
     current_revision: current && {
       id: current.id,
       effective_at: current.effectiveAt.toISOString(),
@@ -136,7 +164,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   }
 
   let session;
-  try { session = await requireUser(req); } catch (err) { return err as Response; }
+  try { session = await requireUser(req, OPERATE_CAMPAIGNS); } catch (err) { return err as Response; }
   const { id } = await params;
 
   const group = await loadAuthorised(session, id);
@@ -159,14 +187,31 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (body.start_date === null || typeof body.start_date === "string") patch.start_date = body.start_date;
   if (body.end_date === null || typeof body.end_date === "string") patch.end_date = body.end_date;
 
-  // Going live with no configuration would 404 every impression the group is
-  // handed, which reads to a publisher as a broken tag rather than as a
-  // deliberate state. Refuse it and say what is missing.
+  // C2. A VALID EFFECTIVE CONFIGURATION IS NOT SUFFICIENT.
+  //
+  // Gating only on "has an effective revision" would let a group whose members
+  // are all undeployed drafts go live and return empty inventory indefinitely —
+  // which reads to a publisher as a broken tag rather than a deliberate state.
+  //
+  // The verdict is computed HERE. The client is not permitted to infer it from
+  // campaign statuses, so this is the only place it can be decided.
   if (patch.status === "live") {
+    const nowLive = new Date();
     const revisions = await loadRevisions(group.id);
-    if (!effectiveRevision(revisions, new Date())) {
+    const inForce = effectiveRevision(revisions, nowLive);
+    const factsLive = inForce
+      ? await loadCampaignFacts(inForce.members.map(m => m.campaignId))
+      : new Map();
+    const verdict = assessGoLive(inForce, factsLive, nowLive);
+
+    if (!verdict.allowed) {
       return NextResponse.json(
-        { error: "This group has no effective configuration yet, so it cannot go live. Add campaigns first." },
+        {
+          error: inForce
+            ? "No campaign in this configuration can serve, and none is scheduled to. Deploy or correct the campaigns first."
+            : "This group has no effective configuration yet, so it cannot go live. Add campaigns first.",
+          go_live: verdict,
+        },
         { status: 409 },
       );
     }
@@ -186,4 +231,92 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     return NextResponse.json({ error: "Could not update the group." }, { status: 500 });
   }
   return NextResponse.json({ group: data });
+}
+
+/**
+ * Delete a group that has never governed delivery.
+ *
+ * Two conditions, and they are not independent: evidence can only carry a
+ * revision id if that revision was effective, so the second cannot fail while
+ * the first passes. It stays as cheap insurance rather than as a second gate.
+ *
+ * A group whose configuration HAS taken effect can never be deleted — migration
+ * 211's freeze refuses to cascade through a frozen revision. That is deliberate:
+ * configuration that governed serves must survive. Pausing does not restore
+ * deletability, and the UI must not suggest it does.
+ *
+ * Re-checked HERE at submit time, because the countdown a browser renders is a
+ * courtesy and not authority: a revision can become effective between the page
+ * rendering a Delete button and the operator pressing it.
+ */
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  if (!campaignGroupsStudioEnabled()) {
+    return NextResponse.json(DISABLED_RESPONSE, { status: 404 });
+  }
+
+  let session;
+  try { session = await requireUser(req, OPERATE_CAMPAIGNS); } catch (err) { return err as Response; }
+  const { id } = await params;
+
+  const group = await loadAuthorised(session, id);
+  if (group instanceof NextResponse) return group;
+
+  const revisions = await loadRevisions(group.id);
+  const now = new Date();
+
+  const effective = revisions.filter(r => r.cancelledAt === null && r.effectiveAt <= now);
+  if (effective.length > 0) {
+    return NextResponse.json(
+      { error: "This group has published configuration history and can no longer be deleted." },
+      { status: 409 },
+    );
+  }
+
+  if (revisions.length > 0) {
+    const ids = revisions.map(r => r.id);
+    // survey_events is DELIBERATELY not queried here.
+    //
+    // Its partial index requires event_type = 'SURVEY_RENDER', so a filter on
+    // configuration_revision_id alone cannot use it and seq-scans 1.14M rows —
+    // measured at 6.6 seconds, on a user-facing delete. Constraining to
+    // SURVEY_RENDER instead would make the check UNDERCOUNT, which is worse
+    // than not checking: a safety guard that misses evidence is not a guard.
+    //
+    // It is also unnecessary. Evidence can only carry a revision id if that
+    // revision was effective, and the check above has already refused if any
+    // was. These two small, indexed tables (idx_response_answers_revision,
+    // idx_responses_revision, both partial on IS NOT NULL) stay as cheap
+    // insurance against a state that should be unreachable.
+    const [{ count: ans }, { count: res }] = await Promise.all([
+      supabaseAdmin.from("response_answers").select("id", { count: "exact", head: true }).in("configuration_revision_id", ids),
+      supabaseAdmin.from("responses").select("id", { count: "exact", head: true }).in("configuration_revision_id", ids),
+    ]);
+    if ((ans ?? 0) + (res ?? 0) > 0) {
+      return NextResponse.json(
+        { error: "This group has collected research evidence and can no longer be deleted." },
+        { status: 409 },
+      );
+    }
+  }
+
+  // Pinned on owner_model so this can never remove a legacy group. Revisions and
+  // their frozen member snapshots cascade.
+  const { data: deleted, error } = await supabaseAdmin
+    .from("campaign_groups")
+    .delete()
+    .eq("id", group.id)
+    .eq("owner_model", OWNER_MODEL.studio)
+    .select("id");
+
+  if (error) {
+    console.error("[studio/campaign-groups] delete failed:", error);
+    return NextResponse.json({ error: "Could not delete the group." }, { status: 500 });
+  }
+  // A filtered delete that matched nothing returns success with zero rows; that
+  // must not read as "deleted".
+  if (!deleted?.length) {
+    return NextResponse.json({ error: "Group not found" }, { status: 404 });
+  }
+
+  return NextResponse.json({ deleted: true, pending_revisions_removed: revisions.length });
 }

@@ -43,7 +43,7 @@ const LONG_DEMO = {
 const CTX: Omit<StackSurveyProps, "questions" | "thankYouTitle" | "thankYouBody" | "isPreview" | "hoverVariant" | "topic" | "previewStartStep" | "demographics"> = {
   campaignId: "preview", surveyId: null, publisher: null, placement: null, placementId: null,
   creativeId: null, club: null, competition: null, country: null, segment: null,
-  device: null, browser: null, groupId: null, countryCode: null, market: null,
+  device: null, browser: null, groupId: null, configurationRevisionId: null, countryCode: null, market: null,
   surveyLanguage: "en", sessionId: "preview",
 };
 

@@ -9,6 +9,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { campaignGroupsStudioEnabled, DISABLED_RESPONSE } from "@/lib/campaign-groups/flag";
+import { OPERATE_CAMPAIGNS } from "@/lib/campaign-groups/authorisation";
 import { requireUser } from "@/lib/auth-server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { OWNER_MODEL, FAIL_MODE } from "@/lib/campaign-groups/model";
@@ -25,7 +26,7 @@ export async function GET(req: NextRequest) {
   }
 
   let session;
-  try { session = await requireUser(req); } catch (err) { return err as Response; }
+  try { session = await requireUser(req, OPERATE_CAMPAIGNS); } catch (err) { return err as Response; }
 
   if (!session.organisationId) {
     return NextResponse.json({ error: "No Active Organisation" }, { status: 403 });
@@ -33,6 +34,18 @@ export async function GET(req: NextRequest) {
 
   const groups = await listStudioGroups(session.organisationId);
   const now = new Date();
+
+  // Scope to one survey when asked. A group belongs to a survey by virtue of the
+  // campaigns in its CURRENT configuration, which is why this is a filter over
+  // resolved membership rather than a column: membership is revisioned, and a
+  // group can legitimately move between surveys across revisions.
+  const surveyFilter = req.nextUrl.searchParams.get("survey_id");
+  let allowedCampaignIds: Set<string> | null = null;
+  if (surveyFilter) {
+    const { data: surveyCampaigns } = await supabaseAdmin
+      .from("campaigns").select("id").eq("survey_id", surveyFilter);
+    allowedCampaignIds = new Set((surveyCampaigns ?? []).map(c => c.id as string));
+  }
 
   // Each group is summarised by its CURRENT configuration and whatever is
   // scheduled next, because those are the two things an operator needs to know
@@ -42,6 +55,8 @@ export async function GET(req: NextRequest) {
     const current = effectiveRevision(revisions, now);
     const next = nextPendingRevision(revisions, now);
     return {
+      // Internal only — stripped before the response. Used to scope by survey.
+      __campaignIds: (current ?? next)?.members.map(m => m.campaignId) ?? [],
       id: g.id,
       slug: g.slug,
       name: g.name,
@@ -65,7 +80,13 @@ export async function GET(req: NextRequest) {
     };
   }));
 
-  return NextResponse.json({ groups: summaries });
+  const visible = allowedCampaignIds
+    ? summaries.filter(s => s.__campaignIds.some(id => allowedCampaignIds!.has(id)))
+    : summaries;
+
+  return NextResponse.json({
+    groups: visible.map(({ __campaignIds, ...rest }) => rest),
+  });
 }
 
 export async function POST(req: NextRequest) {
@@ -76,7 +97,7 @@ export async function POST(req: NextRequest) {
   }
 
   let session;
-  try { session = await requireUser(req); } catch (err) { return err as Response; }
+  try { session = await requireUser(req, OPERATE_CAMPAIGNS); } catch (err) { return err as Response; }
 
   if (!session.organisationId) {
     return NextResponse.json({ error: "No Active Organisation" }, { status: 403 });

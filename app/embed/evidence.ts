@@ -37,6 +37,22 @@ export type EmbedEvidenceContext = {
   device: string | null;
   browser: string | null;
   renderer: RendererId;
+  /**
+   * WP1 — the Campaign Group this iframe was served by, and the configuration
+   * revision the SERVER selected when it served it.
+   *
+   * Both are echoed back on every write so evidence produced minutes after a
+   * configuration change is still attributed to the configuration that produced
+   * it. Neither is ever computed here: the client repeats what it was given and
+   * the server re-validates the (revision, campaign, group) tuple before storing
+   * anything. Null for individual campaigns, legacy groups and previews — the
+   * overwhelming majority of traffic, which sends nothing and is unaffected.
+   *
+   * FIXED FOR THE LIFE OF THE IFRAME. A revision that becomes effective while a
+   * respondent is mid-journey must not retag the journey already in progress.
+   */
+  groupId: string | null;
+  configurationRevisionId: string | null;
 };
 
 /** One answer, carrying the question's identity and not just its position. */
@@ -72,6 +88,10 @@ export function sendEvent(ctx: EmbedEvidenceContext, eventType: string): void {
       country: ctx.country || null,
       device: ctx.device || null,
       browser: ctx.browser || null,
+      // Provenance of the serve, echoed for the server to validate. group_id is
+      // sent as CONTEXT for that validation; it is not stored on this table.
+      group_id: ctx.groupId || null,
+      configuration_revision_id: ctx.configurationRevisionId || null,
     }),
   }).catch(() => {/* diagnostics only — never affects the respondent */});
 }
@@ -92,6 +112,8 @@ function answerBody(ctx: EmbedEvidenceContext, a: EmbedAnswer) {
     placement_id: ctx.placementId || null,
     creative_id: ctx.creativeId || null,
     renderer: ctx.renderer,
+    group_id: ctx.groupId || null,
+    configuration_revision_id: ctx.configurationRevisionId || null,
   };
 }
 
@@ -179,6 +201,10 @@ export async function submitResponse(
       body: JSON.stringify({
         ...payload,
         session_id: ctx.sessionId,
+        // Taken from the shared context, not from each renderer's payload, so
+        // all four agree and none can quietly omit it.
+        group_id: ctx.groupId || null,
+        configuration_revision_id: ctx.configurationRevisionId || null,
         // Which creative produced this completion. Carried so the backfill writes the
         // same context the per-selection saves did (the store also preserves an
         // existing value when a payload omits it — belt and braces).

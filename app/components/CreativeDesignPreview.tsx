@@ -162,7 +162,7 @@ export function CreativeDesignPreview({
           campaignId="preview" surveyId={null} publisher={null} placement={null}
           placementId={null} creativeId={null}
           club={null} competition={null} country={null} segment={null}
-          device={null} browser={null} groupId={null} countryCode={null}
+          device={null} browser={null} groupId={null} configurationRevisionId={null} countryCode={null}
           market={null} surveyLanguage={previewLang} sessionId=""
         />
       );
@@ -202,7 +202,7 @@ export function CreativeDesignPreview({
         campaignId="preview" surveyId={null} publisher={null} placement={null}
         placementId={null} creativeId={null}
         club={null} competition={null} country={null} segment={null}
-        device={null} browser={null} groupId={null} countryCode={null}
+        device={null} browser={null} groupId={null} configurationRevisionId={null} countryCode={null}
         market={null} surveyLanguage={previewLang} sessionId=""
       />
     ) : rendererOf(design.config) === "studio-classic" ? (
@@ -223,7 +223,7 @@ export function CreativeDesignPreview({
         campaignId="preview" surveyId={null} questionSetId={null} publisher={null} placement={null}
         placementId={null} creativeId={null}
         club={null} competition={null} country={null} segment={null}
-        device={null} browser={null} groupId={null} countryCode={null}
+        device={null} browser={null} groupId={null} configurationRevisionId={null} countryCode={null}
         market={null} surveyLanguage={previewLang} sessionId="" urlLang={surveyDraft ? previewLang : null}
       />
     ) : (
@@ -238,7 +238,7 @@ export function CreativeDesignPreview({
         campaignId="preview" surveyId={null} questionSetId={null} publisher={null} placement={null}
         placementId={null} creativeId={null}
         club={null} competition={null} country={null} segment={null}
-        device={null} browser={null} groupId={null} countryCode={null}
+        device={null} browser={null} groupId={null} configurationRevisionId={null} countryCode={null}
         market={null} surveyLanguage="en" sessionId="" urlLang={null}
       />
     );

@@ -56,6 +56,10 @@ const ADMIN_AND_PUBLISHER_PREFIXES = [
   "/campaigns",
   "/campaign-groups",
   "/api/campaign-groups",
+  // The Studio equivalents of the line above. `/api/studio/...` is not covered
+  // by any other prefix here, so without this an agency/brand account refused
+  // every legacy campaign surface could still drive the Studio group API.
+  "/api/studio/campaign-groups",
   "/survey-templates",
   "/api/surveys",
 ];

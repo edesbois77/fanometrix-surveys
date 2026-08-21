@@ -32,7 +32,14 @@ test("every renderer sits behind the resolved gate", () => {
 });
 
 test("the unavailable state renders no survey content", () => {
-  const block = code.slice(code.indexOf('phase === "unavailable"'), code.indexOf("if (groupSlug && !groupReady)"));
+  // Anchored on the render gate that follows the unavailable branch. If either
+  // anchor stops matching, indexOf returns -1 and slice would silently scan the
+  // whole file — so both are asserted present before use.
+  const start = code.indexOf('phase === "unavailable"');
+  const end   = code.indexOf("if (namesAGroup(groupRouting) && !groupReady)");
+  assert.ok(start > -1, "unavailable branch anchor not found — this test is no longer scoped");
+  assert.ok(end > start, "render-gate anchor not found — this test is no longer scoped");
+  const block = code.slice(start, end);
   assert.match(block, /Preview unavailable/);
   for (const forbidden = ["QUESTIONS", "<StackSurvey", "<ThemedSurvey", "<StudioClassicSurvey", "<ClassicSurvey", "introTitle", "branding"]; ;) {
     for (const f of forbidden) assert.ok(!block.includes(f), `unavailable state must not reference ${f}`);

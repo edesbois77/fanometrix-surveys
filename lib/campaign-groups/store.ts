@@ -149,7 +149,10 @@ export async function loadCampaignFacts(campaignUuids: string[]): Promise<Map<st
   const [{ data: campaigns, error: campaignsErr }, { data: stats }] = await Promise.all([
     supabaseAdmin
       .from("campaigns")
-      .select("id, campaign_id, status, deleted_at, start_date, end_date, country_code, market, publisher_org_id, target_responses, survey_id")
+      // manual_status_override / archive_after_days / target_mode are read for the
+      // AUTHORITATIVE effective-status resolver (lib/campaign-status.ts), which
+      // eligibility defers to rather than reinterpreting the lifecycle.
+      .select("id, campaign_id, status, deleted_at, start_date, end_date, country_code, market, publisher_org_id, target_responses, survey_id, manual_status_override, archive_after_days, target_mode")
       .in("id", campaignUuids),
     supabaseAdmin.from("vw_campaign_stats").select("campaign_id, response_count"),
   ]);
@@ -164,6 +167,7 @@ export async function loadCampaignFacts(campaignUuids: string[]): Promise<Map<st
     start_date: string | null; end_date: string | null;
     country_code: string | null; market: string | null;
     publisher_org_id: string | null; target_responses: number | null; survey_id: string | null;
+    manual_status_override: string | null; archive_after_days: number | null; target_mode: string | null;
   };
   const rows = (campaigns ?? []) as Row[];
 
@@ -211,6 +215,11 @@ export async function loadCampaignFacts(campaignUuids: string[]): Promise<Map<st
       responseCount: responsesBySlug.get(r.campaign_id) ?? 0,
       surveyId: r.survey_id,
       surveyValid: r.survey_id ? surveyValidById.get(r.survey_id) ?? false : false,
+      manualStatusOverride: r.manual_status_override,
+      archiveAfterDays: r.archive_after_days,
+      targetMode: r.target_mode,
+      startDate: r.start_date,
+      endDate: r.end_date,
     });
   }
   return out;

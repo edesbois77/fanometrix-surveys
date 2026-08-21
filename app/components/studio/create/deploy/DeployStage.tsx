@@ -23,6 +23,7 @@ import { validateCampaignConfig, type CampaignConfig } from "@/lib/studio/campai
 import { resolveDeployTargetStatus } from "@/lib/campaign-time";
 import { DeploymentBuilder } from "@/app/campaign-deployment/page";
 import { StatusPill, DeployConfirmModal, GoLiveUndo, type DeployItem } from "./DeployShared";
+import { DeployGroupTags } from "./DeployGroupTags";
 
 interface StudioCampaign extends CampaignConfig {
   id: string; campaign_id: string; publisher_org_id: string; publisher_name: string;
@@ -166,6 +167,11 @@ export function DeployStage({ surveyId }: { surveyId: string }) {
       {/* Reused tag/trafficking builder — hideSummary drops its internal campaign
           card so the workspace is not double-headed. Read-only; never activates. */}
       {focus && <DeploymentBuilder key={focus.id} campaignId={focus.id} embedded hideSummary />}
+
+      {/* Group tags, after the individual campaign workspace. A group is a
+          different thing to implement: one tag that rotates between several of
+          the campaigns above. */}
+      <DeployGroupTags surveyId={surveyId} />
 
       {confirmItems.length > 0 && <DeployConfirmModal items={confirmItems} busy={busy} onConfirm={doDeploy} onClose={() => { setConfirmItems([]); setConfirmIds([]); }} />}
     </div>

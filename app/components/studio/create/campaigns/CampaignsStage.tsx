@@ -16,6 +16,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button, Card, Eyebrow } from "@/app/components/workspace-ui";
 import { useCampaignSelection } from "@/app/components/campaigns/useCampaignSelection";
+import { CampaignGroupsSection } from "./CampaignGroupsSection";
 import { stageHref } from "../create-stages";
 import { countryByCode } from "@/lib/countries";
 import { LANGUAGE_DISPLAY_NAMES } from "@/lib/locales";
@@ -370,6 +371,11 @@ export function CampaignsStage({ surveyId, onReadyChange }: { surveyId: string; 
       {deployItems.length > 0 && (
         <DeployConfirmModal items={deployItems} busy={busy} onConfirm={doDeploy} onClose={() => { setDeployItems([]); setDeployIds([]); }} />
       )}
+
+      {/* Campaign groups, built FROM the campaigns configured above. Appended
+          after the list because that is the order of the work: configure the
+          campaigns, then group them. Renders nothing destructive on arrival. */}
+      <CampaignGroupsSection surveyId={surveyId} />
     </div>
   );
 }

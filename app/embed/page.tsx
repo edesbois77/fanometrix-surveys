@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, Suspense } from "react";
+import { useState, useEffect, useCallback, useRef, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { ThemedSurvey, type EmbedTheme } from "./ThemedSurvey";
 import { ClassicSurvey } from "./ClassicSurvey";
@@ -8,6 +8,7 @@ import { StudioClassicSurvey } from "./StudioClassicSurvey";
 import { StackSurvey } from "./StackSurvey";
 import { parseStackPreviewFrame, resolveStackPreviewStep } from "./stack-frames";
 import { coerceStackConfig, DEFAULT_STACK_CONFIG, type StackConfig } from "@/lib/stack-config";
+import { resolveGroupRouting, groupEndpoint, namesAGroup, CONFLICTING_GROUP_PARAMETERS } from "@/lib/embed-group-routing";
 import { initialPhase, phaseForFailure, mayMountSurvey, isPreviewContext as ctxIsPreview,
          suppressEvidence as ctxSuppressEvidence, isDesignSample as ctxIsDesignSample,
          type PreviewPhase } from "@/lib/embed-preview-phase";
@@ -141,7 +142,14 @@ function EmbedSurvey() {
   const params = useSearchParams();
 
   const campaign      = params.get("campaign")     ?? "default";
-  const groupSlug     = params.get("group")        ?? null;
+  // Two parameters can name a group; a URL carrying BOTH is malformed. The rule
+  // is pure and lives in lib/embed-group-routing.ts so it is testable without a
+  // DOM. `groupSlug` below keeps its exact previous meaning for the LEGACY path,
+  // so that path is unchanged.
+  const groupRouting  = resolveGroupRouting(params.get("group"), params.get("campaign_group"));
+  const groupSlug     = groupRouting.kind === "legacy" || groupRouting.kind === "studio"
+                          ? groupRouting.slug : null;
+  const groupConflict = groupRouting.kind === "conflict";
   const urlLang       = params.get("lang");
   const surveyId      = params.get("survey")       ?? null;
   const isPreview     = params.get("preview")      === "1";
@@ -198,7 +206,7 @@ function EmbedSurvey() {
   // before the authorised payload AND its creative are fully resolved.
   const embedCtx = {
     hasCampaignSlug: !groupSlug && !!campaign && campaign !== "default",
-    hasGroupSlug: !!groupSlug,
+    hasGroupSlug: namesAGroup(groupRouting),
     hasSurveyId: !!surveyId,
     previewFlag: isPreview,
     hasPreviewToken: !!previewToken,
@@ -231,7 +239,7 @@ function EmbedSurvey() {
   const [thankYouEnabled,    setThankYouEnabled]    = useState<boolean | undefined>(undefined);
 
   const [resolvedCampaignId, setResolvedCampaignId] = useState<string>(campaign);
-  const [groupReady,         setGroupReady]         = useState(!groupSlug);
+  const [groupReady,         setGroupReady]         = useState(!namesAGroup(groupRouting));
   const [creativeDesign,     setCreativeDesign]     = useState<string | null>(null);
   const [customTheme,        setCustomTheme]        = useState<EmbedTheme | null>(null);
   // The design's creative layout ("timer" | "classic" | "invitation"), resolved
@@ -256,6 +264,14 @@ function EmbedSurvey() {
   const [serverPreview,      setServerPreview]      = useState(false);
   const [branding,           setBranding]           = useState<string[]>([]);
   const [resolvedGroupId,      setResolvedGroupId]      = useState<string | null>(null);
+  // WP1 — the configuration revision the SERVER chose when it served this
+  // iframe. Captured ONCE and never replaced: if a new revision becomes
+  // effective while a respondent is mid-journey, this journey must stay
+  // attributed to the configuration that actually produced it. The ref is what
+  // enforces that, so a re-run of the resolve effect cannot retag a journey
+  // already in progress.
+  const [resolvedRevisionId,   setResolvedRevisionId]   = useState<string | null>(null);
+  const revisionLocked = useRef(false);
   const [resolvedSurveyLang,   setResolvedSurveyLang]   = useState<string>(urlLang ?? "en");
   const [resolvedCountryCode,  setResolvedCountryCode]  = useState<string | null>(countryParam || null);
   const [resolvedMarket,       setResolvedMarket]       = useState<string | null>(marketParam);
@@ -306,20 +322,36 @@ function EmbedSurvey() {
     setBrowser(detectBrowser());
   }, []);
   // Group mode: resolve which campaign to serve and fetch its questions
+  // A malformed tag naming two different groups. No endpoint is called, nothing
+  // mounts, and so no evidence path can execute. One structured diagnostic.
   useEffect(() => {
-    if (!groupSlug) return;
+    if (!groupConflict) return;
+    console.warn(CONFLICTING_GROUP_PARAMETERS, {
+      reason: "both ?group= and ?campaign_group= were supplied",
+    });
+    setPhase("unavailable");
+    setGroupReady(false);
+  }, [groupConflict]);
+
+  useEffect(() => {
+    if (!groupSlug || groupConflict) return;
     const gParams = new URLSearchParams({ slug: groupSlug });
     if (countryParam)  gParams.set("country",   countryParam);
     if (marketParam)   gParams.set("market",     marketParam);
     if (publisher)     gParams.set("publisher",  publisher);
     if (urlLang)       gParams.set("lang",       urlLang);
 
-    fetch(`/api/embed/group?${gParams.toString()}`)
+    fetch(`${groupEndpoint(groupRouting)}?${gParams.toString()}`)
       .then(async r => (r.ok ? { data: await r.json(), status: r.status } : { data: null, status: r.status }))
       .then(({ data, status }) => {
         if (data?.campaign_id && data?.questions?.length) {
           setResolvedCampaignId(data.campaign_id);
           setResolvedGroupId(data.group_id ?? groupSlug);
+          // Write-once. The server issues this; the client only repeats it.
+          if (!revisionLocked.current && typeof data.configuration_revision_id === "string") {
+            revisionLocked.current = true;
+            setResolvedRevisionId(data.configuration_revision_id);
+          }
           setResolvedSurveyLang(urlLang ?? data.survey_language ?? "en");
           setResolvedCountryCode(data.country_code ?? (countryParam || null));
           setResolvedMarket(data.market ?? marketParam);
@@ -435,7 +467,7 @@ function EmbedSurvey() {
     );
   }
 
-  if (groupSlug && !groupReady) {
+  if (namesAGroup(groupRouting) && !groupReady) {
     return <div style={{ width: 300, height: 250, background: "transparent" }} />;
   }
 
@@ -529,6 +561,7 @@ function EmbedSurvey() {
         device={device}
         browser={browser}
         groupId={resolvedGroupId}
+        configurationRevisionId={resolvedRevisionId}
         countryCode={resolvedCountryCode}
         market={resolvedMarket}
         surveyLanguage={resolvedSurveyLang}
@@ -577,6 +610,7 @@ function EmbedSurvey() {
         device={device}
         browser={browser}
         groupId={resolvedGroupId}
+        configurationRevisionId={resolvedRevisionId}
         countryCode={resolvedCountryCode}
         market={resolvedMarket}
         surveyLanguage={resolvedSurveyLang}
@@ -618,6 +652,7 @@ function EmbedSurvey() {
         device={device}
         browser={browser}
         groupId={resolvedGroupId}
+        configurationRevisionId={resolvedRevisionId}
         countryCode={resolvedCountryCode}
         market={resolvedMarket}
         surveyLanguage={resolvedSurveyLang}
@@ -648,6 +683,7 @@ function EmbedSurvey() {
       device={device}
       browser={browser}
       groupId={resolvedGroupId}
+      configurationRevisionId={resolvedRevisionId}
       countryCode={resolvedCountryCode}
       market={resolvedMarket}
       surveyLanguage={resolvedSurveyLang}

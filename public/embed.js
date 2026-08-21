@@ -8,6 +8,11 @@
   var attrs = [
     "campaign", "survey", "publisher", "placement", "placement_id",
     "creative_id", "club", "competition", "country", "segment",
+    // A Campaign Group tag names the GROUP rather than one campaign; the group
+    // decides which of its campaigns each impression receives. Purely additive:
+    // the loop below only sets a parameter when its attribute is present, so a
+    // tag without data-campaign-group behaves exactly as it did before.
+    "campaign_group",
   ];
   attrs.forEach(function (attr) {
     var val = script.getAttribute("data-" + attr.replace(/_/g, "-"));
