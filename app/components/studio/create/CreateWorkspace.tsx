@@ -223,7 +223,17 @@ function payloadFor(values: AboutValues, creativeDesign: string | null, canUseCo
   return payload;
 }
 
-export function CreateWorkspace({ surveyId, stage }: { surveyId: string; stage: CreateStageKey }) {
+export function CreateWorkspace({
+  surveyId,
+  stage,
+  // Defaults to FALSE on purpose: a caller that forgets to pass it hides the
+  // capability rather than exposing it. The safe direction is the default one.
+  campaignGroupsEnabled = false,
+}: {
+  surveyId: string;
+  stage: CreateStageKey;
+  campaignGroupsEnabled?: boolean;
+}) {
   const router = useRouter();
   const { user } = useSession();
   // UX projection of the governed Q-10 capability — consumed from the session,
@@ -543,9 +553,9 @@ export function CreateWorkspace({ surveyId, stage }: { surveyId: string; stage: 
           persistNow={persistNow}
         />
       ) : stage === "campaigns" ? (
-        <CampaignsStage surveyId={surveyId} />
+        <CampaignsStage surveyId={surveyId} campaignGroupsEnabled={campaignGroupsEnabled} />
       ) : stage === "deploy" ? (
-        <DeployStage surveyId={surveyId} />
+        <DeployStage surveyId={surveyId} campaignGroupsEnabled={campaignGroupsEnabled} />
       ) : (
         <StagePlaceholder stage={stage} />
       )}

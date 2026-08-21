@@ -58,7 +58,15 @@ const marketName = (code: string) => countryByCode(code)?.name ?? code;
 const INPUT = "px-2.5 py-1.5 text-sm rounded-[var(--radius-control)] border focus:outline-none focus-visible:ring-2 focus-visible:ring-[#D7B87A]";
 const IST = { background: "var(--surface)", borderColor: "var(--border-default)", color: "var(--text-primary)" } as const;
 
-export function CampaignsStage({ surveyId, onReadyChange }: { surveyId: string; onReadyChange?: (ready: boolean) => void }) {
+export function CampaignsStage({
+  surveyId,
+  onReadyChange,
+  campaignGroupsEnabled = false,
+}: {
+  surveyId: string;
+  onReadyChange?: (ready: boolean) => void;
+  campaignGroupsEnabled?: boolean;
+}) {
   const [campaigns, setCampaigns] = useState<StudioCampaign[]>([]);
   const [ctx, setCtx] = useState<Context | null>(null);
   const [phase, setPhase] = useState<"loading" | "ready" | "error">("loading");
@@ -374,8 +382,13 @@ export function CampaignsStage({ surveyId, onReadyChange }: { surveyId: string; 
 
       {/* Campaign groups, built FROM the campaigns configured above. Appended
           after the list because that is the order of the work: configure the
-          campaigns, then group them. Renders nothing destructive on arrival. */}
-      <CampaignGroupsSection surveyId={surveyId} />
+          campaigns, then group them.
+
+          NOT MOUNTED when the capability is off, rather than mounted and hidden:
+          an unmounted component runs no effects, so it cannot fire the candidate
+          or group-list requests either. Everything above this line is unaffected
+          either way. */}
+      {campaignGroupsEnabled && <CampaignGroupsSection surveyId={surveyId} />}
     </div>
   );
 }

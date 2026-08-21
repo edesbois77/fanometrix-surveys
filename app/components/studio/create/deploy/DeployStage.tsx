@@ -34,7 +34,13 @@ const langName = (c: string) => LANGUAGE_DISPLAY_NAMES[c] ?? c;
 const statusLabel = (s: string) => STATUS_META[(s as CampaignStatus)]?.label ?? s;
 const isReady = (c: StudioCampaign) => c.status === "draft" && validateCampaignConfig(c).length === 0;
 
-export function DeployStage({ surveyId }: { surveyId: string }) {
+export function DeployStage({
+  surveyId,
+  campaignGroupsEnabled = false,
+}: {
+  surveyId: string;
+  campaignGroupsEnabled?: boolean;
+}) {
   const router = useRouter();
   const params = useSearchParams();
   const focusSlug = params.get("campaign");
@@ -171,7 +177,7 @@ export function DeployStage({ surveyId }: { surveyId: string }) {
       {/* Group tags, after the individual campaign workspace. A group is a
           different thing to implement: one tag that rotates between several of
           the campaigns above. */}
-      <DeployGroupTags surveyId={surveyId} />
+      {campaignGroupsEnabled && <DeployGroupTags surveyId={surveyId} />}
 
       {confirmItems.length > 0 && <DeployConfirmModal items={confirmItems} busy={busy} onConfirm={doDeploy} onClose={() => { setConfirmItems([]); setConfirmIds([]); }} />}
     </div>
