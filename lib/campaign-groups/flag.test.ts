@@ -255,6 +255,13 @@ describe("condition 4 - legacy Campaign Groups are completely unchanged", () => 
       "app/api/studio/campaign-groups/[id]/route.ts",
       "app/api/studio/campaign-groups/route.ts",
       "app/api/studio/surveys/[id]/group-candidates/route.ts",
+      // The Create workspace resolves the flag SERVER-SIDE and hands the
+      // Campaigns and Deploy stages a plain boolean, so the gated components are
+      // never mounted when the capability is off. Availability is deliberately
+      // not inferred from API 404s: a request can fail for reasons unrelated to
+      // the rollout, and treating those as "off" would let an unrelated outage
+      // hide the interface.
+      "app/survey-studio/create/[surveyId]/page.tsx",
       "app/survey-studio/manage/page.tsx",
       "lib/campaign-groups/flag.ts",
     ], "the gate has reached a surface it was not meant to cover");

@@ -7,6 +7,7 @@
 // reads — this page adds no second access model.
 import { CreateWorkspace } from "@/app/components/studio/create/CreateWorkspace";
 import { isStageKey, DEFAULT_STAGE } from "@/app/components/studio/create/create-stages";
+import { campaignGroupsStudioEnabled } from "@/lib/campaign-groups/flag";
 
 export default async function SurveyStudioCreateWorkspacePage({
   params,
@@ -20,5 +21,17 @@ export default async function SurveyStudioCreateWorkspacePage({
   const raw = Array.isArray(sp.stage) ? sp.stage[0] : sp.stage;
   const stage = isStageKey(raw) ? raw : DEFAULT_STAGE;
 
-  return <CreateWorkspace surveyId={surveyId} stage={stage} />;
+  // Resolved on the SERVER and handed down as a plain boolean, mirroring
+  // /survey-studio/manage. The flag carries no NEXT_PUBLIC_ prefix, so neither
+  // its value nor its NAME reaches the client bundle — the browser is told only
+  // the answer. Availability is never inferred from a 404: a request can fail
+  // for reasons that have nothing to do with the rollout, and treating those as
+  // "feature off" would let an unrelated outage silently hide the interface.
+  return (
+    <CreateWorkspace
+      surveyId={surveyId}
+      stage={stage}
+      campaignGroupsEnabled={campaignGroupsStudioEnabled()}
+    />
+  );
 }
