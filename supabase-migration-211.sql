@@ -19,9 +19,28 @@
 -- revision and its members in ONE transaction: an immediate edit (effective_at =
 -- now()) is already effective when its members land. The rule is therefore
 -- narrower than "no inserts": a member may be inserted into an effective
--- revision only while that revision is being BUILT, in the same transaction.
--- created_at defaults to now(), which is transaction_timestamp(), so a parent
--- from any earlier transaction is strictly older and is refused.
+-- revision only while that revision is still BEING BUILT.
+--
+-- "Still being built" is decided by an UNFORGEABLE, TRANSACTION-SCOPED FACT:
+-- whether the parent revision row has committed yet.
+--
+--   NOT pg_visible_in_snapshot(r.xmin, pg_current_snapshot())
+--
+-- `xmin` is the system-assigned inserting transaction id. No caller can set it,
+-- and it is not a column anyone can write. A row that has not yet committed is
+-- invisible in the current snapshot, which is true for the transaction that
+-- inserted it AND for any subtransaction of it; a row from any earlier committed
+-- transaction is visible, and is refused.
+--
+-- An earlier draft tested the parent's `created_at` against transaction_timestamp().
+-- That was FORGEABLE and was demonstrated to be so: a revision inserted with
+-- created_at = now() + 10 years stayed "recently created" forever, so any later
+-- transaction could keep adding members to an effective configuration. created_at
+-- is caller-supplied data and carries no authority. `xmin` is engine state.
+--
+-- Subtransactions are handled: `xmin` on its own would not be, because a row
+-- inserted inside a plpgsql EXCEPTION block carries the SUBtransaction's id and
+-- would not equal pg_current_xact_id(). Snapshot visibility is correct for both.
 --
 -- Enforced by trigger, NOT by application code: a configuration that governed a
 -- serve must be reconstructable identically forever, and application-level
@@ -71,11 +90,14 @@ AS $freezem$
 DECLARE
   v_rev_id uuid;
   v_effective timestamptz;
-  v_created timestamptz;
+  v_parent_committed boolean;
 BEGIN
   v_rev_id := CASE WHEN TG_OP = 'DELETE' THEN OLD.revision_id ELSE NEW.revision_id END;
 
-  SELECT r.effective_at, r.created_at INTO v_effective, v_created
+  -- `xmin` is engine state, not data: it cannot be supplied, updated or forged.
+  SELECT r.effective_at,
+         pg_visible_in_snapshot(r.xmin::text::xid8, pg_current_snapshot())
+    INTO v_effective, v_parent_committed
     FROM public.campaign_group_revisions r WHERE r.id = v_rev_id;
 
   -- Parent gone (a CASCADE delete from a pending revision) or not yet effective:
@@ -85,8 +107,8 @@ BEGIN
   END IF;
 
   -- The parent is effective. The ONLY legitimate write is an INSERT belonging to
-  -- the transaction that is creating the revision right now — see the header.
-  IF TG_OP = 'INSERT' AND v_created >= transaction_timestamp() THEN
+  -- the transaction still constructing that revision — see the header.
+  IF TG_OP = 'INSERT' AND NOT v_parent_committed THEN
     RETURN NEW;
   END IF;
 
@@ -132,7 +154,19 @@ BEGIN
                     AND (tgtype & 4) > 0) THEN
     RAISE EXCEPTION 'M211 FAILED: the member freeze trigger does not cover INSERT — a row could still be added to an effective revision';
   END IF;
-  RAISE NOTICE 'M211 OK: effective revisions frozen; member rows frozen against INSERT, UPDATE and DELETE.';
+  -- The construction test must rest on engine state, never on caller-supplied
+  -- data. A created_at comparison here was proven forgeable; refuse to ship one.
+  IF NOT EXISTS (SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+                  WHERE n.nspname='public' AND p.proname='fx_cgrm_freeze_effective'
+                    AND p.prosrc LIKE '%pg_visible_in_snapshot%') THEN
+    RAISE EXCEPTION 'M211 FAILED: the member freeze does not use snapshot visibility';
+  END IF;
+  IF EXISTS (SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+              WHERE n.nspname='public' AND p.proname='fx_cgrm_freeze_effective'
+                AND p.prosrc LIKE '%transaction_timestamp%') THEN
+    RAISE EXCEPTION 'M211 FAILED: the member freeze compares a caller-supplied timestamp — that rule is forgeable';
+  END IF;
+  RAISE NOTICE 'M211 OK: effective revisions frozen; member INSERT/UPDATE/DELETE gated on unforgeable snapshot visibility.';
 END
 $assert$;
 
