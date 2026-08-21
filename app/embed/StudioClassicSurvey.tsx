@@ -153,6 +153,9 @@ export interface StudioClassicSurveyProps {
   device: string | null;
   browser: string | null;
   groupId: string | null;
+  /** WP1: the configuration revision the SERVER selected for this serve.
+   *  Echoed on every write, never recomputed, fixed for this iframe's life. */
+  configurationRevisionId: string | null;
   countryCode: string | null;
   market: string | null;
   surveyLanguage: string;
@@ -164,7 +167,7 @@ export function StudioClassicSurvey(props: StudioClassicSurveyProps) {
   const {
     accent = GOLD, branding, questions, thankYouTitle, thankYouBody, isPreview, campaignId, surveyId,
     questionSetId, publisher, placement, placementId, creativeId, club,
-    competition, country, segment, device, browser, groupId, countryCode,
+    competition, country, segment, device, browser, groupId, configurationRevisionId, countryCode,
     market, surveyLanguage, sessionId, urlLang,
     surveyIntroEnabled, introTitle, introBody, introTopic, thankYouEnabled, staticFrame, previewFrame,
   } = props;
@@ -226,6 +229,8 @@ export function StudioClassicSurvey(props: StudioClassicSurveyProps) {
     device: deviceRef.current,
     browser: browserRef.current,
     renderer: "studio-classic",
+    groupId: groupId,
+    configurationRevisionId: configurationRevisionId,
   }), [isPreview, sessionId, campaignId, surveyId, publisher, placement, placementId, creativeId, country, segment, market]);
 
   const sendEvent = useCallback((eventType: string) => {

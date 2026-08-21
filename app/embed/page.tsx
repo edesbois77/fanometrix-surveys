@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, Suspense } from "react";
+import { useState, useEffect, useCallback, useRef, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { ThemedSurvey, type EmbedTheme } from "./ThemedSurvey";
 import { ClassicSurvey } from "./ClassicSurvey";
@@ -264,6 +264,14 @@ function EmbedSurvey() {
   const [serverPreview,      setServerPreview]      = useState(false);
   const [branding,           setBranding]           = useState<string[]>([]);
   const [resolvedGroupId,      setResolvedGroupId]      = useState<string | null>(null);
+  // WP1 — the configuration revision the SERVER chose when it served this
+  // iframe. Captured ONCE and never replaced: if a new revision becomes
+  // effective while a respondent is mid-journey, this journey must stay
+  // attributed to the configuration that actually produced it. The ref is what
+  // enforces that, so a re-run of the resolve effect cannot retag a journey
+  // already in progress.
+  const [resolvedRevisionId,   setResolvedRevisionId]   = useState<string | null>(null);
+  const revisionLocked = useRef(false);
   const [resolvedSurveyLang,   setResolvedSurveyLang]   = useState<string>(urlLang ?? "en");
   const [resolvedCountryCode,  setResolvedCountryCode]  = useState<string | null>(countryParam || null);
   const [resolvedMarket,       setResolvedMarket]       = useState<string | null>(marketParam);
@@ -339,6 +347,11 @@ function EmbedSurvey() {
         if (data?.campaign_id && data?.questions?.length) {
           setResolvedCampaignId(data.campaign_id);
           setResolvedGroupId(data.group_id ?? groupSlug);
+          // Write-once. The server issues this; the client only repeats it.
+          if (!revisionLocked.current && typeof data.configuration_revision_id === "string") {
+            revisionLocked.current = true;
+            setResolvedRevisionId(data.configuration_revision_id);
+          }
           setResolvedSurveyLang(urlLang ?? data.survey_language ?? "en");
           setResolvedCountryCode(data.country_code ?? (countryParam || null));
           setResolvedMarket(data.market ?? marketParam);
@@ -548,6 +561,7 @@ function EmbedSurvey() {
         device={device}
         browser={browser}
         groupId={resolvedGroupId}
+        configurationRevisionId={resolvedRevisionId}
         countryCode={resolvedCountryCode}
         market={resolvedMarket}
         surveyLanguage={resolvedSurveyLang}
@@ -596,6 +610,7 @@ function EmbedSurvey() {
         device={device}
         browser={browser}
         groupId={resolvedGroupId}
+        configurationRevisionId={resolvedRevisionId}
         countryCode={resolvedCountryCode}
         market={resolvedMarket}
         surveyLanguage={resolvedSurveyLang}
@@ -637,6 +652,7 @@ function EmbedSurvey() {
         device={device}
         browser={browser}
         groupId={resolvedGroupId}
+        configurationRevisionId={resolvedRevisionId}
         countryCode={resolvedCountryCode}
         market={resolvedMarket}
         surveyLanguage={resolvedSurveyLang}
@@ -667,6 +683,7 @@ function EmbedSurvey() {
       device={device}
       browser={browser}
       groupId={resolvedGroupId}
+      configurationRevisionId={resolvedRevisionId}
       countryCode={resolvedCountryCode}
       market={resolvedMarket}
       surveyLanguage={resolvedSurveyLang}

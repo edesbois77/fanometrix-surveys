@@ -120,6 +120,10 @@ const ctxFor = (sessionId: string, overrides: Partial<EmbedEvidenceContext> = {}
   device: "mobile",
   browser: "Chrome",
   renderer: "studio-classic",
+  // Non-group traffic by default — the majority case. Studio-group journeys
+  // override these two.
+  groupId: null,
+  configurationRevisionId: null,
   ...overrides,
 });
 

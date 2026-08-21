@@ -169,6 +169,9 @@ export interface ThemedSurveyProps {
   device:         string | null;
   browser:        string | null;
   groupId:        string | null;
+  /** WP1: the configuration revision the SERVER selected for this serve.
+   *  Echoed on every write, never recomputed, fixed for this iframe's life. */
+  configurationRevisionId: string | null;
   countryCode:    string | null;
   market:         string | null;
   surveyLanguage: string;
@@ -779,6 +782,8 @@ export function ThemedSurvey(props: ThemedSurveyProps) {
       device: props.device,
       browser: props.browser,
       renderer: "themed",
+      groupId: props.groupId,
+      configurationRevisionId: props.configurationRevisionId,
     };
   }
 

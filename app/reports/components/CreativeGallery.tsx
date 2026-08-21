@@ -105,6 +105,7 @@ export function CreativeGallery({
                   device={null}
                   browser={null}
                   groupId={null}
+                  configurationRevisionId={null}
                   countryCode={null}
                   market={null}
                   surveyLanguage="en"
@@ -131,6 +132,7 @@ export function CreativeGallery({
                   device={null}
                   browser={null}
                   groupId={null}
+                  configurationRevisionId={null}
                   countryCode={null}
                   market={null}
                   surveyLanguage="en"
