@@ -3,6 +3,7 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 import { requireUser } from "@/lib/auth-server";
 import { visibleResourceIds, canAccess } from "@/lib/access";
 import { validateMembersBelongToProject } from "@/lib/campaign-group-membership";
+import { OWNER_MODEL } from "@/lib/campaign-groups/model";
 
 export async function GET(req: NextRequest) {
   let session;
@@ -20,7 +21,15 @@ export async function GET(req: NextRequest) {
 
   const researchProjectId = req.nextUrl.searchParams.get("research_project_id");
 
-  let groupsQuery = supabaseAdmin.from("campaign_groups").select("*").order("created_at", { ascending: false });
+  // WP1: legacy scope only. A Studio Campaign Group (owner_model
+      // 'survey_studio') keeps its membership inside a configuration revision,
+      // not campaign_group_members, so it must never be returned to, edited by
+      // or counted in a legacy code path. See lib/campaign-groups/model.ts.
+  let groupsQuery = supabaseAdmin
+    .from("campaign_groups")
+    .select("*")
+    .eq("owner_model", OWNER_MODEL.legacy)
+    .order("created_at", { ascending: false });
   if (researchProjectId) groupsQuery = groupsQuery.eq("research_project_id", researchProjectId);
 
   const [
@@ -135,7 +144,8 @@ export async function POST(req: NextRequest) {
 
   const { data: group, error } = await supabaseAdmin
     .from("campaign_groups")
-    .insert([{ ...groupFields, updated_at: new Date().toISOString() }])
+    // Legacy API creates legacy groups, explicitly — never inherit the column default.
+    .insert([{ ...groupFields, owner_model: OWNER_MODEL.legacy, updated_at: new Date().toISOString() }])
     .select()
     .single();
 

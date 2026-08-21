@@ -16,6 +16,7 @@
 // window so junk / probe traffic cannot turn into a database amplifier.
 
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { OWNER_MODEL } from "@/lib/campaign-groups/model";
 
 export type CampaignEvidenceContext = {
   /** campaigns.campaign_id (the embed slug). */
@@ -36,8 +37,25 @@ export type CampaignEvidenceContext = {
    * Recorded now purely so the evidence model is ready for Campaign Groups; nothing
    * in the current product reads it. A campaign in more than one group resolves to
    * the earliest-added membership, deterministically.
+   *
+   * LEGACY ONLY: this is resolved through campaign_group_members, which a Studio
+   * group does not use. A Studio serve carries its group through
+   * configurationRevisionId instead.
    */
   groupId: string | null;
+  /**
+   * WP1. The Studio Campaign Group configuration revision this journey was
+   * served under, when the serve came from /api/embed/studio-group and the
+   * client's claim passed server-side validation.
+   *
+   * A value here means the revision was ELIGIBLE TO GOVERN a serve — it existed,
+   * was not cancelled, and had taken effect. It is NOT proof that this session
+   * received that configuration: WP1 keeps no assignment ledger, so nothing
+   * records the hand-off. Read it as provenance, never as delivery.
+   *
+   * null for every single-campaign and legacy-group journey.
+   */
+  configurationRevisionId: string | null;
 };
 
 type Entry = { value: CampaignEvidenceContext | null; expiresAt: number };
@@ -127,12 +145,20 @@ export async function resolveCampaignEvidenceContext(
       .maybeSingle();
     if (member?.group_id) {
       const { data: grp } = await supabaseAdmin
-        .from("campaign_groups").select("group_id").eq("id", member.group_id).maybeSingle();
+        .from("campaign_groups").select("group_id").eq("id", member.group_id)
+        .eq("owner_model", OWNER_MODEL.legacy).maybeSingle();
       groupId = (grp?.group_id as string | null) ?? null;
     }
   }
 
   const value: CampaignEvidenceContext = {
+    // ALWAYS null in the cached object. The context cache is keyed by campaign
+    // slug and shared across every concurrent session for that campaign, but a
+    // configuration revision is a property of ONE session's serve. Storing it
+    // here would attribute one respondent's answers to another respondent's
+    // configuration for up to the cache TTL. Callers apply their own value to a
+    // copy via withConfigurationRevision() below.
+    configurationRevisionId: null,
     campaignId: campaign.campaign_id as string,
     campaignUuid: campaign.id as string,
     isSimulated: !!campaign.is_simulated,
@@ -145,4 +171,22 @@ export async function resolveCampaignEvidenceContext(
   };
   writeCache(slug, value, now);
   return value;
+}
+
+/**
+ * A per-request copy of a cached context, carrying this session's configuration
+ * revision.
+ *
+ * Returns a NEW object. Mutating the cached context instead would publish one
+ * session's revision to every other session sharing the cache entry — see the
+ * note on configurationRevisionId above. Passing null (a single-campaign or
+ * legacy-group journey) returns the context unchanged, so the common path
+ * allocates nothing.
+ */
+export function withConfigurationRevision(
+  ctx: CampaignEvidenceContext,
+  configurationRevisionId: string | null,
+): CampaignEvidenceContext {
+  if (!configurationRevisionId) return ctx;
+  return { ...ctx, configurationRevisionId };
 }

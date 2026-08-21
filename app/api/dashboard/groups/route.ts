@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth-server";
 import { visibleResourceIds } from "@/lib/access";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { OWNER_MODEL } from "@/lib/campaign-groups/model";
 
 export async function GET(req: NextRequest) {
   let session;
@@ -18,6 +19,7 @@ export async function GET(req: NextRequest) {
   const { data: groups, error } = await supabaseAdmin
     .from("campaign_groups")
     .select("id, group_id, name, campaign_group_members(campaign_id)")
+    .eq("owner_model", OWNER_MODEL.legacy)
     .order("name", { ascending: true });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

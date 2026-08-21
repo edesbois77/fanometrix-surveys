@@ -103,6 +103,11 @@ const OPTIONAL_COLUMNS = [
   "question_id", "canonical_question_key", "group_id", "publisher",
   "placement", "placement_id", "creative_id", "renderer",
   "survey_language", "country_code",
+  // WP1 (migration 213). Which Studio group configuration was serving when this
+  // answer was given. Set only for Studio-group traffic, and only after the
+  // claim has been validated server-side; single-campaign and legacy-group
+  // answers leave it out entirely, exactly as before.
+  "configuration_revision_id",
 ] as const;
 
 /** The migration-200 additions that make a row self-describing. Values that are
@@ -119,6 +124,7 @@ function extendedValues(a: AnswerInput, ctx: CampaignEvidenceContext, client: An
     renderer: client.renderer,
     survey_language: ctx.surveyLanguage,
     country_code: ctx.countryCode,
+    configuration_revision_id: ctx.configurationRevisionId,
   };
   const out: Record<string, string> = {};
   for (const col of OPTIONAL_COLUMNS) {

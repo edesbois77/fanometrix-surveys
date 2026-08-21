@@ -3,14 +3,17 @@
 // filter). Every method here resolves the Active/Current Organisation via
 // requireUser and authorises against surveys.organisation_id, exactly like the
 // survey autosave route. It only ever touches Studio-generated campaigns
-// (campaign_id LIKE 'studio_%') for the given survey, so legacy/live campaigns are
-// never affected.
+// (campaigns.origin = 'survey_studio', migration 208) for the given survey, so
+// legacy/live campaigns are never affected. Provenance moved off the slug prefix
+// because `_` is a LIKE wildcard, so the old 'studio_%' pattern also matched any
+// slug beginning 'studio' plus one character.
 //
 // Depends on migration 186 (campaigns.target_mode). Hand-apply 186 before this
 // route is exercised.
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser, type AuthedUser } from "@/lib/auth-server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { CAMPAIGN_ORIGIN } from "@/lib/campaign-groups/model";
 import { canCreateCommissionedResearch } from "@/lib/survey-create-capability";
 import {
   buildDesiredCampaigns,
@@ -74,7 +77,7 @@ async function listStudioCampaigns(surveyId: string) {
     .from("campaigns")
     .select("id, campaign_id, campaign_name, survey_id, publisher_org_id, market, country_code, survey_language, creative_design, status, target_responses, target_mode, start_date, end_date, updated_at")
     .eq("survey_id", surveyId)
-    .like("campaign_id", `${STUDIO_SLUG_PREFIX}%`)
+    .eq("origin", CAMPAIGN_ORIGIN.studio)
     .is("deleted_at", null)
     .order("publisher_org_id", { ascending: true })
     .order("market", { ascending: true })
@@ -142,7 +145,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   // a user has deliberately cleared their plan down to nothing.
   const { data: existingRows } = await supabaseAdmin
     .from("campaigns").select("campaign_id")
-    .eq("survey_id", survey.id).like("campaign_id", `${STUDIO_SLUG_PREFIX}%`).is("deleted_at", null);
+    .eq("survey_id", survey.id).eq("origin", CAMPAIGN_ORIGIN.studio).is("deleted_at", null);
   const existing = (existingRows ?? []).map((r) => ({ slug: r.campaign_id as string }));
 
   // The explicit distribution plan: an array of { publisherOrgId, countryCode }
@@ -194,7 +197,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   // (which would 500 on the unique constraint — the reported bug).
   const { data: deletedRows } = await supabaseAdmin
     .from("campaigns").select("campaign_id")
-    .eq("survey_id", survey.id).like("campaign_id", `${STUDIO_SLUG_PREFIX}%`).not("deleted_at", "is", null);
+    .eq("survey_id", survey.id).eq("origin", CAMPAIGN_ORIGIN.studio).not("deleted_at", "is", null);
   const deleted = (deletedRows ?? []).map((r) => ({ slug: r.campaign_id as string }));
 
   const plan = reconcile(desired, existing, deleted);
@@ -207,6 +210,10 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   const draftFields = (d: (typeof plan.toCreate)[number]) => ({
     campaign_name: d.campaignName,
     survey_id: d.surveyId,
+    // Provenance is set at creation and never inferred from the slug afterwards.
+    // Migration 208 rejects a survey_studio campaign with no survey_id, so this
+    // and survey_id above must always be written together.
+    origin: CAMPAIGN_ORIGIN.studio,
     research_project_id: null,
     publisher_org_id: d.publisherOrgId,
     brand_org_id: d.brandOrgId,
@@ -313,7 +320,6 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
 
   const body = await req.json().catch(() => ({}));
   const now = new Date().toISOString();
-  const prefix = `${STUDIO_SLUG_PREFIX}%`;
 
   // Per-row form: [{ id, patch }, …]
   if (Array.isArray(body?.updates)) {
@@ -324,7 +330,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
       if ("error" in s) return NextResponse.json({ error: s.error }, { status: 400 });
       const { error } = await supabaseAdmin.from("campaigns")
         .update({ ...s.patch, updated_at: now })
-        .eq("id", String(u.id)).eq("survey_id", survey.id).like("campaign_id", prefix).eq("status", "draft").is("deleted_at", null);
+        .eq("id", String(u.id)).eq("survey_id", survey.id).eq("origin", CAMPAIGN_ORIGIN.studio).eq("status", "draft").is("deleted_at", null);
       if (error) { console.error("[studio-campaigns] per-row update error:", error); return NextResponse.json({ error: "Could not save campaign changes." }, { status: 500 }); }
     }
     return NextResponse.json({ campaigns: await listStudioCampaigns(survey.id), updated: updates.length });
@@ -340,7 +346,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
 
   let q = supabaseAdmin.from("campaigns")
     .update({ ...s.patch, updated_at: now })
-    .in("id", ids).eq("survey_id", survey.id).like("campaign_id", prefix).eq("status", "draft").is("deleted_at", null);
+    .in("id", ids).eq("survey_id", survey.id).eq("origin", CAMPAIGN_ORIGIN.studio).eq("status", "draft").is("deleted_at", null);
   if (ids.length === 1 && expectedUpdatedAt) q = q.eq("updated_at", expectedUpdatedAt);
 
   const { data: updated, error } = await q.select("id");
@@ -371,7 +377,7 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
   const now = new Date().toISOString();
   const { data: removed, error } = await supabaseAdmin.from("campaigns")
     .update({ deleted_at: now, deleted_by: session.workEmail, delete_reason: "Removed in Survey Studio Campaigns", updated_at: now })
-    .in("id", ids).eq("survey_id", survey.id).like("campaign_id", `${STUDIO_SLUG_PREFIX}%`).eq("status", "draft").is("deleted_at", null)
+    .in("id", ids).eq("survey_id", survey.id).eq("origin", CAMPAIGN_ORIGIN.studio).eq("status", "draft").is("deleted_at", null)
     .select("id");
   if (error) {
     console.error("[studio-campaigns] delete error:", error);

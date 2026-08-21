@@ -46,6 +46,7 @@ const CTX: CampaignEvidenceContext = {
   countryCode: "GB",
   surveyLanguage: "en",
   groupId: null,
+  configurationRevisionId: null,
 };
 
 const SESSION = "3f1c0d9e-8b2a-4c6d-9e1f-2a7b5c8d0e34";

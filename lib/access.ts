@@ -10,6 +10,7 @@
 // No permission-template concept — effective access is always the direct
 // combination of role + access scope + user_access_grants rows.
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { OWNER_MODEL } from "@/lib/campaign-groups/model";
 import type { AuthedUser } from "@/lib/auth-server";
 import { operatorVisibleResourceIds, operatorVisibleDataCampaignIds } from "@/lib/authz/operator-access";
 
@@ -152,7 +153,8 @@ async function orgWideResourceIds(organisationId: string, resourceType: Resource
           .from("campaign_groups")
           .select("id")
           .or(`publisher_org_id.eq.${organisationId},brand_org_id.eq.${organisationId},agency_org_id.eq.${organisationId}`)
-          .eq("created_by_admin", false),
+          .eq("created_by_admin", false)
+          .eq("owner_model", OWNER_MODEL.legacy),
         orgWideResourceIds(organisationId, "research_project"),
       ]);
       const ids = new Set<string>((direct ?? []).map(r => r.id as string));
@@ -166,6 +168,7 @@ async function orgWideResourceIds(organisationId: string, resourceType: Resource
         const { data: byProject } = await supabaseAdmin
           .from("campaign_groups")
           .select("id")
+          .eq("owner_model", OWNER_MODEL.legacy)
           .in("research_project_id", projectIds);
         (byProject ?? []).forEach(r => ids.add(r.id as string));
       }

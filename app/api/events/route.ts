@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { allowSessionEvent } from "@/lib/embed-throttle";
 import { isSurveyEventType } from "@/lib/survey-events";
+import { resolveRevisionClaim, resolveSurveyIdForCampaign, looksLikeRevisionId } from "@/lib/campaign-groups/claim";
 
 // Bounds for malformed-payload rejection. Legitimate values are tiny (a session
 // UUID is 36 chars; campaign slugs / publisher names are short), so these caps
@@ -40,6 +41,7 @@ export async function POST(req: NextRequest) {
     session_id, event_type, campaign_id,
     publisher, placement, placement_id, creative_id,
     country, device, browser,
+    configuration_revision_id,
   } = body;
 
   if (!session_id || typeof session_id !== "string" || session_id.length > MAX_SESSION_LEN) {
@@ -60,10 +62,28 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Too many events for this session" }, { status: 429 });
   }
 
+  // ── Configuration provenance (WP1) ─────────────────────────────────────────
+  // Only Studio-group traffic sends configuration_revision_id, so legacy and
+  // single-campaign embeds do exactly the work they did before: no extra query,
+  // no added latency. The claim is validated rather than trusted, and an invalid
+  // claim resolves to NULL instead of failing the write — losing telemetry to
+  // punish a bad id would let anyone suppress evidence by sending junk.
+  let revisionId: string | null = null;
+  let surveyId: string | null = null;
+  if (looksLikeRevisionId(configuration_revision_id)) {
+    revisionId = await resolveRevisionClaim(configuration_revision_id);
+    // survey_id is resolved from the campaign SERVER-SIDE, never read from the
+    // body: a client able to name the survey could attribute its events to
+    // someone else's research.
+    surveyId = await resolveSurveyIdForCampaign(campaign_id);
+  }
+
   const { error } = await supabaseAdmin.from("survey_events").insert({
     session_id,
     event_type,
     campaign_id:  campaign_id  ?? null,
+    ...(revisionId ? { configuration_revision_id: revisionId } : {}),
+    ...(surveyId   ? { survey_id: surveyId } : {}),
     publisher:    publisher    ?? null,
     placement:    placement    ?? null,
     placement_id: placement_id ?? null,

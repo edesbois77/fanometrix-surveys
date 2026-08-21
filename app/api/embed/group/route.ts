@@ -18,6 +18,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { OWNER_MODEL } from "@/lib/campaign-groups/model";
 import { validateSurvey } from "@/lib/survey-validation";
 import { type LangCode, type LocalisedQuestion, type LocalisedText } from "@/lib/survey-locale";
 import { buildEmbedThemeFromState, resolveBrandingLogos, type BuilderState, type BrandingConfig } from "@/lib/creative-theme-builder";
@@ -42,6 +43,11 @@ export async function GET(req: NextRequest) {
     .from("campaign_groups")
     .select("id, status, rotation, start_date, end_date")
     .eq("group_id", slug)
+    // WP1: this endpoint serves LEGACY groups only. A Studio group's members
+    // live in a configuration revision, so serving one here would read an
+    // empty campaign_group_members and 404 with a misleading reason.
+    // /api/embed/studio-group is its counterpart.
+    .eq("owner_model", OWNER_MODEL.legacy)
     .single();
 
   if (groupErr || !group) {

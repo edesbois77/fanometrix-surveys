@@ -7,6 +7,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser, type AuthedUser } from "@/lib/auth-server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { CAMPAIGN_ORIGIN } from "@/lib/campaign-groups/model";
 import { STUDIO_SLUG_PREFIX } from "@/lib/studio/campaign-generation";
 import { computeStatusWithReason, type CampaignForStatus } from "@/lib/campaign-status";
 import {
@@ -44,7 +45,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     .from("campaigns")
     .select("id, campaign_id, campaign_name, publisher_org_id, market, country_code, survey_language, status, manual_status_override, start_date, end_date, target_responses, target_mode, archive_after_days, status_updated_at")
     .eq("survey_id", id)
-    .like("campaign_id", `${STUDIO_SLUG_PREFIX}%`)
+    .eq("origin", CAMPAIGN_ORIGIN.studio)
     .is("deleted_at", null);
   const campaigns = campaignRows ?? [];
   const slugs = campaigns.map((c) => c.campaign_id as string);
