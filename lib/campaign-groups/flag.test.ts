@@ -254,6 +254,7 @@ describe("condition 4 - legacy Campaign Groups are completely unchanged", () => 
       "app/api/studio/campaign-groups/[id]/revisions/route.ts",
       "app/api/studio/campaign-groups/[id]/route.ts",
       "app/api/studio/campaign-groups/route.ts",
+      "app/api/studio/surveys/[id]/group-candidates/route.ts",
       "app/survey-studio/manage/page.tsx",
       "lib/campaign-groups/flag.ts",
     ], "the gate has reached a surface it was not meant to cover");
