@@ -1,4 +1,4 @@
--- Migration 212a: close two gaps in fx_campaign_group_cancel_revision
+-- Migration 212a: close three gaps in fx_campaign_group_cancel_revision
 --
 -- Status: HAND-APPLY. Corrective. Replaces ONE function; no schema change.
 -- Follows migration 212, which is already applied. 212 is left as the historical
@@ -6,7 +6,7 @@
 -- one-migration-one-step.
 --
 -- WHY
--- Verifying 212 in production turned up two things the cancel path got wrong.
+-- Verifying 212 in production turned up three things the cancel path got wrong.
 -- Neither is reachable through the application today, and both were found by
 -- reading and then testing the shipped function, not by review.
 --
